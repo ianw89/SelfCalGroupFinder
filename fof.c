@@ -8,6 +8,7 @@
 #include "nrutil.h"
 #include "kdtree.h"
 #include "groups.h"
+#include "group_center.h"
 
 /* Local functions
  */

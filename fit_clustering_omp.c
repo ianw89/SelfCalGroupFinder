@@ -516,7 +516,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
   char fname[1000];
   int j,n1,imag_offset, imag_mult, istart, iend;
   float nsat, ncen, mass, xg[3],vg[3],xh[3], logm, bfit;
-  struct drand48_data drand_buf;
+  //struct drand48_data drand_buf;
   double r;
   
 
@@ -696,7 +696,7 @@ float N_sat(float m, int imag, int blue_flag)
 
 int poisson_deviate_old(float nave, int thisTask)
 {
-  struct drand48_data drand_buf;
+  //struct drand48_data drand_buf;
   double p,pp;
   double r;
   int n;

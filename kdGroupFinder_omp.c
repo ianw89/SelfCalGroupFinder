@@ -11,6 +11,7 @@
 #include "nrutil.h"
 #include "kdtree.h"
 #include "groups.h"
+#include "fit_clustering_omp.h"
 
 
 struct galaxy *GAL;
