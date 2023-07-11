@@ -29,13 +29,25 @@ omega_chi_L_q=0.48
 #./kdGroupFinder_omp sdss_fluxlim_v1.0.dat $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf $omega_chi_0_sf $omega_chi_0_q $omega_chi_L_sf $omega_chi_L_q > run_all_off_1.out
 
 # ALL MXXL GALAXIES
-name="/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/mxxl_3pass_all"
-if python3 hdf5_to_dat.py "/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/weights_3pass.hdf5" "${name}" ; then
+#name="/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/mxxl_3pass_all"
+#if python3 hdf5_to_dat.py 1 "/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/weights_3pass.hdf5" "${name}" ; then
+#    bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
+#else
+#    echo "HDF5 to DAT conversion failed"
+#fi
+
+# MXXL GALAXIES THAT HAD A FIBER ASSIGNED
+#name="/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/mxxl_3pass_fiberonly"
+#if python3 hdf5_to_dat.py 2 "/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/weights_3pass.hdf5" "${name}" ; then
+#    bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
+#else
+#    echo "HDF5 to DAT conversion failed"
+#fi
+
+# MXXL Nearest Neighbor
+name="/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/mxxl_3pass_nn"
+if python3 hdf5_to_dat.py 3 "/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/weights_3pass.hdf5" "${name}" ; then
     bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
 else
     echo "HDF5 to DAT conversion failed"
 fi
-
-# MXXL GALAXIES THAT HAD A FIBER ASSIGNED
-#name="/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/mxxl_3pass_fiberonly"
-#bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"

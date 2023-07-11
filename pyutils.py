@@ -1,5 +1,10 @@
 import numpy as np
+import math
+import sys
+import astropy.units as u
 from astropy.cosmology import FlatLambdaCDM
+import astropy.coordinates as coord
+
 _cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 
 def app_mag_to_abs_mag(app_mag, z_obs):
@@ -37,3 +42,38 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut):
     # TODO calculate exactly for MXXL
     # can see this from a simple ra dec plot
     return v_max * frac_area
+
+class NearestNeighbor():
+
+    def __init__(self, ra_arr, dec_arr, z_arr):
+        self.ra_angles = coord.Angle(ra_arr * u.degree)
+        self.ra_angles = self.ra_angles.wrap_at(360 * u.degree) # 0 to 2 pi
+        self.ra_angles = self.ra_angles.radian
+        #self.ra_sin = np.sin(self.ra_angles)
+        #self.ra_cos = np.cos(self.ra_angles)
+
+        self.dec_angles = coord.Angle(dec_arr * u.degree)
+        self.dec_angles = self.dec_angles.radian
+        self.dec_sin = np.sin(self.dec_angles)
+        self.dec_cos = np.cos(self.dec_angles)
+
+        self.z_arr = z_arr
+
+
+    def get_z(self, ra, dec):
+        """
+        Finds the nearest neighbor (in term of angular distance) to the provided coordinate, and returns the z value associated with nearest point.
+
+        ra, dec must be in radians.
+        """
+        
+        # TODO might take ~2 days for 1M galaxies with 100,000 needing a nn assignment
+
+        # This could be made faster if we stored the positions in a more intelligent data structure 
+        # so we didn't have to evaluate this for all of them. 
+        # Also if we only had nearby ones to check then small angle version of this would also work.
+    
+        # Compute the angular distance in radians on our database of things to check in one vectorized go
+        dist = np.arccos( np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles) )
+        index = np.argmin(dist)
+        return self.z_arr[index]
