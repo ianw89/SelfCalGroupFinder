@@ -74,6 +74,14 @@ class NearestNeighbor():
         # Also if we only had nearby ones to check then small angle version of this would also work.
     
         # Compute the angular distance in radians on our database of things to check in one vectorized go
+        
         dist = np.arccos( np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles) )
         index = np.argmin(dist)
+        
+        # TODO maybe could do this because minimizing a monotonicly decreasing function 
+        # is the same as maximizing its argument
+        
+        #dist = np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles)
+        #index = np.argmax(dist)        
+        
         return self.z_arr[index]
