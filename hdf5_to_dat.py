@@ -15,10 +15,11 @@ class Mode(Enum):
     ALL = 1 # include all galaxies
     FIBER_ASSIGNED_ONLY = 2 # include only galaxies that were assigned a fiber for FIBER_ASSIGNED_REALIZATION_BITSTRING
     NEAREST_NEIGHBOR = 3 # include all galaxies by assigned galaxies redshifts from their nearest neighbor
+    NEAREST_NEIGHBOR_KDTREE = 4 # include all galaxies by assigned galaxies redshifts from their nearest neighbor
 
 def usage():
     print("Usage: python3 hdf5_to_dat.py [mode] [input_filename].hdf5 [output_filename]")
-    print("  Mode is 1 for ALL, 2 for FIBER_ASSIGNED_ONLY, and 3 for NEAREST_NEIGHBOR")
+    print("  Mode is 1 for ALL, 2 for FIBER_ASSIGNED_ONLY, and 3 for NEAREST_NEIGHBOR, 4 for NEAREST_NEIGHBOR_KDTREE")
     print("  Will generate [output_filename].dat for use with kdGroupFinder and [output_filename]_galprops.dat with additional galaxy properties.")
     print("  These two files will have galaxies indexed in the same way (line-by-line matched).")
 
@@ -88,6 +89,8 @@ def main():
         print("Mode FIBER_ASSIGNED_ONLY")
     elif mode == Mode.NEAREST_NEIGHBOR.value:
         print("Mode NEAREST_NEIGHBOR")
+    elif mode == Mode.NEAREST_NEIGHBOR_KDTREE.value:
+        print("Mode NEAREST_NEIGHBOR_KDTREE")
 
     print("Reading HDF5 data from ", sys.argv[2])
     infile = h5py.File(sys.argv[2], 'r')
@@ -124,6 +127,7 @@ def main():
     galaxy_type = galaxy_type[keep]
     mxxl_halo_mass = mxxl_halo_mass[keep]
     fiber_assigned_0 = fiber_assigned_0[keep]
+    fiber_not_assigned_0 = np.invert(fiber_assigned_0)
 
     count = len(dec)
     print(count, "galaxies left after apparent mag cut at {0}".format(APP_MAG_CUT))
@@ -148,6 +152,27 @@ def main():
                 z_err[i] = abs(z_obs[i] - new_z) * z_obs[i]
                 #print("Large error: {0:.2f} became {1:.2f}".format(z_eff[i], new_z))
                 z_eff[i] = new_z
+    
+    elif mode == Mode.NEAREST_NEIGHBOR_KDTREE.value:
+        # Astropy NN Search with kdtrees
+        catalog = coord.SkyCoord(ra=fiber_assigned_ra*u.degree, dec=fiber_assigned_dec*u.degree, frame='icrs')
+        to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
+
+        idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
+
+        z_eff = np.copy(z_obs)
+
+        # i is the index of the full sized array that needed a NN z value
+        # j is the index along the to_match list corresponding to that
+        # idx are the indexes of the NN from the catalog
+        assert len(indexes_not_assigned) == len(idx)
+
+        j = 0
+        for i in indexes_not_assigned:
+            new_z = fiber_assigned_z_obs[idx[j]]
+            z_err[i] = abs(z_eff[i] - new_z) / z_eff[i]
+            z_eff[i] = new_z
+            j = j + 1
 
     else:
         z_eff = z_obs
@@ -181,7 +206,7 @@ def main():
             else:
                 pass
 
-        elif mode == Mode.ALL.value or mode == Mode.NEAREST_NEIGHBOR.value:
+        else:
             lines_1.append(' '.join(map(str, output_1[i])))
             lines_2.append(' '.join(map(str, output_2[i])))
 

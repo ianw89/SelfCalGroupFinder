@@ -67,7 +67,7 @@ class NearestNeighbor():
         ra, dec must be in radians.
         """
         
-        # TODO might take ~2 days for 1M galaxies with 100,000 needing a nn assignment
+        # TODO takes ~2 days for 1M galaxies with 100,000 needing a nn assignment
 
         # This could be made faster if we stored the positions in a more intelligent data structure 
         # so we didn't have to evaluate this for all of them. 
@@ -75,13 +75,13 @@ class NearestNeighbor():
     
         # Compute the angular distance in radians on our database of things to check in one vectorized go
         
-        dist = np.arccos( np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles) )
-        index = np.argmin(dist)
+        #dist = np.arccos( np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles) )
+        #index = np.argmin(dist)
         
         # TODO maybe could do this because minimizing a monotonicly decreasing function 
         # is the same as maximizing its argument
-        
-        #dist = np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles)
-        #index = np.argmax(dist)        
+
+        measure = np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles)
+        index = np.argmax(measure)        
         
         return self.z_arr[index]
