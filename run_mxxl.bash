@@ -28,34 +28,41 @@ omega_chi_L_q=0.48
 # For reference only
 #./kdGroupFinder_omp sdss_fluxlim_v1.0.dat $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf $omega_chi_0_sf $omega_chi_0_q $omega_chi_L_sf $omega_chi_L_q > run_all_off_1.out
 
-# ALL MXXL GALAXIES
-name="D:\Seagate Backup Plus Drive\galaxy-groups-data\mxxl_3pass_all"
-if python3 hdf5_to_dat.py 1 "D:\Seagate Backup Plus Drive\galaxy-groups-data\weights_3pass.hdf5" "${name}" ; then
-    bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
-else
-    echo "HDF5 to DAT conversion failed"
+ROOT_FOLDER="/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/"
+#ROOT_FOLDER="D:\\galaxy-groups-data\\"
+
+function process_and_group_find () {
+    name=$1
+    rm "${name}_old.dat" "${name}_galprops_old.dat" "${name}_old.out"
+    mv "${name}.dat" "${name}_old.dat"
+    mv "${name}_galprops.dat" "${name}_old_galprops.dat"
+    mv "${name}.out" "${name}_old.out"
+    if python3 hdf5_to_dat.py $2 "${ROOT_FOLDER}weights_3pass.hdf5" "${name}" ; then
+        bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
+    else
+        echo "HDF5 to DAT conversion failed"
+    fi
+}
+
+# MXXL
+run_all=true
+run_fiber_only=true
+run_nn=false
+run_nn_kd=true
+
+if [ "$run_all" = true ] ; then
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all" 1
 fi
 
-# MXXL GALAXIES THAT HAD A FIBER ASSIGNED
-name="D:\Seagate Backup Plus Drive\galaxy-groups-data\mxxl_3pass_fiberonly"
-if python3 hdf5_to_dat.py 2 "D:\Seagate Backup Plus Drive\galaxy-groups-data\weights_3pass.hdf5" "${name}" ; then
-    bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
-else
-    echo "HDF5 to DAT conversion failed"
+if [ "$run_fiber_only" = true ] ; then
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly" 2
 fi
 
-# MXXL Nearest Neighbor
-#name="D:\Seagate Backup Plus Drive\galaxy-groups-data\mxxl_3pass_nn"
-#if python3 hdf5_to_dat.py 3 "D:\Seagate Backup Plus Drive\galaxy-groups-data\weights_3pass.hdf5" "${name}" ; then
-#    bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
-#else
-#    echo "HDF5 to DAT conversion failed"
-#fi
-
-# MXXL KDTREE Nearest Neighbor
-name="D:\Seagate Backup Plus Drive\galaxy-groups-data\mxxl_3pass_nn_kd"
-if python3 hdf5_to_dat.py 4 "D:\Seagate Backup Plus Drive\galaxy-groups-data\weights_3pass.hdf5" "${name}" ; then
-    bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
-else
-    echo "HDF5 to DAT conversion failed"
+if [ "$run_nn" = true ] ; then
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn" 3
 fi
+
+if [ "$run_nn_kd" = true ] ; then
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd" 4
+fi
+

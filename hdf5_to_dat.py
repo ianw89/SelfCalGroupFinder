@@ -108,6 +108,7 @@ def main():
     g_r = infile['Data/g_r'][:]
     galaxy_type = infile['Data/galaxy_type'][:]
     mxxl_halo_mass = infile['Data/halo_mass'][:]
+    mxxl_halo_id = infile['Data/mxxl_id'][:]
     fiber_assigned_0 = infile['Weight/'+BITWORD][:] & FIBER_ASSIGNED_REALIZATION_BITSTRING 
     fiber_assigned_0 = fiber_assigned_0.astype(bool)
     # TODO close file here to keep this pattern going
@@ -126,8 +127,11 @@ def main():
     g_r = g_r[keep]
     galaxy_type = galaxy_type[keep]
     mxxl_halo_mass = mxxl_halo_mass[keep]
+    assigned_halo_mass = np.copy(mxxl_halo_mass)
+    assigned_halo_id = np.copy(mxxl_halo_id)
     fiber_assigned_0 = fiber_assigned_0[keep]
     fiber_not_assigned_0 = np.invert(fiber_assigned_0)
+    indexes_not_assigned = np.argwhere(fiber_not_assigned_0)
 
     count = len(dec)
     print(count, "galaxies left after apparent mag cut at {0}".format(APP_MAG_CUT))
@@ -140,7 +144,7 @@ def main():
     # z_eff: same as z_obs if a fiber was assigned and thus a real redshift measurement was made
     # otherwise, it is an assigned value.
     # nearest neighbor will find the nearest (measured) galaxy and use its redshift.
-    z_err = np.zeros(len(z_obs))
+    #z_err = np.zeros(len(z_obs))
     if mode == Mode.NEAREST_NEIGHBOR.value:
 
         nn = NearestNeighbor(fiber_assigned_ra, fiber_assigned_dec, fiber_assigned_z_obs)
@@ -148,10 +152,13 @@ def main():
 
         for i in range(0, count):
             if not fiber_assigned_0[i]:
-                new_z = nn.get_z(coord.Angle(ra[i]*u.degree).radian, coord.Angle(dec[i]*u.degree).radian)                
-                z_err[i] = abs(z_obs[i] - new_z) * z_obs[i]
+                index = nn.get_closest_index(coord.Angle(ra[i]*u.degree).radian, coord.Angle(dec[i]*u.degree).radian)         
+                new_z = z_obs[index]       
+                #z_err[i] = abs(z_obs[i] - new_z) * z_obs[i]
                 #print("Large error: {0:.2f} became {1:.2f}".format(z_eff[i], new_z))
                 z_eff[i] = new_z
+                assigned_halo_mass[i] = mxxl_halo_mass[index]
+                assigned_halo_id[i] = mxxl_halo_id[index]
     
     elif mode == Mode.NEAREST_NEIGHBOR_KDTREE.value:
         # Astropy NN Search with kdtrees
@@ -170,9 +177,12 @@ def main():
         j = 0
         for i in indexes_not_assigned:
             new_z = fiber_assigned_z_obs[idx[j]]
-            z_err[i] = abs(z_eff[i] - new_z) / z_eff[i]
+            #z_err[i] = abs(z_eff[i] - new_z) / z_eff[i]
             z_eff[i] = new_z
+            assigned_halo_mass[i] = mxxl_halo_mass[idx[j]]
+            assigned_halo_id[i] = mxxl_halo_id[idx[j]]
             j = j + 1
+            
 
     else:
         z_eff = z_obs
@@ -193,7 +203,7 @@ def main():
     
     # Note this copies the data from what was read in from the file
     output_1 = np.column_stack((ra, dec, z_eff, log_L_gal, V_max, colors, chi))
-    output_2 = np.column_stack((app_mag, g_r, galaxy_type, mxxl_halo_mass, fiber_assigned_0))
+    output_2 = np.column_stack((app_mag, g_r, galaxy_type, mxxl_halo_mass, fiber_assigned_0, assigned_halo_mass, z_obs, mxxl_halo_id, assigned_halo_id))
     lines_1 = []
     lines_2 = []
 

@@ -11,7 +11,7 @@ def app_mag_to_abs_mag(app_mag, z_obs):
     """
     Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts.
 
-    TODO this runs slow with astropy units.
+    TODO this runs slowish with astropy units, workaround
     """
     with np.errstate(divide='ignore'): # will be NaN for blueshifted galaxies
         return app_mag - 5*(np.log10(_cosmo.luminosity_distance(z_obs).value * 1E6) - 1)
@@ -39,7 +39,7 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut):
     d_cm = d_l / (1 + z_obs)
     v_max = (d_cm**3) * (4*np.pi/3) # in comoving Mpc^3
     frac_area = 0.35876178702 # 14800 / 41253 which is DESI BGS footprint (see Alex DESI BGS Incompleteness paper) 
-    # TODO calculate exactly for MXXL
+    # TODO calculate exactly for MXXL? But should be this because footprints match
     # can see this from a simple ra dec plot
     return v_max * frac_area
 
@@ -60,14 +60,14 @@ class NearestNeighbor():
         self.z_arr = z_arr
 
 
-    def get_z(self, ra, dec):
+    def get_closest_index(self, ra, dec):
         """
         Finds the nearest neighbor (in term of angular distance) to the provided coordinate, and returns the z value associated with nearest point.
 
         ra, dec must be in radians.
         """
         
-        # TODO takes ~2 days for 1M galaxies with 100,000 needing a nn assignment
+        # Takes ~2 days for 1M galaxies with 100,000 needing a nn assignment
 
         # This could be made faster if we stored the positions in a more intelligent data structure 
         # so we didn't have to evaluate this for all of them. 
@@ -75,13 +75,17 @@ class NearestNeighbor():
     
         # Compute the angular distance in radians on our database of things to check in one vectorized go
         
-        #dist = np.arccos( np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles) )
-        #index = np.argmin(dist)
+        dist = np.arccos( np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles) )
+        index = np.argmin(dist)
+        
+
+         
+        # This below is def wrong
         
         # TODO maybe could do this because minimizing a monotonicly decreasing function 
         # is the same as maximizing its argument
-
-        measure = np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles)
-        index = np.argmax(measure)        
+        # TODO spherical polar vs other ra/dec 
+        #measure = np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles)
+        #index = np.argmax(measure)        
         
-        return self.z_arr[index]
+        return index
