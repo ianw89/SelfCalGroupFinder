@@ -33,7 +33,7 @@ ROOT_FOLDER="/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/"
 
 function process_and_group_find () {
     name=$1
-    rm "${name}_old.dat" "${name}_galprops_old.dat" "${name}_old.out"
+    rm "${name}_old.dat" "${name}_old_galprops.dat" "${name}_old.out"
     mv "${name}.dat" "${name}_old.dat"
     mv "${name}_galprops.dat" "${name}_old_galprops.dat"
     mv "${name}.out" "${name}_old.out"

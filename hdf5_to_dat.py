@@ -127,6 +127,7 @@ def main():
     g_r = g_r[keep]
     galaxy_type = galaxy_type[keep]
     mxxl_halo_mass = mxxl_halo_mass[keep]
+    mxxl_halo_id = mxxl_halo_id[keep]
     assigned_halo_mass = np.copy(mxxl_halo_mass)
     assigned_halo_id = np.copy(mxxl_halo_id)
     fiber_assigned_0 = fiber_assigned_0[keep]
@@ -202,6 +203,7 @@ def main():
     # and then build up a large string to write in one go.
     
     # Note this copies the data from what was read in from the file
+    # TODO ID's are beign written as float not int for some reason, fix
     output_1 = np.column_stack((ra, dec, z_eff, log_L_gal, V_max, colors, chi))
     output_2 = np.column_stack((app_mag, g_r, galaxy_type, mxxl_halo_mass, fiber_assigned_0, assigned_halo_mass, z_obs, mxxl_halo_id, assigned_halo_id))
     lines_1 = []
