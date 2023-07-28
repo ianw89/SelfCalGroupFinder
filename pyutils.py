@@ -7,6 +7,14 @@ import astropy.coordinates as coord
 
 _cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 
+
+def z_to_ldist(z):
+    """
+    Gets the luminosity distance of the provided redshifts in Mpc using MXXL cosmology.
+    """
+    with np.errstate(divide='ignore'): # will be NaN for blueshifted galaxies
+        return _cosmo.luminosity_distance(z).value
+    
 def app_mag_to_abs_mag(app_mag, z_obs):
     """
     Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts.
