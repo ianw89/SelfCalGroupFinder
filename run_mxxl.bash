@@ -51,18 +51,18 @@ run_nn=false
 run_nn_kd=true
 
 if [ "$run_all" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all" 1
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all20" 1
 fi
 
 if [ "$run_fiber_only" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly" 2
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly20" 2
 fi
 
 if [ "$run_nn" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn" 3
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn20" 3
 fi
 
 if [ "$run_nn_kd" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd" 4
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd20" 4
 fi
 

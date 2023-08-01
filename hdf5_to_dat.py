@@ -4,11 +4,12 @@ import sys
 from pyutils import *
 from enum import Enum
 
-APP_MAG_CUT = 19.5
+APP_MAG_CUT = 20.0
 
 # Chooses 1 of the 2048 fiber assignment realizations with this bitstring and BITWORD as 'bitweight[0-31]
 BITWORD = 'bitweight0'
-FIBER_ASSIGNED_REALIZATION_BITSTRING = 1
+BIT_CHOICE = 0
+FIBER_ASSIGNED_SELECTOR = 2**BIT_CHOICE
 
 
 class Mode(Enum):
@@ -109,7 +110,7 @@ def main():
     galaxy_type = infile['Data/galaxy_type'][:]
     mxxl_halo_mass = infile['Data/halo_mass'][:]
     mxxl_halo_id = infile['Data/mxxl_id'][:]
-    fiber_assigned_0 = infile['Weight/'+BITWORD][:] & FIBER_ASSIGNED_REALIZATION_BITSTRING 
+    fiber_assigned_0 = infile['Weight/'+BITWORD][:] & FIBER_ASSIGNED_SELECTOR 
     fiber_assigned_0 = fiber_assigned_0.astype(bool)
     # TODO close file here to keep this pattern going
 
@@ -117,7 +118,7 @@ def main():
     print(orig_count, "galaxies in HDF5 file")
 
     # Filter it all down with the mag cut (and remove blueshifted ones)
-    bright_filter = app_mag < 19.5 # makes a filter array (True/False values)
+    bright_filter = app_mag < APP_MAG_CUT # makes a filter array (True/False values) # TODO
     redshift_filter = z_obs > 0 # makes a filter array (True/False values)
     keep = np.all([bright_filter, redshift_filter], axis=0)
     dec = dec[keep]
@@ -203,7 +204,7 @@ def main():
     # and then build up a large string to write in one go.
     
     # Note this copies the data from what was read in from the file
-    # TODO ID's are beign written as float not int for some reason, fix
+    # TODO ID's are being written as float not int for some reason, fix
     output_1 = np.column_stack((ra, dec, z_eff, log_L_gal, V_max, colors, chi))
     output_2 = np.column_stack((app_mag, g_r, galaxy_type, mxxl_halo_mass, fiber_assigned_0, assigned_halo_mass, z_obs, mxxl_halo_id, assigned_halo_id))
     lines_1 = []
