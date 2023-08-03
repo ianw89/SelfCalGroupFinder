@@ -33,11 +33,11 @@ ROOT_FOLDER="/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/"
 
 function process_and_group_find () {
     name=$1
-    rm "${name}_old.dat" "${name}_old_galprops.dat" "${name}_old.out"
-    mv "${name}.dat" "${name}_old.dat"
-    mv "${name}_galprops.dat" "${name}_old_galprops.dat"
-    mv "${name}.out" "${name}_old.out"
-    if python3 hdf5_to_dat.py $2 "${ROOT_FOLDER}weights_3pass.hdf5" "${name}" ; then
+    rm "${name}_old.dat" "${name}_old_galprops.dat" "${name}_old.out" 2>bin/null
+    mv "${name}.dat" "${name}_old.dat" 2>bin/null
+    mv "${name}_galprops.dat" "${name}_old_galprops.dat" 2>bin/null
+    mv "${name}.out" "${name}_old.out" 2>bin/null
+    if python3 hdf5_to_dat.py $2 $3 "${ROOT_FOLDER}weights_3pass.hdf5" "${name}" ; then
         bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
     else
         echo "HDF5 to DAT conversion failed"
@@ -45,24 +45,34 @@ function process_and_group_find () {
 }
 
 # MXXL
-run_all=true
-run_fiber_only=true
-run_nn=false
-run_nn_kd=true
+run_all=false
+run_all20=false
+run_fiber_only=false
+run_fiber_only20=false
+run_nn_kd=false
+run_nn_kd20=true
+
 
 if [ "$run_all" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all20" 1
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all" 1 19.5
+fi
+
+if [ "$run_all20" = true ] ; then
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all20" 1 20.0
 fi
 
 if [ "$run_fiber_only" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly20" 2
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly" 2 19.5
 fi
 
-if [ "$run_nn" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn20" 3
+if [ "$run_fiber_only20" = true ] ; then
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly20" 2 20.0
 fi
 
 if [ "$run_nn_kd" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd20" 4
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd" 3 19.5
 fi
 
+if [ "$run_nn_kd20" = true ] ; then
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd20" 3 20.0
+fi

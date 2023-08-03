@@ -4,8 +4,6 @@ import sys
 from pyutils import *
 from enum import Enum
 
-APP_MAG_CUT = 20.0
-
 # Chooses 1 of the 2048 fiber assignment realizations with this bitstring and BITWORD as 'bitweight[0-31]
 BITWORD = 'bitweight0'
 BIT_CHOICE = 0
@@ -15,12 +13,11 @@ FIBER_ASSIGNED_SELECTOR = 2**BIT_CHOICE
 class Mode(Enum):
     ALL = 1 # include all galaxies
     FIBER_ASSIGNED_ONLY = 2 # include only galaxies that were assigned a fiber for FIBER_ASSIGNED_REALIZATION_BITSTRING
-    NEAREST_NEIGHBOR = 3 # include all galaxies by assigned galaxies redshifts from their nearest neighbor
-    NEAREST_NEIGHBOR_KDTREE = 4 # include all galaxies by assigned galaxies redshifts from their nearest neighbor
+    NEAREST_NEIGHBOR = 3# include all galaxies by assigned galaxies redshifts from their nearest neighbor
 
 def usage():
-    print("Usage: python3 hdf5_to_dat.py [mode] [input_filename].hdf5 [output_filename]")
-    print("  Mode is 1 for ALL, 2 for FIBER_ASSIGNED_ONLY, and 3 for NEAREST_NEIGHBOR, 4 for NEAREST_NEIGHBOR_KDTREE")
+    print("Usage: python3 hdf5_to_dat.py [mode] [APP_MAG_CUT] [input_filename].hdf5 [output_filename]")
+    print("  Mode is 1 for ALL, 2 for FIBER_ASSIGNED_ONLY, and 3 for NEAREST_NEIGHBOR ")
     print("  Will generate [output_filename].dat for use with kdGroupFinder and [output_filename]_galprops.dat with additional galaxy properties.")
     print("  These two files will have galaxies indexed in the same way (line-by-line matched).")
 
@@ -64,7 +61,7 @@ def main():
     ################
     # ERROR CHECKING
     ################
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
         print("Error 1")
         usage()
         exit(1)
@@ -74,7 +71,7 @@ def main():
         usage()
         exit(2)
 
-    if not sys.argv[2].endswith('.hdf5'):
+    if not sys.argv[3].endswith('.hdf5'):
         print("Error 3")
         usage()
         exit(3)
@@ -85,20 +82,20 @@ def main():
 
     mode = int(sys.argv[1])
     if mode == Mode.ALL.value:
-        print("Mode ALL")
+        print("\nMode ALL")
     elif mode == Mode.FIBER_ASSIGNED_ONLY.value:
-        print("Mode FIBER_ASSIGNED_ONLY")
+        print("\nMode FIBER_ASSIGNED_ONLY")
     elif mode == Mode.NEAREST_NEIGHBOR.value:
-        print("Mode NEAREST_NEIGHBOR")
-    elif mode == Mode.NEAREST_NEIGHBOR_KDTREE.value:
-        print("Mode NEAREST_NEIGHBOR_KDTREE")
+        print("\nMode NEAREST_NEIGHBOR")
 
-    print("Reading HDF5 data from ", sys.argv[2])
-    infile = h5py.File(sys.argv[2], 'r')
+    APP_MAG_CUT = float(sys.argv[2])
+
+    print("Reading HDF5 data from ", sys.argv[3])
+    infile = h5py.File(sys.argv[3], 'r')
     print(list(infile['Data']))
 
-    outname_1 = sys.argv[3]+ ".dat"
-    outname_2 = sys.argv[3] + "_galprops.dat"
+    outname_1 = sys.argv[4]+ ".dat"
+    outname_2 = sys.argv[4] + "_galprops.dat"
     print("Output files will be {0} and {1}".format(outname_1, outname_2))
 
     # read everything we need into memory
@@ -142,27 +139,15 @@ def main():
     fiber_assigned_ra = ra[fiber_assigned_0]
     fiber_assigned_dec = dec[fiber_assigned_0]
     fiber_assigned_z_obs = z_obs[fiber_assigned_0]
+    fiber_assigned__halo_mass_catalog = mxxl_halo_mass[fiber_assigned_0]
+    fiber_assigned__halo_id_catalog = mxxl_halo_id[fiber_assigned_0]
 
     # z_eff: same as z_obs if a fiber was assigned and thus a real redshift measurement was made
     # otherwise, it is an assigned value.
     # nearest neighbor will find the nearest (measured) galaxy and use its redshift.
     #z_err = np.zeros(len(z_obs))
-    if mode == Mode.NEAREST_NEIGHBOR.value:
-
-        nn = NearestNeighbor(fiber_assigned_ra, fiber_assigned_dec, fiber_assigned_z_obs)
-        z_eff = np.copy(z_obs)
-
-        for i in range(0, count):
-            if not fiber_assigned_0[i]:
-                index = nn.get_closest_index(coord.Angle(ra[i]*u.degree).radian, coord.Angle(dec[i]*u.degree).radian)         
-                new_z = z_obs[index]       
-                #z_err[i] = abs(z_obs[i] - new_z) * z_obs[i]
-                #print("Large error: {0:.2f} became {1:.2f}".format(z_eff[i], new_z))
-                z_eff[i] = new_z
-                assigned_halo_mass[i] = mxxl_halo_mass[index]
-                assigned_halo_id[i] = mxxl_halo_id[index]
     
-    elif mode == Mode.NEAREST_NEIGHBOR_KDTREE.value:
+    if mode == Mode.NEAREST_NEIGHBOR.value:
         # Astropy NN Search with kdtrees
         catalog = coord.SkyCoord(ra=fiber_assigned_ra*u.degree, dec=fiber_assigned_dec*u.degree, frame='icrs')
         to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
@@ -176,15 +161,14 @@ def main():
         # idx are the indexes of the NN from the catalog
         assert len(indexes_not_assigned) == len(idx)
 
+        print("Copying over NN properties... ", end='')
         j = 0
         for i in indexes_not_assigned:
-            new_z = fiber_assigned_z_obs[idx[j]]
-            #z_err[i] = abs(z_eff[i] - new_z) / z_eff[i]
-            z_eff[i] = new_z
-            assigned_halo_mass[i] = mxxl_halo_mass[idx[j]]
-            assigned_halo_id[i] = mxxl_halo_id[idx[j]]
-            j = j + 1
-            
+            z_eff[i] = fiber_assigned_z_obs[idx[j]]
+            assigned_halo_mass[i] = fiber_assigned__halo_mass_catalog[idx[j]]
+            assigned_halo_id[i] = fiber_assigned__halo_id_catalog[idx[j]]
+            j = j + 1 
+        print("done")
 
     else:
         z_eff = z_obs
@@ -205,6 +189,8 @@ def main():
     
     # Note this copies the data from what was read in from the file
     # TODO ID's are being written as float not int for some reason, fix
+
+    print("Building output file string... ", end='')
     output_1 = np.column_stack((ra, dec, z_eff, log_L_gal, V_max, colors, chi))
     output_2 = np.column_stack((app_mag, g_r, galaxy_type, mxxl_halo_mass, fiber_assigned_0, assigned_halo_mass, z_obs, mxxl_halo_id, assigned_halo_id))
     lines_1 = []
@@ -224,10 +210,14 @@ def main():
             lines_2.append(' '.join(map(str, output_2[i])))
 
     outstr_1 = "\n".join(lines_1)
-    outstr_2 = "\n".join(lines_2)
+    outstr_2 = "\n".join(lines_2)    
+    print("done")
 
+
+    print("Writing output files... ",end='')
     open(outname_1, 'w').write(outstr_1)
     open(outname_2, 'w').write(outstr_2)
+    print("done")
 
         
 
