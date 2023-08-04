@@ -13,7 +13,8 @@ FIBER_ASSIGNED_SELECTOR = 2**BIT_CHOICE
 class Mode(Enum):
     ALL = 1 # include all galaxies
     FIBER_ASSIGNED_ONLY = 2 # include only galaxies that were assigned a fiber for FIBER_ASSIGNED_REALIZATION_BITSTRING
-    NEAREST_NEIGHBOR = 3# include all galaxies by assigned galaxies redshifts from their nearest neighbor
+    NEAREST_NEIGHBOR = 3 # include all galaxies by assigned galaxies redshifts from their nearest neighbor
+    FANCY = 4# include all galaxies by assigned galaxies redshifts from their nearest neighbor
 
 def usage():
     print("Usage: python3 hdf5_to_dat.py [mode] [APP_MAG_CUT] [input_filename].hdf5 [output_filename]")
@@ -87,6 +88,8 @@ def main():
         print("\nMode FIBER_ASSIGNED_ONLY")
     elif mode == Mode.NEAREST_NEIGHBOR.value:
         print("\nMode NEAREST_NEIGHBOR")
+    elif mode == Mode.FANCY.value:
+        print("\nMode FANCY")
 
     APP_MAG_CUT = float(sys.argv[2])
 
@@ -170,6 +173,20 @@ def main():
             j = j + 1 
         print("done")
 
+    elif mode == Mode.FANCY.value:
+
+        # Astropy NN Search with kdtrees
+        catalog = coord.SkyCoord(ra=fiber_assigned_ra*u.degree, dec=fiber_assigned_dec*u.degree, frame='icrs')
+        to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
+        
+        num_neighbors = 20
+        neighbor_ids = np.zeros(shape=(num_neighbors, len(to_match)), dtype=np.int32) # indexes point to CATALOG locations
+                               
+        for i in range(1, num_neighbors+1):
+            idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=i, storekdtree='mxxl_fiber_assigned_tree')
+            neighbor_ids[i] = idx # TODO is that right?
+            # TODO PICKUP HERE
+
     else:
         z_eff = z_obs
 
@@ -180,8 +197,8 @@ def main():
 
     V_max = get_max_observable_volume(my_abs_mag, z_eff, APP_MAG_CUT)
 
-    colors = np.zeros(count) # TODO compute colors. Use color cut as per Alex's paper.
-    chi = np.zeros(count) # TODO compute chi
+    colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
+    chi = np.zeros(count, dtype=np.int8) # TODO compute chi
 
 
     # To output turn the data into rows, 1 per galaxy (for each of the two files) 
