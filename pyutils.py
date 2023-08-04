@@ -7,6 +7,26 @@ import astropy.coordinates as coord
 
 _cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 
+# The magic numbers in this right now are the ~0.5 NN same-halo points read-off of plots from the MXXL data
+def use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs):
+    adjust = 0
+    if target_prob_obs < 0.60:
+        adjust = 5
+
+    if neighbor_z < 0.1:
+        threshold = 10
+    elif neighbor_z < 0.2:
+        threshold = 20
+    elif neighbor_z < 0.3:
+        threshold = 18
+    else: # z > 0.3
+        threshold = 8
+    
+    if neighbor_ang_dist < (threshold + adjust):
+        return True
+
+    return False
+
 
 def z_to_ldist(z):
     """

@@ -135,6 +135,7 @@ def main():
     fiber_not_assigned_0 = np.invert(fiber_assigned_0)
     indexes_not_assigned = np.argwhere(fiber_not_assigned_0)
 
+
     count = len(dec)
     print(count, "galaxies left after apparent mag cut at {0}".format(APP_MAG_CUT))
     print(np.sum(fiber_assigned_0), "galaxies were assigned a fiber")
@@ -142,8 +143,12 @@ def main():
     fiber_assigned_ra = ra[fiber_assigned_0]
     fiber_assigned_dec = dec[fiber_assigned_0]
     fiber_assigned_z_obs = z_obs[fiber_assigned_0]
-    fiber_assigned__halo_mass_catalog = mxxl_halo_mass[fiber_assigned_0]
-    fiber_assigned__halo_id_catalog = mxxl_halo_id[fiber_assigned_0]
+    fiber_assigned_halo_mass_catalog = mxxl_halo_mass[fiber_assigned_0]
+    fiber_assigned_halo_id_catalog = mxxl_halo_id[fiber_assigned_0]
+
+    with open('bin/prob_obs.npy', 'rb') as f:
+        prob_obs = np.load(f)
+    prob_obs = prob_obs[keep]
 
     # z_eff: same as z_obs if a fiber was assigned and thus a real redshift measurement was made
     # otherwise, it is an assigned value.
@@ -168,8 +173,8 @@ def main():
         j = 0
         for i in indexes_not_assigned:
             z_eff[i] = fiber_assigned_z_obs[idx[j]]
-            assigned_halo_mass[i] = fiber_assigned__halo_mass_catalog[idx[j]]
-            assigned_halo_id[i] = fiber_assigned__halo_id_catalog[idx[j]]
+            assigned_halo_mass[i] = fiber_assigned_halo_mass_catalog[idx[j]]
+            assigned_halo_id[i] = fiber_assigned_halo_id_catalog[idx[j]]
             j = j + 1 
         print("done")
 
@@ -179,14 +184,41 @@ def main():
         catalog = coord.SkyCoord(ra=fiber_assigned_ra*u.degree, dec=fiber_assigned_dec*u.degree, frame='icrs')
         to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
         
-        num_neighbors = 20
-        neighbor_ids = np.zeros(shape=(num_neighbors, len(to_match)), dtype=np.int32) # indexes point to CATALOG locations
-                               
-        for i in range(1, num_neighbors+1):
-            idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=i, storekdtree='mxxl_fiber_assigned_tree')
-            neighbor_ids[i] = idx # TODO is that right?
-            # TODO PICKUP HERE
+        NUM_NEIGHBORS = 20
+        neighbor_indexes = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)), dtype=np.int32) # indexes point to CATALOG locations
+        ang_distances = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)))
 
+        print(f"Finding nearest {NUM_NEIGHBORS} neighbors... ", end='')   
+        for n in range(0, NUM_NEIGHBORS):
+            idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=n+1, storekdtree='mxxl_fiber_assigned_tree')
+            neighbor_indexes[n] = idx # TODO is that right?
+            ang_distances[n] = d2d.to(u.arsec).value
+            # TODO PICKUP HERE
+        print("done")   
+
+
+        print(f"Assinging missing redshifts... ", end='')   
+        nn_used = 0
+        j = 0
+        for i in indexes_not_assigned:
+            neighbors = neighbor_indexes[:,j]
+            neighbors_z = fiber_assigned_z_obs[neighbors]
+            neighbors_ang_dist = ang_distances[:,j]
+            my_prob_obs = prob_obs[i]
+
+            if use_nn(neighbors_z[0], neighbors_ang_dist[0], my_prob_obs):
+                winner_index = neighbors[0]
+                nn_used = nn_used + 1
+            else:
+                # TODO alternative strategy
+                winner_index = neighbors[0]
+
+            z_eff[i] = fiber_assigned_z_obs[winner_index] 
+            assigned_halo_mass[i] = fiber_assigned_halo_mass_catalog[winner_index]
+            assigned_halo_id[i] = fiber_assigned_halo_id_catalog[winner_index]
+            j = j + 1 
+        print("done")   
+        
     else:
         z_eff = z_obs
 
