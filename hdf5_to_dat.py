@@ -142,13 +142,14 @@ def main():
 
     fiber_assigned_ra = ra[fiber_assigned_0]
     fiber_assigned_dec = dec[fiber_assigned_0]
-    fiber_assigned_z_obs = z_obs[fiber_assigned_0]
+    fiber_assigned_z_obs_catalog = z_obs[fiber_assigned_0]
     fiber_assigned_halo_mass_catalog = mxxl_halo_mass[fiber_assigned_0]
     fiber_assigned_halo_id_catalog = mxxl_halo_id[fiber_assigned_0]
 
-    with open('bin/prob_obs.npy', 'rb') as f:
-        prob_obs = np.load(f)
-    prob_obs = prob_obs[keep]
+    # TODO turn back on
+    #with open('bin/prob_obs.npy', 'rb') as f:
+    #   prob_obs = np.load(f)
+    #prob_obs = prob_obs[keep]
 
     # z_eff: same as z_obs if a fiber was assigned and thus a real redshift measurement was made
     # otherwise, it is an assigned value.
@@ -171,14 +172,16 @@ def main():
 
         print("Copying over NN properties... ", end='')
         j = 0
-        for i in indexes_not_assigned:
-            z_eff[i] = fiber_assigned_z_obs[idx[j]]
+        for i in indexes_not_assigned:  
+            z_eff[i] = fiber_assigned_z_obs_catalog[idx[j]]
             assigned_halo_mass[i] = fiber_assigned_halo_mass_catalog[idx[j]]
             assigned_halo_id[i] = fiber_assigned_halo_id_catalog[idx[j]]
             j = j + 1 
         print("done")
 
     elif mode == Mode.FANCY.value:
+        
+        scorer = RedshiftGuesser()
 
         # Astropy NN Search with kdtrees
         catalog = coord.SkyCoord(ra=fiber_assigned_ra*u.degree, dec=fiber_assigned_dec*u.degree, frame='icrs')
@@ -192,32 +195,49 @@ def main():
         for n in range(0, NUM_NEIGHBORS):
             idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=n+1, storekdtree='mxxl_fiber_assigned_tree')
             neighbor_indexes[n] = idx # TODO is that right?
-            ang_distances[n] = d2d.to(u.arsec).value
-            # TODO PICKUP HERE
+            ang_distances[n] = d2d.to(u.arcsec).value
         print("done")   
 
 
         print(f"Assinging missing redshifts... ", end='')   
-        nn_used = 0
+        # TODO don't loop?
+        nn_used = np.zeros(NUM_NEIGHBORS)
         j = 0
         for i in indexes_not_assigned:
             neighbors = neighbor_indexes[:,j]
-            neighbors_z = fiber_assigned_z_obs[neighbors]
+            neighbors_z = fiber_assigned_z_obs_catalog[neighbors]
             neighbors_ang_dist = ang_distances[:,j]
-            my_prob_obs = prob_obs[i]
+            #my_prob_obs = prob_obs[i]
+            my_app_mag = app_mag[i]
 
-            if use_nn(neighbors_z[0], neighbors_ang_dist[0], my_prob_obs):
-                winner_index = neighbors[0]
-                nn_used = nn_used + 1
-            else:
-                # TODO alternative strategy
-                winner_index = neighbors[0]
+            winner_index = -1 # index in the big lists
 
-            z_eff[i] = fiber_assigned_z_obs[winner_index] 
+            scores = scorer.score_neighbors(neighbors_z, neighbors_ang_dist, 0, my_app_mag)
+            winning_num = np.argmax(scores) # first occurance in case of tie means nearer neighbor
+            winner_index = neighbors[winning_num]
+            nn_used[winning_num] = nn_used[winning_num] + 1 # track how many times we use the kth neighbor
+
+            #groups = []
+            #for k in range(len(neighbors)):
+            #    score
+            #    if use_nn(neighbors_z[k], neighbors_ang_dist[k], my_prob_obs):
+            #        winner_index = neighbors[k]
+            #        nn_used[k] = nn_used[k] + 1 # track how many times we use the kth neighbor
+            #        break
+
+
+            if winner_index == -1:
+                # TODO alternative strategy?
+                winner_index = neighbors[0]
+                nn_used[0] = nn_used[0] + 1
+                print(f"Scorer failed to produce a winner for index {i}")
+
+            z_eff[i] = fiber_assigned_z_obs_catalog[winner_index] 
             assigned_halo_mass[i] = fiber_assigned_halo_mass_catalog[winner_index]
             assigned_halo_id[i] = fiber_assigned_halo_id_catalog[winner_index]
             j = j + 1 
         print("done")   
+        print("NN used: ", nn_used)
         
     else:
         z_eff = z_obs

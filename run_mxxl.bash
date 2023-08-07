@@ -50,7 +50,9 @@ run_all20=false
 run_fiber_only=false
 run_fiber_only20=false
 run_nn_kd=false
-run_nn_kd20=true
+run_nn_kd20=false
+run_fancy=true
+run_fancy20=false
 
 
 if [ "$run_all" = true ] ; then
@@ -75,4 +77,12 @@ fi
 
 if [ "$run_nn_kd20" = true ] ; then
     process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd20" 3 20.0
+fi
+
+if [ "$run_fancy" = true ] ; then
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy" 4 19.5
+fi
+
+if [ "$run_fancy20" = true ] ; then
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy20" 4 20.0
 fi

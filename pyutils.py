@@ -7,25 +7,6 @@ import astropy.coordinates as coord
 
 _cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 
-# The magic numbers in this right now are the ~0.5 NN same-halo points read-off of plots from the MXXL data
-def use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs):
-    adjust = 0
-    if target_prob_obs < 0.60:
-        adjust = 5
-
-    if neighbor_z < 0.1:
-        threshold = 10
-    elif neighbor_z < 0.2:
-        threshold = 20
-    elif neighbor_z < 0.3:
-        threshold = 18
-    else: # z > 0.3
-        threshold = 8
-    
-    if neighbor_ang_dist < (threshold + adjust):
-        return True
-
-    return False
 
 
 def z_to_ldist(z):
@@ -71,49 +52,53 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut):
     # can see this from a simple ra dec plot
     return v_max * frac_area
 
-class NearestNeighbor():
 
-    def __init__(self, ra_arr, dec_arr, z_arr):
-        self.ra_angles = coord.Angle(ra_arr * u.degree)
-        self.ra_angles = self.ra_angles.wrap_at(360 * u.degree) # 0 to 2 pi
-        self.ra_angles = self.ra_angles.radian
-        #self.ra_sin = np.sin(self.ra_angles)
-        #self.ra_cos = np.cos(self.ra_angles)
+# The magic numbers in this right now are the ~0.5 NN same-halo points read-off of plots from the MXXL data
+def use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs):
+    adjust = 0
+    if target_prob_obs < 0.60:
+        adjust = 5
 
-        self.dec_angles = coord.Angle(dec_arr * u.degree)
-        self.dec_angles = self.dec_angles.radian
-        self.dec_sin = np.sin(self.dec_angles)
-        self.dec_cos = np.cos(self.dec_angles)
-
-        self.z_arr = z_arr
-
-
-    def get_closest_index(self, ra, dec):
-        """
-        Finds the nearest neighbor (in term of angular distance) to the provided coordinate, and returns the z value associated with nearest point.
-
-        ra, dec must be in radians.
-        """
-        
-        # Takes ~2 days for 1M galaxies with 100,000 needing a nn assignment
-
-        # This could be made faster if we stored the positions in a more intelligent data structure 
-        # so we didn't have to evaluate this for all of them. 
-        # Also if we only had nearby ones to check then small angle version of this would also work.
+    if neighbor_z < 0.1:
+        threshold = 10
+    elif neighbor_z < 0.2:
+        threshold = 20
+    elif neighbor_z < 0.3:
+        threshold = 18
+    else: # z > 0.3
+        threshold = 8
     
-        # Compute the angular distance in radians on our database of things to check in one vectorized go
-        
-        dist = np.arccos( np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles) )
-        index = np.argmin(dist)
-        
+    if neighbor_ang_dist < (threshold + adjust):
+        return True
 
-         
-        # This below is def wrong
-        
-        # TODO maybe could do this because minimizing a monotonicly decreasing function 
-        # is the same as maximizing its argument
-        # TODO spherical polar vs other ra/dec 
-        #measure = np.sin(dec)*self.dec_sin + np.cos(dec)*self.dec_cos*np.cos(ra - self.ra_angles)
-        #index = np.argmax(measure)        
-        
-        return index
+    return False
+
+
+class RedshiftGuesser():
+
+    def __init__(self):
+
+        # These are from MXXL 19.5 cut
+        # TODO use these abs_mag corrections on weights
+        with open('bin/abs_mag_weight.npy', 'rb') as f:
+            self.abs_mag_density = np.load(f)
+            self.abs_mag_bins = np.load(f)
+
+    def score_neighbors(self, neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag):
+        # TODO use z bins and p_obs
+        # TODO consider how me using z from target messes up plots I got this from
+        # this is a line fitting important region of my plots of MXXL Truth data
+        ang_dist_scores = 0.8 - 0.45 * np.min(0, np.log10(neighbors_ang_dist))
+
+        # TODO grouping instead of all individual scores
+
+        # TODO pickup here
+
+        # This will overweight this. Probably will never assign outside -23 to -19.5 Mag
+        implied_abs_mag = app_mag_to_abs_mag(target_app_mag, neighbors_z)
+        abs_mag_bin = np.digitize(implied_abs_mag, self.abs_mag_bins)
+        abs_mag_scores = self.abs_mag_density[abs_mag_bin]
+
+        final_scores = ang_dist_scores * abs_mag_scores
+
+        return final_scores
