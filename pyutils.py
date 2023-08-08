@@ -4,6 +4,9 @@ import sys
 import astropy.units as u
 from astropy.cosmology import FlatLambdaCDM
 import astropy.coordinates as coord
+from datetime import datetime
+import time
+import random
 
 _cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 
@@ -54,7 +57,7 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut):
 
 
 # The magic numbers in this right now are the ~0.5 NN same-halo points read-off of plots from the MXXL data
-def use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs):
+def use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag):
     adjust = 0
     if target_prob_obs < 0.60:
         adjust = 5
@@ -69,30 +72,55 @@ def use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs):
         threshold = 8
     
     if neighbor_ang_dist < (threshold + adjust):
-        return True
+        implied_abs_mag = app_mag_to_abs_mag(target_app_mag, neighbor_z)
+        if -24 < implied_abs_mag and implied_abs_mag < -14:
+            return True
 
     return False
 
 
 class RedshiftGuesser():
 
-    def __init__(self):
+    def __init__(self, num_neighbors):
+
+        self.rng = np.random.default_rng()
+
+        self.nn_used = np.zeros(num_neighbors, dtype=np.int32)
 
         # These are from MXXL 19.5 cut
         # TODO use these abs_mag corrections on weights
         with open('bin/abs_mag_weight.npy', 'rb') as f:
+            # pad the density array with a duplicate of the first value for < first bin, and 0 > last bin
             self.abs_mag_density = np.load(f)
+            self.abs_mag_density = np.insert(self.abs_mag_density, [0,len(self.abs_mag_density)], [self.abs_mag_density[0],0])
             self.abs_mag_bins = np.load(f)
 
+    def __del__(self):
+        t = time.time()
+        with open(f"bin/redshift_guesser_{t}.npy", 'wb') as f:
+            np.save(f, self.nn_used, allow_pickle=False)
+
+        print("NN used: ", self.nn_used)
+
+
     def score_neighbors(self, neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag):
+        """
+        neighbors_z should be their spectroscopic redshifts
+        neighbors_ang_dist should be in arsec
+        target_prob_obs is the probability a fiber was assigned to the target (lost) galaxy
+        target_app_mag is the DESI r-band apparent mag of the target (lost) galaxy
+        """
+
         # TODO use z bins and p_obs
         # TODO consider how me using z from target messes up plots I got this from
-        # this is a line fitting important region of my plots of MXXL Truth data
-        ang_dist_scores = 0.8 - 0.45 * np.min(0, np.log10(neighbors_ang_dist))
 
-        # TODO grouping instead of all individual scores
+        # this is rough line fitting important region of my plots of MXXL Truth data
+        fsuccess = 1.0 - 0.45*np.log10(neighbors_ang_dist)
+        # Ensure all neighbors have a nonzero base score (0.01)so other factors can weigh in
+        MIN_ANGULAR_SCORE = 0.0001 # effectively sets downweighted far away neighbors are
+        ang_dist_scores = np.max(np.stack((fsuccess, np.full(len(fsuccess), MIN_ANGULAR_SCORE)), axis=1), axis=1)
 
-        # TODO pickup here
+        # TODO grouping effects?
 
         # This will overweight this. Probably will never assign outside -23 to -19.5 Mag
         implied_abs_mag = app_mag_to_abs_mag(target_app_mag, neighbors_z)
@@ -102,3 +130,20 @@ class RedshiftGuesser():
         final_scores = ang_dist_scores * abs_mag_scores
 
         return final_scores
+    
+    def choose_winner(self, neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag):
+
+        # TODO try with this on but do need some abs mag limit
+        #k = 0
+        #if use_nn(neighbors_z[k], neighbors_ang_dist[k], target_prob_obs):
+        #    return 0
+
+        scores = self.score_neighbors(neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag)
+
+        # randomly choose a winner uses the scores as a PDF to draw from
+        #i = self.rng.choice(len(neighbors_z), p=scores)
+        i = random.choices(range(len(neighbors_z)), weights=scores)
+        self.nn_used[i] = self.nn_used[i] + 1
+
+        return i
+

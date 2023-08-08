@@ -146,15 +146,14 @@ def main():
     fiber_assigned_halo_mass_catalog = mxxl_halo_mass[fiber_assigned_0]
     fiber_assigned_halo_id_catalog = mxxl_halo_id[fiber_assigned_0]
 
-    # TODO turn back on
-    #with open('bin/prob_obs.npy', 'rb') as f:
-    #   prob_obs = np.load(f)
-    #prob_obs = prob_obs[keep]
+    with open('bin/prob_obs.npy', 'rb') as f:
+       prob_obs = np.load(f)
+    prob_obs = prob_obs[keep]
 
     # z_eff: same as z_obs if a fiber was assigned and thus a real redshift measurement was made
     # otherwise, it is an assigned value.
     # nearest neighbor will find the nearest (measured) galaxy and use its redshift.
-    #z_err = np.zeros(len(z_obs))
+    z_eff = np.copy(z_obs)
     
     if mode == Mode.NEAREST_NEIGHBOR.value:
         # Astropy NN Search with kdtrees
@@ -163,85 +162,70 @@ def main():
 
         idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
 
-        z_eff = np.copy(z_obs)
-
         # i is the index of the full sized array that needed a NN z value
         # j is the index along the to_match list corresponding to that
         # idx are the indexes of the NN from the catalog
         assert len(indexes_not_assigned) == len(idx)
 
-        print("Copying over NN properties... ", end='')
+        print("Copying over NN properties... ", end='\r')
         j = 0
         for i in indexes_not_assigned:  
             z_eff[i] = fiber_assigned_z_obs_catalog[idx[j]]
             assigned_halo_mass[i] = fiber_assigned_halo_mass_catalog[idx[j]]
             assigned_halo_id[i] = fiber_assigned_halo_id_catalog[idx[j]]
             j = j + 1 
-        print("done")
+        print("Copying over NN properties... done")
 
     elif mode == Mode.FANCY.value:
-        
-        scorer = RedshiftGuesser()
+
+        NUM_NEIGHBORS = 10
+        scorer = RedshiftGuesser(NUM_NEIGHBORS)
 
         # Astropy NN Search with kdtrees
         catalog = coord.SkyCoord(ra=fiber_assigned_ra*u.degree, dec=fiber_assigned_dec*u.degree, frame='icrs')
         to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
         
-        NUM_NEIGHBORS = 20
         neighbor_indexes = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)), dtype=np.int32) # indexes point to CATALOG locations
         ang_distances = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)))
 
-        print(f"Finding nearest {NUM_NEIGHBORS} neighbors... ", end='')   
+        print(f"Finding nearest {NUM_NEIGHBORS} neighbors... ", end='\r')   
         for n in range(0, NUM_NEIGHBORS):
             idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=n+1, storekdtree='mxxl_fiber_assigned_tree')
             neighbor_indexes[n] = idx # TODO is that right?
             ang_distances[n] = d2d.to(u.arcsec).value
-        print("done")   
+        print(f"Finding nearest {NUM_NEIGHBORS} neighbors... done")   
 
 
-        print(f"Assinging missing redshifts... ", end='')   
+        print(f"Assinging missing redshifts... ")   
         # TODO don't loop?
-        nn_used = np.zeros(NUM_NEIGHBORS)
         j = 0
-        for i in indexes_not_assigned:
+        for i in indexes_not_assigned:    
+            if j%10000==0:
+                print(f"{j}/{len(to_match)} complete", end='\r')
+
             neighbors = neighbor_indexes[:,j]
             neighbors_z = fiber_assigned_z_obs_catalog[neighbors]
             neighbors_ang_dist = ang_distances[:,j]
-            #my_prob_obs = prob_obs[i]
+            my_prob_obs = prob_obs[i]
             my_app_mag = app_mag[i]
 
-            winner_index = -1 # index in the big lists
-
-            scores = scorer.score_neighbors(neighbors_z, neighbors_ang_dist, 0, my_app_mag)
-            winning_num = np.argmax(scores) # first occurance in case of tie means nearer neighbor
+            winning_num = scorer.choose_winner(neighbors_z, neighbors_ang_dist, my_prob_obs, my_app_mag)
             winner_index = neighbors[winning_num]
-            nn_used[winning_num] = nn_used[winning_num] + 1 # track how many times we use the kth neighbor
 
             #groups = []
             #for k in range(len(neighbors)):
             #    score
             #    if use_nn(neighbors_z[k], neighbors_ang_dist[k], my_prob_obs):
             #        winner_index = neighbors[k]
-            #        nn_used[k] = nn_used[k] + 1 # track how many times we use the kth neighbor
             #        break
-
-
-            if winner_index == -1:
-                # TODO alternative strategy?
-                winner_index = neighbors[0]
-                nn_used[0] = nn_used[0] + 1
-                print(f"Scorer failed to produce a winner for index {i}")
 
             z_eff[i] = fiber_assigned_z_obs_catalog[winner_index] 
             assigned_halo_mass[i] = fiber_assigned_halo_mass_catalog[winner_index]
             assigned_halo_id[i] = fiber_assigned_halo_id_catalog[winner_index]
             j = j + 1 
-        print("done")   
-        print("NN used: ", nn_used)
-        
-    else:
-        z_eff = z_obs
 
+        print(f"{j}/{len(to_match)} complete")
+        
     #abs_mag = infile['Data/abs_mag'][:] # We aren't using these; computing ourselves. 
     # TODO Not sure what the difference is, investigate for completeness
     my_abs_mag = app_mag_to_abs_mag(app_mag, z_eff)

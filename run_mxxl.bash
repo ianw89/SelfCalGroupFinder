@@ -80,9 +80,9 @@ if [ "$run_nn_kd20" = true ] ; then
 fi
 
 if [ "$run_fancy" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy" 4 19.5
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy_1" 4 19.5
 fi
 
 if [ "$run_fancy20" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy20" 4 20.0
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy_1_20" 4 20.0
 fi
