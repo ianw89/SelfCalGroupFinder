@@ -7,8 +7,11 @@ import astropy.coordinates as coord
 from datetime import datetime
 import time
 import random
+from scipy import special
 
 _cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
+def get_MXXL_cosmology():
+    return _cosmo
 
 SIM_Z_THRESH = 0.003
 # TODO smarter
@@ -59,33 +62,139 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut):
     return v_max * frac_area
 
 
-# The magic numbers in this right now are the ~0.5 NN same-halo points read-off of plots from the MXXL data
-def use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag):
-    adjust = 0
-    if target_prob_obs < 0.60:
-        adjust = 5
+def build_app_mag_to_z_map(app_mag, z_obs):
+    _NBINS = 100
+    app_mag_bins = np.linspace(min(app_mag), max(app_mag), _NBINS)
 
-    if neighbor_z < 0.1:
-        threshold = 10
-    elif neighbor_z < 0.2:
-        threshold = 20
-    elif neighbor_z < 0.3:
-        threshold = 18
-    else: # z > 0.3
-        threshold = 8
-    
-    if neighbor_ang_dist < (threshold + adjust):
-        implied_abs_mag = app_mag_to_abs_mag(target_app_mag, neighbor_z)
-        if -24 < implied_abs_mag and implied_abs_mag < -14:
-            return True
+    app_mag_indices = np.digitize(app_mag, app_mag_bins)
 
-    return False
+    the_map = {}
+    for bin_i in range(1,len(app_mag_bins)+1):
+        this_bin_redshifts = z_obs[app_mag_indices == bin_i]
+        the_map[bin_i] = this_bin_redshifts
+
+    # for app mags smaller than the smallest we have, use the z distribution of the one right above it
+    the_map[0] = the_map[1]
+
+    #print(f"App Mag Building Complete: {the_map}")
+
+    return app_mag_bins, the_map
+
+
 
 
 class RedshiftGuesser():
 
+    def __enter__(self):
+        np.set_printoptions(precision=4, suppress=True)
+        return self
+    
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        np.set_printoptions(precision=8, suppress=False)
+
+    def choose_winner(self, neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag, target_z_true):
+        pass
+
+
+def get_NN_50_line(z, t_Pobs):
+    """
+    Gets the angular distance at which, according to MXXL, a target with the given Pobs will be in the same halo
+    as a nearest neighbor at reshift z.
+    """
+    FIT_SHIFT_RIGHT = [15,20,20,20,25,25,35,40]
+    FIT_SCALE = [10,10,10,10,10,10,10,10]
+    FIT_SHIFT_UP = [0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5]
+    FIT_SQUEEZE = [1.3,1.3,1.3,1.3,1.4,1.4,1.5,1.5]
+    base = [1.16,1.16,1.16,1.16,1.12,1.12,1.08,1.08]
+    zb = np.digitize(z, SimpleRedshiftGuesser.z_bins)
+
+    # for higher and lower z bit just use simple cut
+    if zb in [0,6,7]:
+        return np.full(t_Pobs.shape, 10)
+    #if zb == 7:
+    #    return np.full(t_Pobs.shape, 10)
+
+    erf_in = FIT_SQUEEZE[zb]*(t_Pobs - FIT_SHIFT_UP[zb])
+
+    # for middle ones use exponentiated inverse erf to get the curve 
+    exponent = FIT_SHIFT_RIGHT[zb] - FIT_SCALE[zb]*special.erfinv(erf_in)
+    arcsecs = base[zb]**exponent
+    return arcsecs
+
+
+
+
+class SimpleRedshiftGuesser(RedshiftGuesser):
+
+    z_bins = [0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.36, 1.0]     
+
+    def __init__(self, app_mags, z_obs, debug=False):
+        print("Initializing v1 of SimpleRedshiftGuesser")
+        self.debug = debug
+        self.rng = np.random.default_rng()
+        self.quick_nn = 0
+        self.quick_correct = 0
+        self.random_choice = 0
+        self.random_correct = 0
+
+        self.app_mag_bins, self.app_mag_map = build_app_mag_to_z_map(app_mags, z_obs)
+
+    def __enter__(self):
+        return super().__enter__()
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        t = time.time()
+        with open(f"bin/simpple_redshift_guesser_{t}.npy", 'wb') as f:
+            np.save(f, self.quick_nn, allow_pickle=False)
+            np.save(f, self.quick_correct, allow_pickle=False)
+        
+        # TODO adding 1 to denominator hack
+        print(f"Quick NN uses: {self.quick_nn}. Success: {self.quick_correct / (self.quick_nn+1)}")
+        print(f"Random draw uses: {self.random_choice}. Success: {self.random_correct / (self.random_choice+1)}")
+        
+        super().__exit__(exc_type,exc_value,exc_tb)
+
+
+    def use_nn(self, neighbor_z, neighbor_ang_dist, target_pobs):
+        angular_threshold = get_NN_50_line(neighbor_z, target_pobs)
+
+        if self.debug:
+            print(f"Threshold {angular_threshold}\". Nearest neighbor is {neighbor_z}\".")
+
+        return neighbor_ang_dist < angular_threshold
+
+    def choose_redshift(self, neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag, target_z_true):
+        if self.debug:
+            print(f"\nNew call to choose_winner")
+
+        # Determine if we should use NN    
+        if self.use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs):
+            if close_enough(target_z_true, neighbor_z):
+                self.quick_correct += 1
+            self.quick_nn += 1
+            if self.debug:
+                print(f"Used quick NN. True z={target_z_true}. NN: z={neighbor_z}, ang dist={neighbor_ang_dist}")
+            return neighbor_z, True
+
+        # Otherwise draw a random redshift from the apparent mag bin similar to the target
+        bin_i = np.digitize(target_app_mag, self.app_mag_bins)
+        z_chosen = self.rng.choice(self.app_mag_map[bin_i[0]])
+        #z_chosen = random.choice(self.app_mag_map.get(bin_i[0]))
+        self.random_choice += 1
+
+        if close_enough(target_z_true, z_chosen):
+            self.random_correct += 1
+        return z_chosen, False
+
+
+
+
+
+
+class FancyRedshiftGuesser(RedshiftGuesser):
+
     def __init__(self, num_neighbors, debug=False):
-        print("Initializing v6 of RedshiftGuesser")
+        print("Initializing v6 of FancyRedshiftGuesser")
         self.debug = debug
         self.rng = np.random.default_rng()
 
@@ -102,8 +211,7 @@ class RedshiftGuesser():
             self.abs_mag_bins = np.load(f)
 
     def __enter__(self):
-        np.set_printoptions(precision=4, suppress=True)
-        return self
+        return super().__enter__()
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         t = time.time()
@@ -118,8 +226,30 @@ class RedshiftGuesser():
         print(f"Quick NN uses: {self.quick_nn}. Success: {self.quick_correct / (self.quick_nn+1)}")
         print(f"NN bin uses: {self.nn_used}. Success: {self.nn_correct / (self.nn_used+1)}")
         
-        np.set_printoptions(precision=8, suppress=False)
+        super().__exit__(exc_type,exc_value,exc_tb)
 
+
+    # The magic numbers in this right now are the ~0.5 NN same-halo points read-off of plots from the MXXL data
+    def use_nn(self, neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag):
+        adjust = 0
+        if target_prob_obs < 0.60:
+            adjust = 5
+
+        if neighbor_z < 0.1:
+            threshold = 10
+        elif neighbor_z < 0.2:
+            threshold = 20
+        elif neighbor_z < 0.3:
+            threshold = 18
+        else: # z > 0.3
+            threshold = 8
+        
+        if neighbor_ang_dist < (threshold + adjust):
+            implied_abs_mag = app_mag_to_abs_mag(target_app_mag, neighbor_z)
+            if -24 < implied_abs_mag and implied_abs_mag < -14:
+                return True
+
+        return False
 
     def score_neighbors(self, neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag):
         """
@@ -173,7 +303,7 @@ class RedshiftGuesser():
             print(f"\nNew call to choose_winner")
             
         k = 0
-        if use_nn(neighbors_z[k], neighbors_ang_dist[k], target_prob_obs, target_app_mag):
+        if self.use_nn(neighbors_z[k], neighbors_ang_dist[k], target_prob_obs, target_app_mag):
             if close_enough(target_z_true, neighbors_z[k]):
                 self.quick_correct += 1
             self.quick_nn += 1
