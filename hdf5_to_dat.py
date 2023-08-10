@@ -179,55 +179,48 @@ def main():
     elif mode == Mode.FANCY.value:
 
         NUM_NEIGHBORS = 10
-        scorer = RedshiftGuesser(NUM_NEIGHBORS)
+        with RedshiftGuesser(NUM_NEIGHBORS) as scorer:
 
-        # Astropy NN Search with kdtrees
-        catalog = coord.SkyCoord(ra=fiber_assigned_ra*u.degree, dec=fiber_assigned_dec*u.degree, frame='icrs')
-        to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
-        
-        neighbor_indexes = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)), dtype=np.int32) # indexes point to CATALOG locations
-        ang_distances = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)))
+            # Astropy NN Search with kdtrees
+            catalog = coord.SkyCoord(ra=fiber_assigned_ra*u.degree, dec=fiber_assigned_dec*u.degree, frame='icrs')
+            to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
+            
+            neighbor_indexes = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)), dtype=np.int32) # indexes point to CATALOG locations
+            ang_distances = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)))
 
-        print(f"Finding nearest {NUM_NEIGHBORS} neighbors... ", end='\r')   
-        for n in range(0, NUM_NEIGHBORS):
-            idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=n+1, storekdtree='mxxl_fiber_assigned_tree')
-            neighbor_indexes[n] = idx # TODO is that right?
-            ang_distances[n] = d2d.to(u.arcsec).value
-        print(f"Finding nearest {NUM_NEIGHBORS} neighbors... done")   
+            print(f"Finding nearest {NUM_NEIGHBORS} neighbors... ", end='\r')   
+            for n in range(0, NUM_NEIGHBORS):
+                idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=n+1, storekdtree='mxxl_fiber_assigned_tree')
+                neighbor_indexes[n] = idx # TODO is that right?
+                ang_distances[n] = d2d.to(u.arcsec).value
+            print(f"Finding nearest {NUM_NEIGHBORS} neighbors... done")   
 
 
-        print(f"Assinging missing redshifts... ")   
-        # TODO don't loop?
-        j = 0
-        for i in indexes_not_assigned:    
-            if j%10000==0:
-                print(f"{j}/{len(to_match)} complete", end='\r')
+            print(f"Assinging missing redshifts... ")   
+            # TODO don't loop?
+            j = 0
+            for i in indexes_not_assigned:    
+                if j%10000==0:
+                    print(f"{j}/{len(to_match)} complete", end='\r')
 
-            neighbors = neighbor_indexes[:,j]
-            neighbors_z = fiber_assigned_z_obs_catalog[neighbors]
-            neighbors_ang_dist = ang_distances[:,j]
-            my_prob_obs = prob_obs[i]
-            my_app_mag = app_mag[i]
+                neighbors = neighbor_indexes[:,j]
+                neighbors_z = fiber_assigned_z_obs_catalog[neighbors]
+                neighbors_ang_dist = ang_distances[:,j]
+                my_prob_obs = prob_obs[i]
+                my_app_mag = app_mag[i]
 
-            winning_num = scorer.choose_winner(neighbors_z, neighbors_ang_dist, my_prob_obs, my_app_mag)
-            winner_index = neighbors[winning_num]
+                winning_num = scorer.choose_winner(neighbors_z, neighbors_ang_dist, my_prob_obs, my_app_mag, z_obs[i])
+                winner_index = neighbors[winning_num]
 
-            #groups = []
-            #for k in range(len(neighbors)):
-            #    score
-            #    if use_nn(neighbors_z[k], neighbors_ang_dist[k], my_prob_obs):
-            #        winner_index = neighbors[k]
-            #        break
+                z_eff[i] = fiber_assigned_z_obs_catalog[winner_index] 
+                assigned_halo_mass[i] = fiber_assigned_halo_mass_catalog[winner_index]
+                assigned_halo_id[i] = fiber_assigned_halo_id_catalog[winner_index]
+                j = j + 1 
 
-            z_eff[i] = fiber_assigned_z_obs_catalog[winner_index] 
-            assigned_halo_mass[i] = fiber_assigned_halo_mass_catalog[winner_index]
-            assigned_halo_id[i] = fiber_assigned_halo_id_catalog[winner_index]
-            j = j + 1 
-
-        print(f"{j}/{len(to_match)} complete")
+            print(f"{j}/{len(to_match)} complete")
         
     #abs_mag = infile['Data/abs_mag'][:] # We aren't using these; computing ourselves. 
-    # TODO Not sure what the difference is, investigate for completeness
+    # TODO Mine are missing k-corrections
     my_abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
     log_L_gal = abs_mag_r_to_log_solar_L(my_abs_mag)
 

@@ -10,7 +10,10 @@ import random
 
 _cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 
-
+SIM_Z_THRESH = 0.003
+# TODO smarter
+def close_enough(target_z, z_arr, threshold=SIM_Z_THRESH):
+    return np.abs(z_arr - target_z) < threshold
 
 def z_to_ldist(z):
     """
@@ -81,26 +84,41 @@ def use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag):
 
 class RedshiftGuesser():
 
-    def __init__(self, num_neighbors):
-
+    def __init__(self, num_neighbors, debug=False):
+        print("Initializing v6 of RedshiftGuesser")
+        self.debug = debug
         self.rng = np.random.default_rng()
 
         self.nn_used = np.zeros(num_neighbors, dtype=np.int32)
+        self.nn_correct = np.zeros(num_neighbors, dtype=np.int32)
+        self.quick_nn = 0
+        self.quick_correct = 0
 
         # These are from MXXL 19.5 cut
-        # TODO use these abs_mag corrections on weights
         with open('bin/abs_mag_weight.npy', 'rb') as f:
             # pad the density array with a duplicate of the first value for < first bin, and 0 > last bin
             self.abs_mag_density = np.load(f)
             self.abs_mag_density = np.insert(self.abs_mag_density, [0,len(self.abs_mag_density)], [self.abs_mag_density[0],0])
             self.abs_mag_bins = np.load(f)
 
-    def __del__(self):
+    def __enter__(self):
+        np.set_printoptions(precision=4, suppress=True)
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
         t = time.time()
         with open(f"bin/redshift_guesser_{t}.npy", 'wb') as f:
+            np.save(f, self.quick_nn, allow_pickle=False)
+            np.save(f, self.quick_correct, allow_pickle=False)
             np.save(f, self.nn_used, allow_pickle=False)
+            np.save(f, self.nn_correct, allow_pickle=False)
+        
 
-        print("NN used: ", self.nn_used)
+        # TODO adding 1 to denominator hack
+        print(f"Quick NN uses: {self.quick_nn}. Success: {self.quick_correct / (self.quick_nn+1)}")
+        print(f"NN bin uses: {self.nn_used}. Success: {self.nn_correct / (self.nn_used+1)}")
+        
+        np.set_printoptions(precision=8, suppress=False)
 
 
     def score_neighbors(self, neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag):
@@ -119,31 +137,68 @@ class RedshiftGuesser():
         # Ensure all neighbors have a nonzero base score (0.01)so other factors can weigh in
         MIN_ANGULAR_SCORE = 0.0001 # effectively sets downweighted far away neighbors are
         ang_dist_scores = np.max(np.stack((fsuccess, np.full(len(fsuccess), MIN_ANGULAR_SCORE)), axis=1), axis=1)
+        if self.debug:
+            print(f"Angular Distance scores: {ang_dist_scores}")
 
+        # Form groups 
         # TODO grouping effects?
+        # Scale the nearest neighbor in the group's score by the number of neighbors in that group
+        # Remove the other ones in a group from the pool by setting the score to 0
+        grouped_scores = np.copy(ang_dist_scores)
+        #group_z = np.copy(neighbors_z)
+        for i in range(0, len(neighbors_z)):
+            for j in range(len(neighbors_z)-1, 0, -1):
+                if grouped_scores[j] > 0 and grouped_scores[i] > 0 and i!=j:
+                    if close_enough(neighbors_z[i], neighbors_z[j]):
+                        grouped_scores[j] = 0 # remove from the pool
+                        grouped_scores[i] += ang_dist_scores[i] 
 
-        # This will overweight this. Probably will never assign outside -23 to -19.5 Mag
+        if self.debug:
+            print(f"Grouped scores: {grouped_scores}")                
+
+        # Let implied abs mag weigh group. 
+        # TODO Issue: Overweighting? see plot of results vs truth
         implied_abs_mag = app_mag_to_abs_mag(target_app_mag, neighbors_z)
         abs_mag_bin = np.digitize(implied_abs_mag, self.abs_mag_bins)
         abs_mag_scores = self.abs_mag_density[abs_mag_bin]
+        if self.debug:
+            print(f"abs_mag_scores scores: {abs_mag_scores}")   
 
-        final_scores = ang_dist_scores * abs_mag_scores
+        final_scores = grouped_scores * abs_mag_scores
 
         return final_scores
     
-    def choose_winner(self, neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag):
-
-        # TODO try with this on but do need some abs mag limit
-        #k = 0
-        #if use_nn(neighbors_z[k], neighbors_ang_dist[k], target_prob_obs):
-        #    return 0
+    def choose_winner(self, neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag, target_z_true):
+        if self.debug:
+            print(f"\nNew call to choose_winner")
+            
+        k = 0
+        if use_nn(neighbors_z[k], neighbors_ang_dist[k], target_prob_obs, target_app_mag):
+            if close_enough(target_z_true, neighbors_z[k]):
+                self.quick_correct += 1
+            self.quick_nn += 1
+            if self.debug:
+                print(f"Used quick NN. True z={target_z_true}. NN: z={neighbors_z[k]}, ang dist={neighbors_ang_dist[k]}")
+            return 0
 
         scores = self.score_neighbors(neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag)
 
-        # randomly choose a winner uses the scores as a PDF to draw from
+        if self.debug:
+            print(f"Scores: {scores}")
+
+        # Randomly choose a winner uses the scores as a PDF to draw from
         #i = self.rng.choice(len(neighbors_z), p=scores)
-        i = random.choices(range(len(neighbors_z)), weights=scores)
+        #i = random.choices(range(len(neighbors_z)), weights=scores)
+
+        # ... or choose maximal score
+        i = np.argmax(scores)
+
+
+        if close_enough(target_z_true, neighbors_z[i]):
+            self.nn_correct[i] += 1
         self.nn_used[i] = self.nn_used[i] + 1
+        if self.debug:
+            print(f"Used scoring. True z={target_z_true}. NN {i}: z={neighbors_z[i]}, ang dist={neighbors_ang_dist[i]}")
 
         return i
 
