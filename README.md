@@ -1,5 +1,10 @@
 # SelfCalGroupFinder
 
+Requires:
+- Clone https://github.com/amjsmith/hodpy/tree/master/hodpy
+- Various common python packages (tested on Python 3.9)
+- pip3 install Cython, nbodykit, scipy, numpy, jupyter, astropy
+
 Basic Usage:
 kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out
 

@@ -8,6 +8,11 @@ from datetime import datetime
 import time
 import random
 from scipy import special
+#print(sys.path)
+#sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
+#from hodpy.cosmology import CosmologyMXXL
+#from hodpy.k_correction import GAMA_KCorrection
+
 
 _cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 def get_MXXL_cosmology():
@@ -25,7 +30,7 @@ def z_to_ldist(z):
     with np.errstate(divide='ignore'): # will be NaN for blueshifted galaxies
         return _cosmo.luminosity_distance(z).value
     
-def app_mag_to_abs_mag(app_mag, z_obs):
+def app_mag_to_abs_mag(app_mag, z_obs, colour):
     """
     Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts.
 
@@ -34,6 +39,15 @@ def app_mag_to_abs_mag(app_mag, z_obs):
     with np.errstate(divide='ignore'): # will be NaN for blueshifted galaxies
         return app_mag - 5*(np.log10(_cosmo.luminosity_distance(z_obs).value * 1E6) - 1)
 
+
+def app_mag_to_abs_mag_k(app_mag, z_obs, colour):
+    """
+    Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts.
+    """
+    pass
+    #cosmo = CosmologyMXXL()
+    #kcorr = GAMA_KCorrection(cosmo)
+    #return kcorr.absolute_magnitude(app_mag, z_obs, colour)
 
 SOLAR_L_R_BAND = 4.65
 def abs_mag_r_to_log_solar_L(arr):
@@ -129,7 +143,7 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
     z_bins = [0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.36, 1.0]     
 
     def __init__(self, app_mags, z_obs, debug=False):
-        print("Initializing v1 of SimpleRedshiftGuesser")
+        print("Initializing v2 of SimpleRedshiftGuesser")
         self.debug = debug
         self.rng = np.random.default_rng()
         self.quick_nn = 0
