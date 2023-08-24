@@ -37,7 +37,7 @@ function process_and_group_find () {
     mv "${name}.dat" "${name}_old.dat" 2>bin/null
     mv "${name}_galprops.dat" "${name}_old_galprops.dat" 2>bin/null
     mv "${name}.out" "${name}_old.out" 2>bin/null
-    if python3 hdf5_to_dat.py $2 $3 "${ROOT_FOLDER}weights_3pass.hdf5" "${name}" ; then
+    if python3 hdf5_to_dat.py $2 $3 $4 "${ROOT_FOLDER}weights_3pass.hdf5" "${name}" ; then
         bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
     else
         echo "HDF5 to DAT conversion failed"
@@ -49,50 +49,55 @@ run_all=false
 run_all20=false
 run_fiber_only=false
 run_fiber_only20=false
-run_nn_kd=false
+run_nn_kd=false 
 run_nn_kd20=false
 run_fancy=false
 run_fancy20=false
-run_simple=false
+run_simple=true
 run_simple20=true
+run_simple_mix=false
 
 
 if [ "$run_all" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all" 1 19.5
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all" 1 19.5 19.5
 fi
 
 if [ "$run_all20" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all20" 1 20.0
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all20" 1 20.0 20.0
 fi
 
 if [ "$run_fiber_only" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly" 2 19.5
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly" 2 19.5 19.5
 fi
 
 if [ "$run_fiber_only20" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly20" 2 20.0
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly20" 2 20.0 20.0
 fi
 
 if [ "$run_nn_kd" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd" 3 19.5
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd" 3 19.5 19.5
 fi
 
 if [ "$run_nn_kd20" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd20" 3 20.0
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd20" 3 20.0 20.0
 fi
 
 if [ "$run_fancy" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy_6" 4 19.5
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy_6" 4 19.5 19.5
 fi
 
 if [ "$run_fancy20" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy_6_20" 4 20.0
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy_6_20" 4 20.0 20.0
 fi
 
 if [ "$run_simple" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_simple_1" 5 19.5
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_simple_3" 5 19.5 19.5
 fi
 
 if [ "$run_simple20" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_simple_1_20" 5 20.0
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_simple_3_20" 5 20.0 20.0
+fi
+
+if [ "$run_simple_mix" = true ] ; then
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_simple_3_mix" 5 19.5 20.0 
 fi

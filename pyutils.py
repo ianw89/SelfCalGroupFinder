@@ -8,7 +8,6 @@ from datetime import datetime
 import time
 import random
 from scipy import special
-#print(sys.path)
 #sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
 #from hodpy.cosmology import CosmologyMXXL
 #from hodpy.k_correction import GAMA_KCorrection
@@ -30,7 +29,7 @@ def z_to_ldist(z):
     with np.errstate(divide='ignore'): # will be NaN for blueshifted galaxies
         return _cosmo.luminosity_distance(z).value
     
-def app_mag_to_abs_mag(app_mag, z_obs, colour):
+def app_mag_to_abs_mag(app_mag, z_obs):
     """
     Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts.
 
@@ -109,11 +108,48 @@ class RedshiftGuesser():
     def choose_winner(self, neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag, target_z_true):
         pass
 
+def get_NN_30_line(z, t_Pobs):
+    """
+    Gets the angular distance at which, according to MXXL, a target with the given Pobs will be in the same halo
+    as a nearest neighbor at reshift z 30% of the time.
+    """
+    FIT_SHIFT_RIGHT = [37,30,31,30,39,39,63,72]
+    FIT_SCALE = [10,10,10,10,10,10,10,10]
+    FIT_SHIFT_UP = [0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5]
+    FIT_SQUEEZE = [1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5]
+    base = [1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04]
+    zb = np.digitize(z, SimpleRedshiftGuesser.z_bins)
+
+    erf_in = FIT_SQUEEZE[zb]*(t_Pobs - FIT_SHIFT_UP[zb])
+
+    # for middle ones use exponentiated inverse erf to get the curve 
+    exponent = FIT_SHIFT_RIGHT[zb] - FIT_SCALE[zb]*special.erfinv(erf_in)
+    arcsecs = base[zb]**exponent
+    return arcsecs
+
+def get_NN_40_line(z, t_Pobs):
+    """
+    Gets the angular distance at which, according to MXXL, a target with the given Pobs will be in the same halo
+    as a nearest neighbor at reshift z 40% of the time.
+    """
+    FIT_SHIFT_RIGHT = [25,25,26,27,34,34,53,60]
+    FIT_SCALE = [10,10,10,10,10,10,10,10]
+    FIT_SHIFT_UP = [0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5]
+    FIT_SQUEEZE = [1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5]
+    base = [1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04]
+    zb = np.digitize(z, SimpleRedshiftGuesser.z_bins)
+
+    erf_in = FIT_SQUEEZE[zb]*(t_Pobs - FIT_SHIFT_UP[zb])
+
+    # for middle ones use exponentiated inverse erf to get the curve 
+    exponent = FIT_SHIFT_RIGHT[zb] - FIT_SCALE[zb]*special.erfinv(erf_in)
+    arcsecs = base[zb]**exponent
+    return arcsecs
 
 def get_NN_50_line(z, t_Pobs):
     """
     Gets the angular distance at which, according to MXXL, a target with the given Pobs will be in the same halo
-    as a nearest neighbor at reshift z.
+    as a nearest neighbor at reshift z 50% of the time.
     """
     FIT_SHIFT_RIGHT = [15,20,20,20,25,25,35,40]
     FIT_SCALE = [10,10,10,10,10,10,10,10]
@@ -137,13 +173,12 @@ def get_NN_50_line(z, t_Pobs):
 
 
 
-
 class SimpleRedshiftGuesser(RedshiftGuesser):
 
     z_bins = [0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.36, 1.0]     
 
     def __init__(self, app_mags, z_obs, debug=False):
-        print("Initializing v2 of SimpleRedshiftGuesser")
+        print("Initializing v3 of SimpleRedshiftGuesser")
         self.debug = debug
         self.rng = np.random.default_rng()
         self.quick_nn = 0
@@ -170,7 +205,7 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
 
 
     def use_nn(self, neighbor_z, neighbor_ang_dist, target_pobs):
-        angular_threshold = get_NN_50_line(neighbor_z, target_pobs)
+        angular_threshold = get_NN_30_line(neighbor_z, target_pobs)
 
         if self.debug:
             print(f"Threshold {angular_threshold}\". Nearest neighbor is {neighbor_z}\".")

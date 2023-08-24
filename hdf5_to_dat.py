@@ -18,7 +18,7 @@ class Mode(Enum):
     SIMPLE = 5
 
 def usage():
-    print("Usage: python3 hdf5_to_dat.py [mode] [APP_MAG_CUT] [input_filename].hdf5 [output_filename]")
+    print("Usage: python3 hdf5_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename]")
     print("  Mode is 1 for ALL, 2 for FIBER_ASSIGNED_ONLY, and 3 for NEAREST_NEIGHBOR, 4 for FANCY, 5 for SIMPLE ")
     print("  Will generate [output_filename].dat for use with kdGroupFinder and [output_filename]_galprops.dat with additional galaxy properties.")
     print("  These two files will have galaxies indexed in the same way (line-by-line matched).")
@@ -63,7 +63,7 @@ def main():
     ################
     # ERROR CHECKING
     ################
-    if len(sys.argv) != 5:
+    if len(sys.argv) != 6:
         print("Error 1")
         usage()
         exit(1)
@@ -73,7 +73,7 @@ def main():
         usage()
         exit(2)
 
-    if not sys.argv[3].endswith('.hdf5'):
+    if not sys.argv[4].endswith('.hdf5'):
         print("Error 3")
         usage()
         exit(3)
@@ -95,13 +95,14 @@ def main():
         print("\nMode SIMPLE")
 
     APP_MAG_CUT = float(sys.argv[2])
+    CATGALOG_APP_MAG_CUT = float(sys.argv[3])
 
-    print("Reading HDF5 data from ", sys.argv[3])
-    infile = h5py.File(sys.argv[3], 'r')
+    print("Reading HDF5 data from ", sys.argv[4])
+    infile = h5py.File(sys.argv[4], 'r')
     print(list(infile['Data']))
 
-    outname_1 = sys.argv[4]+ ".dat"
-    outname_2 = sys.argv[4] + "_galprops.dat"
+    outname_1 = sys.argv[5]+ ".dat"
+    outname_2 = sys.argv[5] + "_galprops.dat"
     print("Output files will be {0} and {1}".format(outname_1, outname_2))
 
     # read everything we need into memory
@@ -120,9 +121,19 @@ def main():
     orig_count = len(dec)
     print(orig_count, "galaxies in HDF5 file")
 
-    # Filter it all down with the mag cut (and remove blueshifted ones)
-    bright_filter = app_mag < APP_MAG_CUT # makes a filter array (True/False values) # TODO
     redshift_filter = z_obs > 0 # makes a filter array (True/False values)
+
+    # Filter down inputs to the ones we want in the catalog for NN and similar calculations
+    catalog_bright_filter = app_mag < CATGALOG_APP_MAG_CUT 
+    catalog_keep = np.all([catalog_bright_filter, redshift_filter, fiber_assigned_0], axis=0)
+    catalog_ra = ra[catalog_keep]
+    catalog_dec = dec[catalog_keep]
+    z_obs_catalog = z_obs[catalog_keep]
+    halo_mass_catalog = mxxl_halo_mass[catalog_keep]
+    halo_id_catalog = mxxl_halo_id[catalog_keep]
+
+    # Filter down inputs we want to actually process and keep
+    bright_filter = app_mag < APP_MAG_CUT # makes a filter array (True/False values)
     keep = np.all([bright_filter, redshift_filter], axis=0)
     dec = dec[keep]
     ra = ra[keep]
@@ -142,12 +153,8 @@ def main():
     count = len(dec)
     print(count, "galaxies left after apparent mag cut at {0}".format(APP_MAG_CUT))
     print(np.sum(fiber_assigned_0), "galaxies were assigned a fiber")
+    print(f"Catalog for nearest neighbor calculations is of size {len(catalog_ra)}")
 
-    fiber_assigned_ra = ra[fiber_assigned_0]
-    fiber_assigned_dec = dec[fiber_assigned_0]
-    fiber_assigned_z_obs_catalog = z_obs[fiber_assigned_0]
-    fiber_assigned_halo_mass_catalog = mxxl_halo_mass[fiber_assigned_0]
-    fiber_assigned_halo_id_catalog = mxxl_halo_id[fiber_assigned_0]
 
     with open('bin/prob_obs.npy', 'rb') as f:
        prob_obs = np.load(f)
@@ -160,7 +167,7 @@ def main():
     
     if mode == Mode.NEAREST_NEIGHBOR.value:
         # Astropy NN Search with kdtrees
-        catalog = coord.SkyCoord(ra=fiber_assigned_ra*u.degree, dec=fiber_assigned_dec*u.degree, frame='icrs')
+        catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
         to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
 
         idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
@@ -173,9 +180,9 @@ def main():
         print("Copying over NN properties... ", end='\r')
         j = 0
         for i in indexes_not_assigned:  
-            z_eff[i] = fiber_assigned_z_obs_catalog[idx[j]]
-            assigned_halo_mass[i] = fiber_assigned_halo_mass_catalog[idx[j]]
-            assigned_halo_id[i] = fiber_assigned_halo_id_catalog[idx[j]]
+            z_eff[i] = z_obs_catalog[idx[j]]
+            assigned_halo_mass[i] = halo_mass_catalog[idx[j]]
+            assigned_halo_id[i] = halo_id_catalog[idx[j]]
             j = j + 1 
         print("Copying over NN properties... done")
 
@@ -184,7 +191,7 @@ def main():
         NUM_NEIGHBORS = 10
         with FancyRedshiftGuesser(NUM_NEIGHBORS) as scorer:
 
-            catalog = coord.SkyCoord(ra=fiber_assigned_ra*u.degree, dec=fiber_assigned_dec*u.degree, frame='icrs')
+            catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
             
             neighbor_indexes = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)), dtype=np.int32) # indexes point to CATALOG locations
@@ -206,7 +213,7 @@ def main():
                     print(f"{j}/{len(to_match)} complete", end='\r')
 
                 neighbors = neighbor_indexes[:,j]
-                neighbors_z = fiber_assigned_z_obs_catalog[neighbors]
+                neighbors_z = z_obs_catalog[neighbors]
                 neighbors_ang_dist = ang_distances[:,j]
                 my_prob_obs = prob_obs[i]
                 my_app_mag = app_mag[i]
@@ -214,9 +221,9 @@ def main():
                 winning_num = scorer.choose_winner(neighbors_z, neighbors_ang_dist, my_prob_obs, my_app_mag, z_obs[i])
                 winner_index = neighbors[winning_num]
 
-                z_eff[i] = fiber_assigned_z_obs_catalog[winner_index] 
-                assigned_halo_mass[i] = fiber_assigned_halo_mass_catalog[winner_index]
-                assigned_halo_id[i] = fiber_assigned_halo_id_catalog[winner_index]
+                z_eff[i] = z_obs_catalog[winner_index] 
+                assigned_halo_mass[i] = halo_mass_catalog[winner_index]
+                assigned_halo_id[i] = halo_id_catalog[winner_index]
                 j = j + 1 
 
             print(f"{j}/{len(to_match)} complete")
@@ -226,7 +233,7 @@ def main():
 
         with SimpleRedshiftGuesser(app_mag[fiber_assigned_0], z_obs[fiber_assigned_0]) as scorer:
 
-            catalog = coord.SkyCoord(ra=fiber_assigned_ra*u.degree, dec=fiber_assigned_dec*u.degree, frame='icrs')
+            catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
             
             neighbor_indexes, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
@@ -238,12 +245,12 @@ def main():
                 if j%10000==0:
                     print(f"{j}/{len(to_match)} complete", end='\r')
 
-                chosen_z, isNN = scorer.choose_redshift(fiber_assigned_z_obs_catalog[neighbor_indexes[j]], ang_distances[j], prob_obs[i], app_mag[i], z_obs[i])
+                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes[j]], ang_distances[j], prob_obs[i], app_mag[i], z_obs[i])
 
                 z_eff[i] = chosen_z
                 if isNN:
-                    assigned_halo_mass[i] = fiber_assigned_halo_mass_catalog[neighbor_indexes[j]]
-                    assigned_halo_id[i] = fiber_assigned_halo_id_catalog[neighbor_indexes[j]]
+                    assigned_halo_mass[i] = halo_mass_catalog[neighbor_indexes[j]]
+                    assigned_halo_id[i] = halo_id_catalog[neighbor_indexes[j]]
                 else:
                     assigned_halo_mass[i] = -1 
                     assigned_halo_id[i] = -1
