@@ -176,9 +176,11 @@ def get_NN_50_line(z, t_Pobs):
 class SimpleRedshiftGuesser(RedshiftGuesser):
 
     z_bins = [0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.36, 1.0]     
+    LOW_ABS_MAG_LIMIT = -23.5
+    HIGH_ABS_MAG_LIMIT = -13.0
 
     def __init__(self, app_mags, z_obs, debug=False):
-        print("Initializing v3 of SimpleRedshiftGuesser")
+        print("Initializing v2.1 of SimpleRedshiftGuesser")
         self.debug = debug
         self.rng = np.random.default_rng()
         self.quick_nn = 0
@@ -204,20 +206,28 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         super().__exit__(exc_type,exc_value,exc_tb)
 
 
-    def use_nn(self, neighbor_z, neighbor_ang_dist, target_pobs):
-        angular_threshold = get_NN_30_line(neighbor_z, target_pobs)
+    def use_nn(self, neighbor_z, neighbor_ang_dist, target_pobs, target_app_mag):
+        angular_threshold = get_NN_40_line(neighbor_z, target_pobs)
 
         if self.debug:
             print(f"Threshold {angular_threshold}\". Nearest neighbor is {neighbor_z}\".")
 
-        return neighbor_ang_dist < angular_threshold
+        close_enough = neighbor_ang_dist < angular_threshold
+
+        if close_enough:
+            implied_abs_mag = app_mag_to_abs_mag(target_app_mag, neighbor_z)
+
+            if implied_abs_mag < SimpleRedshiftGuesser.LOW_ABS_MAG_LIMIT or implied_abs_mag > SimpleRedshiftGuesser.HIGH_ABS_MAG_LIMIT:
+                return False
+            else:
+                return True
 
     def choose_redshift(self, neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag, target_z_true):
         if self.debug:
             print(f"\nNew call to choose_winner")
 
         # Determine if we should use NN    
-        if self.use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs):
+        if self.use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag):
             if close_enough(target_z_true, neighbor_z):
                 self.quick_correct += 1
             self.quick_nn += 1

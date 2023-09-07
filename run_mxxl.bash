@@ -45,21 +45,20 @@ function process_and_group_find () {
 }
 
 # MXXL
-run_all=false
+run_all=true
 run_all20=false
-run_fiber_only=false
+run_fiber_only=true
 run_fiber_only20=false
-run_nn_kd=false 
+run_nn_kd=true 
 run_nn_kd20=false
 run_fancy=false
 run_fancy20=false
 run_simple=true
-run_simple20=true
-run_simple_mix=false
+run_simple20=false
 
 
 if [ "$run_all" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all" 1 19.5 19.5
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_all" 1 19.5 20.0
 fi
 
 if [ "$run_all20" = true ] ; then
@@ -67,7 +66,7 @@ if [ "$run_all20" = true ] ; then
 fi
 
 if [ "$run_fiber_only" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly" 2 19.5 19.5
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fiberonly" 2 19.5 20.0
 fi
 
 if [ "$run_fiber_only20" = true ] ; then
@@ -75,7 +74,7 @@ if [ "$run_fiber_only20" = true ] ; then
 fi
 
 if [ "$run_nn_kd" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd" 3 19.5 19.5
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_nn_kd" 3 19.5 20.0
 fi
 
 if [ "$run_nn_kd20" = true ] ; then
@@ -83,7 +82,7 @@ if [ "$run_nn_kd20" = true ] ; then
 fi
 
 if [ "$run_fancy" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy_6" 4 19.5 19.5
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_fancy_6" 4 19.5 20.0
 fi
 
 if [ "$run_fancy20" = true ] ; then
@@ -91,13 +90,9 @@ if [ "$run_fancy20" = true ] ; then
 fi
 
 if [ "$run_simple" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_simple_3" 5 19.5 19.5
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_simple_2" 5 19.5 20.0
 fi
 
 if [ "$run_simple20" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_simple_3_20" 5 20.0 20.0
-fi
-
-if [ "$run_simple_mix" = true ] ; then
-    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_simple_3_mix" 5 19.5 20.0 
+    process_and_group_find "${ROOT_FOLDER}mxxl_3pass_simple_2_20" 5 20.0 20.0
 fi
