@@ -4,16 +4,17 @@
 #CC = gcc
 
 # -- for sirocco
-#hd = $(HOME)/lib
-#LIB = -lm -fopenmp -L${hd} -lcutil 
-#CC = gcc
-#CFLAGS = -O2 -fopenmp
-
-# Ian
 hd = $(HOME)/lib
 LIB = -lm -fopenmp -L${hd} -lcutil 
-CC = gcc-11
+CC = gcc
 CFLAGS = -O2 -fopenmp
+
+# Ian
+#hd = $(HOME)/lib
+#LIB = -lm -fopenmp -L${hd} -lcutil 
+#CC = gcc-11
+#CFLAGS = -O2 -fopenmp
+
 ODIR = obj
 BDIR = bin
 
