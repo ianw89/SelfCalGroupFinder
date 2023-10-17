@@ -71,11 +71,11 @@ run_nn_kd=false
 run_nn_kd20=false
 run_fancy=false
 run_fancy20=false
-run_simple=false
+run_simple=true
 run_simple20=false
 
 # UCHUU
-run_uchuu_all=true
+run_uchuu_all=false
 
 
 if [ "$run_all" = true ] ; then

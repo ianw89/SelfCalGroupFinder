@@ -185,6 +185,7 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         self.rng = np.random.default_rng()
         self.quick_nn = 0
         self.quick_correct = 0
+        self.quick_nn_bailed = 0
         self.random_choice = 0
         self.random_correct = 0
 
@@ -195,13 +196,15 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         t = time.time()
-        with open(f"bin/simpple_redshift_guesser_{t}.npy", 'wb') as f:
+        with open(f"bin/simple_redshift_guesser_{t}.npy", 'wb') as f:
             np.save(f, self.quick_nn, allow_pickle=False)
             np.save(f, self.quick_correct, allow_pickle=False)
+            np.save(f, self.quick_nn_bailed, allow_pickle=False)
         
         # TODO adding 1 to denominator hack
         print(f"Quick NN uses: {self.quick_nn}. Success: {self.quick_correct / (self.quick_nn+1)}")
         print(f"Random draw uses: {self.random_choice}. Success: {self.random_correct / (self.random_choice+1)}")
+        print(f"Quick NN bailed: {self.quick_nn_bailed}. Affected: {self.quick_nn_bailed / (self.quick_nn+self.random_choice)}")
         
         super().__exit__(exc_type,exc_value,exc_tb)
 
@@ -218,6 +221,7 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
             implied_abs_mag = app_mag_to_abs_mag(target_app_mag, neighbor_z)
 
             if implied_abs_mag < SimpleRedshiftGuesser.LOW_ABS_MAG_LIMIT or implied_abs_mag > SimpleRedshiftGuesser.HIGH_ABS_MAG_LIMIT:
+                self.quick_nn_bailed += 1
                 return False
             else:
                 return True
