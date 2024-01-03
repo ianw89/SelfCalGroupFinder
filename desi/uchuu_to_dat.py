@@ -2,21 +2,8 @@ import numpy as np
 import h5py
 import sys
 from pyutils import *
-from enum import Enum
 from astropy.table import Table
 
-# Chooses 1 of the 2048 fiber assignment realizations with this bitstring and BITWORD as 'bitweight[0-31]
-BITWORD = 'bitweight0'
-BIT_CHOICE = 0
-FIBER_ASSIGNED_SELECTOR = 2**BIT_CHOICE
-
-
-class Mode(Enum):
-    ALL = 1 # include all galaxies
-    FIBER_ASSIGNED_ONLY = 2 # include only galaxies that were assigned a fiber for FIBER_ASSIGNED_REALIZATION_BITSTRING
-    NEAREST_NEIGHBOR = 3 # include all galaxies by assigned galaxies redshifts from their nearest neighbor
-    FANCY = 4 
-    SIMPLE = 5
 
 def usage():
     print("Usage: python3 uchuu_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].fits [output_filename]")

@@ -1,17 +1,21 @@
 import numpy as np
-import math
-import sys
 import astropy.units as u
 from astropy.cosmology import FlatLambdaCDM
 import astropy.coordinates as coord
 from datetime import datetime
 import time
-import random
+from enum import Enum
 from scipy import special
 #sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
 #from hodpy.cosmology import CosmologyMXXL
 #from hodpy.k_correction import GAMA_KCorrection
 
+class Mode(Enum):
+    ALL = 1 # include all galaxies
+    FIBER_ASSIGNED_ONLY = 2 # include only galaxies that were assigned a fiber for FIBER_ASSIGNED_REALIZATION_BITSTRING
+    NEAREST_NEIGHBOR = 3 # include all galaxies by assigned galaxies redshifts from their nearest neighbor
+    FANCY = 4 
+    SIMPLE = 5
 
 _cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 def get_MXXL_cosmology():

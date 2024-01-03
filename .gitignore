@@ -2,3 +2,4 @@ bin/
 obj/
 __pycache__/*
 figs/
+desi/__pycache__/*

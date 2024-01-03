@@ -10,13 +10,6 @@ BIT_CHOICE = 0
 FIBER_ASSIGNED_SELECTOR = 2**BIT_CHOICE
 
 
-class Mode(Enum):
-    ALL = 1 # include all galaxies
-    FIBER_ASSIGNED_ONLY = 2 # include only galaxies that were assigned a fiber for FIBER_ASSIGNED_REALIZATION_BITSTRING
-    NEAREST_NEIGHBOR = 3 # include all galaxies by assigned galaxies redshifts from their nearest neighbor
-    FANCY = 4 
-    SIMPLE = 5
-
 def usage():
     print("Usage: python3 hdf5_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename]")
     print("  Mode is 1 for ALL, 2 for FIBER_ASSIGNED_ONLY, and 3 for NEAREST_NEIGHBOR, 4 for FANCY, 5 for SIMPLE ")
