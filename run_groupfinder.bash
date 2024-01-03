@@ -32,14 +32,15 @@ omega_chi_L_q=0.48
 #ROOT_FOLDER="/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/"
 #BIG_FILES_FOLDER="bin/"
 
-# Ian Windows
-#ROOT_FOLDER="D:\\galaxy-groups-data\\"
-#BIG_FILES_FOLDER="bin/"
+# Ian WSL
+ROOT_FOLDER="bin/"
+BIG_FILES_FOLDER=$ROOT_FOLDER
+UCHUU_FILES_FOLDER=$ROOT_FOLDER
 
 # Sirocco
-ROOT_FOLDER="bin/"
-BIG_FILES_FOLDER="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
-UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
+#ROOT_FOLDER="bin/"
+#BIG_FILES_FOLDER="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
+#UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
 
 function process_and_group_find () {
     name=$1
@@ -62,6 +63,10 @@ function process_and_group_find_uchuu () {
     process_and_group_find $1 $2 $3 $4 "${UCHUU_FILES_FOLDER}BGS_LC_Uchuu.fits" uchuu_to_dat.py
 }
 
+function process_and_group_find_BGS () {
+    process_and_group_find $1 $2 $3 $4 "${BIG_FILES_FOLDER}BGS_BRIGHT_full_dat.fits" desi_fits_to_dat.py
+}
+
 # MXXL
 run_all=false
 run_all20=false
@@ -71,11 +76,14 @@ run_nn_kd=false
 run_nn_kd20=false
 run_fancy=false
 run_fancy20=false
-run_simple=true
+run_simple=false
 run_simple20=false
 
 # UCHUU
 run_uchuu_all=false
+
+# DESI BGS
+run_bgs_all=true
 
 
 if [ "$run_all" = true ] ; then
@@ -122,4 +130,8 @@ fi
 
 if [ "$run_uchuu_all" = true ] ; then
     process_and_group_find_uchuu "${ROOT_FOLDER}uchuu_all" 1 19.5 20.0
+fi
+
+if [ "$run_bgs_all" = true ] ; then
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_all" 1 19.5 20.0
 fi
