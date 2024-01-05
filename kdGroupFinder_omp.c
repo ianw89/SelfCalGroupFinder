@@ -167,7 +167,7 @@ void groupfind()
   char aa[1000];
   int i, i1, niter, MAX_ITER = 5, j, ngrp_prev, icen_new;
   float frac_area, zmin, zmax, nsat_tot, weight, wx;
-  int fluxlim = 0, colors = 1;
+  int colors = 1;
   double galden, pt[3], t0, t1, t3, t4;
   long IDUM1 = -555;
 
@@ -186,13 +186,14 @@ void groupfind()
     GAL = calloc(NGAL, sizeof(struct galaxy));
     flag = ivector(0, NGAL - 1);
 
-    fluxlim = FLUXLIM;
     zmin = MINREDSHIFT;
     zmax = MAXREDSHIFT;
 
     // calculate the volume of the sample
-    volume = 4. / 3. * PI * (pow(distance_redshift(zmax), 3.0)) * FRAC_AREA;
-    volume = volume - 4. / 3. * PI * (pow(distance_redshift(zmin), 3.0)) * FRAC_AREA;
+    if (FLUXLIM) {
+      volume = 4. / 3. * PI * (pow(distance_redshift(zmax), 3.0)) * FRAC_AREA;
+      volume = volume - 4. / 3. * PI * (pow(distance_redshift(zmin), 3.0)) * FRAC_AREA;
+    }
 
     galden = 0;
     for (i = 0; i < NGAL; ++i)
@@ -206,7 +207,7 @@ void groupfind()
       if (GAL[i].mstellar < 100)
         GAL[i].mstellar = pow(10.0, GAL[i].mstellar);
       // check to see if we're doing a fluxlimited sample
-      if (fluxlim)
+      if (FLUXLIM)
         fscanf(fp, "%f", &GAL[i].vmax);
       else
         GAL[i].vmax = volume;
@@ -223,9 +224,11 @@ void groupfind()
     fclose(fp);
     fprintf(stderr, "Done reading in from [%s]\n", ARGV[1]);
 
-    fprintf(stderr, "Volume= %e L_box= %f\n", volume, pow(volume, THIRD));
-    fprintf(stderr, "Number density= %e %e\n", NGAL / volume, galden);
-    GALAXY_DENSITY = NGAL / volume;
+    if (!FLUXLIM) {
+      fprintf(stderr, "Volume= %e L_box= %f\n", volume, pow(volume, THIRD));
+      fprintf(stderr, "Number density= %e %e\n", NGAL / volume, galden);
+      GALAXY_DENSITY = NGAL / volume;
+    }
 
     // first sort by stellar mass
     xtmp = vector(1, NGAL);
@@ -249,7 +252,7 @@ void groupfind()
     fprintf(stderr, "Starting inverse-sham...\n");
     galden = 0;
     // reset the sham counters
-    if (fluxlim)
+    if (FLUXLIM)
       density2host_halo_zbins3(-1, 0);
     // density2host_halo_zbins(-1);
     for (i1 = 1; i1 <= NGAL; ++i1)
@@ -257,7 +260,7 @@ void groupfind()
       i = itmp[i1];
       GAL[i].grp_rank = i1;
       galden += 1 / GAL[i].vmax;
-      if (fluxlim == 1)
+      if (FLUXLIM)
         // GAL[i].mass = density2host_halo_zbins(GAL[i].redshift);
         GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
       else
@@ -360,7 +363,7 @@ void groupfind()
         xtmp[ngrp] = -GAL[i].mtot;
         itmp[ngrp] = i;
         GAL[i].listid = ngrp;
-        if (fluxlim)
+        if (FLUXLIM)
           xtmp[ngrp] *= fluxlim_correction(GAL[i].redshift);
       }
     }
@@ -385,7 +388,7 @@ void groupfind()
         xtmp[ngrp] = -GAL[j].mtot;
         itmp[ngrp] = j;
         GAL[j].listid = ngrp;
-        if (fluxlim)
+        if (FLUXLIM)
           xtmp[ngrp] *= fluxlim_correction(GAL[j].redshift);
       }
     }
@@ -426,7 +429,7 @@ void groupfind()
     // reassign the halo masses
     nsat_tot = galden = 0;
     // reset the sham counters
-    if (fluxlim)
+    if (FLUXLIM)
       density2host_halo_zbins3(-1, 0);
     // density2host_halo_zbins(-1);
     for (j = 1; j <= ngrp; ++j)
@@ -434,7 +437,7 @@ void groupfind()
       GAL[i].grp_rank = j;
       i = itmp[j];
       galden += 1 / GAL[i].vmax;
-      if (fluxlim == 1)
+      if (FLUXLIM == 1)
         // GAL[i].mass = density2host_halo_zbins(GAL[i].redshift);
         GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
       else

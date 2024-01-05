@@ -10,14 +10,21 @@
 #include "groups.h"
 #include "group_center.h"
 
-/* Local functions
+/* 
+ * Local functions
  */
 float mean_galaxy_separation(float z);
 
-/* Local globals
+/* 
+ *Local globals
  */
 int TEST_ID;
 
+
+/*
+ * Friend of friends implementation requries volume-limited sample. 
+ * GALAXY_DENSITY, an external global variable, must be set prior to calling.
+ */
 void fof(void *kd)
 {
   int i,ii,j, iprev, n;
@@ -188,11 +195,12 @@ float mean_galaxy_separation(float z)
   if(!FLUXLIM)
     {
       if(rg<0)
-	rg = pow(GALAXY_DENSITY,-THIRD);
+	      rg = pow(GALAXY_DENSITY,-THIRD);
       return rg;
     }
 }
 
+// Test-only function
 void test_fof(void *kd)
 {
   FILE *fp;
