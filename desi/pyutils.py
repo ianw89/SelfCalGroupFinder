@@ -6,6 +6,8 @@ from datetime import datetime
 import time
 from enum import Enum
 from scipy import special
+import matplotlib.pyplot as plt
+
 #sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
 #from hodpy.cosmology import CosmologyMXXL
 #from hodpy.k_correction import GAMA_KCorrection
@@ -22,7 +24,6 @@ def get_MXXL_cosmology():
     return _cosmo
 
 SIM_Z_THRESH = 0.003
-# TODO smarter
 def close_enough(target_z, z_arr, threshold=SIM_Z_THRESH):
     return np.abs(z_arr - target_z) < threshold
 
@@ -62,7 +63,7 @@ def abs_mag_r_to_log_solar_L(arr):
     return 0.39794 * (SOLAR_L_R_BAND - arr)
 
 
-def get_max_observable_volume(abs_mags, z_obs, m_cut):
+def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec):
     """
     Calculate the max volume at which the galaxy could be seen in comoving coords.
 
@@ -72,11 +73,47 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut):
     # Use distance modulus
     d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
     d_cm = d_l / (1 + z_obs)
+
     v_max = (d_cm**3) * (4*np.pi/3) # in comoving Mpc^3
-    frac_area = 0.35876178702 # 14800 / 41253 which is DESI BGS footprint (see Alex DESI BGS Incompleteness paper) 
-    # TODO calculate exactly for MXXL? But should be this because footprints match
-    # can see this from a simple ra dec plot
+
+    # This is what the fraction of the sky that complete BGS will cover.
+    # TODO use estimate_frac_area instead
+    #frac_area = 0.35876178702 # 14800 / 41253 which is final DESI BGS footprint (see Alex DESI BGS Incompleteness paper) 
+    frac_area = estimate_frac_area(ra, dec)
+
     return v_max * frac_area
+
+def estimate_frac_area(ra, dec):
+    """
+    Estimate the fraction of the sky covered in the survey so far based on the ra, dec 
+    of galaxies that have been observed thus far.
+    """
+
+    # Given the set of points in ra and dec, and knowing that the each pointing of the telescope covers 7.44 square degrees,
+    # we can use the fact that every point must have had a pointing within 3.72 degrees of it to estimate the footprint.
+
+    # Paint a picture of the sky with a 3.72 degree radius circle around each point
+    # Then count the number of covered pixels
+    # Then divide by the total number of pixels
+
+    # Convert ra, dec to Cartesian coordinates
+    x = np.cos(np.deg2rad(dec)) * np.cos(np.deg2rad(ra))
+    y = np.cos(np.deg2rad(dec)) * np.sin(np.deg2rad(ra))
+    z = np.sin(np.deg2rad(dec))
+
+    # Create a 2D histogram of the Cartesian coordinates
+    fineness = 15
+    hist, xedges, yedges = np.histogram2d(x, y, bins=[180*fineness, 360*fineness])
+
+    # Count the number of bins that have at least one point in them
+    filled_bins = np.count_nonzero(hist)
+
+    # Divide the number of filled bins by the total number of bins
+    frac_area = filled_bins / hist.size
+
+    return frac_area
+        
+
 
 
 def build_app_mag_to_z_map(app_mag, z_obs):
@@ -97,6 +134,22 @@ def build_app_mag_to_z_map(app_mag, z_obs):
 
     return app_mag_bins, the_map
 
+
+
+def make_map(ra, dec):
+    """
+    Give numpy array of ra and dec.
+    """
+
+    # Build a map of the galaxies
+    ra_angles = coord.Angle(ra*u.degree)
+    ra_angles = ra_angles.wrap_at(180*u.degree)
+    dec_angles = coord.Angle(dec*u.degree)
+
+    fig = plt.figure(figsize=(12,9))
+    ax = fig.add_subplot(111, projection="mollweide")
+    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=0.002)
+    return fig
 
 
 

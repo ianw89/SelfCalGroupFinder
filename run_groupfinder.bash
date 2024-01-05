@@ -1,11 +1,11 @@
 #!/bin/bash
 #Basic Usage: kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4] > out
 
-# If fluxlim = 1 I don't think zmin/zmax/frac_area matter at all
+# If fluxlim = 1 then zmin/zmax/frac_area are ignored
 zmin=0 
 zmax=0.8042979 
-frac_area=0.35876178702 # TODO Doesn't matter if in flux-limited mode... right? I already multiplied in.
-fluxlim=1 # is flux limited sample
+frac_area=0.35876178702
+fluxlim=1
 
 color=1 # 0 is off but I don't think code works with colors off properly , so setting omega0 below to 0 turns off.
 omegaL_sf=13.1
@@ -33,14 +33,14 @@ omega_chi_L_q=0.48
 #BIG_FILES_FOLDER="bin/"
 
 # Ian WSL
-ROOT_FOLDER="bin/"
-BIG_FILES_FOLDER=$ROOT_FOLDER
-UCHUU_FILES_FOLDER=$ROOT_FOLDER
+#ROOT_FOLDER="bin/"
+#BIG_FILES_FOLDER=$ROOT_FOLDER
+#UCHUU_FILES_FOLDER=$ROOT_FOLDER
 
 # Sirocco
-#ROOT_FOLDER="bin/"
-#BIG_FILES_FOLDER="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
-#UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
+ROOT_FOLDER="bin/"
+BIG_FILES_FOLDER="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
+UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
 
 function process_and_group_find () {
     name=$1
@@ -56,15 +56,15 @@ function process_and_group_find () {
 }
 
 function process_and_group_find_mxxl () {
-    process_and_group_find $1 $2 $3 $4 "${BIG_FILES_FOLDER}weights_3pass.hdf5" hdf5_to_dat.py
+    process_and_group_find $1 $2 $3 $4 "${BIG_FILES_FOLDER}weights_3pass.hdf5" desi/hdf5_to_dat.py
 }
 
 function process_and_group_find_uchuu () {
-    process_and_group_find $1 $2 $3 $4 "${UCHUU_FILES_FOLDER}BGS_LC_Uchuu.fits" uchuu_to_dat.py
+    process_and_group_find $1 $2 $3 $4 "${UCHUU_FILES_FOLDER}BGS_LC_Uchuu.fits" desi/uchuu_to_dat.py
 }
 
 function process_and_group_find_BGS () {
-    process_and_group_find $1 $2 $3 $4 "${BIG_FILES_FOLDER}BGS_BRIGHT_full_dat.fits" desi_fits_to_dat.py
+    process_and_group_find $1 $2 $3 $4 "${ROOT_FOLDER}BGS_BRIGHT_full.dat.fits" desi/desi_fits_to_dat.py
 }
 
 # MXXL
@@ -133,5 +133,5 @@ if [ "$run_uchuu_all" = true ] ; then
 fi
 
 if [ "$run_bgs_all" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_all" 1 19.5 20.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_all_1" 1 19.5 20.0
 fi

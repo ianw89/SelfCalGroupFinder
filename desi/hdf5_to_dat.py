@@ -88,7 +88,7 @@ def main():
         print("\nMode SIMPLE")
 
     APP_MAG_CUT = float(sys.argv[2])
-    CATGALOG_APP_MAG_CUT = float(sys.argv[3])
+    CATALOG_APP_MAG_CUT = float(sys.argv[3])
 
     print("Reading HDF5 data from ", sys.argv[4])
     infile = h5py.File(sys.argv[4], 'r')
@@ -117,7 +117,7 @@ def main():
     redshift_filter = z_obs > 0 # makes a filter array (True/False values)
 
     # Filter down inputs to the ones we want in the catalog for NN and similar calculations
-    catalog_bright_filter = app_mag < CATGALOG_APP_MAG_CUT 
+    catalog_bright_filter = app_mag < CATALOG_APP_MAG_CUT 
     catalog_keep = np.all([catalog_bright_filter, redshift_filter, fiber_assigned_0], axis=0)
     catalog_ra = ra[catalog_keep]
     catalog_dec = dec[catalog_keep]
@@ -256,7 +256,7 @@ def main():
     my_abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
     log_L_gal = abs_mag_r_to_log_solar_L(my_abs_mag)
 
-    V_max = get_max_observable_volume(my_abs_mag, z_eff, APP_MAG_CUT)
+    V_max = get_max_observable_volume(my_abs_mag, z_eff, APP_MAG_CUT, ra, dec)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi

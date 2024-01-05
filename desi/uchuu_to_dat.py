@@ -128,7 +128,7 @@ def main():
     my_abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
     log_L_gal = abs_mag_r_to_log_solar_L(my_abs_mag)
 
-    V_max = get_max_observable_volume(my_abs_mag, z_eff, APP_MAG_CUT)
+    V_max = get_max_observable_volume(my_abs_mag, z_eff, APP_MAG_CUT, ra, dec)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi

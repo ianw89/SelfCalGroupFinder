@@ -335,7 +335,6 @@ void tabulate_hods()
       maxz[2] = MAXREDSHIFT;
       maxz[3] = MAXREDSHIFT;
       maxz[4] = MAXREDSHIFT;
-      //maxz[4] = MAXREDSHIFT;
     }
   if(STELLAR_MASS)
     {

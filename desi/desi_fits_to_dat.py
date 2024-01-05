@@ -90,17 +90,20 @@ def main():
     ra = u_table['RA']
     z_obs = u_table['Z_not4clus']
     target_id = u_table['TARGETID']
+    flux_r = u_table['FLUX_R']
     app_mag = get_app_mag(u_table['FLUX_R'])
     p_obs = u_table['PROB_OBS']
 
     orig_count = len(dec)
-    print(orig_count, "galaxies in FITS file")
+    print(orig_count, "objects in FITS file")
 
-
+    # Make filter array (True/False values)
     galaxy_filter = obj_type == 'GALAXY'
     app_mag_filter = app_mag < APP_MAG_CUT
+    redshift_filter = z_obs > 0 
+    redshift_hi_filter = z_obs < 0.8 # TODO doesn't fix the issue...
     #three_pass_filter = TODO
-    keep = np.all([galaxy_filter, app_mag_filter], axis=0)
+    keep = np.all([galaxy_filter, app_mag_filter, redshift_filter, redshift_hi_filter], axis=0)
 
     dec = dec[keep]
     ra = ra[keep]
@@ -109,8 +112,10 @@ def main():
     app_mag = app_mag[keep]
     p_obs = p_obs[keep]
 
+
     count = len(dec)
     print(count, "galaxies left after apparent mag cut at {0}".format(APP_MAG_CUT))
+    print(min(z_obs), max(z_obs), "min and max redshifts")
 
     z_eff = np.copy(z_obs)
 
@@ -118,11 +123,11 @@ def main():
 
 
 
-    # TODO Mine are missing k-corrections
-    my_abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
-    log_L_gal = abs_mag_r_to_log_solar_L(my_abs_mag)
+    # TODO Missing k-corrections
+    abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
+    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag)
 
-    V_max = get_max_observable_volume(my_abs_mag, z_eff, APP_MAG_CUT)
+    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, ra, dec)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
