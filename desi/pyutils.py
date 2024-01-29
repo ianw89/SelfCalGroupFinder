@@ -451,4 +451,3 @@ class FancyRedshiftGuesser(RedshiftGuesser):
             print(f"Used scoring. True z={target_z_true}. NN {i}: z={neighbors_z[i]}, ang dist={neighbors_ang_dist[i]}")
 
         return i
-
