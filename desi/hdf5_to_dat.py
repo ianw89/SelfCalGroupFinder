@@ -277,8 +277,8 @@ def main():
     for i in range(0, count):
         if mode == Mode.FIBER_ASSIGNED_ONLY.value:
             if fiber_assigned_0[i]:
-                lines_1.append(' '.join(map(str, output_1[i])))
-                lines_2.append(' '.join(map(str, output_2[i])))
+                lines_1.append(f'{ra[i]:f} {dec[i]:f} {z_eff[i]:f} {log_L_gal[i]:f} {V_max[i]:f} {colors[i]:f} {chi[i]:f}')
+                lines_2.append(f'{app_mag[i]:f} {g_r[i]:f} {galaxy_type[i]} {mxxl_halo_mass[i]} {fiber_assigned_0[i]} {assigned_halo_mass[i]} {z_obs[i]:f} {mxxl_halo_id[i]:i} {assigned_halo_id[i]:i}')        
             else:
                 pass
         else:

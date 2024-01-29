@@ -100,8 +100,8 @@ def main():
     # Make filter array (True/False values)
     galaxy_filter = obj_type == 'GALAXY'
     app_mag_filter = app_mag < APP_MAG_CUT
-    redshift_filter = z_obs > 0 
-    redshift_hi_filter = z_obs < 0.8 # TODO doesn't fix the issue...
+    redshift_filter = z_obs > 0.001 
+    redshift_hi_filter = z_obs < 0.8 
     #three_pass_filter = TODO
     keep = np.all([galaxy_filter, app_mag_filter, redshift_filter, redshift_hi_filter], axis=0)
 
@@ -115,7 +115,7 @@ def main():
 
     count = len(dec)
     print(count, "galaxies left after apparent mag cut at {0}".format(APP_MAG_CUT))
-    print(min(z_obs), max(z_obs), "min and max redshifts")
+    print(f'Min z: {min(z_obs):f}, Max z: {max(z_obs):f}')
 
     z_eff = np.copy(z_obs)
 
@@ -140,15 +140,21 @@ def main():
     # Note this copies the data from what was read in from the file
     # TODO ID's are being written as float not int for some reason, fix
 
+    # Print the output files built up from ra, dec, z_eff, log_L_gal, V_max, colors, chi
+
+
     print("Building output file string... ", end='\r')
-    output_1 = np.column_stack((ra, dec, z_eff, log_L_gal, V_max, colors, chi))
-    output_2 = np.column_stack((app_mag, target_id))
+   #output_1 = np.column_stack((ra, dec, z_eff, log_L_gal, V_max, colors, chi))
+    #output_2 = np.column_stack((app_mag, target_id))
     lines_1 = []
     lines_2 = []
 
     for i in range(0, count):
-        lines_1.append(' '.join(map(str, output_1[i])))
-        lines_2.append(' '.join(map(str, output_2[i])))
+        lines_1.append(f'{ra[i]:f} {dec[i]:f} {z_eff[i]:f} {log_L_gal[i]:f} {V_max[i]:f} {colors[i]} {chi[i]}')
+        lines_2.append(f'{app_mag[i]:f} {target_id[i]:f}')
+        
+        #lines_1.append(' '.join(map(str, output_1[i])))
+        #lines_2.append(' '.join(map(str, output_2[i])))
 
     outstr_1 = "\n".join(lines_1)
     outstr_2 = "\n".join(lines_2)    
