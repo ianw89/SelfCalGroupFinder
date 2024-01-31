@@ -127,6 +127,7 @@ def plots(*frames, truth_on=False):
     plt.ylabel('$log(L_{cen})$')
     plt.title("Central Luminosity vs. Halo Mass")
     plt.legend()
+    plt.set_xlim(2E11,1E15)
     plt.draw()
 
     if contains_20_data:
@@ -139,6 +140,7 @@ def plots(*frames, truth_on=False):
         plt.ylabel('$log(L_{cen})$')
         plt.title("Central Luminosity vs. Halo Mass")
         plt.legend()
+        plt.set_xlim(2E11,1E15)
         plt.draw()
 
     plt.figure(dpi=DPI)    
@@ -150,6 +152,7 @@ def plots(*frames, truth_on=False):
     plt.ylabel('$\\sigma(\\log(L_{cen})$')
     plt.title("Central Luminosity Scatter vs. Halo Mass")
     plt.legend()
+    plt.set_xlim(2E11,1E15)
     plt.draw()
 
     if contains_20_data:
@@ -162,6 +165,7 @@ def plots(*frames, truth_on=False):
         plt.ylabel('$\\sigma(\\log(L_{cen})$')
         plt.title("Central Luminosity Scatter vs. Halo Mass")
         plt.legend()
+        plt.set_xlim(2E11,1E15)
         plt.draw()
 
     """     
@@ -190,7 +194,8 @@ def plots(*frames, truth_on=False):
         plt.ylabel("$<N_{sat}>$")    
         plt.xlabel('$M_{halo}$')
         plt.title("Mean Number of Satellites by Halo Mass")
-        plt.legend()
+        plt.legend()    
+        plt.set_xlim(2E11,1E15)
         plt.draw()
 
     plt.figure(dpi=DPI)
@@ -421,6 +426,8 @@ def purity_complete_plots(*sets):
 
 def resulting_halo_analysis(*sets):
     """
+    Compares assigned halos to MXXL 'truth' halos.
+    
     TODO: Only works on MXXL right now.
     """
 

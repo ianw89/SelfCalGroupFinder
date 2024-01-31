@@ -83,7 +83,7 @@ run_simple20=false
 run_uchuu_all=false
 
 # DESI BGS
-run_bgs_all=true
+run_bgs_fiberonly=true
 
 
 if [ "$run_all" = true ] ; then
@@ -132,6 +132,6 @@ if [ "$run_uchuu_all" = true ] ; then
     process_and_group_find_uchuu "${ROOT_FOLDER}uchuu_all" 1 19.5 20.0
 fi
 
-if [ "$run_bgs_all" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_all_1" 1 19.5 20.0
+if [ "$run_bgs_fiberonly" = true ] ; then
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1" 2 19.5 20.0
 fi
