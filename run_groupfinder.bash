@@ -42,13 +42,15 @@ ROOT_FOLDER="bin/"
 BIG_FILES_FOLDER="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
 UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
 
+PYTHON="/home/users/imw2293/.conda/envs/ian-conda311/bin/python3"
+
 function process_and_group_find () {
     name=$1
     rm "${name}_old.dat" "${name}_old_galprops.dat" "${name}_old.out" 2>bin/null
     mv "${name}.dat" "${name}_old.dat" 2>bin/null
     mv "${name}_galprops.dat" "${name}_old_galprops.dat" 2>bin/null
     mv "${name}.out" "${name}_old.out" 2>bin/null
-    if python3 $6 $2 $3 $4 $5 "${name}" ; then
+    if $PYTHON $6 $2 $3 $4 $5 "${name}" ; then
         bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
     else
         echo "Conversion to DAT failed"
@@ -68,22 +70,24 @@ function process_and_group_find_BGS () {
 }
 
 # MXXL
-run_all=false
+run_all=true
 run_all20=false
-run_fiber_only=false
+run_fiber_only=true
 run_fiber_only20=false
-run_nn_kd=false 
+run_nn_kd=true 
 run_nn_kd20=false
 run_fancy=false
 run_fancy20=false
-run_simple=false
+run_simple=true
 run_simple20=false
 
 # UCHUU
 run_uchuu_all=false
 
 # DESI BGS
+run_bgs_fiberonly_1passok=true
 run_bgs_fiberonly=true
+run_bgs_simple=true
 
 
 if [ "$run_all" = true ] ; then
@@ -132,6 +136,15 @@ if [ "$run_uchuu_all" = true ] ; then
     process_and_group_find_uchuu "${ROOT_FOLDER}uchuu_all" 1 19.5 20.0
 fi
 
+
+if [ "$run_bgs_fiberonly_1passok" = true ] ; then
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1passok_1" 1 19.5 20.0
+fi
+
 if [ "$run_bgs_fiberonly" = true ] ; then
     process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1" 2 19.5 20.0
+fi
+
+if [ "$run_bgs_simple" = true ] ; then
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2" 5 19.5 20.0
 fi

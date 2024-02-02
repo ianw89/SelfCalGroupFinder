@@ -232,9 +232,9 @@ def main():
             neighbor_indexes, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
             ang_distances = d2d.to(u.arcsec).value
 
-            print(f"Assinging missing redshifts... ")   
-            j = 0
-            for i in indexes_not_assigned:    
+            print(f"Assigning missing redshifts... ")   
+            j = 0 # j counts the number of unobserved galaxies in the catalog that have been assigned a redshift thus far
+            for i in indexes_not_assigned:  # i is the index of the unobserved galaxy in the main arrays
                 if j%10000==0:
                     print(f"{j}/{len(to_match)} complete", end='\r')
 

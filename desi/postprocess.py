@@ -52,7 +52,7 @@ def process_BGS(filename):
     filename_props = str.replace(filename, ".out", "_galprops.dat")
 
     df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'unknown'))
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id'), dtype={'target_id': np.int64})
+    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
     all_data = pd.merge(df, galprops, left_index=True, right_index=True)
 
     return process_core(filename, all_data)
@@ -127,7 +127,7 @@ def plots(*frames, truth_on=False):
     plt.ylabel('$log(L_{cen})$')
     plt.title("Central Luminosity vs. Halo Mass")
     plt.legend()
-    plt.set_xlim(2E11,1E15)
+    plt.xlim(2E11,1E15)
     plt.draw()
 
     if contains_20_data:
@@ -140,7 +140,7 @@ def plots(*frames, truth_on=False):
         plt.ylabel('$log(L_{cen})$')
         plt.title("Central Luminosity vs. Halo Mass")
         plt.legend()
-        plt.set_xlim(2E11,1E15)
+        plt.xlim(2E11,1E15)
         plt.draw()
 
     plt.figure(dpi=DPI)    
@@ -152,7 +152,7 @@ def plots(*frames, truth_on=False):
     plt.ylabel('$\\sigma(\\log(L_{cen})$')
     plt.title("Central Luminosity Scatter vs. Halo Mass")
     plt.legend()
-    plt.set_xlim(2E11,1E15)
+    plt.xlim(2E11,1E15)
     plt.draw()
 
     if contains_20_data:
@@ -165,7 +165,7 @@ def plots(*frames, truth_on=False):
         plt.ylabel('$\\sigma(\\log(L_{cen})$')
         plt.title("Central Luminosity Scatter vs. Halo Mass")
         plt.legend()
-        plt.set_xlim(2E11,1E15)
+        plt.xlim(2E11,1E15)
         plt.draw()
 
     """     
@@ -195,7 +195,7 @@ def plots(*frames, truth_on=False):
         plt.xlabel('$M_{halo}$')
         plt.title("Mean Number of Satellites by Halo Mass")
         plt.legend()    
-        plt.set_xlim(2E11,1E15)
+        plt.xlim(2E11,1E15)
         plt.draw()
 
     plt.figure(dpi=DPI)
@@ -214,9 +214,11 @@ def plots(*frames, truth_on=False):
 
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
+    max_fsat = 0
     for f in frames:
         plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=f.name, color=f.color)
-    
+        max_fsat = max(max_fsat, np.max(f.f_sat))
+
     if truth_on:
         truth_f_sat = truth_on.all_data.groupby('Lgal_bin').is_sat_truth.mean()
         plt.plot(truth_on.L_gal_labels, truth_f_sat, label="UCHUU Truth <19.5", color=truth_on.color)
@@ -226,7 +228,8 @@ def plots(*frames, truth_on=False):
     ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.legend()
     ax1.set_xlim(3E8,1E11)
-    ax1.set_ylim(0.1,0.5)
+    #ax1.set_ylim(0.1,max(0.5, max_fsat))
+    ax1.set_ylim(0.1,0.7)
     ax2 = ax1.twinx()
     idx = 0
     for f in frames:

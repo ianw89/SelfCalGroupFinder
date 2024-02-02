@@ -80,6 +80,7 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec):
     # TODO use estimate_frac_area instead
     #frac_area = 0.35876178702 # 14800 / 41253 which is final DESI BGS footprint (see Alex DESI BGS Incompleteness paper) 
     frac_area = estimate_frac_area(ra, dec)
+    print(f"Frac Area Estimate: {frac_area:.3f}")
 
     return v_max * frac_area
 
@@ -115,9 +116,9 @@ def estimate_frac_area(ra, dec):
         
 
 
-
 def build_app_mag_to_z_map(app_mag, z_obs):
     _NBINS = 100
+    _MIN_GALAXIES_PER_BIN = 20
     app_mag_bins = np.linspace(min(app_mag), max(app_mag), _NBINS)
 
     app_mag_indices = np.digitize(app_mag, app_mag_bins)
@@ -129,7 +130,22 @@ def build_app_mag_to_z_map(app_mag, z_obs):
 
     # for app mags smaller than the smallest we have, use the z distribution of the one right above it
     the_map[0] = the_map[1]
+    assert len(app_mag_bins) == (len(the_map)-1)
 
+    to_check = list(the_map.keys())
+    for k in to_check:
+        if len(the_map[k]) < _MIN_GALAXIES_PER_BIN and k < len(the_map)-1:
+            #print(f"App Mag Bin {k} has too few galaxies. Adding in galaxies from the next bin to this one.")
+            the_map[k] = np.concatenate((the_map[k], the_map[k+1]))
+            to_check.append(k) # recheck it to see if it's still too small
+
+    # print off the length of every value in the map
+    #for k in the_map:
+    #    print(f"App Mag Bin {k} has {len(the_map[k])} galaxies")
+
+    #print(app_mag_bins)
+
+    assert len(app_mag_bins) == (len(the_map)-1)
     #print(f"App Mag Building Complete: {the_map}")
 
     return app_mag_bins, the_map
@@ -245,7 +261,6 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         self.quick_nn_bailed = 0
         self.random_choice = 0
         self.random_correct = 0
-
         self.app_mag_bins, self.app_mag_map = build_app_mag_to_z_map(app_mags, z_obs)
 
     def __enter__(self):
@@ -259,9 +274,15 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
             np.save(f, self.quick_nn_bailed, allow_pickle=False)
         
         # TODO adding 1 to denominator hack
-        print(f"Quick NN uses: {self.quick_nn}. Success: {self.quick_correct / (self.quick_nn+1)}")
-        print(f"Random draw uses: {self.random_choice}. Success: {self.random_correct / (self.random_choice+1)}")
-        print(f"Quick NN bailed: {self.quick_nn_bailed}. Affected: {self.quick_nn_bailed / (self.quick_nn+self.random_choice)}")
+        if self.quick_correct > 0 or self.random_correct > 0:
+            print(f"Quick NN uses: {self.quick_nn}. Success: {self.quick_correct / (self.quick_nn+1)}")
+            print(f"Random draw uses: {self.random_choice}. Success: {self.random_correct / (self.random_choice+1)}")
+            print(f"Quick NN bailed: {self.quick_nn_bailed}. Affected: {self.quick_nn_bailed / (self.quick_nn+self.random_choice)}")
+        else:
+            print(f"Quick NN uses: {self.quick_nn}.")
+            print(f"Random draw uses: {self.random_choice}.")
+            print(f"Quick NN bailed: {self.quick_nn_bailed}. Affected: {self.quick_nn_bailed / (self.quick_nn+self.random_choice)}")
+        
         
         super().__exit__(exc_type,exc_value,exc_tb)
 
@@ -283,23 +304,32 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
             else:
                 return True
 
-    def choose_redshift(self, neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag, target_z_true):
+    def choose_redshift(self, neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag, target_z_true=False):
         if self.debug:
             print(f"\nNew call to choose_winner")
 
         # Determine if we should use NN    
         if self.use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag):
-            if close_enough(target_z_true, neighbor_z):
-                self.quick_correct += 1
+            if (target_z_true):
+                if close_enough(target_z_true, neighbor_z):
+                    self.quick_correct += 1
             self.quick_nn += 1
             if self.debug:
-                print(f"Used quick NN. True z={target_z_true}. NN: z={neighbor_z}, ang dist={neighbor_ang_dist}")
+                if (target_z_true):
+                    print(f"Used quick NN. True z={target_z_true}. NN: z={neighbor_z}, ang dist={neighbor_ang_dist}")
+                else:
+                    print(f"Used quick NN. NN: z={neighbor_z}, ang dist={neighbor_ang_dist}")
             return neighbor_z, True
 
         # Otherwise draw a random redshift from the apparent mag bin similar to the target
         bin_i = np.digitize(target_app_mag, self.app_mag_bins)
+
+        #if len(self.app_mag_map[bin_i[0]]) == 0:
+        #    if bin_i[0] < len(self.app_mag_map) - 2:
+        #    bin_i[0] = bin_i[0]+1
+        #    print(f"Trouble with app mag {target_app_mag}, which goes in bin {bin_i}")
+
         z_chosen = self.rng.choice(self.app_mag_map[bin_i[0]])
-        #z_chosen = random.choice(self.app_mag_map.get(bin_i[0]))
         self.random_choice += 1
 
         if close_enough(target_z_true, z_chosen):
