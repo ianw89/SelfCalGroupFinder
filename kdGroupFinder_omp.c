@@ -189,8 +189,12 @@ void groupfind()
     zmin = MINREDSHIFT;
     zmax = MAXREDSHIFT;
 
-    // calculate the volume of the sample
-    if (FLUXLIM) {
+    // For volume-limited samples, we calculate the volume and put that in the vmax
+    // property of each galxaxy.
+    // For flux-limited samples, we read in the vmax values from the file.
+    // For that case, a factor of frac_area should already be included in the vmax.
+
+    if (!FLUXLIM) {
       volume = 4. / 3. * PI * (pow(distance_redshift(zmax), 3.0)) * FRAC_AREA;
       volume = volume - 4. / 3. * PI * (pow(distance_redshift(zmin), 3.0)) * FRAC_AREA;
     }
@@ -206,12 +210,10 @@ void groupfind()
       // check if the stellar mass is in log
       if (GAL[i].mstellar < 100)
         GAL[i].mstellar = pow(10.0, GAL[i].mstellar);
-      // check to see if we're doing a fluxlimited sample
       if (FLUXLIM)
         fscanf(fp, "%f", &GAL[i].vmax);
       else
         GAL[i].vmax = volume;
-      // check to see if we're using colors
       if (colors)
         fscanf(fp, "%f", &GAL[i].color);
       if (SECOND_PARAMETER)
@@ -254,17 +256,17 @@ void groupfind()
     // reset the sham counters
     if (FLUXLIM)
       density2host_halo_zbins3(-1, 0);
-    // density2host_halo_zbins(-1);
     for (i1 = 1; i1 <= NGAL; ++i1)
     {
       i = itmp[i1];
       GAL[i].grp_rank = i1;
-      galden += 1 / GAL[i].vmax;
       if (FLUXLIM)
-        // GAL[i].mass = density2host_halo_zbins(GAL[i].redshift);
         GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
       else
+      {
+        galden += 1 / GAL[i].vmax;
         GAL[i].mass = density2host_halo(galden);
+      }
       GAL[i].rad = pow(3 * GAL[i].mass / (4. * PI * DELTA_HALO * RHO_CRIT * OMEGA_M), THIRD);
       GAL[i].theta = GAL[i].rad / GAL[i].rco;
       GAL[i].sigmav = sqrt(BIG_G * GAL[i].mass / 2.0 / GAL[i].rad * (1 + GAL[i].redshift));
