@@ -1,10 +1,10 @@
 #!/bin/bash
 #Basic Usage: kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4] > out
 
-# If fluxlim = 1 then zmin/zmax/frac_area are ignored
-zmin=0 
-zmax=0.8042979 
-frac_area=0.35876178702
+# If fluxlim = 1 then zmin/zmax are ignored. frac_area still used in some places
+#zmin=0 
+#zmax=0.8042979 
+#frac_area=0.35876178702
 fluxlim=1
 
 color=1 # 0 is off but I don't think code works with colors off properly , so setting omega0 below to 0 turns off.
@@ -30,35 +30,71 @@ omega_chi_L_q=0.48
 
 # Ian Mac
 #ROOT_FOLDER="/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/"
-#BIG_FILES_FOLDER="bin/"
+#MXXL_FILES_FOLDER="bin/"
 
 # Ian WSL
 #ROOT_FOLDER="bin/"
-#BIG_FILES_FOLDER=$ROOT_FOLDER
+#MXXL_FILES_FOLDER=$ROOT_FOLDER
 #UCHUU_FILES_FOLDER=$ROOT_FOLDER
 
 # Sirocco
 ROOT_FOLDER="bin/"
-BIG_FILES_FOLDER="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
+MXXL_FILES_FOLDER="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
 UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
-
 PYTHON="/home/users/imw2293/.conda/envs/ian-conda311/bin/python3"
 
+PYTHON_PROCESSING=true # whether to do python processing to create .DAT files before groupfinding
+
+# MXXL
+run_all=true
+run_all20=false
+run_fiber_only=false
+run_fiber_only20=false
+run_nn_kd=true 
+run_nn_kd20=false
+run_fancy=false
+run_fancy20=false
+run_simple=false
+run_simple20=false
+# UCHUU
+run_uchuu_all=false
+# DESI BGS
+run_bgs_fiberonly_1passok=false
+run_bgs_fiberonly=false
+run_bgs_simple=false
+run_bgs_simple_vmaxfilt=false
+
 function process_and_group_find () {
+    run_groupfinder=true
     name=$1
-    rm "${name}_old.dat" "${name}_old_galprops.dat" "${name}_old.out" 2>bin/null
-    mv "${name}.dat" "${name}_old.dat" 2>bin/null
-    mv "${name}_galprops.dat" "${name}_old_galprops.dat" 2>bin/null
-    mv "${name}.out" "${name}_old.out" 2>bin/null
-    if $PYTHON $6 $2 $3 $4 $5 "${name}" ; then
-        bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
-    else
-        echo "Conversion to DAT failed"
+    if $PYTHON_PROCESSING ; then
+        echo "Calling python pre-processor on ${name}"
+        rm "${name}_old.dat" "${name}_old_galprops.dat" "${name}_old.out" "${name}_meta_old.out" 2>bin/null
+        mv "${name}.dat" "${name}_old.dat" 2>bin/null
+        mv "${name}_meta.dat" "${name}_meta_old.dat" 2>bin/null
+        mv "${name}_galprops.dat" "${name}_old_galprops.dat" 2>bin/null
+        mv "${name}.out" "${name}_old.out" 2>bin/null
+        if $PYTHON $6 $2 $3 $4 $5 "${name}" ; then
+            run_groupfinder=true
+        else
+            echo "Conversion to DAT failed"
+            run_groupfinder=false
+        fi
     fi
+    if $run_groupfinder; then
+        # read the file "${name}_meta.dat" into variables zmin zmax frac_area
+        zmin=$(awk 'NR==1 {print $1}' "${name}_meta.dat")
+        zmax=$(awk 'NR==1 {print $2}' "${name}_meta.dat")
+        frac_area=$(awk 'NR==1 {print $3}' "${name}_meta.dat")
+        echo $zmin $zmax $frac_area
+        # TODO use the meta file to get zmin zmax frac_area
+        bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
+    fi
+
 }
 
 function process_and_group_find_mxxl () {
-    process_and_group_find $1 $2 $3 $4 "${BIG_FILES_FOLDER}weights_3pass.hdf5" desi/hdf5_to_dat.py
+    process_and_group_find $1 $2 $3 $4 "${MXXL_FILES_FOLDER}weights_3pass.hdf5" desi/hdf5_to_dat.py
 }
 
 function process_and_group_find_uchuu () {
@@ -69,25 +105,6 @@ function process_and_group_find_BGS () {
     process_and_group_find $1 $2 $3 $4 "${ROOT_FOLDER}BGS_BRIGHT_full.dat.fits" desi/desi_fits_to_dat.py
 }
 
-# MXXL
-run_all=true
-run_all20=false
-run_fiber_only=true
-run_fiber_only20=false
-run_nn_kd=true 
-run_nn_kd20=false
-run_fancy=false
-run_fancy20=false
-run_simple=true
-run_simple20=false
-
-# UCHUU
-run_uchuu_all=false
-
-# DESI BGS
-run_bgs_fiberonly_1passok=true
-run_bgs_fiberonly=true
-run_bgs_simple=true
 
 
 if [ "$run_all" = true ] ; then
@@ -146,5 +163,9 @@ if [ "$run_bgs_fiberonly" = true ] ; then
 fi
 
 if [ "$run_bgs_simple" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2" 5 19.5 20.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_3" 5 19.5 20.0
+fi
+
+if [ "$run_bgs_simple_vmaxfilt" = true ] ; then
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_vmaxfilt" 5 19.5 20.0
 fi

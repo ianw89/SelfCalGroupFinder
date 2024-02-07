@@ -83,7 +83,8 @@ def main():
 
     outname_1 = sys.argv[5]+ ".dat"
     outname_2 = sys.argv[5] + "_galprops.dat"
-    print("Output files will be {0} and {1}".format(outname_1, outname_2))
+    outname_3 = sys.argv[5] + "_meta.dat"
+    print("Output files will be {0}, {1}, and {2}".format(outname_1, outname_2, outname_3))
 
     # astropy's Table used masked arrays, so we have to use .data.data to get the actual data
     # The masked rows are unobserved targets
@@ -159,8 +160,6 @@ def main():
 
     z_eff = np.copy(z_obs)
 
-
-
     if mode == Mode.SIMPLE.value:
         with SimpleRedshiftGuesser(app_mag[observed], z_obs[observed]) as scorer:
 
@@ -188,9 +187,7 @@ def main():
 
     V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, ra, dec)
     
-    # TODO group finder blows up with "Root must be bracketed in zbrent" error is V_max is too small it seems
-    # Current workaround is to filter those out
-    # TODO Great mystery: though this only removes 0.16% of galaxies, it totally changes f_sat plot
+    """
     _MIN_VMAX = 220000
     print(f"Minimum VMax: {min(V_max)}, will filter out things below {_MIN_VMAX}")
     final_filter = V_max > _MIN_VMAX
@@ -198,6 +195,7 @@ def main():
     dec = dec[final_filter]
     ra = ra[final_filter]
     z_obs = z_obs[final_filter]
+    z_eff = z_eff[final_filter] # previously had a bug where this wasn't here!
     target_id = target_id[final_filter]
     flux_r = flux_r[final_filter]
     app_mag = app_mag[final_filter]
@@ -211,6 +209,8 @@ def main():
     
     count = len(dec)
     print(count, "galaxies left after final v_max filter.")
+    """
+    frac_area = estimate_frac_area(ra, dec)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
@@ -230,6 +230,8 @@ def main():
         lines_1.append(f'{ra[i]:f} {dec[i]:f} {z_eff[i]:f} {log_L_gal[i]:f} {V_max[i]:f} {colors[i]} {chi[i]}')
         lines_2.append(f'{app_mag[i]:f} {target_id[i]:f} {unobserved[i]}')
 
+    outstr_3 = f'{np.min(z_eff)} {np.max(z_eff)} {frac_area}'
+
     outstr_1 = "\n".join(lines_1)
     outstr_2 = "\n".join(lines_2)    
     print("Building output file string... done")
@@ -237,6 +239,7 @@ def main():
     print("Writing output files... ",end='\r')
     open(outname_1, 'w').write(outstr_1)
     open(outname_2, 'w').write(outstr_2)
+    open(outname_3, 'w').write(outstr_3)
     print("Writing output files... done")
 
         

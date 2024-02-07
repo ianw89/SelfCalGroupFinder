@@ -77,9 +77,9 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec):
     v_max = (d_cm**3) * (4*np.pi/3) # in comoving Mpc^3
 
     # This is what the fraction of the sky that complete BGS will cover.
-    # TODO use estimate_frac_area instead
     #frac_area = 0.35876178702 # 14800 / 41253 which is final DESI BGS footprint (see Alex DESI BGS Incompleteness paper) 
     frac_area = estimate_frac_area(ra, dec)
+    #assert frac_area < 0.37
     print(f"Frac Area Estimate: {frac_area:.3f}")
 
     return v_max * frac_area
@@ -103,7 +103,8 @@ def estimate_frac_area(ra, dec):
     z = np.sin(np.deg2rad(dec))
 
     # Create a 2D histogram of the Cartesian coordinates
-    fineness = 15
+    # TODO tune fineness more intelligently
+    fineness = 15 # 4 arcminutes per cell
     hist, xedges, yedges = np.histogram2d(x, y, bins=[180*fineness, 360*fineness])
 
     # Count the number of bins that have at least one point in them
@@ -166,6 +167,26 @@ def make_map(ra, dec):
     ax = fig.add_subplot(111, projection="mollweide")
     ax.scatter(ra_angles.radian, dec_angles.radian, alpha=0.002)
     return fig
+
+# TODO this doesn't work yet
+def make_map_cartesian(ra, dec):
+    # Convert ra, dec to Cartesian coordinates
+    x = np.cos(np.deg2rad(dec)) * np.cos(np.deg2rad(ra))
+    y = np.cos(np.deg2rad(dec)) * np.sin(np.deg2rad(ra))
+    z = np.sin(np.deg2rad(dec))
+
+    # Create a 2D histogram of the Cartesian coordinates
+    fineness = 15 # 4 arcminutes per cell
+    hist, xedges, yedges = np.histogram2d(x, y, bins=[180*fineness, 360*fineness])
+
+    # Count the number of bins that have at least one point in them
+    filled_bins = np.count_nonzero(hist)
+
+    # Divide the number of filled bins by the total number of bins
+    frac_area = filled_bins / hist.size
+
+    print(frac_area)
+    return plt.imshow(hist, cmap='hot', interpolation='nearest')
 
 
 

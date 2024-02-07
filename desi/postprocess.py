@@ -198,27 +198,35 @@ def plots(*frames, truth_on=False):
         plt.xlim(2E11,1E15)
         plt.draw()
 
-    plt.figure(dpi=DPI)
+    fig,ax1=plt.subplots()
+    fig.set_dpi(DPI)
     for f in frames:
         plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=f.name, color=f.color)
-    
     if truth_on:
         truth_f_sat = truth_on.all_data.groupby('Lgal_bin').is_sat_truth.mean()
         plt.plot(truth_on.L_gal_labels, truth_f_sat, label="UCHUU Truth <19.5", color=truth_on.color)
-    plt.xscale('log')
-    plt.xlabel("$L_{gal}$")
-    plt.ylabel("$f_{sat}$")
-    plt.title("Satellite fraction vs Galaxy Luminosity")
-    plt.legend()
-    plt.draw()
+    ax1.set_xscale('log')
+    ax1.set_xlabel("$L_{gal}$")
+    ax1.set_ylabel("$f_{sat}$")
+    ax1.set_title("Satellite fraction vs Galaxy Luminosity")
+    ax1.set_xlim(2E7,2E11)
+    ax1.legend()
+    ax2 = ax1.twinx()
+    idx = 0
+    for f in frames:
+        widths = np.zeros(len(f.L_gal_bins)-1)
+        for i in range(0,len(f.L_gal_bins)-1):
+            widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(frames)
+        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data.is_sat == True].groupby('Lgal_bin').size(), width=widths, color=f.color, alpha=0.4)
+        idx+=1
+    ax2.set_ylabel('$N_{sat}$')
+    ax2.set_yscale('log')
+    fig.tight_layout()
 
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
-    max_fsat = 0
     for f in frames:
         plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=f.name, color=f.color)
-        max_fsat = max(max_fsat, np.max(f.f_sat))
-
     if truth_on:
         truth_f_sat = truth_on.all_data.groupby('Lgal_bin').is_sat_truth.mean()
         plt.plot(truth_on.L_gal_labels, truth_f_sat, label="UCHUU Truth <19.5", color=truth_on.color)
@@ -228,7 +236,6 @@ def plots(*frames, truth_on=False):
     ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.legend()
     ax1.set_xlim(3E8,1E11)
-    #ax1.set_ylim(0.1,max(0.5, max_fsat))
     ax1.set_ylim(0.1,0.7)
     ax2 = ax1.twinx()
     idx = 0
@@ -236,7 +243,7 @@ def plots(*frames, truth_on=False):
         widths = np.zeros(len(f.L_gal_bins)-1)
         for i in range(0,len(f.L_gal_bins)-1):
             widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(frames)
-        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data.is_sat == True].groupby('Lgal_bin').size(), width=widths, color=f.color, alpha=0.5)
+        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data.is_sat == True].groupby('Lgal_bin').size(), width=widths, color=f.color, alpha=0.4)
         idx+=1
     ax2.set_ylabel('$N_{sat}$')
     fig.tight_layout()

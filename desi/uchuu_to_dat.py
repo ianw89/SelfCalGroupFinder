@@ -80,6 +80,7 @@ def main():
 
     outname_1 = sys.argv[5]+ ".dat"
     outname_2 = sys.argv[5] + "_galprops.dat"
+    outname_3 = sys.argv[5] + "_meta.dat"
     print("Output files will be {0} and {1}".format(outname_1, outname_2))
 
     # read everything we need into memory
@@ -129,6 +130,7 @@ def main():
     log_L_gal = abs_mag_r_to_log_solar_L(my_abs_mag)
 
     V_max = get_max_observable_volume(my_abs_mag, z_eff, APP_MAG_CUT, ra, dec)
+    frac_area = estimate_frac_area(ra, dec)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
@@ -150,6 +152,8 @@ def main():
         lines_1.append(' '.join(map(str, output_1[i])))
         lines_2.append(' '.join(map(str, output_2[i])))
 
+    outstr_3 = f'{np.min(z_eff)} {np.max(z_eff)} {frac_area}'
+
     outstr_1 = "\n".join(lines_1)
     outstr_2 = "\n".join(lines_2)    
     print("Building output file string... done")
@@ -157,6 +161,7 @@ def main():
     print("Writing output files... ",end='\r')
     open(outname_1, 'w').write(outstr_1)
     open(outname_2, 'w').write(outstr_2)
+    open(outname_3, 'w').write(outstr_3)
     print("Writing output files... done")
 
         
