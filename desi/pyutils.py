@@ -84,6 +84,53 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec):
 
     return v_max * frac_area
 
+
+def mollweide_transform(ra, dec):
+    """
+    Transform ra, dec arrays into x, y arrays for plotting in Mollweide projection.
+    
+    Expects ra, dec in degrees. They must range -180 to 180 and -90 to 90.
+    """
+    assert np.all(ra < 180.01)
+    assert np.all(dec < 90.01)
+    assert len(ra) == len(dec)
+
+    def d(theta):
+        delta = (-(theta + np.sin(theta) - pi_sin_l)
+                         / (1 + np.cos(theta)))
+        return delta, np.abs(delta) > 0.001
+
+    longitude = ra * np.pi / 180 # runs -pi to pi
+    latitude = dec * np.pi / 180 # should run -pi/2 to pi/2
+
+    # Mollweide projection
+    clat = np.pi/2 - np.abs(latitude)
+    ihigh = clat < 0.087  # within 5 degrees of the poles
+    ilow = ~ihigh
+    aux = np.empty(latitude.shape, dtype=float)
+
+    if ilow.any():  # Newton-Raphson iteration
+        pi_sin_l = np.pi * np.sin(latitude[ilow])
+        theta = 2.0 * latitude[ilow]
+        delta, large_delta = d(theta)
+        while np.any(large_delta):
+            theta[large_delta] += delta[large_delta]
+            delta, large_delta = d(theta)
+        aux[ilow] = theta / 2
+
+    if ihigh.any():  # Taylor series-based approx. solution
+        e = clat[ihigh]
+        d = 0.5 * (3 * np.pi * e**2) ** (1.0/3)
+        aux[ihigh] = (np.pi/2 - d) * np.sign(latitude[ihigh])
+
+    x = np.empty(len(longitude), dtype=float)
+    y = np.empty(len(latitude), dtype=float)
+
+    x = (2.0 * np.sqrt(2.0) / np.pi) * longitude * np.cos(aux) * (180/np.pi)
+    y = np.sqrt(2.0) * np.sin(aux) * (180/np.pi)
+
+    return x, y
+
 def estimate_frac_area(ra, dec):
     """
     Estimate the fraction of the sky covered in the survey so far based on the ra, dec 
@@ -97,22 +144,53 @@ def estimate_frac_area(ra, dec):
     # Then count the number of covered pixels
     # Then divide by the total number of pixels
 
-    # Convert ra, dec to Cartesian coordinates
-    x = np.cos(np.deg2rad(dec)) * np.cos(np.deg2rad(ra))
-    y = np.cos(np.deg2rad(dec)) * np.sin(np.deg2rad(ra))
-    z = np.sin(np.deg2rad(dec))
+    # Reduce data if too large
+    #_MAX_POINTS = 10000000 
+    #if len(ra) > 2*_MAX_POINTS:
+    #    reduce = len(ra) // _MAX_POINTS
+    #    #print(f"Reducing data size by a factor of {reduce}")
+    #    rnd_indices = np.random.choice(len(ra), len(ra)//reduce, replace=False)
+    #    ra = ra[rnd_indices]
+    #    dec = dec[rnd_indices]
+    
+    # Shift to -pi to pi and -pi/2 to pi/2 if needed
+    if np.any(ra > 180.0): # if data given is 0 to 360
+        assert np.all(ra > -0.1)
+        ra = ra - 180
+    if np.any(dec > 90.0): # if data is 0 to 180
+        assert np.all(dec > -0.1)
+        dec = dec - 90
 
-    # Create a 2D histogram of the Cartesian coordinates
-    # TODO tune fineness more intelligently
-    fineness = 15 # 4 arcminutes per cell
-    hist, xedges, yedges = np.histogram2d(x, y, bins=[180*fineness, 360*fineness])
+    #print("ra", min(ra), max(ra))
+    #print("dec", min(dec), max(dec))
+    x, y = mollweide_transform(ra, dec)
+    #print("x", min(x), max(x))
+    #print("y", min(y), max(y))
 
-    # Count the number of bins that have at least one point in them
-    filled_bins = np.count_nonzero(hist)
+    #plt.figure(figsize=(8,4))
+    #plt.scatter(ra, dec, alpha=0.1)
+    #plt.scatter(x, y, alpha=0.1)
+    #plt.title("Blue: Original. Orange: Mollweide.")
+    #plt.xlim(-180,180)
+    #plt.ylim(-90,90)
 
-    # Divide the number of filled bins by the total number of bins
-    frac_area = filled_bins / hist.size
+    # Now we have the x and y coordinates of the points in the Mollweide projection
+    # We can use these to make a 2D histogram of the points
+    # But the projection makes some of the bins impossible to fill; ignore those bins
+    # Also we may need to tune fineness
+    fineness=1 # fineness^2 is how many bins per square degree
+    accessible_bins = 41253*fineness**2 # 41253 square degrees in the sky, this must be the max bins
 
+    xbins = np.linspace(-180,180,360*fineness +1)
+    ybins = np.linspace(-90,90,180*fineness +1)
+    hist, xedges, yedges = np.histogram2d(x, y, bins=[xbins, ybins])
+
+    filled_bincount = np.count_nonzero(hist)
+
+    #print(f"Filled bins: {filled_bincount}. Total bins: {accessible_bins}")
+    # You can fill slightly bins than the max due to edge effects I think?
+    frac_area = min(filled_bincount / accessible_bins, 1.0)
+    
     return frac_area
         
 
@@ -153,40 +231,29 @@ def build_app_mag_to_z_map(app_mag, z_obs):
 
 
 
-def make_map(ra, dec):
+def make_map(ra, dec, alpha=0.1):
     """
     Give numpy array of ra and dec.
     """
+
+    if np.any(ra > 180.0): # if data given is 0 to 360
+        assert np.all(ra > -0.1)
+        ra = ra - 180
+    if np.any(dec > 90.0): # if data is 0 to 180
+        assert np.all(dec > -0.1)
+        dec = dec - 90
 
     # Build a map of the galaxies
     ra_angles = coord.Angle(ra*u.degree)
     ra_angles = ra_angles.wrap_at(180*u.degree)
     dec_angles = coord.Angle(dec*u.degree)
 
-    fig = plt.figure(figsize=(12,9))
-    ax = fig.add_subplot(111, projection="mollweide")
-    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=0.002)
+    fig = plt.figure(figsize=(12,6))
+    ax = fig.add_subplot(111, projection="mollweide", )
+    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=20)
+    plt.grid(True)
     return fig
 
-# TODO this doesn't work yet
-def make_map_cartesian(ra, dec):
-    # Convert ra, dec to Cartesian coordinates
-    x = np.cos(np.deg2rad(dec)) * np.cos(np.deg2rad(ra))
-    y = np.cos(np.deg2rad(dec)) * np.sin(np.deg2rad(ra))
-    z = np.sin(np.deg2rad(dec))
-
-    # Create a 2D histogram of the Cartesian coordinates
-    fineness = 15 # 4 arcminutes per cell
-    hist, xedges, yedges = np.histogram2d(x, y, bins=[180*fineness, 360*fineness])
-
-    # Count the number of bins that have at least one point in them
-    filled_bins = np.count_nonzero(hist)
-
-    # Divide the number of filled bins by the total number of bins
-    frac_area = filled_bins / hist.size
-
-    print(frac_area)
-    return plt.imshow(hist, cmap='hot', interpolation='nearest')
 
 
 
