@@ -107,6 +107,7 @@ def main():
     orig_count = len(dec)
     print(orig_count, "objects in FITS file")
 
+
     # If an observation was made, some automated system will evaluate the spectra and auto classify the SPECTYPE
     # as GALAXY, QSO, STAR. It is null (and masked) for non-observed targets.
     # NTILE tracks how many DESI pointings could have observed the target
@@ -122,8 +123,12 @@ def main():
     redshift_hi_filter = z_obs < Z_MAX
     deltachi2_filter = deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
     observed_requirements = np.all([galaxy_observed_filter, app_mag_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
-
-    # TODO treat low deltachi2 as unobserved. Right now we drop completely
+    
+    # treat low deltachi2 as unobserved
+    treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, np.invert(deltachi2_filter)], axis=0)
+    #print(f"We have {np.count_nonzero(treat_as_unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
+    unobserved = np.logical_or(unobserved, treat_as_unobserved)
+    #print(f"We have {np.count_nonzero(unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
 
     if mode == Mode.ALL.value: # ALL is misnomer here it means 1pass or more
         keep = np.all([observed_requirements], axis=0)
@@ -159,8 +164,8 @@ def main():
 
     count = len(dec)
     print(count, "galaxies left after filters.")
-    print(f'{unobserved.sum() } remaining galaxies are unobserved')
-    print(f'{100*unobserved.sum() / len(unobserved) :.1f}% of remaining galaxies are unobserved')
+    print(f'{unobserved.sum() } remaining galaxies that need redshifts')
+    print(f'{100*unobserved.sum() / len(unobserved) :.1f}% of remaining galaxies need redshifts')
     #print(f'Min z: {min(z_obs):f}, Max z: {max(z_obs):f}')
 
     z_eff = np.copy(z_obs)
