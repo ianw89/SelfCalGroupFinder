@@ -210,6 +210,7 @@ def plots(*frames, truth_on=False):
     ax1.set_ylabel("$f_{sat}$")
     ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.set_xlim(2E7,2E11)
+    ax1.set_ylim(0.0,0.6)
     ax1.legend()
     ax2 = ax1.twinx()
     idx = 0
@@ -236,7 +237,7 @@ def plots(*frames, truth_on=False):
     ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.legend()
     ax1.set_xlim(3E8,1E11)
-    ax1.set_ylim(0.1,0.7)
+    ax1.set_ylim(0.0,0.6)
     ax2 = ax1.twinx()
     idx = 0
     for f in frames:

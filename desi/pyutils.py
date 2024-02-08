@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 #from hodpy.cosmology import CosmologyMXXL
 #from hodpy.k_correction import GAMA_KCorrection
 
+DEGREES_ON_SPHERE = 41253
+
 class Mode(Enum):
     ALL = 1 # include all galaxies
     FIBER_ASSIGNED_ONLY = 2 # include only galaxies that were assigned a fiber for FIBER_ASSIGNED_REALIZATION_BITSTRING
@@ -63,7 +65,7 @@ def abs_mag_r_to_log_solar_L(arr):
     return 0.39794 * (SOLAR_L_R_BAND - arr)
 
 
-def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec):
+def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec, frac_area=None):
     """
     Calculate the max volume at which the galaxy could be seen in comoving coords.
 
@@ -78,9 +80,9 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec):
 
     # This is what the fraction of the sky that complete BGS will cover.
     #frac_area = 0.35876178702 # 14800 / 41253 which is final DESI BGS footprint (see Alex DESI BGS Incompleteness paper) 
-    frac_area = estimate_frac_area(ra, dec)
-    #assert frac_area < 0.37
-    print(f"Frac Area Estimate: {frac_area:.3f}")
+    if frac_area is None:
+        frac_area = estimate_frac_area(ra, dec)
+        print(f"Footprint not provided; estimated to be {frac_area:.3f} of the sky")
 
     return v_max * frac_area
 
@@ -179,7 +181,7 @@ def estimate_frac_area(ra, dec):
     # But the projection makes some of the bins impossible to fill; ignore those bins
     # Also we may need to tune fineness
     fineness=1 # fineness^2 is how many bins per square degree
-    accessible_bins = 41253*fineness**2 # 41253 square degrees in the sky, this must be the max bins
+    accessible_bins = DEGREES_ON_SPHERE*fineness**2 # 41253 square degrees in the sky, this must be the max bins
 
     xbins = np.linspace(-180,180,360*fineness +1)
     ybins = np.linspace(-90,90,180*fineness +1)

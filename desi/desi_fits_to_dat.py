@@ -76,6 +76,11 @@ def main():
     CATALOG_APP_MAG_CUT = float(sys.argv[3])
     Z_MIN = 0.01
     Z_MAX = 0.8
+    FOOTPRINT_FRAC_1pass = 0.187906 # As calculated from the randoms with 1-pass coverage
+    FOOTPRINT_FRAC = 0.0317538 # As calculated from the randoms with 3-pass coverage
+    frac_area = FOOTPRINT_FRAC
+    if mode == Mode.ALL.value:
+        frac_area = FOOTPRINT_FRAC_1pass
 
     print("Reading FITS data from ", sys.argv[4])
     # Unobserved galaxies have masked rows in appropriate columns of the table
@@ -115,14 +120,15 @@ def main():
     app_mag_filter = app_mag < APP_MAG_CUT
     redshift_filter = z_obs > Z_MIN
     redshift_hi_filter = z_obs < Z_MAX
-    deltachi2_filter = deltachi2 > 40
+    deltachi2_filter = deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
     observed_requirements = np.all([galaxy_observed_filter, app_mag_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
 
+    # TODO treat low deltachi2 as unobserved. Right now we drop completely
 
-    if mode == Mode.ALL.value:
+    if mode == Mode.ALL.value: # ALL is misnomer here it means 1pass or more
         keep = np.all([observed_requirements], axis=0)
 
-    if mode == Mode.FIBER_ASSIGNED_ONLY.value:
+    if mode == Mode.FIBER_ASSIGNED_ONLY.value: # means 3pass 
         keep = np.all([three_pass_filter, observed_requirements], axis=0)
 
     if mode == Mode.SIMPLE.value:
@@ -134,7 +140,6 @@ def main():
         catalog_ra = ra[catalog_keep]
         catalog_dec = dec[catalog_keep]
         z_obs_catalog = z_obs[catalog_keep]
-        app_mag_catalog = app_mag[catalog_keep]
 
         print(len(z_obs_catalog), "galaxies in the NN catalog.")
 
@@ -185,7 +190,7 @@ def main():
     abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag)
 
-    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, ra, dec)
+    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, ra, dec, frac_area=frac_area)
     
     """
     _MIN_VMAX = 220000
@@ -210,7 +215,6 @@ def main():
     count = len(dec)
     print(count, "galaxies left after final v_max filter.")
     """
-    frac_area = estimate_frac_area(ra, dec)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi

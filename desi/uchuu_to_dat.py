@@ -74,6 +74,7 @@ def main():
 
     APP_MAG_CUT = float(sys.argv[2])
     CATALOG_APP_MAG_CUT = float(sys.argv[3])
+    FOOTPRINT_FRAC = 1.0 # UCHUU is whole sky
 
     print("Reading FITS data from ", sys.argv[4])
     u_table = Table.read(sys.argv[4], format='fits')
@@ -129,8 +130,7 @@ def main():
     my_abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
     log_L_gal = abs_mag_r_to_log_solar_L(my_abs_mag)
 
-    V_max = get_max_observable_volume(my_abs_mag, z_eff, APP_MAG_CUT, ra, dec)
-    frac_area = estimate_frac_area(ra, dec)
+    V_max = get_max_observable_volume(my_abs_mag, z_eff, APP_MAG_CUT, ra, dec, frac_area=FOOTPRINT_FRAC)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
@@ -152,7 +152,7 @@ def main():
         lines_1.append(' '.join(map(str, output_1[i])))
         lines_2.append(' '.join(map(str, output_2[i])))
 
-    outstr_3 = f'{np.min(z_eff)} {np.max(z_eff)} {frac_area}'
+    outstr_3 = f'{np.min(z_eff)} {np.max(z_eff)} {FOOTPRINT_FRAC}'
 
     outstr_1 = "\n".join(lines_1)
     outstr_2 = "\n".join(lines_2)    

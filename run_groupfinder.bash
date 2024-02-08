@@ -46,11 +46,11 @@ PYTHON="/home/users/imw2293/.conda/envs/ian-conda311/bin/python3"
 PYTHON_PROCESSING=true # whether to do python processing to create .DAT files before groupfinding
 
 # MXXL
-run_all=true
+run_all=false
 run_all20=false
 run_fiber_only=false
 run_fiber_only20=false
-run_nn_kd=true 
+run_nn_kd=false 
 run_nn_kd20=false
 run_fancy=false
 run_fancy20=false
@@ -59,7 +59,7 @@ run_simple20=false
 # UCHUU
 run_uchuu_all=false
 # DESI BGS
-run_bgs_fiberonly_1passok=false
+run_bgs_fiberonly_1passok=true
 run_bgs_fiberonly=false
 run_bgs_simple=false
 run_bgs_simple_vmaxfilt=false
@@ -87,7 +87,6 @@ function process_and_group_find () {
         zmax=$(awk 'NR==1 {print $2}' "${name}_meta.dat")
         frac_area=$(awk 'NR==1 {print $3}' "${name}_meta.dat")
         echo $zmin $zmax $frac_area
-        # TODO use the meta file to get zmin zmax frac_area
         bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
     fi
 
@@ -163,7 +162,7 @@ if [ "$run_bgs_fiberonly" = true ] ; then
 fi
 
 if [ "$run_bgs_simple" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_3" 5 19.5 20.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2" 5 19.5 20.0
 fi
 
 if [ "$run_bgs_simple_vmaxfilt" = true ] ; then
