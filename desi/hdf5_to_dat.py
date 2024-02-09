@@ -95,10 +95,7 @@ def main():
     infile = h5py.File(sys.argv[4], 'r')
     print(list(infile['Data']))
 
-    outname_1 = sys.argv[5]+ ".dat"
-    outname_2 = sys.argv[5] + "_galprops.dat"
-    outname_3 = sys.argv[5] + "_meta.dat"
-    print("Output files will be {0} and {1}".format(outname_1, outname_2))
+    outname_base = sys.argv[5]
 
     # read everything we need into memory
     dec = infile['Data/dec'][:]
@@ -159,9 +156,29 @@ def main():
     # otherwise, it is an assigned value.
     # nearest neighbor will find the nearest (measured) galaxy and use its redshift.
     z_eff = np.copy(z_obs)
+
+
+    if mode == Mode.FIBER_ASSIGNED_ONLY.value:
+        # Filter it all down to just the ones with fiber's assigned
+        dec = dec[fiber_assigned_0]
+        ra = ra[fiber_assigned_0]
+        z_obs = z_obs[fiber_assigned_0]
+        app_mag = app_mag[fiber_assigned_0]
+        g_r = g_r[fiber_assigned_0]
+        galaxy_type = galaxy_type[fiber_assigned_0]
+        mxxl_halo_mass = mxxl_halo_mass[fiber_assigned_0]
+        mxxl_halo_id = mxxl_halo_id[fiber_assigned_0]
+        assigned_halo_mass = assigned_halo_mass[fiber_assigned_0]
+        assigned_halo_id = assigned_halo_id[fiber_assigned_0]
+        z_eff = z_eff[fiber_assigned_0]
+        prob_obs = prob_obs[fiber_assigned_0]
+        fiber_assigned_0 = fiber_assigned_0[fiber_assigned_0]
+        assert np.all(fiber_assigned_0)
+        count = len(dec)
+
     
-    if mode == Mode.NEAREST_NEIGHBOR.value:
-        # Astropy NN Search with kdtrees
+    elif mode == Mode.NEAREST_NEIGHBOR.value:
+
         catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
         to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
 
@@ -263,45 +280,18 @@ def main():
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
 
-
-    # To output turn the data into rows, 1 per galaxy (for each of the two files) 
-    # and then build up a large string to write in one go.
-    
-    # Note this copies the data from what was read in from the file
-    # TODO ID's are being written as float not int for some reason, fix
-
-    print("Building output file string... ", end='\r')
-    output_1 = np.column_stack((ra, dec, z_eff, log_L_gal, V_max, colors, chi))
-    output_2 = np.column_stack((app_mag, g_r, galaxy_type, mxxl_halo_mass, fiber_assigned_0, assigned_halo_mass, z_obs, mxxl_halo_id, assigned_halo_id))
-    lines_1 = []
-    lines_2 = []
-
-    for i in range(0, count):
-        if mode == Mode.FIBER_ASSIGNED_ONLY.value:
-            if fiber_assigned_0[i]:
-                lines_1.append(f'{ra[i]:f} {dec[i]:f} {z_eff[i]:f} {log_L_gal[i]:f} {V_max[i]:f} {colors[i]:f} {chi[i]:f}')
-                lines_2.append(f'{app_mag[i]:f} {g_r[i]:f} {galaxy_type[i]} {mxxl_halo_mass[i]} {fiber_assigned_0[i]} {assigned_halo_mass[i]} {z_obs[i]:f} {mxxl_halo_id[i]} {assigned_halo_id[i]}')        
-            else:
-                pass
-        else:
-            lines_1.append(' '.join(map(str, output_1[i])))
-            lines_2.append(' '.join(map(str, output_2[i])))
-    
-    outstr_3 = f'{np.min(z_eff)} {np.max(z_eff)} {FOOTPRINT_FRAC}'
-
-    outstr_1 = "\n".join(lines_1)
-    outstr_2 = "\n".join(lines_2)    
-    print("Building output file string... done")
-
-    print("Writing output files... ",end='\r')
-    open(outname_1, 'w').write(outstr_1)
-    open(outname_2, 'w').write(outstr_2)
-    open(outname_3, 'w').write(outstr_3)
-    print("Writing output files... done")
-
-        
-
-
+    # Output files
+    galprops = np.column_stack([
+        np.array(app_mag, dtype='str'), 
+        np.array(galaxy_type, dtype='str'), 
+        np.array(mxxl_halo_mass, dtype='str'),
+        np.array(fiber_assigned_0, dtype='str'),
+        np.array(assigned_halo_mass, dtype='str'),
+        np.array(z_obs, dtype='str'),
+        np.array(mxxl_halo_id, dtype='str'),
+        np.array(assigned_halo_id, dtype='str')
+        ])
+    write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, FOOTPRINT_FRAC, galprops)
         
 if __name__ == "__main__":
     main()

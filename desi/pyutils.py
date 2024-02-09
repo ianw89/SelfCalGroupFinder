@@ -571,3 +571,38 @@ class FancyRedshiftGuesser(RedshiftGuesser):
             print(f"Used scoring. True z={target_z_true}. NN {i}: z={neighbors_z[i]}, ang dist={neighbors_ang_dist[i]}")
 
         return i
+
+
+
+def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, frac_area, galprops):
+    """
+    Use np.column_stack with dtype='str' to convert your galprops arrays into an all-string
+    array before passing it in.
+    """
+
+    count = len(ra)
+    outname_1 = outname_base + ".dat"
+    outname_2 = outname_base + "_galprops.dat"
+    outname_3 = outname_base + "_meta.dat"
+
+    print("Output files will be {0}, {1}, and {2}".format(outname_1, outname_2, outname_3))
+
+    print("Building output file string... ", end='\r')
+    lines_1 = []
+    lines_2 = []
+
+    for i in range(0, count):
+        lines_1.append(f'{ra[i]:f} {dec[i]:f} {z_eff[i]:f} {log_L_gal[i]:f} {V_max[i]:f} {colors[i]} {chi[i]}')  
+        lines_2.append(' '.join(map(str, galprops[i])))
+
+    outstr_3 = f'{np.min(z_eff)} {np.max(z_eff)} {frac_area}'
+
+    outstr_1 = "\n".join(lines_1)
+    outstr_2 = "\n".join(lines_2)    
+    print("Building output file string... done")
+
+    print("Writing output files... ",end='\r')
+    open(outname_1, 'w').write(outstr_1)
+    open(outname_2, 'w').write(outstr_2)
+    open(outname_3, 'w').write(outstr_3)
+    print("Writing output files... done")

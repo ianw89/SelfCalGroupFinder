@@ -44,11 +44,12 @@ UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
 PYTHON="/home/users/imw2293/.conda/envs/ian-conda311/bin/python3"
 
 PYTHON_PROCESSING=true # whether to do python processing to create .DAT files before groupfinding
+GROUP_FINDING=true # whether to do the group finding
 
 # MXXL
 run_all=false
 run_all20=false
-run_fiber_only=false
+run_fiber_only=true
 run_fiber_only20=false
 run_nn_kd=false 
 run_nn_kd20=false
@@ -59,13 +60,13 @@ run_simple20=false
 # UCHUU
 run_uchuu_all=false
 # DESI BGS
-run_bgs_fiberonly_1passok=true
+run_bgs_fiberonly_1passok=false
 run_bgs_fiberonly=false
 run_bgs_simple=false
 run_bgs_simple_vmaxfilt=false
 
 function process_and_group_find () {
-    run_groupfinder=true
+    run_groupfinder=$GROUP_FINDING
     name=$1
     if $PYTHON_PROCESSING ; then
         echo "Calling python pre-processor on ${name}"
@@ -75,7 +76,7 @@ function process_and_group_find () {
         mv "${name}_galprops.dat" "${name}_old_galprops.dat" 2>bin/null
         mv "${name}.out" "${name}_old.out" 2>bin/null
         if $PYTHON $6 $2 $3 $4 $5 "${name}" ; then
-            run_groupfinder=true
+            echo "Conversion to DAT successful"
         else
             echo "Conversion to DAT failed"
             run_groupfinder=false

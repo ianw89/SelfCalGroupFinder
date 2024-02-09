@@ -86,10 +86,7 @@ def main():
     # Unobserved galaxies have masked rows in appropriate columns of the table
     u_table = Table.read(sys.argv[4], format='fits')
 
-    outname_1 = sys.argv[5]+ ".dat"
-    outname_2 = sys.argv[5] + "_galprops.dat"
-    outname_3 = sys.argv[5] + "_meta.dat"
-    print("Output files will be {0}, {1}, and {2}".format(outname_1, outname_2, outname_3))
+    outname_base = sys.argv[5] 
 
     # astropy's Table used masked arrays, so we have to use .data.data to get the actual data
     # The masked rows are unobserved targets
@@ -103,6 +100,8 @@ def main():
     p_obs = u_table['PROB_OBS']
     unobserved = u_table['ZWARN'] == 999999
     deltachi2 = u_table['DELTACHI2'].data.data  
+
+    print(obj_type.dtype)
 
     orig_count = len(dec)
     print(orig_count, "objects in FITS file")
@@ -140,7 +139,8 @@ def main():
         keep = np.all([three_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
-        catalog_bright_filter = app_mag < CATALOG_APP_MAG_CUT # TODO why bother with this for the real data?
+        # TODO why bother with this for the real data? It doesn't change much I think
+        catalog_bright_filter = app_mag < CATALOG_APP_MAG_CUT 
         catalog_keep = np.all([galaxy_observed_filter, catalog_bright_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
         catalog_ra = ra[catalog_keep]
         catalog_dec = dec[catalog_keep]
@@ -224,33 +224,15 @@ def main():
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
 
-    # TODO g_r
+    # Output files
+    #galprops_str = "{:f} {} {:n}"
+    #galprops= np.array([app_mag, target_id, target_id])
 
-    # To output turn the data into rows, 1 per galaxy (for each of the two files) 
-    # and then build up a large string to write in one go.
-    
-    # Note this copies the data from what was read in from the file
-    # TODO ID's are being written as float not int for some reason, fix
-    print("Building output file string... ", end='\r')
-    lines_1 = []
-    lines_2 = []
+    galprops = np.column_stack([
+        np.array(app_mag, dtype='str'), 
+        np.array(target_id, dtype='str'), 
+        np.array(unobserved, dtype='str')])
+    write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, frac_area, galprops)
 
-    for i in range(0, count):
-        lines_1.append(f'{ra[i]:f} {dec[i]:f} {z_eff[i]:f} {log_L_gal[i]:f} {V_max[i]:f} {colors[i]} {chi[i]}')
-        lines_2.append(f'{app_mag[i]:f} {target_id[i]:f} {unobserved[i]}')
-
-    outstr_3 = f'{np.min(z_eff)} {np.max(z_eff)} {frac_area}'
-
-    outstr_1 = "\n".join(lines_1)
-    outstr_2 = "\n".join(lines_2)    
-    print("Building output file string... done")
-
-    print("Writing output files... ",end='\r')
-    open(outname_1, 'w').write(outstr_1)
-    open(outname_2, 'w').write(outstr_2)
-    open(outname_3, 'w').write(outstr_3)
-    print("Writing output files... done")
-
-        
 if __name__ == "__main__":
     main()

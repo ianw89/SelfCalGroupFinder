@@ -79,10 +79,7 @@ def main():
     print("Reading FITS data from ", sys.argv[4])
     u_table = Table.read(sys.argv[4], format='fits')
 
-    outname_1 = sys.argv[5]+ ".dat"
-    outname_2 = sys.argv[5] + "_galprops.dat"
-    outname_3 = sys.argv[5] + "_meta.dat"
-    print("Output files will be {0} and {1}".format(outname_1, outname_2))
+    outname_base = sys.argv[5]
 
     # read everything we need into memory
     dec = u_table['DEC']
@@ -135,38 +132,15 @@ def main():
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
 
+    # Output files
+    galprops = np.column_stack([
+        np.array(app_mag, dtype='str'), 
+        np.array(g_r, dtype='str'), 
+        np.array(central, dtype='str'),
+        np.array(uchuu_halo_mass, dtype='str'),
+        np.array(uchuu_halo_id, dtype='str')
+        ])
+    write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, FOOTPRINT_FRAC, galprops)
 
-    # To output turn the data into rows, 1 per galaxy (for each of the two files) 
-    # and then build up a large string to write in one go.
-    
-    # Note this copies the data from what was read in from the file
-    # TODO ID's are being written as float not int for some reason, fix
-
-    print("Building output file string... ", end='\r')
-    output_1 = np.column_stack((ra, dec, z_eff, log_L_gal, V_max, colors, chi))
-    output_2 = np.column_stack((app_mag, g_r, central, uchuu_halo_mass, uchuu_halo_id))
-    lines_1 = []
-    lines_2 = []
-
-    for i in range(0, count):
-        lines_1.append(' '.join(map(str, output_1[i])))
-        lines_2.append(' '.join(map(str, output_2[i])))
-
-    outstr_3 = f'{np.min(z_eff)} {np.max(z_eff)} {FOOTPRINT_FRAC}'
-
-    outstr_1 = "\n".join(lines_1)
-    outstr_2 = "\n".join(lines_2)    
-    print("Building output file string... done")
-
-    print("Writing output files... ",end='\r')
-    open(outname_1, 'w').write(outstr_1)
-    open(outname_2, 'w').write(outstr_2)
-    open(outname_3, 'w').write(outstr_3)
-    print("Writing output files... done")
-
-        
-
-
-        
 if __name__ == "__main__":
     main()
