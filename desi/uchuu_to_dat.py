@@ -122,8 +122,7 @@ def main():
     #z_eff = np.copy(z_obs)
     z_eff = z_obs # TODO go back to copying if UCHUU gets fiber assignment and we run other modes!
         
-    #abs_mag = infile['Data/abs_mag'][:] # We aren't using these; computing ourselves. 
-    # TODO Mine are missing k-corrections
+    # TODO This conversion I make is missing k-corrections
     my_abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
     log_L_gal = abs_mag_r_to_log_solar_L(my_abs_mag)
 

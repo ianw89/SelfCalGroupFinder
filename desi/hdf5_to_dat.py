@@ -271,7 +271,7 @@ def main():
         print(f"{j}/{len(to_match)} complete")
         
     #abs_mag = infile['Data/abs_mag'][:] # We aren't using these; computing ourselves. 
-    # TODO Mine are missing k-corrections
+    # TODO This conversion I make is missing k-corrections
     my_abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
     log_L_gal = abs_mag_r_to_log_solar_L(my_abs_mag)
 
@@ -279,10 +279,11 @@ def main():
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
-
+    
     # Output files
     galprops = np.column_stack([
         np.array(app_mag, dtype='str'), 
+        np.array(g_r, dtype='str'), 
         np.array(galaxy_type, dtype='str'), 
         np.array(mxxl_halo_mass, dtype='str'),
         np.array(fiber_assigned_0, dtype='str'),

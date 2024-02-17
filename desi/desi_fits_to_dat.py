@@ -191,7 +191,7 @@ def main():
 
             print(f"{j}/{len(to_match)} complete")
 
-    # TODO Missing k-corrections
+    # TODO Question: does the FLUX_R column already have some k-correction applied to it or not?
     abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag)
 

@@ -17,9 +17,15 @@ def get_color(i):
     return co
 
 DPI = 1200
+FONT_SIZE_DEFAULT = 12
 
 plt.style.use('default')
-plt.rcParams.update({'font.size': 14})
+plt.rcParams.update({'font.size': FONT_SIZE_DEFAULT})
+
+def font_restore():
+    plt.rcParams.update({'font.size': FONT_SIZE_DEFAULT})
+
+
 
 # Shared bins for various purposes
 Mhalo_bins = np.logspace(10, 15.5, 40)
@@ -42,7 +48,9 @@ def process(filename):
     filename_props = str.replace(filename, ".out", "_galprops.dat")
 
     df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'unknown'))
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'fiber_assigned_0', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
+    # TODO next time switch to the commented out line
+    #galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'fiber_assigned_0', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})=
+    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'galaxy_type', 'mxxl_halo_mass', 'fiber_assigned_0', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
     all_data = pd.merge(df, galprops, left_index=True, right_index=True)
 
 
@@ -110,67 +118,73 @@ def process_core(filename, all_data):
     return dataset
 
 
+def legend(datasets):
+    if len(datasets) > 1:
+        plt.legend()
 
+def legend_ax(ax, datasets):
+    if len(datasets) > 1:
+        ax.legend()
 
-def plots(*frames, truth_on=False):
+def plots(*datasets, truth_on=False):
     contains_20_data = False
-    for f in frames:
+    for f in datasets:
         if ('20' in f.name):
             contains_20_data = True
     
     plt.figure(dpi=DPI)
-    for f in frames:
+    for f in datasets:
         if ('20' not in f.name):
             plt.errorbar(f.labels, f.loglcen_means, yerr=f.loglcen_scatter, label=f.name, color=f.color)
     plt.xscale('log')
     plt.xlabel('$M_{halo}$')
     plt.ylabel('$log(L_{cen})$')
-    plt.title("Central Luminosity vs. Halo Mass")
-    plt.legend()
+    #plt.title("Central Luminosity vs. Halo Mass")
+    legend(datasets)
     plt.xlim(2E11,1E15)
     plt.draw()
 
     if contains_20_data:
         plt.figure(dpi=DPI)
-        for f in frames:
+        for f in datasets:
             if ('20' in f.name):
                 plt.errorbar(f.labels, f.loglcen_means, yerr=f.loglcen_scatter, label=f.name, color=f.color)
         plt.xscale('log')
         plt.xlabel('$M_{halo}$')
         plt.ylabel('$log(L_{cen})$')
         plt.title("Central Luminosity vs. Halo Mass")
-        plt.legend()
+        legend(datasets)
         plt.xlim(2E11,1E15)
         plt.draw()
-
+    """
     plt.figure(dpi=DPI)    
-    for f in frames:
+    for f in datasets:
         if ('20' not in f.name):
             plt.plot(f.labels, f.loglcen_scatter, color=f.color, label=f.name)
     plt.xscale('log')
     plt.xlabel('$M_{halo}$')
     plt.ylabel('$\\sigma(\\log(L_{cen})$')
     plt.title("Central Luminosity Scatter vs. Halo Mass")
-    plt.legend()
+    legend(datasets)
     plt.xlim(2E11,1E15)
     plt.draw()
 
     if contains_20_data:
         plt.figure(dpi=DPI)    
-        for f in frames:
+        for f in datasets:
             if ('20' in f.name):
                 plt.plot(f.labels, f.loglcen_scatter, color=f.color, label=f.name)
         plt.xscale('log')
         plt.xlabel('$M_{halo}$')
         plt.ylabel('$\\sigma(\\log(L_{cen})$')
         plt.title("Central Luminosity Scatter vs. Halo Mass")
-        plt.legend()
+        legend(datasets)
         plt.xlim(2E11,1E15)
         plt.draw()
-
+    """
     """     
     plt.figure()
-    for f in frames:
+    for f in datasets:
         plt.scatter(f.centrals.M_halo, f.centrals.L_gal, alpha=0.002)
     plt.loglog()
     plt.xlabel('M_halo / h')
@@ -179,13 +193,13 @@ def plots(*frames, truth_on=False):
     """
 
     make_N_sat_plot = False
-    for f in frames:
+    for f in datasets:
         if 'N_sat' in f.all_data.columns:
             make_N_sat_plot = True
 
     if make_N_sat_plot:
         plt.figure(dpi=DPI)
-        for f in frames:
+        for f in datasets:
             if 'N_sat' in f.all_data.columns:
                 Nsat_means = f.all_data.groupby('Mh_bin').N_sat.mean()
                 plt.plot(f.labels, Nsat_means, f.marker, label=f.name, color=f.color)
@@ -194,31 +208,31 @@ def plots(*frames, truth_on=False):
         plt.ylabel("$<N_{sat}>$")    
         plt.xlabel('$M_{halo}$')
         plt.title("Mean Number of Satellites by Halo Mass")
-        plt.legend()    
+        legend(datasets)
         plt.xlim(2E11,1E15)
         plt.draw()
 
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
-    for f in frames:
+    for f in datasets:
         plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=f.name, color=f.color)
     if truth_on:
         truth_f_sat = truth_on.all_data.groupby('Lgal_bin').is_sat_truth.mean()
-        plt.plot(truth_on.L_gal_labels, truth_f_sat, label="UCHUU Truth <19.5", color=truth_on.color)
+        plt.plot(truth_on.L_gal_labels, truth_f_sat, label="Truth", color=truth_on.color)
     ax1.set_xscale('log')
     ax1.set_xlabel("$L_{gal}$")
     ax1.set_ylabel("$f_{sat}$")
     ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.set_xlim(2E7,2E11)
     ax1.set_ylim(0.0,0.6)
-    ax1.legend()
+    legend_ax(ax1, datasets)
     ax2 = ax1.twinx()
     idx = 0
-    for f in frames:
+    for f in datasets:
         widths = np.zeros(len(f.L_gal_bins)-1)
         for i in range(0,len(f.L_gal_bins)-1):
-            widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(frames)
-        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data.is_sat == True].groupby('Lgal_bin').size(), width=widths, color=f.color, alpha=0.4)
+            widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(datasets)
+        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data.is_sat == True].groupby('Lgal_bin').size(), width=widths, color=f.color, align='edge', alpha=0.4)
         idx+=1
     ax2.set_ylabel('$N_{sat}$')
     ax2.set_yscale('log')
@@ -226,32 +240,32 @@ def plots(*frames, truth_on=False):
 
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
-    for f in frames:
+    for f in datasets:
         plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=f.name, color=f.color)
     if truth_on:
         truth_f_sat = truth_on.all_data.groupby('Lgal_bin').is_sat_truth.mean()
-        plt.plot(truth_on.L_gal_labels, truth_f_sat, label="UCHUU Truth <19.5", color=truth_on.color)
+        plt.plot(truth_on.L_gal_labels, truth_f_sat, label="Truth", color=truth_on.color)
     ax1.set_xscale('log')
     ax1.set_xlabel("$L_{gal}$")
     ax1.set_ylabel("$f_{sat}$")
-    ax1.set_title("Satellite fraction vs Galaxy Luminosity")
-    ax1.legend()
+    #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
+    legend_ax(ax1, datasets)
     ax1.set_xlim(3E8,1E11)
     ax1.set_ylim(0.0,0.6)
     ax2 = ax1.twinx()
     idx = 0
-    for f in frames:
+    for f in datasets:
         widths = np.zeros(len(f.L_gal_bins)-1)
         for i in range(0,len(f.L_gal_bins)-1):
-            widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(frames)
-        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data.is_sat == True].groupby('Lgal_bin').size(), width=widths, color=f.color, alpha=0.4)
+            widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / (len(datasets))
+        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data.is_sat == True].groupby('Lgal_bin').size(), width=widths, color=f.color, align='edge', alpha=0.4)
         idx+=1
     ax2.set_ylabel('$N_{sat}$')
     fig.tight_layout()
 
 
     print("TOTAL f_sat: ")
-    for f in frames:
+    for f in datasets:
         print(f"  {f.name}:  {f.all_data['is_sat'].sum() / f.all_data['is_sat'].count():.3f}")
         if 'is_sat_truth' in f.all_data.columns:
             print(f"  Corresponding Simulation \'Truth\': {f.all_data['is_sat_truth'].sum() / f.all_data['is_sat_truth'].count():.3f}")
@@ -283,11 +297,21 @@ def post_process(frame):
 
 
 # Halo Masses (in group finder abundance matching)
-def group_finder_centrals_halo_masses_plots(all_to_use, comparisons):
+def group_finder_centrals_halo_masses_plots(all_df, comparisons):
+    
+    count_to_use = np.max([len(c.all_data[c.all_data.index == c.all_data.igrp]) for c in comparisons])
+    
+    all_centrals = all_df.all_data[all_df.all_data.index == all_df.all_data.igrp]
 
-    all_centrals = all_to_use.all_data[all_to_use.all_data.index == all_to_use.all_data.igrp]
-    angdist_bin_ind = np.digitize(all_centrals.M_halo, all_to_use.Mhalo_bins)
-    all_bincounts = np.bincount(angdist_bin_ind)[0:len(all_to_use.Mhalo_bins)]
+    #if len(all_df.all_data) > count_to_use:
+    #    # Randomly sample to match the largest comparison
+    #    print(len(all_centrals))
+    #    print(count_to_use)
+    #    reduced_all_centrals_halos = np.random.choice(all_centrals.M_halo, count_to_use, replace=False)
+
+    #angdist_bin_ind = np.digitize(reduced_all_centrals_halos, all_df.Mhalo_bins)
+    angdist_bin_ind = np.digitize(all_centrals.M_halo, all_df.Mhalo_bins)
+    all_bincounts = np.bincount(angdist_bin_ind)[0:len(all_df.Mhalo_bins)]
     all_density = all_bincounts / np.sum(all_bincounts)
 
     fig,axes=plt.subplots(nrows=1, ncols=1, figsize=(6,4))
@@ -298,7 +322,7 @@ def group_finder_centrals_halo_masses_plots(all_to_use, comparisons):
     axes.set_xlabel('$M_{halo}$')
     axes.set_ylabel('Change in log(M)')
     axes.axline((3E10,0), (3E15,0), linestyle='--', color='k')
-    axes.set_title("Group Finder Halo Masses of Centrals")
+    #axes.set_title("Group Finder Halo Masses of Centrals")
 
     #axes[1].plot(all_to_use.Mhalo_bins, all_density, label="All Galaxies") 
     #axes[1].set_xscale('log')
@@ -311,11 +335,11 @@ def group_finder_centrals_halo_masses_plots(all_to_use, comparisons):
     for comparison in comparisons:
 
         centrals = comparison.all_data[comparison.all_data.index == comparison.all_data.igrp]
-        angdist_bin_ind = np.digitize(centrals.M_halo, all_to_use.Mhalo_bins)
-        bincounts = np.bincount(angdist_bin_ind)[0:len(all_to_use.Mhalo_bins)]
+        angdist_bin_ind = np.digitize(centrals.M_halo, all_df.Mhalo_bins)
+        bincounts = np.bincount(angdist_bin_ind)[0:len(all_df.Mhalo_bins)]
         density = bincounts / np.sum(bincounts)
 
-        axes.plot(all_to_use.Mhalo_bins, np.log10(density / all_density), linestyle=comparison.marker, color=comparison.color, label=comparison.name) 
+        axes.plot(all_df.Mhalo_bins, np.log10(density / all_density), linestyle=comparison.marker, color=comparison.color, label=comparison.name) 
         #axes[1].plot(all_to_use.Mhalo_bins, density, linestyle=comparison.marker, color=comparison.color, label=comparison.name) 
 
     axes.legend()
@@ -390,6 +414,7 @@ def test_purity_and_completeness(*sets):
 
 
 def purity_complete_plots(*sets):
+    plt.rcParams.update({'font.size': 14})
 
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 8))
     fig.set_dpi(DPI/2)
@@ -427,6 +452,8 @@ def purity_complete_plots(*sets):
     
     axes[0][0].legend()
     fig.tight_layout()
+
+    font_restore()
 
 
 

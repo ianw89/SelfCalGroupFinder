@@ -137,14 +137,13 @@ def estimate_frac_area(ra, dec):
     """
     Estimate the fraction of the sky covered in the survey so far based on the ra, dec 
     of galaxies that have been observed thus far.
+
+    BUG This procedure does not work very well. Though it recovered somethign reasonable
+    for MXXL and UCHUU, it failed to get what I expected for BGS based on the randoms.
+
+    We haven't used the fact that the each pointing of the telescope covers 7.44 square 
+    degrees of the sky in this yet.
     """
-
-    # Given the set of points in ra and dec, and knowing that the each pointing of the telescope covers 7.44 square degrees,
-    # we can use the fact that every point must have had a pointing within 3.72 degrees of it to estimate the footprint.
-
-    # Paint a picture of the sky with a 3.72 degree radius circle around each point
-    # Then count the number of covered pixels
-    # Then divide by the total number of pixels
 
     # Reduce data if too large
     #_MAX_POINTS = 10000000 
@@ -233,7 +232,7 @@ def build_app_mag_to_z_map(app_mag, z_obs):
 
 
 
-def make_map(ra, dec, alpha=0.1):
+def make_map(ra, dec, alpha=0.1, dpi=100):
     """
     Give numpy array of ra and dec.
     """
@@ -251,8 +250,9 @@ def make_map(ra, dec, alpha=0.1):
     dec_angles = coord.Angle(dec*u.degree)
 
     fig = plt.figure(figsize=(12,6))
+    fig.dpi=dpi
     ax = fig.add_subplot(111, projection="mollweide", )
-    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=20)
+    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=.5)
     plt.grid(True)
     return fig
 
@@ -366,7 +366,7 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         # TODO adding 1 to denominator hack
         if self.quick_correct > 0 or self.random_correct > 0:
             print(f"Quick NN uses: {self.quick_nn}. Success: {self.quick_correct / (self.quick_nn+1)}")
-            print(f"Random draw uses: {self.random_choice}. Success: {self.random_correct / (self.random_choice+1)}")
+            print(f"Random draw uses: {self.random_}. Success: {self.random_correct / (self.random_choice+1)}")
             print(f"Quick NN bailed: {self.quick_nn_bailed}. Affected: {self.quick_nn_bailed / (self.quick_nn+self.random_choice)}")
         else:
             print(f"Quick NN uses: {self.quick_nn}.")
