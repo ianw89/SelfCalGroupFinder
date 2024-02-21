@@ -20,6 +20,7 @@ class Mode(Enum):
     NEAREST_NEIGHBOR = 3 # include all galaxies by assigned galaxies redshifts from their nearest neighbor
     FANCY = 4 
     SIMPLE = 5
+    ALL_ALEX_ABS_MAG = 6
 
 _cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 def get_MXXL_cosmology():

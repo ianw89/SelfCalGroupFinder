@@ -47,9 +47,10 @@ PYTHON_PROCESSING=true # whether to do python processing to create .DAT files be
 GROUP_FINDING=true # whether to do the group finding
 
 # MXXL
+run_all_alt=false
 run_all=false
 run_all20=false
-run_fiber_only=true
+run_fiber_only=false
 run_fiber_only20=false
 run_nn_kd=false 
 run_nn_kd20=false
@@ -60,9 +61,9 @@ run_simple20=false
 # UCHUU
 run_uchuu_all=false
 # DESI BGS
-run_bgs_fiberonly_1passok=false
-run_bgs_fiberonly=false
-run_bgs_simple=false
+run_bgs_fiberonly_1passok=true
+run_bgs_fiberonly=true
+run_bgs_simple=true
 run_bgs_simple_vmaxfilt=false
 
 function process_and_group_find () {
@@ -106,6 +107,9 @@ function process_and_group_find_BGS () {
 }
 
 
+if [ "$run_all_alt" = true ] ; then
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_all_alt" 6 19.5 20.0
+fi
 
 if [ "$run_all" = true ] ; then
     process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_all" 1 19.5 20.0

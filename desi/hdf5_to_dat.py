@@ -86,6 +86,8 @@ def main():
         print("\nMode FANCY")
     elif mode == Mode.SIMPLE.value:
         print("\nMode SIMPLE")
+    elif mode == Mode.ALL_ALEX_ABS_MAG.value:
+        print("\nMode ALL USING ALEX'S ABS MAGS")
 
     APP_MAG_CUT = float(sys.argv[2])
     CATALOG_APP_MAG_CUT = float(sys.argv[3])
@@ -103,12 +105,12 @@ def main():
     z_obs = infile['Data/z_obs'][:]
     app_mag = infile['Data/app_mag'][:]
     g_r = infile['Data/g_r'][:]
+    abs_mag = infile['Data/abs_mag'][:] # We aren't using these; computing ourselves. 
     galaxy_type = infile['Data/galaxy_type'][:]
     mxxl_halo_mass = infile['Data/halo_mass'][:]
     mxxl_halo_id = infile['Data/mxxl_id'][:]
     fiber_assigned_0 = infile['Weight/'+BITWORD][:] & FIBER_ASSIGNED_SELECTOR 
     fiber_assigned_0 = fiber_assigned_0.astype(bool)
-    # TODO close file here to keep this pattern going
 
     orig_count = len(dec)
     print(orig_count, "galaxies in HDF5 file")
@@ -132,6 +134,8 @@ def main():
     z_obs = z_obs[keep]
     app_mag = app_mag[keep]
     g_r = g_r[keep]
+    abs_mag = abs_mag[keep]
+    
     galaxy_type = galaxy_type[keep]
     mxxl_halo_mass = mxxl_halo_mass[keep]
     mxxl_halo_id = mxxl_halo_id[keep]
@@ -165,6 +169,7 @@ def main():
         z_obs = z_obs[fiber_assigned_0]
         app_mag = app_mag[fiber_assigned_0]
         g_r = g_r[fiber_assigned_0]
+        abs_mag = abs_mag[fiber_assigned_0]
         galaxy_type = galaxy_type[fiber_assigned_0]
         mxxl_halo_mass = mxxl_halo_mass[fiber_assigned_0]
         mxxl_halo_id = mxxl_halo_id[fiber_assigned_0]
@@ -269,13 +274,32 @@ def main():
                 j = j + 1 
 
         print(f"{j}/{len(to_match)} complete")
-        
-    #abs_mag = infile['Data/abs_mag'][:] # We aren't using these; computing ourselves. 
-    # TODO This conversion I make is missing k-corrections
-    my_abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
-    log_L_gal = abs_mag_r_to_log_solar_L(my_abs_mag)
+    
 
-    V_max = get_max_observable_volume(my_abs_mag, z_eff, APP_MAG_CUT, ra, dec, frac_area=FOOTPRINT_FRAC)
+    if mode != Mode.ALL_ALEX_ABS_MAG.value:
+        # TODO This conversion I make is missing k-corrections
+        abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
+
+
+    sanity_filter = abs_mag > -23.8
+
+    abs_mag = abs_mag[sanity_filter]
+    dec = dec[sanity_filter]
+    ra = ra[sanity_filter]
+    z_obs = z_obs[sanity_filter]
+    z_eff = z_eff[sanity_filter]
+    app_mag = app_mag[sanity_filter]
+    g_r = g_r[sanity_filter]
+    galaxy_type = galaxy_type[sanity_filter]
+    mxxl_halo_mass = mxxl_halo_mass[sanity_filter]
+    mxxl_halo_id = mxxl_halo_id[sanity_filter]
+    assigned_halo_mass = assigned_halo_mass[sanity_filter]
+    assigned_halo_id = assigned_halo_id[sanity_filter]
+    fiber_assigned_0 = fiber_assigned_0[sanity_filter]
+    count = len(dec)
+
+    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag)
+    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, ra, dec, frac_area=FOOTPRINT_FRAC)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
