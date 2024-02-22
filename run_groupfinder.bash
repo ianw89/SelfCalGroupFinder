@@ -61,8 +61,8 @@ run_simple20=false
 # UCHUU
 run_uchuu_all=false
 # DESI BGS
-run_bgs_fiberonly_1passok=true
-run_bgs_fiberonly=true
+run_bgs_fiberonly_1passok=false
+run_bgs_fiberonly=false 
 run_bgs_simple=true
 run_bgs_simple_vmaxfilt=false
 
@@ -103,7 +103,7 @@ function process_and_group_find_uchuu () {
 }
 
 function process_and_group_find_BGS () {
-    process_and_group_find $1 $2 $3 $4 "${ROOT_FOLDER}BGS_BRIGHT_full.dat.fits" desi/desi_fits_to_dat.py
+    process_and_group_find $1 $2 $3 $4 "${ROOT_FOLDER}BGS_ANY_full.dat.fits" desi/desi_fits_to_dat.py
 }
 
 
@@ -159,17 +159,17 @@ fi
 
 
 if [ "$run_bgs_fiberonly_1passok" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1passok_1" 1 19.5 20.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1passok_1" 1 19.5 21.0
 fi
 
 if [ "$run_bgs_fiberonly" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1" 2 19.5 20.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1" 2 19.5 21.0
 fi
 
 if [ "$run_bgs_simple" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2" 5 19.5 20.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2" 5 19.5 21.0
 fi
 
 if [ "$run_bgs_simple_vmaxfilt" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_vmaxfilt" 5 19.5 20.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_vmaxfilt" 5 19.5 21.0
 fi

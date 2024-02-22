@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 from pyutils import *
-from astropy.table import Table
+from astropy.table import Table, join
 
 def usage():
     print("Usage: python3 desi_fits_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename]")
@@ -78,6 +78,7 @@ def main():
     Z_MAX = 0.8
     FOOTPRINT_FRAC_1pass = 0.187906 # As calculated from the randoms with 1-pass coverage
     FOOTPRINT_FRAC = 0.0317538 # As calculated from the randoms with 3-pass coverage
+    # TODO update footprint with new calculation from ANY. It shouldn't change.
     frac_area = FOOTPRINT_FRAC
     if mode == Mode.ALL.value:
         frac_area = FOOTPRINT_FRAC_1pass
@@ -86,6 +87,11 @@ def main():
     # Unobserved galaxies have masked rows in appropriate columns of the table
     u_table = Table.read(sys.argv[4], format='fits')
 
+    # Temp hack to get p_obs as ANY doesn't have it, unlike BRIGHT
+    p_table = Table.read('bin/mainbw-bright-allTiles_v1.fits')
+    combined = join(u_table, p_table, keys='TARGETID')
+    u_table = combined
+    
     outname_base = sys.argv[5] 
 
     # astropy's Table used masked arrays, so we have to use .data.data to get the actual data
@@ -126,7 +132,7 @@ def main():
     # treat low deltachi2 as unobserved
     treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, np.invert(deltachi2_filter)], axis=0)
     #print(f"We have {np.count_nonzero(treat_as_unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
-    unobserved = np.logical_or(unobserved, treat_as_unobserved)
+    unobserved = np.all([app_mag_filter, np.logical_or(unobserved, treat_as_unobserved)], axis=0)
     #print(f"We have {np.count_nonzero(unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
 
     if mode == Mode.ALL.value: # ALL is misnomer here it means 1pass or more
@@ -139,8 +145,10 @@ def main():
         keep = np.all([three_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
-        # TODO why bother with this for the real data? It doesn't change much I think
+        # TODO why bother with this for the real data? Use all we got, right? 
+        # I upped the cut to 21 so it doesn't do anything
         catalog_bright_filter = app_mag < CATALOG_APP_MAG_CUT 
+        # TODO Shouldn't 3pass filter be in here too? I guess it doesn't matter
         catalog_keep = np.all([galaxy_observed_filter, catalog_bright_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
         catalog_ra = ra[catalog_keep]
         catalog_dec = dec[catalog_keep]
@@ -191,7 +199,7 @@ def main():
 
             print(f"{j}/{len(to_match)} complete")
 
-    # TODO Question: does the FLUX_R column already have some k-correction applied to it or not?
+    # TODO k-corrections
     abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag)
 
