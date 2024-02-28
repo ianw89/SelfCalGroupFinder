@@ -260,6 +260,7 @@ void groupfind()
     {
       i = itmp[i1];
       GAL[i].grp_rank = i1;
+      // Set the galaxy's halo mass
       if (FLUXLIM)
         GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
       else
@@ -267,6 +268,7 @@ void groupfind()
         galden += 1 / GAL[i].vmax;
         GAL[i].mass = density2host_halo(galden);
       }
+      // Set other properties derived from that
       GAL[i].rad = pow(3 * GAL[i].mass / (4. * PI * DELTA_HALO * RHO_CRIT * OMEGA_M), THIRD);
       GAL[i].theta = GAL[i].rad / GAL[i].rco;
       GAL[i].sigmav = sqrt(BIG_G * GAL[i].mass / 2.0 / GAL[i].rad * (1 + GAL[i].redshift));
@@ -433,14 +435,12 @@ void groupfind()
     // reset the sham counters
     if (FLUXLIM)
       density2host_halo_zbins3(-1, 0);
-    // density2host_halo_zbins(-1);
     for (j = 1; j <= ngrp; ++j)
     {
       GAL[i].grp_rank = j;
       i = itmp[j];
       galden += 1 / GAL[i].vmax;
       if (FLUXLIM == 1)
-        // GAL[i].mass = density2host_halo_zbins(GAL[i].redshift);
         GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
       else
         GAL[i].mass = density2host_halo(galden);
@@ -449,7 +449,6 @@ void groupfind()
       GAL[i].sigmav = sqrt(BIG_G * GAL[i].mass / 2.0 / GAL[i].rad * (1 + GAL[i].redshift));
       nsat_tot += GAL[i].nsat;
     }
-    // density2host_halo_zbins3(1000,1);
     t4 = omp_get_wtime();
     // for the satellites, set their host halo mass
     for (j = 0; j < NGAL; ++j)

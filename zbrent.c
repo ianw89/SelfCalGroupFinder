@@ -1,14 +1,15 @@
 #include <math.h>
+#include <stdlib.h>
 #define NRANSI
 #include "nrutil.h"
 #define ITMAX 100
 #define EPS 3.0e-8
 
-float zbrent(float (*func)(float), float x1, float x2, float tol)
+float zbrent(float (*func)(float, float), float x1, float x2, float tol, float galaxy_density)
 {
 	int iter;
 	float a=x1,b=x2,c=x2,d,e,min1,min2;
-	float fa=(*func)(a),fb=(*func)(b),fc,p,q,r,s,tol1,xm;
+	float fa=(*func)(a, galaxy_density),fb=(*func)(b, galaxy_density),fc,p,q,r,s,tol1,xm;
 
 	if ((fa > 0.0 && fb > 0.0) || (fa < 0.0 && fb < 0.0))
 		nrerror("Root must be bracketed in zbrent");
@@ -62,7 +63,7 @@ float zbrent(float (*func)(float), float x1, float x2, float tol)
 			b += d;
 		else
 			b += SIGN(tol1,xm);
-		fb=(*func)(b);
+		fb=(*func)(b, galaxy_density);
 	}
 	nrerror("Maximum number of iterations exceeded in zbrent");
 	return 0.0;

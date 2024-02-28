@@ -80,9 +80,7 @@ float gasdev(long *idum);
 /* other functions shared by multiple files
  */
 float distance_redshift(float z);
-float density2host_halo_zbins(float z);
 float density2host_halo_zbins3(float z, float vmax);
-float density2halo(float galaxy_density);
 float density2host_halo(float galaxy_density);
 void lsat_model(void);
 int search(int n, float *x, float val);
