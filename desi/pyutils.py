@@ -7,6 +7,7 @@ import time
 from enum import Enum
 from scipy import special
 import matplotlib.pyplot as plt
+import k_correction as kc
 
 #sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
 #from hodpy.cosmology import CosmologyMXXL
@@ -37,24 +38,36 @@ def z_to_ldist(z):
     with np.errstate(divide='ignore'): # will be NaN for blueshifted galaxies
         return _cosmo.luminosity_distance(z).value
     
+def distmod(z_obs):
+    return 5 * (np.log10(_cosmo.luminosity_distance(z_obs).value * 1E6) - 1)
+
+def abs_mag(magnitude, distmod, k, E):
+    return magnitude - distmod - k - E
+
 def app_mag_to_abs_mag(app_mag, z_obs):
     """
     Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts.
 
     TODO this runs slowish with astropy units, workaround
     """
-    with np.errstate(divide='ignore'): # will be NaN for blueshifted galaxies
-        return app_mag - 5*(np.log10(_cosmo.luminosity_distance(z_obs).value * 1E6) - 1)
+    return abs_mag(app_mag, distmod(z_obs), 0, 0)
 
 
-def app_mag_to_abs_mag_k(app_mag, z_obs, colour):
+def app_mag_to_abs_mag_k(app_mag, z_obs, gmr):
     """
-    Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts.
+    Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts,
+    with GAMA k-corrections.
     """
-    pass
-    #cosmo = CosmologyMXXL()
-    #kcorr = GAMA_KCorrection(cosmo)
-    #return kcorr.absolute_magnitude(app_mag, z_obs, colour)
+    kcorr_r = kc.GAMA_KCorrection(band='R')
+    
+    # This is how I thought one would use it
+    ks = kcorr_r.k(z_obs, gmr)
+
+    # This is how they use it in the examples I saw in the DESI GitHubs
+    #ks = kcorr_r.k_nonnative_zref(0.0, z_obs, gmr)
+
+
+    return abs_mag(app_mag, distmod(z_obs), ks, 0)
 
 SOLAR_L_R_BAND = 4.65
 def abs_mag_r_to_log_solar_L(arr):
@@ -367,7 +380,7 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         # TODO adding 1 to denominator hack
         if self.quick_correct > 0 or self.random_correct > 0:
             print(f"Quick NN uses: {self.quick_nn}. Success: {self.quick_correct / (self.quick_nn+1)}")
-            print(f"Random draw uses: {self.random_}. Success: {self.random_correct / (self.random_choice+1)}")
+            print(f"Random draw uses: {self.random_choice}. Success: {self.random_correct / (self.random_choice+1)}")
             print(f"Quick NN bailed: {self.quick_nn_bailed}. Affected: {self.quick_nn_bailed / (self.quick_nn+self.random_choice)}")
         else:
             print(f"Quick NN uses: {self.quick_nn}.")
