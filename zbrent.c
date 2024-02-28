@@ -5,6 +5,7 @@
 #define ITMAX 100
 #define EPS 3.0e-8
 
+// x1 is 10^7, x2 is 10^16, tol is 10^-5
 float zbrent(float (*func)(float, float), float x1, float x2, float tol, float galaxy_density)
 {
 	int iter;

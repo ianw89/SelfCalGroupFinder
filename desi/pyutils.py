@@ -23,34 +23,31 @@ class Mode(Enum):
     SIMPLE = 5
     ALL_ALEX_ABS_MAG = 6
 
-_cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
+# using _h one makes distances Mpc / h instead
+_cosmo_h = FlatLambdaCDM(H0=100, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
+_cosmo_mxxl = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
+
 def get_MXXL_cosmology():
-    return _cosmo
+    return _cosmo_h 
 
 SIM_Z_THRESH = 0.003
 def close_enough(target_z, z_arr, threshold=SIM_Z_THRESH):
     return np.abs(z_arr - target_z) < threshold
 
-def z_to_ldist(z):
+def z_to_ldist(zs):
     """
     Gets the luminosity distance of the provided redshifts in Mpc using MXXL cosmology.
     """
-    with np.errstate(divide='ignore'): # will be NaN for blueshifted galaxies
-        return _cosmo.luminosity_distance(z).value
+    return _cosmo_h.luminosity_distance(zs).value
     
-def distmod(z_obs):
-    return 5 * (np.log10(_cosmo.luminosity_distance(z_obs).value * 1E6) - 1)
+def distmod(zs):
+    return 5 * (np.log10(_cosmo_h.luminosity_distance(zs).value * 1E6) - 1)
 
-def abs_mag(magnitude, distmod, k, E):
-    return magnitude - distmod - k - E
-
-def app_mag_to_abs_mag(app_mag, z_obs):
+def app_mag_to_abs_mag(app_mag, zs):
     """
-    Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts.
-
-    TODO this runs slowish with astropy units, workaround
+    Converts apparent mags to absolute mags using h=1 cosmology and provided observed redshifts.
     """
-    return abs_mag(app_mag, distmod(z_obs), 0, 0)
+    return app_mag - distmod(zs)
 
 
 def app_mag_to_abs_mag_k(app_mag, z_obs, gmr):
@@ -58,16 +55,16 @@ def app_mag_to_abs_mag_k(app_mag, z_obs, gmr):
     Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts,
     with GAMA k-corrections.
     """
+    return k_correct(app_mag_to_abs_mag(app_mag, z_obs), z_obs, gmr)
+
+def k_correct(abs_mag, z_obs, gmr):
     kcorr_r = kc.GAMA_KCorrection(band='R')
     
     # This is how I thought one would use it
     ks = kcorr_r.k(z_obs, gmr)
-
     # This is how they use it in the examples I saw in the DESI GitHubs
     #ks = kcorr_r.k_nonnative_zref(0.0, z_obs, gmr)
-
-
-    return abs_mag(app_mag, distmod(z_obs), ks, 0)
+    return abs_mag - ks
 
 SOLAR_L_R_BAND = 4.65
 def abs_mag_r_to_log_solar_L(arr):
@@ -90,7 +87,7 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec, frac_area=None):
     d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
     d_cm = d_l / (1 + z_obs)
 
-    v_max = (d_cm**3) * (4*np.pi/3) # in comoving Mpc^3
+    v_max = (d_cm**3) * (4*np.pi/3) # in comoving Mpc^3 / h^3 
 
     # This is what the fraction of the sky that complete BGS will cover.
     #frac_area = 0.35876178702 # 14800 / 41253 which is final DESI BGS footprint (see Alex DESI BGS Incompleteness paper) 
