@@ -1,0 +1,27 @@
+// A launch.json file for debugging the group finder, kdGroupFinder_omp.c
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "C++ Debugging",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/bin/kdGroupFinder_omp",
+        "args": ["bin/mxxl_3pass_all.dat", "0.0012176870368421078", "0.7999646067619324", "0.3587617870215499", "1", "1", "13.1", "2.42", "12.9", "4.84", "0", "0", "1", "0", "1", "0"],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "environment": [],
+        "externalConsole": false,
+        "MIMode": "gdb",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ],
+        "miDebuggerPath": "/usr/bin/gdb"
+      }
+    ]
+}
+  
