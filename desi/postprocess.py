@@ -48,9 +48,7 @@ def process(filename):
     filename_props = str.replace(filename, ".out", "_galprops.dat")
 
     df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'unknown'))
-    # TODO next time switch to the commented out line
-    #galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'fiber_assigned_0', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})=
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'galaxy_type', 'mxxl_halo_mass', 'fiber_assigned_0', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
+    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'fiber_assigned_0', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
     all_data = pd.merge(df, galprops, left_index=True, right_index=True)
 
 

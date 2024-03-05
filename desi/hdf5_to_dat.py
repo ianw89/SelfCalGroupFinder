@@ -280,10 +280,18 @@ def main():
     abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
     abs_mag_k = k_correct(abs_mag, z_eff, g_r)
 
+    # the luminosities sent to the group finder will be k-corrected to z=0.1
+    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_k) 
+
+    # the vmax should be calculated from un-k-corrected magnitudes
+    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, ra, dec, frac_area=FOOTPRINT_FRAC)
+
+    # Throwing out largest 1% of vmax allows it to work. try 0.1%
     """
-    sanity_filter = abs_mag > -24.5
+    sanity_filter = V_max < np.max(V_max) * 0.9999
 
     abs_mag = abs_mag[sanity_filter]
+    abs_mag_k = abs_mag_k[sanity_filter]
     dec = dec[sanity_filter]
     ra = ra[sanity_filter]
     z_obs = z_obs[sanity_filter]
@@ -296,15 +304,10 @@ def main():
     assigned_halo_mass = assigned_halo_mass[sanity_filter]
     assigned_halo_id = assigned_halo_id[sanity_filter]
     fiber_assigned_0 = fiber_assigned_0[sanity_filter]
+    log_L_gal = log_L_gal[sanity_filter]
+    V_max = V_max[sanity_filter]
     count = len(dec)
     """
-
-    # the luminosities sent to the group finder will be k-corrected to z=0.1
-    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_k) 
-
-    # the vmax should be calculated from un-k-corrected magnitudes
-    V_max = get_max_observable_volume(abs_mag_k, z_eff, APP_MAG_CUT, ra, dec, frac_area=FOOTPRINT_FRAC)
-
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
     

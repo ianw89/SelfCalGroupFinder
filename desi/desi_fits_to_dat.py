@@ -101,8 +101,9 @@ def main():
     ra = u_table['RA']
     z_obs = u_table['Z_not4clus'].data.data
     target_id = u_table['TARGETID']
-    flux_r = u_table['FLUX_R']
     app_mag = get_app_mag(u_table['FLUX_R'])
+    app_mag_g = get_app_mag(u_table['FLUX_G'])
+    g_r = app_mag_g - app_mag # TODO is this rigtht
     p_obs = u_table['PROB_OBS']
     unobserved = u_table['ZWARN'] == 999999
     deltachi2 = u_table['DELTACHI2'].data.data  
@@ -162,13 +163,13 @@ def main():
     ra = ra[keep]
     z_obs = z_obs[keep]
     target_id = target_id[keep]
-    flux_r = flux_r[keep]
     app_mag = app_mag[keep]
     p_obs = p_obs[keep]
     unobserved = unobserved[keep]
     observed = np.invert(unobserved)
     indexes_not_assigned = np.argwhere(unobserved)
     deltachi2 = deltachi2[keep]
+    g_r = g_r[keep]
 
     count = len(dec)
     print(count, "galaxies left after filters.")
@@ -199,35 +200,15 @@ def main():
 
             print(f"{j}/{len(to_match)} complete")
 
-    # TODO k-corrections
-    abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
-    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag)
 
-    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, ra, dec, frac_area=frac_area)
-    
-    """
-    _MIN_VMAX = 220000
-    print(f"Minimum VMax: {min(V_max)}, will filter out things below {_MIN_VMAX}")
-    final_filter = V_max > _MIN_VMAX
-    obj_type = obj_type[final_filter]
-    dec = dec[final_filter]
-    ra = ra[final_filter]
-    z_obs = z_obs[final_filter]
-    z_eff = z_eff[final_filter] # previously had a bug where this wasn't here!
-    target_id = target_id[final_filter]
-    flux_r = flux_r[final_filter]
-    app_mag = app_mag[final_filter]
-    p_obs = p_obs[final_filter]
-    unobserved = unobserved[final_filter]
-    observed = np.invert(unobserved)
-    deltachi2 = deltachi2[final_filter]
-    V_max = V_max[final_filter]
-    abs_mag = abs_mag[final_filter]
-    log_L_gal = log_L_gal[final_filter]
-    
-    count = len(dec)
-    print(count, "galaxies left after final v_max filter.")
-    """
+    abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
+    abs_mag_k = k_correct(abs_mag, z_eff, g_r) # TODO G - R
+
+    # the luminosities sent to the group finder will be k-corrected to z=0.1
+    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_k) 
+
+    # the vmax should be calculated from un-k-corrected magnitudes
+    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, ra, dec, frac_area=FOOTPRINT_FRAC)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
