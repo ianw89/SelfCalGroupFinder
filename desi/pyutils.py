@@ -84,7 +84,7 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec, frac_area=None):
     """
 
     # Use distance modulus
-    d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
+    d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc/h
     d_cm = d_l / (1 + z_obs)
 
     v_max = (d_cm**3) * (4*np.pi/3) # in comoving Mpc^3 / h^3 
@@ -95,6 +95,9 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec, frac_area=None):
         frac_area = estimate_frac_area(ra, dec)
         print(f"Footprint not provided; estimated to be {frac_area:.3f} of the sky")
 
+    # TODO I'm not convinced that everywhere we use Vmax frac_area should be baked into it
+    # Group finder seems to expect this but not 100% confident
+    # My fsat calculations that have 1/Vmax weightings are not affected by this
     return v_max * frac_area
 
 

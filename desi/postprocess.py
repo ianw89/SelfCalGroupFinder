@@ -63,6 +63,29 @@ def process_BGS(filename):
 
     return process_core(filename, all_data)
 
+def fsat_truth_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return np.average(series.is_sat_truth, weights=1/series.V_max)
+    
+def fsat_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return np.average(series.is_sat, weights=1/series.V_max)
+
+def Lgal_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return np.average(series.L_gal, weights=1/series.V_max)
+    
+def nsat_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return np.average(series.N_sat, weights=1/series.V_max)
 
 def process_core(filename, all_data):
 
@@ -73,6 +96,7 @@ def process_core(filename, all_data):
     if (orig_count != new_count):
         print("Dropped {0} bad galaxies".format(orig_count - new_count))
 
+    # add columns indicating if galaxy is a satellite, and if it is a satellite in the truth data
     all_data['is_sat'] = (all_data.index != all_data.igrp).astype(int)
     if 'galaxy_type' in all_data.columns:
         all_data['is_sat_truth'] = np.logical_or(all_data.galaxy_type == 1, all_data.galaxy_type == 3).astype(int)
@@ -80,22 +104,16 @@ def process_core(filename, all_data):
         all_data['is_sat_truth'] = np.invert(all_data.central)
     all_data['logLgal'] = np.log10(all_data.L_gal)
 
-    #bins = np.logspace(np.log10(min(all_data.M_halo)), np.log10(max(all_data.M_halo)), 30)
-    #labels = bins[0:len(bins)-1] # using bottom (or top?) value, not middle
+    # add column for halo mass bins and Lgal bins
     all_data['Mh_bin'] = pd.cut(x = all_data['M_halo'], bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
-    
-    centrals = all_data[all_data.index == all_data.igrp]
-    #logmstar_means = centrals.groupby('Mh_bin').log_M_star.mean()
-    #logmstar_scatter = centrals.groupby('Mh_bin').log_M_star.std()
-    loglcen_means = centrals.groupby('Mh_bin').logLgal.mean()
-    loglcen_scatter = centrals.groupby('Mh_bin').logLgal.std()
-
-    # Compute f_sat(Lgal)
-    #L_gal_bins = np.logspace(np.log10(min(all_data.L_gal)), np.log10(max(all_data.L_gal)), 30)
-    #L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1] # using bottom (or top?) value, not middle
     all_data['Lgal_bin'] = pd.cut(x = all_data['L_gal'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
     
-    f_sat = all_data.groupby('Lgal_bin').is_sat.mean()
+    # add convenient subsets for centrals and sats
+    centrals = all_data[all_data.index == all_data.igrp]
+    sats = all_data[all_data.index != all_data.igrp]
+    
+    # compute f_sat and Lgal counts
+    f_sat = all_data.groupby('Lgal_bin').apply(fsat_vmax_weighted)
     Lgal_counts = all_data.groupby('Lgal_bin').RA.count()
 
     dataset = types.SimpleNamespace()
@@ -104,10 +122,7 @@ def process_core(filename, all_data):
     dataset.Mhalo_bins = Mhalo_bins
     dataset.labels = Mhalo_labels
     dataset.centrals = centrals
-    #dataset.logmstar_means = logmstar_means
-    #dataset.logmstar_scatter = logmstar_scatter
-    dataset.loglcen_means = loglcen_means
-    dataset.loglcen_scatter = loglcen_scatter
+    dataset.sats = sats
     dataset.L_gal_bins = L_gal_bins
     dataset.L_gal_labels = L_gal_labels
     dataset.f_sat = f_sat
@@ -133,62 +148,34 @@ def plots(*datasets, truth_on=False):
     plt.figure(dpi=DPI)
     for f in datasets:
         if ('20' not in f.name):
-            plt.errorbar(f.labels, f.loglcen_means, yerr=f.loglcen_scatter, label=f.name, color=f.color)
+            lcen_means = f.centrals.groupby('Mh_bin').apply(Lgal_vmax_weighted)
+            lcen_scatter = f.centrals.groupby('Mh_bin').L_gal.std()
+            plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=f.name, color=f.color)
     plt.xscale('log')
+    plt.yscale('log')
     plt.xlabel('$M_{halo}$')
-    plt.ylabel('$log(L_{cen})$')
+    plt.ylabel('$L_{cen}$')
     #plt.title("Central Luminosity vs. Halo Mass")
     legend(datasets)
     plt.xlim(2E11,1E15)
+    plt.ylim(3E7,3E12)
     plt.draw()
 
     if contains_20_data:
         plt.figure(dpi=DPI)
         for f in datasets:
             if ('20' in f.name):
-                plt.errorbar(f.labels, f.loglcen_means, yerr=f.loglcen_scatter, label=f.name, color=f.color)
+                lcen_means = f.centrals.groupby('Mh_bin').apply(Lgal_vmax_weighted)
+                lcen_scatter = f.centrals.groupby('Mh_bin').L_gal.std()
+                plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=f.name, color=f.color)
         plt.xscale('log')
         plt.xlabel('$M_{halo}$')
         plt.ylabel('$log(L_{cen})$')
         plt.title("Central Luminosity vs. Halo Mass")
         legend(datasets)
         plt.xlim(2E11,1E15)
+        plt.ylim(3E7,3E12)
         plt.draw()
-    """
-    plt.figure(dpi=DPI)    
-    for f in datasets:
-        if ('20' not in f.name):
-            plt.plot(f.labels, f.loglcen_scatter, color=f.color, label=f.name)
-    plt.xscale('log')
-    plt.xlabel('$M_{halo}$')
-    plt.ylabel('$\\sigma(\\log(L_{cen})$')
-    plt.title("Central Luminosity Scatter vs. Halo Mass")
-    legend(datasets)
-    plt.xlim(2E11,1E15)
-    plt.draw()
-
-    if contains_20_data:
-        plt.figure(dpi=DPI)    
-        for f in datasets:
-            if ('20' in f.name):
-                plt.plot(f.labels, f.loglcen_scatter, color=f.color, label=f.name)
-        plt.xscale('log')
-        plt.xlabel('$M_{halo}$')
-        plt.ylabel('$\\sigma(\\log(L_{cen})$')
-        plt.title("Central Luminosity Scatter vs. Halo Mass")
-        legend(datasets)
-        plt.xlim(2E11,1E15)
-        plt.draw()
-    """
-    """     
-    plt.figure()
-    for f in datasets:
-        plt.scatter(f.centrals.M_halo, f.centrals.L_gal, alpha=0.002)
-    plt.loglog()
-    plt.xlabel('M_halo / h')
-    plt.ylabel('L_gal / $h^2$)')
-    plt.draw() 
-    """
 
     make_N_sat_plot = False
     for f in datasets:
@@ -199,9 +186,8 @@ def plots(*datasets, truth_on=False):
         plt.figure(dpi=DPI)
         for f in datasets:
             if 'N_sat' in f.all_data.columns:
-                Nsat_means = f.all_data.groupby('Mh_bin').N_sat.mean()
+                Nsat_means = f.all_data.groupby('Mh_bin').apply(nsat_vmax_weighted)
                 plt.plot(f.labels, Nsat_means, f.marker, label=f.name, color=f.color)
-                #plt.hist(f.centrals.N_sat, np.arange(0,50,1), alpha=0.5)
         plt.loglog()    
         plt.ylabel("$<N_{sat}>$")    
         plt.xlabel('$M_{halo}$')
@@ -210,12 +196,24 @@ def plots(*datasets, truth_on=False):
         plt.xlim(2E11,1E15)
         plt.draw()
 
+        # Histogram of number of satellites by halo mass
+        """
+        for f in datasets:
+            if 'N_sat' in f.all_data.columns:
+                plt.figure(dpi=DPI)
+                plt.hist(f.centrals.N_sat, np.arange(0,50,1), label=f.name, color=f.color)
+                plt.xlabel('$N_{sat}$')
+                plt.ylabel('Count')
+                plt.yscale("log")
+                plt.draw()
+        """
+
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
     for f in datasets:
         plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=f.name, color=f.color)
     if truth_on:
-        truth_f_sat = truth_on.all_data.groupby('Lgal_bin').is_sat_truth.mean()
+        truth_f_sat = truth_on.all_data.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
         plt.plot(truth_on.L_gal_labels, truth_f_sat, label="Truth", color=truth_on.color)
     ax1.set_xscale('log')
     ax1.set_xlabel("$L_{gal}$")
@@ -241,7 +239,7 @@ def plots(*datasets, truth_on=False):
     for f in datasets:
         plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=f.name, color=f.color)
     if truth_on:
-        truth_f_sat = truth_on.all_data.groupby('Lgal_bin').is_sat_truth.mean()
+        truth_f_sat = truth_on.all_data.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
         plt.plot(truth_on.L_gal_labels, truth_f_sat, label="Truth", color=truth_on.color)
     ax1.set_xscale('log')
     ax1.set_xlabel("$L_{gal}$")
@@ -264,7 +262,9 @@ def plots(*datasets, truth_on=False):
 
     print("TOTAL f_sat: ")
     for f in datasets:
-        print(f"  {f.name}:  {f.all_data['is_sat'].sum() / f.all_data['is_sat'].count():.3f}")
+        print(f"  {f.name} (no weighting):  {f.all_data['is_sat'].mean():.3f}")
+        print(f"  {f.name}:  {fsat_vmax_weighted(f.all_data):.3f}")
+        
         if 'is_sat_truth' in f.all_data.columns:
             print(f"  Corresponding Simulation \'Truth\': {f.all_data['is_sat_truth'].sum() / f.all_data['is_sat_truth'].count():.3f}")
 
@@ -374,6 +374,9 @@ def test_purity_and_completeness(*sets):
         print(s.name)
         data = s.all_data
 
+        # No 1/vmax weightings for these sums as we're just trying to calculate the purity/completeness
+        # of our sample
+
         assigned_sats = data[data.is_sat == True]
         print(f"Purity of sats: {np.sum(assigned_sats.is_sat_truth) / len(assigned_sats.index):.3f}")
 
@@ -478,9 +481,8 @@ def resulting_halo_analysis(*sets):
         lost_galaxies = data.all_data[data.all_data.fiber_assigned_0 == 0]
         print(len(lost_galaxies), "lost galaxies")
 
-        # TODO understand this MXXL quirk
         lost_galaxies = lost_galaxies[lost_galaxies['assigned_halo_id'] != 0]
-        print(len(lost_galaxies), "lost galaxies after removing ones with no MXXL halo ID (no idea why)")
+        print(len(lost_galaxies), "lost galaxies after removing ones with no MXXL halo ID (these correspond to halos that were too small for the simulation and were added by hand)")
 
         lost_galaxies_same_halo = np.equal(lost_galaxies['assigned_halo_id'], lost_galaxies['mxxl_halo_id'])
         print("Fraction of time assigned halo ID is the same as the galaxy's actual halo ID: {0:.3f}".format(np.sum(lost_galaxies_same_halo) / len(lost_galaxies_same_halo)))
