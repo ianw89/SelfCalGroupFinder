@@ -91,6 +91,11 @@ float density2host_halo_zbins3(float z, float vmax)
         vv = volume[i];
       negcnt[i]++;
       zcnt[i] += 1 / vv;
+
+      if (vv < 0.0)
+      {
+        fprintf(stderr, "vmax = %e %e %e %e %e %e %e\n", vmax, vlo[i], vhi[i], zlo[i], zhi[i], z, zcnt[i]);
+      }
       // fprintf(stdout,"> %d %e %e %e %e\n",i,vv,vmax,vlo[i],vhi[i]);
       // fflush(stdout);
     }

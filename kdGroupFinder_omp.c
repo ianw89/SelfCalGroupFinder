@@ -191,17 +191,19 @@ void groupfind()
 
     // For volume-limited samples, we calculate the volume and put that in the vmax
     // property of each galxaxy.
-    // For flux-limited samples, we read in the vmax values from the file.
-    // For that case, a factor of frac_area should already be included in the vmax.
-
     if (!FLUXLIM) {
       volume = 4. / 3. * PI * (pow(distance_redshift(zmax), 3.0)) * FRAC_AREA;
       volume = volume - 4. / 3. * PI * (pow(distance_redshift(zmin), 3.0)) * FRAC_AREA;
-    }
+    }    
+
+    // For flux-limited samples, we read in the vmax values from the file.
+    // For that case, a factor of frac_area should already be included in the vmax.
 
     galden = 0;
     for (i = 0; i < NGAL; ++i)
     {
+      // Thought called mstellar throughout the code, this galaxy property coudl be luminosity
+      // instead (at least, that's what Ian has been donig). Unclear if that is an issue yet. TODO
       fscanf(fp, "%f %f %f %f", &GAL[i].ra, &GAL[i].dec, &GAL[i].redshift, &GAL[i].mstellar);
       GAL[i].ra *= PI / 180.;
       GAL[i].dec *= PI / 180.;
