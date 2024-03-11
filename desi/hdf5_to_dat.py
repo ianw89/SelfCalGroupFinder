@@ -50,7 +50,7 @@ def main():
     g_r
     galaxy_type
     mxxl_halo_mass
-    fiber_assigned_0
+    z_assigned_flag
     """
     
     ################
@@ -110,8 +110,8 @@ def main():
     galaxy_type = infile['Data/galaxy_type'][:]
     mxxl_halo_mass = infile['Data/halo_mass'][:]
     mxxl_halo_id = infile['Data/mxxl_id'][:]
-    fiber_assigned_0 = infile['Weight/'+BITWORD][:] & FIBER_ASSIGNED_SELECTOR 
-    fiber_assigned_0 = fiber_assigned_0.astype(bool)
+    observed = infile['Weight/'+BITWORD][:] & FIBER_ASSIGNED_SELECTOR 
+    observed = observed.astype(bool)
 
     orig_count = len(dec)
     print(orig_count, "galaxies in HDF5 file")
@@ -120,7 +120,7 @@ def main():
 
     # Filter down inputs to the ones we want in the catalog for NN and similar calculations
     catalog_bright_filter = app_mag < CATALOG_APP_MAG_CUT 
-    catalog_keep = np.all([catalog_bright_filter, redshift_filter, fiber_assigned_0], axis=0)
+    catalog_keep = np.all([catalog_bright_filter, redshift_filter, observed], axis=0)
     catalog_ra = ra[catalog_keep]
     catalog_dec = dec[catalog_keep]
     z_obs_catalog = z_obs[catalog_keep]
@@ -142,14 +142,14 @@ def main():
     mxxl_halo_id = mxxl_halo_id[keep]
     assigned_halo_mass = np.copy(mxxl_halo_mass)
     assigned_halo_id = np.copy(mxxl_halo_id)
-    fiber_assigned_0 = fiber_assigned_0[keep]
-    fiber_not_assigned_0 = np.invert(fiber_assigned_0)
-    indexes_not_assigned = np.argwhere(fiber_not_assigned_0)
+    observed = observed[keep]
+    unobserved = np.invert(observed)
+    indexes_not_assigned = np.argwhere(unobserved)
 
 
     count = len(dec)
     print(count, "galaxies left after apparent mag cut at {0}".format(APP_MAG_CUT))
-    print(np.sum(fiber_assigned_0), "galaxies were assigned a fiber")
+    print(np.sum(observed), "galaxies were assigned a fiber")
     print(f"Catalog for nearest neighbor calculations is of size {len(catalog_ra)}")
 
 
@@ -165,28 +165,28 @@ def main():
 
     if mode == Mode.FIBER_ASSIGNED_ONLY.value:
         # Filter it all down to just the ones with fiber's assigned
-        dec = dec[fiber_assigned_0]
-        ra = ra[fiber_assigned_0]
-        z_obs = z_obs[fiber_assigned_0]
-        app_mag = app_mag[fiber_assigned_0]
-        g_r = g_r[fiber_assigned_0]
-        #abs_mag = abs_mag[fiber_assigned_0]
-        galaxy_type = galaxy_type[fiber_assigned_0]
-        mxxl_halo_mass = mxxl_halo_mass[fiber_assigned_0]
-        mxxl_halo_id = mxxl_halo_id[fiber_assigned_0]
-        assigned_halo_mass = assigned_halo_mass[fiber_assigned_0]
-        assigned_halo_id = assigned_halo_id[fiber_assigned_0]
-        z_eff = z_eff[fiber_assigned_0]
-        prob_obs = prob_obs[fiber_assigned_0]
-        fiber_assigned_0 = fiber_assigned_0[fiber_assigned_0]
-        assert np.all(fiber_assigned_0)
+        dec = dec[observed]
+        ra = ra[observed]
+        z_obs = z_obs[observed]
+        app_mag = app_mag[observed]
+        g_r = g_r[observed]
+        #abs_mag = abs_mag[observed]
+        galaxy_type = galaxy_type[observed]
+        mxxl_halo_mass = mxxl_halo_mass[observed]
+        mxxl_halo_id = mxxl_halo_id[observed]
+        assigned_halo_mass = assigned_halo_mass[observed]
+        assigned_halo_id = assigned_halo_id[observed]
+        z_eff = z_eff[observed]
+        prob_obs = prob_obs[observed]
+        observed = observed[observed]
+        assert np.all(observed)
         count = len(dec)
 
     
     elif mode == Mode.NEAREST_NEIGHBOR.value:
 
         catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
-        to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
+        to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
 
         idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
 
@@ -210,7 +210,7 @@ def main():
         with FancyRedshiftGuesser(NUM_NEIGHBORS) as scorer:
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
-            to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
+            to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
             
             neighbor_indexes = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)), dtype=np.int32) # indexes point to CATALOG locations
             ang_distances = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)))
@@ -249,10 +249,10 @@ def main():
         
     elif mode == Mode.SIMPLE.value:
 
-        with SimpleRedshiftGuesser(app_mag[fiber_assigned_0], z_obs[fiber_assigned_0]) as scorer:
+        with SimpleRedshiftGuesser(app_mag[observed], z_obs[observed]) as scorer:
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
-            to_match = coord.SkyCoord(ra=ra[fiber_not_assigned_0]*u.degree, dec=dec[fiber_not_assigned_0]*u.degree, frame='icrs')
+            to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
             
             neighbor_indexes, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
             ang_distances = d2d.to(u.arcsec).value
@@ -284,7 +284,7 @@ def main():
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_k) 
 
     # the vmax should be calculated from un-k-corrected magnitudes
-    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, ra, dec, frac_area=FOOTPRINT_FRAC)
+    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, FOOTPRINT_FRAC)
 
     # Throwing out largest 1% of vmax allows it to work. try 0.1%
     """
@@ -303,7 +303,7 @@ def main():
     mxxl_halo_id = mxxl_halo_id[sanity_filter]
     assigned_halo_mass = assigned_halo_mass[sanity_filter]
     assigned_halo_id = assigned_halo_id[sanity_filter]
-    fiber_assigned_0 = fiber_assigned_0[sanity_filter]
+    observed = observed[sanity_filter]
     log_L_gal = log_L_gal[sanity_filter]
     V_max = V_max[sanity_filter]
     count = len(dec)
@@ -317,7 +317,7 @@ def main():
         np.array(g_r, dtype='str'), 
         np.array(galaxy_type, dtype='str'), 
         np.array(mxxl_halo_mass, dtype='str'),
-        np.array(fiber_assigned_0, dtype='str'),
+        np.array(unobserved, dtype='str'),
         np.array(assigned_halo_mass, dtype='str'),
         np.array(z_obs, dtype='str'),
         np.array(mxxl_halo_id, dtype='str'),

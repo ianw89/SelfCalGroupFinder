@@ -75,12 +75,13 @@ def abs_mag_r_to_log_solar_L(arr):
     """
     return 0.39794 * (SOLAR_L_R_BAND - arr)
 
+def log_solar_L_to_abs_mag_r(arr):
+    return SOLAR_L_R_BAND - (arr / 0.39794)
 
-def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec, frac_area=None):
+
+def get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area):
     """
     Calculate the max volume at which the galaxy could be seen in comoving coords.
-
-    Takes in an array of absolute magnitudes and an array of redshifts.
     """
 
     # Use distance modulus
@@ -89,16 +90,21 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, ra, dec, frac_area=None):
 
     v_max = (d_cm**3) * (4*np.pi/3) # in comoving Mpc^3 / h^3 
 
-    # This is what the fraction of the sky that complete BGS will cover.
-    #frac_area = 0.35876178702 # 14800 / 41253 which is final DESI BGS footprint (see Alex DESI BGS Incompleteness paper) 
-    if frac_area is None:
-        frac_area = estimate_frac_area(ra, dec)
-        print(f"Footprint not provided; estimated to be {frac_area:.3f} of the sky")
-
     # TODO I'm not convinced that everywhere we use Vmax frac_area should be baked into it
     # Group finder seems to expect this but not 100% confident
     # My fsat calculations that have 1/Vmax weightings are not affected by this
     return v_max * frac_area
+
+def get_max_observable_volume_est(abs_mags, z_obs, m_cut, ra, dec):
+    """
+    Calculate the max volume at which the galaxy could be seen in comoving coords. 
+
+    This overload calculates 
+    """
+    frac_area = estimate_frac_area(ra, dec)
+    print(f"Footprint not provided; estimated to be {frac_area:.3f} of the sky")
+
+    return get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area)
 
 
 def mollweide_transform(ra, dec):

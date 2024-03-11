@@ -103,7 +103,7 @@ def main():
     target_id = u_table['TARGETID']
     app_mag = get_app_mag(u_table['FLUX_R'])
     app_mag_g = get_app_mag(u_table['FLUX_G'])
-    g_r = app_mag_g - app_mag # TODO is this rigtht
+    g_r = app_mag_g - app_mag # TODO is this right, or should I use ABS MAGs
     p_obs = u_table['PROB_OBS']
     unobserved = u_table['ZWARN'] == 999999
     deltachi2 = u_table['DELTACHI2'].data.data  
@@ -208,7 +208,7 @@ def main():
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_k) 
 
     # the vmax should be calculated from un-k-corrected magnitudes
-    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, ra, dec, frac_area=FOOTPRINT_FRAC)
+    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, frac_area)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi

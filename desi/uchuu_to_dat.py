@@ -86,7 +86,9 @@ def main():
     ra = u_table['RA']
     z_obs = u_table['Z']
     app_mag = u_table['R_MAG_APP']
-    g_r = u_table['G_R_REST'] # BUG TODO I think my code is expectin this to be observed, not rest frame
+    abs_mag = u_table['R_MAG_ABS']
+    #g_r = u_table['G_R_REST'] 
+    g_r = u_table['G_R_OBS']
     central = u_table['CEN']
     uchuu_halo_mass = u_table['HALO_MASS']
     uchuu_halo_id = u_table['HALO_ID']
@@ -104,6 +106,7 @@ def main():
     ra = ra[keep]
     z_obs = z_obs[keep]
     app_mag = app_mag[keep]
+    abs_mag = abs_mag[keep]
     g_r = g_r[keep]
     central = central[keep]
     uchuu_halo_mass = uchuu_halo_mass[keep]
@@ -122,14 +125,14 @@ def main():
     #z_eff = np.copy(z_obs)
     z_eff = z_obs # TODO go back to copying if UCHUU gets fiber assignment and we run other modes!
           
-    abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
-    abs_mag_k = k_correct(abs_mag, z_eff, g_r)
+    abs_mag_me = app_mag_to_abs_mag(app_mag, z_eff)
+    abs_mag_me_k = k_correct(abs_mag_me, z_eff, g_r)
 
     # the luminosities sent to the group finder will be k-corrected to z=0.1
-    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_k) 
+    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_me_k) 
 
     # the vmax should be calculated from un-k-corrected magnitudes
-    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, ra, dec, frac_area=FOOTPRINT_FRAC)
+    V_max = get_max_observable_volume(abs_mag_me, z_eff, APP_MAG_CUT, FOOTPRINT_FRAC)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
