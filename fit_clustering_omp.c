@@ -380,8 +380,8 @@ void tabulate_hods()
       //printf("BOO %f %f %d\n",log10(GAL[i].mstellar),mag,ibin);
       // check if we are using stellar mass
       if(STELLAR_MASS) {
-	mag = log10(GAL[i].mstellar)*2;
-	ibin = (int)(mag)-18;
+        mag = log10(GAL[i].mstellar)*2;
+        ibin = (int)(mag)-18;
       }
       
       if(ibin<0 || ibin>=NBINS)continue;
@@ -391,7 +391,7 @@ void tabulate_hods()
       // vmax-weight everything
       w0 = 1/volume[ibin];
       if(GAL[i].vmax<volume[ibin])
-	w0 = 1/GAL[i].vmax;
+	    w0 = 1/GAL[i].vmax;
 
       
       if(GAL[i].color>0.8) //red

@@ -53,7 +53,6 @@ def process_MXXL(filename):
     galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'z_assigned_flag', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
     all_data = pd.merge(df, galprops, left_index=True, right_index=True)
 
-
     return process_core(filename, all_data)
 
 def process_BGS(filename):
@@ -112,40 +111,48 @@ def process_core(filename, df):
     # add column for halo mass bins and Lgal bins
     df['Mh_bin'] = pd.cut(x = df['M_halo'], bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
     df['Lgal_bin'] = pd.cut(x = df['L_gal'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
-    
-    # add convenient subsets for centrals and sats
-    centrals = df[df.index == df.igrp]
-    sats = df[df.index != df.igrp]
-    
+
     # compute f_sat and Lgal counts
     f_sat = df.groupby('Lgal_bin').apply(fsat_vmax_weighted)
     Lgal_counts = df.groupby('Lgal_bin').RA.count()
 
     dataset = types.SimpleNamespace()
+    dataset.has_truth = False
+
+    # MXXL only processing
+    if 'galaxy_type' in df.columns: 
+        dataset.has_truth = True
+        df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3).astype(int)
+        df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
+        truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
+        dataset.truth_f_sat = truth_f_sat
+        dataset.centrals_T = df[np.invert(df.is_sat_truth)]
+        dataset.sats_T = df[df.is_sat_truth]
+
+    # UCHUU only processing
+    elif 'central' in df.columns: 
+        dataset.has_truth = True
+        df['is_sat_truth'] = np.invert(df.central)
+        df['Mh_bin_T'] = pd.cut(x = df['uchuu_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
+        truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
+        dataset.truth_f_sat = truth_f_sat
+        dataset.centrals_T = df[np.invert(df.is_sat_truth)]
+        dataset.sats_T = df[df.is_sat_truth]
+
+    # add convenient subsets for centrals and sats
+    centrals = df[df.index == df.igrp]
+    sats = df[df.index != df.igrp]
+
     dataset.filename = filename[filename.rfind('/')+1 : len(filename)-4]
-    dataset.all_data = df
     dataset.Mhalo_bins = Mhalo_bins
     dataset.labels = Mhalo_labels
+    dataset.all_data = df
     dataset.centrals = centrals
     dataset.sats = sats
     dataset.L_gal_bins = L_gal_bins
     dataset.L_gal_labels = L_gal_labels
-    dataset.f_sat = f_sat
-    dataset.Lgal_counts = Lgal_counts
-
-    # MXXL only processing
-    if 'galaxy_type' in df.columns: 
-        df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3).astype(int)
-        truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
-        dataset.truth_f_sat = truth_f_sat
-
-    # UCHUU only processing
-    elif 'central' in df.columns: 
-        df['is_sat_truth'] = np.invert(df.central)
-        truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
-        dataset.truth_f_sat = truth_f_sat
-
-
+    dataset.f_sat = f_sat # per Lgal bin
+    dataset.Lgal_counts = Lgal_counts # size of Lgal bins
 
     return dataset
 
@@ -157,6 +164,54 @@ def legend(datasets):
 def legend_ax(ax, datasets):
     if len(datasets) > 1:
         ax.legend()
+
+def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name):
+    HOD_LGAL_CUT = 4E9
+    SHOW_UNWEIGHTED = True
+
+    vmax_cen_avg = np.average(centrals[centrals.L_gal > HOD_LGAL_CUT].V_max)
+    vmax_sat_avg = np.average(sats[sats.L_gal > HOD_LGAL_CUT].V_max)
+    vmax_gal_avg = np.average(df[df.L_gal > HOD_LGAL_CUT].V_max)
+    halo_bin_sizes_weighted = centrals.groupby(mass_bin_prop).apply(count_vmax_weighted) * np.average(centrals.V_max)
+
+    N_cen = centrals[centrals.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop).apply(count_vmax_weighted) * vmax_cen_avg / halo_bin_sizes_weighted
+    N_sat = sats[sats.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop).apply(count_vmax_weighted) * vmax_sat_avg / halo_bin_sizes_weighted
+    N_gal = df[df.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop).apply(count_vmax_weighted) * vmax_gal_avg / halo_bin_sizes_weighted
+    
+
+    plt.figure(dpi=DPI)
+    plt.plot(mass_labels, N_cen, ".", label=f"Centrals", color=color)
+    plt.plot(mass_labels, N_sat, "--", label=f"Satellites", color=color)
+    plt.plot(mass_labels, N_gal, "-", label=f"All", color=color)
+
+    if SHOW_UNWEIGHTED:
+        halo_bin_sizes_weighted2 = centrals.groupby(mass_bin_prop).size()
+        N_cen2 = centrals[centrals.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop).size()  / halo_bin_sizes_weighted2
+        N_sat2 = sats[sats.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop).size()  / halo_bin_sizes_weighted2
+        N_gal2 = df[df.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop).size()  / halo_bin_sizes_weighted2
+
+        plt.plot(mass_labels, N_cen2, ".", label=f"Centrals Unweighted", color='red', alpha=0.5)
+        plt.plot(mass_labels, N_sat2, "--", label=f"Satellites Unweighted", color='red', alpha=0.5)
+        plt.plot(mass_labels, N_gal2, "-", label=f"All Unweighted", color='red', alpha=0.5)
+
+    plt.loglog()    
+    plt.ylabel("$<N_{gal}>$")    
+    plt.xlabel('$M_{halo}$')
+    plt.title(f"Halo Occupancy for \'{name}\' (L>$10^{{{np.log10(HOD_LGAL_CUT):.1f}}}$)")
+    plt.legend()
+    plt.xlim(1E11,1E15)
+    plt.draw()
+
+
+def hod_plots(*datasets, truth_on=True):
+
+    for f in datasets:
+        do_hod_plot(f.all_data, f.centrals, f.sats, 'Mh_bin', f.labels, f.color, f.name)
+
+        if truth_on and f.has_truth:
+            do_hod_plot(f.all_data, f.centrals_T, f.sats_T, 'Mh_bin_T', f.labels, 'k', f.name)
+
+
 
 def plots(*datasets, truth_on=False):
     contains_20_data = False

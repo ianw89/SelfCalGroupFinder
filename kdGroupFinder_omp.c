@@ -376,7 +376,7 @@ void groupfind()
     t1 = omp_get_wtime();
 
     // go back and check objects are newly-exposed centrals
-#pragma omp parallel for private(j)
+    #pragma omp parallel for private(j)
     for (j = 0; j < NGAL; ++j)
     {
       if (flag[j] && GAL[j].psat < 0.5)
@@ -452,10 +452,12 @@ void groupfind()
       nsat_tot += GAL[i].nsat;
     }
     t4 = omp_get_wtime();
+
     // for the satellites, set their host halo mass
     for (j = 0; j < NGAL; ++j)
       if (GAL[j].psat > 0.5)
         GAL[j].mass = GAL[GAL[j].igrp].mass;
+
     fprintf(stderr, "iter %d ngroups=%d fsat=%f (kdtime=%.2f %.2f)\n",
             niter, ngrp, nsat_tot / NGAL, t1 - t0, t4 - t3);
   }

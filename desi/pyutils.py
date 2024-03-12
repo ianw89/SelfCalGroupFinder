@@ -81,7 +81,7 @@ def log_solar_L_to_abs_mag_r(arr):
 
 def get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area):
     """
-    Calculate the max volume at which the galaxy could be seen in comoving coords.
+    Calculate the Vmax (max volume at which the galaxy could be seen) in comoving coords.
     """
 
     # Use distance modulus
