@@ -65,6 +65,12 @@ def process_BGS(filename):
 
     return process_core(filename, all_data)
 
+def count_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return len(series) / np.average(series.V_max)
+
 def fsat_truth_vmax_weighted(series):
     if len(series) == 0:
         return 0
@@ -87,6 +93,7 @@ def nsat_vmax_weighted(series):
     if len(series) == 0:
         return 0
     else:
+        print(series.N_sat)
         return np.average(series.N_sat, weights=1/series.V_max)
 
 def process_core(filename, df):
@@ -263,7 +270,10 @@ def plots(*datasets, truth_on=False):
         widths = np.zeros(len(f.L_gal_bins)-1)
         for i in range(0,len(f.L_gal_bins)-1):
             widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(datasets)
-        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data.is_sat == True].groupby('Lgal_bin').size(), width=widths, color=f.color, align='edge', alpha=0.4)
+        
+        # This version 1/vmax weights the counts
+        #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin').apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
+        ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin').size(), width=widths, color=f.color, align='edge', alpha=0.4)
         idx+=1
     ax2.set_ylabel('$N_{sat}$')
     ax2.set_yscale('log')
@@ -297,14 +307,27 @@ def plots(*datasets, truth_on=False):
     fig.tight_layout()
 
 
-    print("TOTAL f_sat: ")
+    print("TOTAL f_sat - entire sample: ")
     for f in datasets:
-        print(f"  {f.name} (no weighting):  {f.all_data['is_sat'].mean():.3f}")
-        print(f"  {f.name}:  {fsat_vmax_weighted(f.all_data):.3f}")
-        
-        if 'is_sat_truth' in f.all_data.columns:
-            print(f"  {f.name} Truth (no weighting):  {f.all_data['is_sat_truth'].mean():.3f}")
-            print(f"  {f.name} Truth:  {fsat_truth_vmax_weighted(f.all_data):.3f}")
+        print(f.name)
+        total_f_sat(f.all_data)
+
+    print("TOTAL f_sat - Lgal > 10^9: ")
+    for f in datasets:
+        print(f.name)
+        total_f_sat(f.all_data[f.all_data.L_gal > 1E9])
+    
+
+def total_f_sat(df):
+    """
+    Prints out the total f_sat for a dataframe, 1/Vmax weighted and not. 
+    """
+    print(f"  (no weight):  {df['is_sat'].mean():.3f}")
+    print(f"  (1 / V_max):  {fsat_vmax_weighted(df):.3f}")
+    
+    if 'is_sat_truth' in df.columns:
+        print(f"  Truth (no weight):  {df['is_sat_truth'].mean():.3f}")
+        print(f"  Truth (1 / V_max):  {fsat_truth_vmax_weighted(df):.3f}")
 
 
 # It gives same result as NFW version! Good
