@@ -37,32 +37,7 @@ L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1]
 Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
 
 
-def process_uchuu(filename):
-    filename_props = str.replace(filename, ".out", "_galprops.dat")
 
-    df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'central', 'uchuu_halo_mass', 'uchuu_halo_id'), dtype={'uchuu_halo_id': np.int64, 'central': np.bool_})
-    all_data = pd.merge(df, galprops, left_index=True, right_index=True)
-
-    return process_core(filename, all_data)
-
-def process_MXXL(filename):
-    filename_props = str.replace(filename, ".out", "_galprops.dat")
-
-    df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'z_assigned_flag', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
-    all_data = pd.merge(df, galprops, left_index=True, right_index=True)
-
-    return process_core(filename, all_data)
-
-def process_BGS(filename):
-    filename_props = str.replace(filename, ".out", "_galprops.dat")
-
-    df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
-    all_data = pd.merge(df, galprops, left_index=True, right_index=True)
-
-    return process_core(filename, all_data)
 
 def count_vmax_weighted(series):
     if len(series) == 0:
@@ -94,6 +69,35 @@ def nsat_vmax_weighted(series):
     else:
         print(series.N_sat)
         return np.average(series.N_sat, weights=1/series.V_max)
+    
+
+
+def process_uchuu(filename):
+    filename_props = str.replace(filename, ".out", "_galprops.dat")
+
+    df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
+    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'central', 'uchuu_halo_mass', 'uchuu_halo_id'), dtype={'uchuu_halo_id': np.int64, 'central': np.bool_})
+    all_data = pd.merge(df, galprops, left_index=True, right_index=True)
+
+    return process_core(filename, all_data)
+
+def process_MXXL(filename):
+    filename_props = str.replace(filename, ".out", "_galprops.dat")
+
+    df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
+    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'z_assigned_flag', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
+    all_data = pd.merge(df, galprops, left_index=True, right_index=True)
+
+    return process_core(filename, all_data)
+
+def process_BGS(filename):
+    filename_props = str.replace(filename, ".out", "_galprops.dat")
+
+    df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
+    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
+    all_data = pd.merge(df, galprops, left_index=True, right_index=True)
+
+    return process_core(filename, all_data)
 
 def process_core(filename, df):
 
@@ -122,7 +126,7 @@ def process_core(filename, df):
     # MXXL only processing
     if 'galaxy_type' in df.columns: 
         dataset.has_truth = True
-        df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3).astype(int)
+        df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3)
         df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
         truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
         dataset.truth_f_sat = truth_f_sat

@@ -2,6 +2,7 @@ import numpy as np
 import sys
 from pyutils import *
 from astropy.table import Table, join
+import pandas as pd
 
 def usage():
     print("Usage: python3 desi_fits_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename]")
@@ -89,28 +90,34 @@ def main():
 
     # Temp hack to get p_obs as ANY doesn't have it, unlike BRIGHT
     p_table = Table.read('bin/mainbw-bright-allTiles_v1.fits')
-    combined = join(u_table, p_table, keys='TARGETID')
-    u_table = combined
+    u_table = join(u_table, p_table, keys='TARGETID')
     
     outname_base = sys.argv[5] 
 
     # astropy's Table used masked arrays, so we have to use .data.data to get the actual data
     # The masked rows are unobserved targets
-    obj_type = u_table['SPECTYPE'].data.data
-    dec = u_table['DEC']
-    ra = u_table['RA']
-    z_obs = u_table['Z_not4clus'].data.data
-    target_id = u_table['TARGETID']
-    app_mag = get_app_mag(u_table['FLUX_R'])
-    app_mag_g = get_app_mag(u_table['FLUX_G'])
-    g_r = app_mag_g - app_mag # TODO is this right, or should I use ABS MAGs
-    p_obs = u_table['PROB_OBS']
-    unobserved = u_table['ZWARN'] == 999999
-    deltachi2 = u_table['DELTACHI2'].data.data  
 
-    print(obj_type.dtype)
+    df = pd.DataFrame(data={
+    'obj_type': u_table['SPECTYPE'].data.data,
+    'dec': u_table['DEC'],
+    'ra': u_table['RA'],
+    'z_obs': u_table['Z_not4clus'].data.data,
+    'target_id': u_table['TARGETID'],
+    'app_mag': get_app_mag(u_table['FLUX_R']),
+    'app_mag_g': get_app_mag(u_table['FLUX_G']),
+    'p_obs': u_table['PROB_OBS'],
+    'unobserved': u_table['ZWARN'] == 999999,
+    'deltachi2': u_table['DELTACHI2'].data.data,
+    'NTILE': u_table['NTILE']
+    })
+    df['g_r'] = df.app_mag_g - df.app_mag
+    
+    del(u_table)
+    del(p_table)
 
-    orig_count = len(dec)
+    print(df.obj_type.dtype)
+
+    orig_count = len(df)
     print(orig_count, "objects in FITS file")
 
 
@@ -120,20 +127,20 @@ def main():
     # null values (masked rows) are unobserved targets; not all columns are masked though
 
     # Make filter array (True/False values)
-    three_pass_filter = u_table['NTILE'] >= 3 # 3pass coverage. Some have 4, not sure why
+    three_pass_filter = df['NTILE'] >= 3 # 3pass coverage. Some have 4 due to tiling overlaps presumably
     #galaxy_filter = np.logical_or(obj_type == b'GALAXY', obj_type == b'')
 
-    galaxy_observed_filter = obj_type == b'GALAXY'
-    app_mag_filter = app_mag < APP_MAG_CUT
-    redshift_filter = z_obs > Z_MIN
-    redshift_hi_filter = z_obs < Z_MAX
-    deltachi2_filter = deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
+    galaxy_observed_filter = df.obj_type == b'GALAXY'
+    app_mag_filter = df.app_mag < APP_MAG_CUT
+    redshift_filter = df.z_obs > Z_MIN
+    redshift_hi_filter = df.z_obs < Z_MAX
+    deltachi2_filter = df.deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
     observed_requirements = np.all([galaxy_observed_filter, app_mag_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
     
     # treat low deltachi2 as unobserved
     treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, np.invert(deltachi2_filter)], axis=0)
     #print(f"We have {np.count_nonzero(treat_as_unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
-    unobserved = np.all([app_mag_filter, np.logical_or(unobserved, treat_as_unobserved)], axis=0)
+    unobserved = np.all([app_mag_filter, np.logical_or(df.unobserved, treat_as_unobserved)], axis=0)
     #print(f"We have {np.count_nonzero(unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
 
     if mode == Mode.ALL.value: # ALL is misnomer here it means 1pass or more
@@ -143,47 +150,36 @@ def main():
         keep = np.all([three_pass_filter, observed_requirements], axis=0)
 
     if mode == Mode.SIMPLE.value:
-        keep = np.all([three_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
+        keep = np.all([three_pass_filter, np.logical_or(observed_requirements, df.unobserved)], axis=0)
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
         # TODO why bother with this for the real data? Use all we got, right? 
         # I upped the cut to 21 so it doesn't do anything
-        catalog_bright_filter = app_mag < CATALOG_APP_MAG_CUT 
+        catalog_bright_filter = df.app_mag < CATALOG_APP_MAG_CUT 
         # TODO Shouldn't 3pass filter be in here too? I guess it doesn't matter
         catalog_keep = np.all([galaxy_observed_filter, catalog_bright_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
-        catalog_ra = ra[catalog_keep]
-        catalog_dec = dec[catalog_keep]
-        z_obs_catalog = z_obs[catalog_keep]
-
+        catalog_ra = df.ra[catalog_keep]
+        catalog_dec = df.dec[catalog_keep]
+        z_obs_catalog = df.z_obs[catalog_keep]
         print(len(z_obs_catalog), "galaxies in the NN catalog.")
 
     # Apply filters
-    obj_type = obj_type[keep]
-    dec = dec[keep]
-    ra = ra[keep]
-    z_obs = z_obs[keep]
-    target_id = target_id[keep]
-    app_mag = app_mag[keep]
-    p_obs = p_obs[keep]
-    unobserved = unobserved[keep]
-    observed = np.invert(unobserved)
-    indexes_not_assigned = np.argwhere(unobserved)
-    deltachi2 = deltachi2[keep]
-    g_r = g_r[keep]
+    df = df[keep].reset_index(drop=True)
+    indexes_not_assigned = np.argwhere(df.unobserved)
 
-    count = len(dec)
+    count = len(df)
     print(count, "galaxies left after filters.")
-    print(f'{unobserved.sum() } remaining galaxies that need redshifts')
-    print(f'{100*unobserved.sum() / len(unobserved) :.1f}% of remaining galaxies need redshifts')
+    print(f'{df.unobserved.sum() } remaining galaxies that need redshifts')
+    print(f'{100*df.unobserved.sum() / len(df.unobserved) :.1f}% of remaining galaxies need redshifts')
     #print(f'Min z: {min(z_obs):f}, Max z: {max(z_obs):f}')
 
-    z_eff = np.copy(z_obs)
+    df['z_eff'] = np.copy(df.z_obs)
 
     if mode == Mode.SIMPLE.value:
-        with SimpleRedshiftGuesser(app_mag[observed], z_obs[observed]) as scorer:
+        with SimpleRedshiftGuesser(df.app_mag[np.invert(df.unobserved)], df.z_obs[np.invert(df.unobserved)]) as scorer:
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
-            to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
+            to_match = coord.SkyCoord(ra=df.ra[df.unobserved]*u.degree, dec=df.dec[df.unobserved]*u.degree, frame='icrs')
 
             neighbor_indexes, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
             ang_distances = d2d.to(u.arcsec).value
@@ -194,34 +190,36 @@ def main():
                 if j%10000==0:
                     print(f"{j}/{len(to_match)} complete", end='\r')
 
-                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes[j]], ang_distances[j], p_obs[i], app_mag[i])
-                z_eff[i] = chosen_z
+                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes[j]], ang_distances[j], df.p_obs[i], df.app_mag[i])
+                df.z_eff[i] = chosen_z
                 j = j + 1 
 
             print(f"{j}/{len(to_match)} complete")
 
 
-    abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
-    abs_mag_k = k_correct(abs_mag, z_eff, g_r) # TODO G - R
+    df['abs_mag'] = app_mag_to_abs_mag(df.app_mag.to_numpy(), df.z_eff.to_numpy())
+    df['abs_mag_k'] = k_correct(df.abs_mag.to_numpy(), df.z_eff.to_numpy(), df.g_r.to_numpy())
 
     # the luminosities sent to the group finder will be k-corrected to z=0.1
-    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_k) 
+    df['log_L_gal'] = abs_mag_r_to_log_solar_L(df.abs_mag_k) 
 
     # the vmax should be calculated from un-k-corrected magnitudes
-    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, frac_area)
+    df['V_max'] = get_max_observable_volume(df.abs_mag, df.z_eff, APP_MAG_CUT, frac_area)
 
-    colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
-    chi = np.zeros(count, dtype=np.int8) # TODO compute chi
+    #df['abs_mag_g'] = app_mag_to_abs_mag(df.app_mag_g.to_numpy(), df.z_eff.to_numpy())
+    #df['abs_mag_g_k'] = k_correct(df.abs_mag_g.to_numpy(), df.z_eff.to_numpy(), df.g_r.to_numpy(), band='g')
+    # TODO Use the k-corrected abs mags to define galaxies as quiescent or star-forming
+    # Use color cut as per Alex's paper.
+    df['colors'] = np.zeros(count, dtype=np.int8) 
+
+    df['chi'] = np.zeros(count, dtype=np.int8) # TODO compute chi
 
     # Output files
-    #galprops_str = "{:f} {} {:n}"
-    #galprops= np.array([app_mag, target_id, target_id])
-
     galprops = np.column_stack([
-        np.array(app_mag, dtype='str'), 
-        np.array(target_id, dtype='str'), 
-        np.array(unobserved, dtype='str')])
-    write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, frac_area, galprops)
+        np.array(df.app_mag, dtype='str'), 
+        np.array(df.target_id, dtype='str'), 
+        np.array(df.unobserved, dtype='str')])
+    write_dat_files(df.ra, df.dec, df.z_eff, df.log_L_gal, df.V_max, df.colors, df.chi, outname_base, frac_area, galprops)
 
 if __name__ == "__main__":
     main()

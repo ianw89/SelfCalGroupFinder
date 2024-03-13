@@ -57,8 +57,8 @@ def app_mag_to_abs_mag_k(app_mag, z_obs, gmr):
     """
     return k_correct(app_mag_to_abs_mag(app_mag, z_obs), z_obs, gmr)
 
-def k_correct(abs_mag, z_obs, gmr):
-    kcorr_r = kc.GAMA_KCorrection(band='R')
+def k_correct(abs_mag, z_obs, gmr, band='r'):
+    kcorr_r = kc.GAMA_KCorrection(band=band)
     
     # This is how I thought one would use it
     ks = kcorr_r.k(z_obs, gmr)
