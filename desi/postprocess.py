@@ -70,34 +70,29 @@ def nsat_vmax_weighted(series):
         print(series.N_sat)
         return np.average(series.N_sat, weights=1/series.V_max)
     
+def read_and_combine_gf_output(filename, galprops_df):
+    df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
+    all_data = pd.merge(df, galprops_df, left_index=True, right_index=True)
+    return process_core(filename, all_data)
 
+def process_sdss(filename):
+    galprops = pd.read_csv("../data/sdss_galprops_v1.0.dat", delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
+    return read_and_combine_gf_output(filename, galprops)
 
 def process_uchuu(filename):
     filename_props = str.replace(filename, ".out", "_galprops.dat")
-
-    df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
     galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'central', 'uchuu_halo_mass', 'uchuu_halo_id'), dtype={'uchuu_halo_id': np.int64, 'central': np.bool_})
-    all_data = pd.merge(df, galprops, left_index=True, right_index=True)
-
-    return process_core(filename, all_data)
+    return read_and_combine_gf_output(filename, galprops)
 
 def process_MXXL(filename):
     filename_props = str.replace(filename, ".out", "_galprops.dat")
-
-    df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
     galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'z_assigned_flag', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
-    all_data = pd.merge(df, galprops, left_index=True, right_index=True)
-
-    return process_core(filename, all_data)
+    return read_and_combine_gf_output(filename, galprops)
 
 def process_BGS(filename):
     filename_props = str.replace(filename, ".out", "_galprops.dat")
-
-    df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
     galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
-    all_data = pd.merge(df, galprops, left_index=True, right_index=True)
-
-    return process_core(filename, all_data)
+    return read_and_combine_gf_output(filename, galprops)
 
 def process_core(filename, df):
 

@@ -20,7 +20,8 @@ betaLq=0  #10.25
 beta0sf=1  #12.993
 betaLsf=0  #-8.04
 
-omega_chi_0_sf=2.68  # can just omit these 4 parameters to turn off
+# can just omit these 4 parameters to turn off
+omega_chi_0_sf=2.68  
 omega_chi_0_q=1.10
 omega_chi_L_sf=2.23
 omega_chi_L_q=0.48
@@ -64,7 +65,6 @@ run_uchuu_all=false
 run_bgs_fiberonly_1passok=false
 run_bgs_fiberonly=false 
 run_bgs_simple=true
-run_bgs_simple_vmaxfilt=false
 
 function process_and_group_find () {
     run_groupfinder=$GROUP_FINDING
@@ -159,17 +159,13 @@ fi
 
 
 if [ "$run_bgs_fiberonly_1passok" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1passok_1" 1 19.5 21.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1passok_1" 1 19.5 22.0
 fi
 
 if [ "$run_bgs_fiberonly" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1" 2 19.5 21.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1" 2 19.5 22.0
 fi
 
 if [ "$run_bgs_simple" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2" 5 19.5 21.0
-fi
-
-if [ "$run_bgs_simple_vmaxfilt" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_vmaxfilt" 5 19.5 21.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2" 5 19.5 22.0
 fi
