@@ -169,9 +169,8 @@ def legend_ax(ax, datasets):
     if len(datasets) > 1:
         ax.legend()
 
-def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name):
+def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHOW_UNWEIGHTED=False):
     HOD_LGAL_CUT = 4E9
-    SHOW_UNWEIGHTED = True
 
     vmax_cen_avg = np.average(centrals[centrals.L_gal > HOD_LGAL_CUT].V_max)
     vmax_sat_avg = np.average(sats[sats.L_gal > HOD_LGAL_CUT].V_max)
@@ -255,41 +254,6 @@ def plots(*datasets, truth_on=False):
         plt.xlim(2E11,1E15)
         plt.ylim(3E7,3E12)
         plt.draw()
-
-    # Nsat vs halo mass
-    make_N_sat_plot = False
-    for f in datasets:
-        if 'N_sat' in f.all_data.columns:
-            make_N_sat_plot = True
-
-    if make_N_sat_plot:
-        plt.figure(dpi=DPI)
-        for f in datasets:
-            if 'N_sat' in f.all_data.columns:
-                #Nsat_means = f.all_data.groupby('Mh_bin').apply(nsat_vmax_weighted)
-                Nsat_means = f.all_data.groupby('Mh_bin')['N_sat'].mean()
-                plt.plot(f.labels, Nsat_means, f.marker, label=f.name, color=f.color)
-
-                # TODO Truth version of this. Will need to compute N_sat myself
-        plt.loglog()    
-        plt.ylabel("$<N_{sat}>$")    
-        plt.xlabel('$M_{halo}$')
-        plt.title("Mean Number of Satellites by Halo Mass")
-        legend(datasets)
-        plt.xlim(2E11,1E15)
-        plt.draw()
-
-        # Histogram of number of satellites by halo mass
-        """
-        for f in datasets:
-            if 'N_sat' in f.all_data.columns:
-                plt.figure(dpi=DPI)
-                plt.hist(f.centrals.N_sat, np.arange(0,50,1), label=f.name, color=f.color)
-                plt.xlabel('$N_{sat}$')
-                plt.ylabel('Count')
-                plt.yscale("log")
-                plt.draw()
-        """
 
     # fsat vs Mr
     fig,ax1=plt.subplots()

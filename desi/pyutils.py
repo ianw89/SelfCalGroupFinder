@@ -383,17 +383,19 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
             np.save(f, self.quick_correct, allow_pickle=False)
             np.save(f, self.quick_nn_bailed, allow_pickle=False)
         
-        # TODO adding 1 to denominator hack
-        if self.quick_correct > 0 or self.random_correct > 0:
-            print(f"Quick NN uses: {self.quick_nn}. Success: {self.quick_correct / (self.quick_nn+1)}")
-            print(f"Random draw uses: {self.random_choice}. Success: {self.random_correct / (self.random_choice+1)}")
-            print(f"Quick NN bailed: {self.quick_nn_bailed}. Affected: {self.quick_nn_bailed / (self.quick_nn+self.random_choice)}")
-        else:
-            print(f"Quick NN uses: {self.quick_nn}.")
-            print(f"Random draw uses: {self.random_choice}.")
-            print(f"Quick NN bailed: {self.quick_nn_bailed}. Affected: {self.quick_nn_bailed / (self.quick_nn+self.random_choice)}")
-        
-        
+        if self.quick_nn > 0 or self.random_choice > 0:
+
+            # TODO adding 1 to denominator hack
+            if self.quick_correct > 0 or self.random_correct > 0:
+                print(f"Quick NN uses: {self.quick_nn}. Success: {self.quick_correct / (self.quick_nn+1)}")
+                print(f"Random draw uses: {self.random_choice}. Success: {self.random_correct / (self.random_choice+1)}")
+                print(f"Quick NN bailed: {self.quick_nn_bailed}. Affected: {self.quick_nn_bailed / (self.quick_nn+self.random_choice)}")
+            else:
+                print(f"Quick NN uses: {self.quick_nn}.")
+                print(f"Random draw uses: {self.random_choice}.")
+                print(f"Quick NN bailed: {self.quick_nn_bailed}. Affected: {self.quick_nn_bailed / (self.quick_nn+self.random_choice)}")
+            
+            
         super().__exit__(exc_type,exc_value,exc_tb)
 
 
