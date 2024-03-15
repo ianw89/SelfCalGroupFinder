@@ -69,6 +69,24 @@ int main(int argc, char **argv)
     fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
     exit(0);
   }
+  if (argc > 7 && argc < 12) 
+  {
+    fprintf(stderr, "If one [wcenvalues 1-6] is provided, all 6 must be.\n");
+    fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
+    exit(0);
+  }
+  if (argc > 13 && argc < 17) 
+  {
+    fprintf(stderr, "If one [Bsat_values 1-4] is provided, all 4 must be.\n");
+    fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
+    exit(0);
+  }
+  if (argc > 17 && argc < 21) 
+  {
+    fprintf(stderr, "If one [wchi_values 1-4] is provided, all 4 must be.\n");
+    fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
+    exit(0);
+  }
   ARGC = argc;
   ARGV = argv;
   MINREDSHIFT = atof(argv[2]);
