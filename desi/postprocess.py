@@ -7,7 +7,17 @@ from pyutils import *
 import types
 import numpy.ma as ma
 import math
+import sys
+import pickle
 
+ROOT_FOLDER = "../bin/"
+def save_dataset(dataset):
+    with open(ROOT_FOLDER + dataset.name, 'wb') as f:
+        pickle.dump(dataset, f)
+
+def load_dataset(dataset):
+    with open(ROOT_FOLDER + dataset.name, 'rb') as f:    
+        return pickle.load(f)
 
 # Common PLT helpers
 prop_cycle = plt.rcParams['axes.prop_cycle']
@@ -598,3 +608,21 @@ def resulting_halo_analysis(*sets):
         #plt.xlabel('$z_{eff}$ (effective/assigned redshift)')
         #plt.ylabel('Fraction Assigned Halo = True Host Halo')
         
+
+
+# TODO finish this refactor so bash can call this 
+if __name__ == "__main__":
+
+    if int(sys.argv[1]) == 1:
+        dataset = process_sdss(ROOT_FOLDER + sys.argv[2])
+    elif int(sys.argv[1]) == 2:
+        dataset = process_MXXL(ROOT_FOLDER + sys.argv[2])
+    elif int(sys.argv[1]) == 3:
+        dataset = process_uchuu(ROOT_FOLDER + sys.argv[2])
+    elif int(sys.argv[1]) == 4:
+        dataset = process_BGS(ROOT_FOLDER + sys.argv[2])
+
+    dataset.name = sys.argv[3]
+    dataset.color = get_color(sys.argv[4])
+    dataset.marker = sys.argv[5]
+    save_dataset(dataset)

@@ -64,7 +64,8 @@ run_uchuu_all=false
 # DESI BGS
 run_bgs_fiberonly_1passok=false
 run_bgs_fiberonly=false 
-run_bgs_simple=true
+run_bgs_simple=false
+run_bgs_simple_sdsslike=true
 
 function process_and_group_find () {
     run_groupfinder=$GROUP_FINDING
@@ -168,4 +169,8 @@ fi
 
 if [ "$run_bgs_simple" = true ] ; then
     process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2" 5 19.5 22.0
+fi
+
+if [ "$run_bgs_simple_sdsslike" = true ] ; then
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2_sdsslike" 5 17.7 22.0
 fi
