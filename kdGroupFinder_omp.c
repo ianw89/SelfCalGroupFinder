@@ -69,19 +69,19 @@ int main(int argc, char **argv)
     fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
     exit(0);
   }
-  if (argc > 7 && argc < 12) 
+  if (argc > 7 && argc < 12)
   {
     fprintf(stderr, "If one [wcenvalues 1-6] is provided, all 6 must be.\n");
     fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
     exit(0);
   }
-  if (argc > 13 && argc < 17) 
+  if (argc > 13 && argc < 17)
   {
     fprintf(stderr, "If one [Bsat_values 1-4] is provided, all 4 must be.\n");
     fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
     exit(0);
   }
-  if (argc > 17 && argc < 21) 
+  if (argc > 17 && argc < 21)
   {
     fprintf(stderr, "If one [wchi_values 1-4] is provided, all 4 must be.\n");
     fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
@@ -209,10 +209,11 @@ void groupfind()
 
     // For volume-limited samples, we calculate the volume and put that in the vmax
     // property of each galxaxy.
-    if (!FLUXLIM) {
+    if (!FLUXLIM)
+    {
       volume = 4. / 3. * PI * (pow(distance_redshift(zmax), 3.0)) * FRAC_AREA;
       volume = volume - 4. / 3. * PI * (pow(distance_redshift(zmin), 3.0)) * FRAC_AREA;
-    }    
+    }
 
     // For flux-limited samples, we read in the vmax values from the file.
     // For that case, a factor of frac_area should already be included in the vmax.
@@ -246,7 +247,8 @@ void groupfind()
     fclose(fp);
     fprintf(stderr, "Done reading in from [%s]\n", ARGV[1]);
 
-    if (!FLUXLIM) {
+    if (!FLUXLIM)
+    {
       fprintf(stderr, "Volume= %e L_box= %f\n", volume, pow(volume, THIRD));
       fprintf(stderr, "Number density= %e %e\n", NGAL / volume, galden);
       GALAXY_DENSITY = NGAL / volume;
@@ -393,8 +395,8 @@ void groupfind()
     }
     t1 = omp_get_wtime();
 
-    // go back and check objects are newly-exposed centrals
-    #pragma omp parallel for private(j)
+// go back and check objects are newly-exposed centrals
+#pragma omp parallel for private(j)
     for (j = 0; j < NGAL; ++j)
     {
       if (flag[j] && GAL[j].psat < 0.5)
