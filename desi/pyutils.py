@@ -628,3 +628,22 @@ def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base,
     open(outname_2, 'w').write(outstr_2)
     open(outname_3, 'w').write(outstr_3)
     print("Writing output files... done")
+
+
+
+def is_quiescent_SDSS_Dn4000(logLgal, Dn4000):
+    """
+    Takes in two arrays of log Lgal and Dn4000 and returns an array 
+    indicating if the galaxies are quiescent using 2010.02946 eq 1
+    """
+    Dcrit = 1.42 + (0.35 / 2) * (1 + special.erf((logLgal - 9.9) / 0.8))
+    return Dn4000 > Dcrit
+
+def is_quiescent_BGS_gmr(logLgal, gmr):
+    """
+    Takes in two arrays of log Lgal and 0.1^(G-R) and returns an array
+    indicating if the galaxies are quiescent using a simple universal cut
+    from the BGS Y1 data. 1 for quiescent, 0 for star-forming.
+    """
+    RED_COLOR_CUT = 0.83 # This is read off of a 1.0^G-R plot I made using GAMA polynomial k-corr
+    return gmr < RED_COLOR_CUT

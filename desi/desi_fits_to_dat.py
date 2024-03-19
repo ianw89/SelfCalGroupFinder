@@ -4,8 +4,8 @@ from pyutils import *
 from astropy.table import Table, join
 
 def usage():
-    print("Usage: python3 desi_fits_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename]")
-    print("  Mode is 1 for ALL, 2 for FIBER_ASSIGNED_ONLY, and 3 for NEAREST_NEIGHBOR, 4 for FANCY, 5 for SIMPLE ")
+    print("Usage: python3 desi_fits_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename] [COLORS_ON]")
+    print("  Mode is 1 for OBSERVED 1+ PASSES, 2 for OBSERVED 3+ PASSES, and 5 for SIMPLE ")
     print("  Will generate [output_filename].dat for use with kdGroupFinder and [output_filename]_galprops.dat with additional galaxy properties.")
     print("  These two files will have galaxies indexed in the same way (line-by-line matched).")
 
@@ -36,7 +36,7 @@ def main():
     ################
     # ERROR CHECKING
     ################
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         print("Error 1")
         usage()
         exit(1)
@@ -61,10 +61,10 @@ def main():
     elif mode == Mode.FIBER_ASSIGNED_ONLY.value:
         print("\nMode FIBER_ASSIGNED_ONLY")
     elif mode == Mode.NEAREST_NEIGHBOR.value:
-        print("\nMode NEAREST_NEIGHBOR")
+        print("\nMode NEAREST_NEIGHBOR NOT SUPPORTED")
         exit(2)
     elif mode == Mode.FANCY.value:
-        print("\nMode FANCY")
+        print("\nMode FANCY NOT SUPPORTED")
         exit(2)
     elif mode == Mode.SIMPLE.value:
         print("\nMode SIMPLE")
@@ -79,6 +79,9 @@ def main():
     frac_area = FOOTPRINT_FRAC
     if mode == Mode.ALL.value:
         frac_area = FOOTPRINT_FRAC_1pass
+
+    COLORS_ON = sys.argv[6] == "1"
+    print(f"Color classificaiton sent to group finder: {COLORS_ON}")
 
     print("Reading FITS data from ", sys.argv[4])
     # Unobserved galaxies have masked rows in appropriate columns of the table
@@ -202,24 +205,29 @@ def main():
     # the vmax should be calculated from un-k-corrected magnitudes
     V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
 
-    #abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_eff)
-    #abs_mag_G_k = k_correct(abs_mag_g, z_eff, g_r, band='g')
+    abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_eff)
+    abs_mag_G_k = k_correct(abs_mag_G, z_eff, g_r, band='g')
     
-    # Use the k-corrected abs mags to define galaxies as quiescent or star-forming
-    #G_R_k = abs_mag_G_k - abs_mag_R_k
-    #RED_COLOR_CUT = 0.83 # This is read off of a 1.0^G-R plot I made using GAMA polynomial k-corr
-    #quiescent = (G_R_k < RED_COLOR_CUT).astype(int) # 1 for quiescent, 0 for star-forming
-    #print(f"{quiescent.sum()} quiescent galaxies, {len(quiescent) - quiescent.sum()} star-forming galaxies")
-
-    quiescent = np.zeros(count, dtype=np.int8)
-
-    chi = np.zeros(count, dtype=np.int8) # TODO compute chi
+    G_R_k = abs_mag_G_k - abs_mag_R_k
+    
+    if COLORS_ON:
+        # Use the k-corrected abs mags to define galaxies as quiescent or star-forming
+        # TODO make the cut per logLgal bin instead. Fit the results and make a formula like SDSS Dn4000 did
+        quiescent = is_quiescent_BGS_gmr(log_L_gal, G_R_k).astype(int) 
+        print(f"{quiescent.sum()} quiescent galaxies, {len(quiescent) - quiescent.sum()} star-forming galaxies")
+    else:
+        quiescent = np.zeros(count, dtype=np.int8)
+    
+    # TODO get galaxy concentration from somewhere
+    chi = np.zeros(count, dtype=np.int8) 
 
     # Output files
     galprops = np.column_stack([
         np.array(app_mag_r, dtype='str'), 
         np.array(target_id, dtype='str'), 
-        np.array(unobserved, dtype='str')])
+        np.array(unobserved, dtype='str'),
+        np.array(G_R_k, dtype='str'),
+        ])
     write_dat_files(ra, dec, z_eff, log_L_gal, V_max, quiescent, chi, outname_base, frac_area, galprops)
 
 if __name__ == "__main__":

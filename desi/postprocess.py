@@ -9,6 +9,7 @@ import numpy.ma as ma
 import math
 import sys
 import pickle
+from scipy import special
 
 ROOT_FOLDER = "../bin/"
 def save_dataset(dataset):
@@ -81,30 +82,75 @@ def nsat_vmax_weighted(series):
         return np.average(series.N_sat, weights=1/series.V_max)
     
 def read_and_combine_gf_output(filename, galprops_df):
-    df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
-    all_data = pd.merge(df, galprops_df, left_index=True, right_index=True)
+    main_df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
+    all_data = pd.merge(main_df, galprops_df, left_index=True, right_index=True)
     return process_core(filename, all_data)
 
 def process_sdss(filename):
     galprops = pd.read_csv("../data/sdss_galprops_v1.0.dat", delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
-    return read_and_combine_gf_output(filename, galprops)
+    galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
+    ds = read_and_combine_gf_output(filename, galprops)
+    ds.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(ds.all_data.logLgal, ds.all_data.Dn4000)
+    return finish_processing(ds)
 
 def process_uchuu(filename):
     filename_props = str.replace(filename, ".out", "_galprops.dat")
     galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'central', 'uchuu_halo_mass', 'uchuu_halo_id'), dtype={'uchuu_halo_id': np.int64, 'central': np.bool_})
-    return read_and_combine_gf_output(filename, galprops)
+    ds = read_and_combine_gf_output(filename, galprops)
+
+    df = ds.all_data
+    ds.has_truth = True
+    df['is_sat_truth'] = np.invert(df.central)
+    df['Mh_bin_T'] = pd.cut(x = df['uchuu_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
+    truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
+    ds.truth_f_sat = truth_f_sat
+    ds.centrals_T = df[np.invert(df.is_sat_truth)]
+    ds.sats_T = df[df.is_sat_truth]
+
+    return finish_processing(dataset)
 
 def process_MXXL(filename):
     filename_props = str.replace(filename, ".out", "_galprops.dat")
     galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'z_assigned_flag', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
-    return read_and_combine_gf_output(filename, galprops)
+    ds = read_and_combine_gf_output(filename, galprops)
+
+    df = ds.all_data
+    ds.has_truth = True
+    df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3)
+    df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
+    ds.truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
+    ds.centrals_T = df[np.invert(df.is_sat_truth)]
+    ds.sats_T = df[df.is_sat_truth]
+
+    return finish_processing(dataset)
 
 def process_BGS(filename):
     filename_props = str.replace(filename, ".out", "_galprops.dat")
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
-    return read_and_combine_gf_output(filename, galprops)
+    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
+    ds = read_and_combine_gf_output(filename, galprops)
+    ds.all_data['quiescent'] = is_quiescent_BGS_gmr(ds.all_data.logLgal, ds.all_data.g_r)
+    return finish_processing(ds)
+
+# TODO might be wise to double check that my manual calculation of q vs sf matches what the group finder was fed by
+# checking the input data. I think for now it shoudl be exactly the same, but maybe we want it to be different for
+# apples to apples comparison between BGS and SDSS
+
+def finish_processing(dataset):
+    """
+    Call after done doing thigns to the all_data dataframe.
+    """
+    # add convenient subsets for centrals and sats
+    df = dataset.all_data
+    centrals = df[df.index == df.igrp]
+    sats = df[df.index != df.igrp]
+    dataset.centrals = centrals
+    dataset.sats = sats
+    return dataset
 
 def process_core(filename, df):
+    """
+    Common functionality for processing groupfinder output regardless of source data.
+    """
 
     # Drop bad data, should have been cleaned up earlier though!
     orig_count = len(df)
@@ -127,37 +173,10 @@ def process_core(filename, df):
 
     dataset = types.SimpleNamespace()
     dataset.has_truth = False
-
-    # MXXL only processing
-    if 'galaxy_type' in df.columns: 
-        dataset.has_truth = True
-        df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3)
-        df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
-        truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
-        dataset.truth_f_sat = truth_f_sat
-        dataset.centrals_T = df[np.invert(df.is_sat_truth)]
-        dataset.sats_T = df[df.is_sat_truth]
-
-    # UCHUU only processing
-    elif 'central' in df.columns: 
-        dataset.has_truth = True
-        df['is_sat_truth'] = np.invert(df.central)
-        df['Mh_bin_T'] = pd.cut(x = df['uchuu_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
-        truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
-        dataset.truth_f_sat = truth_f_sat
-        dataset.centrals_T = df[np.invert(df.is_sat_truth)]
-        dataset.sats_T = df[df.is_sat_truth]
-
-    # add convenient subsets for centrals and sats
-    centrals = df[df.index == df.igrp]
-    sats = df[df.index != df.igrp]
-
     dataset.filename = filename[filename.rfind('/')+1 : len(filename)-4]
     dataset.Mhalo_bins = Mhalo_bins
     dataset.labels = Mhalo_labels
     dataset.all_data = df
-    dataset.centrals = centrals
-    dataset.sats = sats
     dataset.L_gal_bins = L_gal_bins
     dataset.L_gal_labels = L_gal_labels
     dataset.f_sat = f_sat # per Lgal bin
@@ -340,11 +359,30 @@ def plots(*datasets, truth_on=False):
         print(f.name)
         total_f_sat(f.all_data)
 
-    print("TOTAL f_sat - Lgal > 10^9: ")
-    for f in datasets:
-        print(f.name)
-        total_f_sat(f.all_data[f.all_data.L_gal > 1E9])
+    #print("TOTAL f_sat - Lgal > 10^9: ")
+    #for f in datasets:
+    #    print(f.name)
+    #    total_f_sat(f.all_data[f.all_data.L_gal > 1E9])
     
+
+def plots_color_split(*datasets):
+
+    # fsat vs Lgal tighter
+    fig,ax1=plt.subplots()
+    fig.set_dpi(DPI)
+    for f in datasets:
+        f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
+        f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
+        plt.plot(f.L_gal_labels, f_sat_q, f.marker, label=f.name, color='r')
+        plt.plot(f.L_gal_labels, f_sat_sf, f.marker, label=f.name, color='b')
+    ax1.set_xscale('log')
+    ax1.set_xlabel("$L_{gal}$")
+    ax1.set_ylabel("$f_{sat}$ ")
+    #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
+    ax1.legend()
+    ax1.set_xlim(3E8,1E11)
+    ax1.set_ylim(0.0,0.8)
+    fig.tight_layout()
 
 def total_f_sat(df):
     """

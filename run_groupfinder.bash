@@ -12,22 +12,20 @@ omegaL_sf=13.1
 sigma_sf=2.42
 omegaL_q=12.9
 sigma_q=4.84
-omega0_sf=0 #17.4    0 makes it effectively not do anything
-omega0_q=0 #2.67    0 makes it effectively not do anything
+omega0_sf=17.4    #0 makes it effectively not do anything
+omega0_q=2.67    #0 makes it effectively not do anything
 
-beta0q=1 #-0.92    1 0 1 0 turns this off
-betaLq=0  #10.25
-beta0sf=1  #12.993
-betaLsf=0  #-8.04
+#1 0 1 0 turns this off
+beta0q=-0.92    
+betaLq=10.25
+beta0sf=12.993
+betaLsf=-8.04
 
 # can just omit these 4 parameters to turn off
 omega_chi_0_sf=2.68  
 omega_chi_0_q=1.10
 omega_chi_L_sf=2.23
 omega_chi_L_q=0.48
-
-# For reference only
-#./kdGroupFinder_omp sdss_fluxlim_v1.0.dat $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf $omega_chi_0_sf $omega_chi_0_q $omega_chi_L_sf $omega_chi_L_q > run_all_off_1.out
 
 # Ian Mac
 #ROOT_FOLDER="/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/"
@@ -65,11 +63,14 @@ run_uchuu_all=false
 run_bgs_fiberonly_1passok=false
 run_bgs_fiberonly=false 
 run_bgs_simple=false
-run_bgs_simple_sdsslike=true
+run_bgs_simple_sdsslike=false
+run_bgs_simple_c=true
+run_bgs_simple_sdsslike_c=true
 
 function process_and_group_find () {
     run_groupfinder=$GROUP_FINDING
     name=$1
+    colors_on=$7
     if $PYTHON_PROCESSING ; then
         echo "Calling python pre-processor on ${name}"
         rm "${name}_old.dat" "${name}_old_galprops.dat" "${name}_old.out" "${name}_meta_old.out" 2>bin/null
@@ -77,7 +78,7 @@ function process_and_group_find () {
         mv "${name}_meta.dat" "${name}_meta_old.dat" 2>bin/null
         mv "${name}_galprops.dat" "${name}_old_galprops.dat" 2>bin/null
         mv "${name}.out" "${name}_old.out" 2>bin/null
-        if $PYTHON $6 $2 $3 $4 $5 "${name}" ; then
+        if $PYTHON $6 $2 $3 $4 $5 "${name}" $colors_on; then
             echo "Conversion to DAT successful"
         else
             echo "Conversion to DAT failed"
@@ -90,87 +91,102 @@ function process_and_group_find () {
         zmax=$(awk 'NR==1 {print $2}' "${name}_meta.dat")
         frac_area=$(awk 'NR==1 {print $3}' "${name}_meta.dat")
         echo $zmin $zmax $frac_area
-        bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
+
+        if [ "$colors_on" -eq 1 ]; then
+            echo "Running kdGroupFinder_omp with colors on"
+            bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
+        else
+            echo "Running kdGroupFinder_omp with colors off"
+            bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q 0 0 1 0 1 0 > "${name}.out"
+        fi
     fi
 
 }
 
 function process_and_group_find_mxxl () {
-    process_and_group_find $1 $2 $3 $4 "${MXXL_FILES_FOLDER}weights_3pass.hdf5" desi/hdf5_to_dat.py
+    process_and_group_find $1 $2 $3 $4 "${MXXL_FILES_FOLDER}weights_3pass.hdf5" desi/hdf5_to_dat.py $5
 }
 
 function process_and_group_find_uchuu () {
-    process_and_group_find $1 $2 $3 $4 "${UCHUU_FILES_FOLDER}BGS_LC_Uchuu.fits" desi/uchuu_to_dat.py
+    process_and_group_find $1 $2 $3 $4 "${UCHUU_FILES_FOLDER}BGS_LC_Uchuu.fits" desi/uchuu_to_dat.py $5
 }
 
 function process_and_group_find_BGS () {
-    process_and_group_find $1 $2 $3 $4 "${ROOT_FOLDER}BGS_ANY_full.dat.fits" desi/desi_fits_to_dat.py
+    process_and_group_find $1 $2 $3 $4 "${ROOT_FOLDER}BGS_ANY_full.dat.fits" desi/desi_fits_to_dat.py $5
 }
 
 
 if [ "$run_all_alt" = true ] ; then
-    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_all_alt" 6 19.5 20.0
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_all_alt" 6 19.5 20.0 0
 fi
 
 if [ "$run_all" = true ] ; then
-    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_all" 1 19.5 20.0
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_all" 1 19.5 20.0 0
 fi
 
 if [ "$run_all20" = true ] ; then
-    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_all20" 1 20.0 20.0
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_all20" 1 20.0 20.0 0
 fi
 
 if [ "$run_fiber_only" = true ] ; then
-    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_fiberonly" 2 19.5 20.0 
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_fiberonly" 2 19.5 20.0 0
 fi
 
 if [ "$run_fiber_only20" = true ] ; then
-    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_fiberonly20" 2 20.0 20.0
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_fiberonly20" 2 20.0 20.0 0
 fi 
 
 if [ "$run_nn_kd" = true ] ; then
-    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_nn_kd" 3 19.5 20.0
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_nn_kd" 3 19.5 20.0 0
 fi
 
 if [ "$run_nn_kd20" = true ] ; then
-    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_nn_kd20" 3 20.0 20.0
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_nn_kd20" 3 20.0 20.0 0
 fi
 
 if [ "$run_fancy" = true ] ; then
-    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_fancy_6" 4 19.5 20.0
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_fancy_6" 4 19.5 20.0 0
 fi
 
 if [ "$run_fancy20" = true ] ; then
-    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_fancy_6_20" 4 20.0 20.0 
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_fancy_6_20" 4 20.0 20.0 0
 fi
 
 if [ "$run_simple" = true ] ; then
-    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_simple_2" 5 19.5 20.0
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_simple_2" 5 19.5 20.0 0
 fi
 
 if [ "$run_simple20" = true ] ; then
-    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_simple_2_20" 5 20.0 20.0
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_simple_2_20" 5 20.0 20.0 0
 fi
 
 
 
 if [ "$run_uchuu_all" = true ] ; then
-    process_and_group_find_uchuu "${ROOT_FOLDER}uchuu_all" 1 19.5 20.0
+    process_and_group_find_uchuu "${ROOT_FOLDER}uchuu_all" 1 19.5 20.0 0
 fi
 
 
 if [ "$run_bgs_fiberonly_1passok" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1passok_1" 1 19.5 22.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1passok_1" 1 19.5 22.0 0
 fi
 
 if [ "$run_bgs_fiberonly" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1" 2 19.5 22.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_fiberonly_1" 2 19.5 22.0 0
 fi
 
 if [ "$run_bgs_simple" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2" 5 19.5 22.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2" 5 19.5 22.0 0
 fi
 
 if [ "$run_bgs_simple_sdsslike" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2_sdsslike" 5 17.7 22.0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2_sdsslike" 5 17.7 22.0 0
+fi
+
+if [ "$run_bgs_simple_c" = true ] ; then
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2_c" 5 19.5 22.0 1
+fi
+
+if [ "$run_bgs_simple_sdsslike_c" = true ] ; then
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2_sdsslike_c" 5 17.7 22.0 1
 fi

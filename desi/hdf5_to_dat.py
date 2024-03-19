@@ -12,7 +12,7 @@ FIBER_ASSIGNED_SELECTOR = 2**BIT_CHOICE
 
 
 def usage():
-    print("Usage: python3 hdf5_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename]")
+    print("Usage: python3 hdf5_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename] [COLORS_ON]")
     print("  Mode is 1 for ALL, 2 for FIBER_ASSIGNED_ONLY, and 3 for NEAREST_NEIGHBOR, 4 for FANCY, 5 for SIMPLE ")
     print("  Will generate [output_filename].dat for use with kdGroupFinder and [output_filename]_galprops.dat with additional galaxy properties.")
     print("  These two files will have galaxies indexed in the same way (line-by-line matched).")
@@ -54,7 +54,7 @@ def main():
     ################
     # ERROR CHECKING
     ################
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         print("Error 1")
         usage()
         exit(1)
@@ -91,6 +91,11 @@ def main():
     APP_MAG_CUT = float(sys.argv[2])
     CATALOG_APP_MAG_CUT = float(sys.argv[3])
     FOOTPRINT_FRAC = 14800 / 41253
+    
+    COLORS_ON = sys.argv[6]
+    if COLORS_ON:
+        print("\nColors not supported yet. Exiting...")
+        exit(5)
 
     print("Reading MXXL HDF5 data from ", sys.argv[4])
     infile = h5py.File(sys.argv[4], 'r')
