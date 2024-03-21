@@ -112,7 +112,7 @@ function process_and_group_find_uchuu () {
 }
 
 function process_and_group_find_BGS () {
-    process_and_group_find $1 $2 $3 $4 "${ROOT_FOLDER}BGS_ANY_full.dat.fits" desi/desi_fits_to_dat.py $5
+    process_and_group_find $1 $2 $3 $4 "${ROOT_FOLDER}BGS_ANY_full.dat.fits" desi/BGS_fits_to_dat.py $5
 }
 
 

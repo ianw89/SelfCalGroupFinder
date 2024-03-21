@@ -639,11 +639,27 @@ def is_quiescent_SDSS_Dn4000(logLgal, Dn4000):
     Dcrit = 1.42 + (0.35 / 2) * (1 + special.erf((logLgal - 9.9) / 0.8))
     return Dn4000 > Dcrit
 
+
+# TODO check thsi value after switching to DESI k-corr
+GLOBAL_RED_COLOR_CUT = 0.76 # This is read off of a 1.0^G-R plot I made using GAMA polynomial k-corr
+
+# Turns out binnin by logLGal doesn't change much
+# TODO after swithcing to DESI k-corrections, ensure this is still true
+BGS_LOGLGAL_BINS = [6.9, 9.0, 9.4, 9.7, 9.9, 10.1, 10.3, 10.7, 13.5]
+BINWISE_RED_COLOR_CUT = [0.76, 0.76, 0.77, 0.79, 0.77, 0.76, 0.76, 0.76, 0.76, 0.76]
+
 def is_quiescent_BGS_gmr(logLgal, gmr):
     """
     Takes in two arrays of log Lgal and 0.1^(G-R) and returns an array
-    indicating if the galaxies are quiescent using a simple universal cut
-    from the BGS Y1 data. 1 for quiescent, 0 for star-forming.
+    indicating if the galaxies are quiescent using G-R color cut
+    from the BGS Y1 data, calculated for a bunch of logLgal bins.
+
+    True for quiescent, False for star-forming.
     """
-    RED_COLOR_CUT = 0.83 # This is read off of a 1.0^G-R plot I made using GAMA polynomial k-corr
-    return gmr < RED_COLOR_CUT
+
+    #logLgal_idx = np.digitize(logLgal, BGS_LOGLGAL_BINS)
+    #per_galaxy_red_cut = BINWISE_RED_COLOR_CUT[logLgal_idx]
+
+    #return gmr < per_galaxy_red_cut
+
+    return gmr < GLOBAL_RED_COLOR_CUT

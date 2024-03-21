@@ -4,7 +4,7 @@ from pyutils import *
 from astropy.table import Table, join
 
 def usage():
-    print("Usage: python3 desi_fits_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename] [COLORS_ON]")
+    print("Usage: python3 BGS_fits_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename] [COLORS_ON]")
     print("  Mode is 1 for OBSERVED 1+ PASSES, 2 for OBSERVED 3+ PASSES, and 5 for SIMPLE ")
     print("  Will generate [output_filename].dat for use with kdGroupFinder and [output_filename]_galprops.dat with additional galaxy properties.")
     print("  These two files will have galaxies indexed in the same way (line-by-line matched).")
@@ -12,6 +12,10 @@ def usage():
 # TODO ensure this is right
 def get_app_mag(FLUX_R):
     return 22.5 - 2.5*np.log10(FLUX_R)
+
+
+def load_BGS():
+    
 
 def main():
     """
@@ -212,7 +216,6 @@ def main():
     
     if COLORS_ON:
         # Use the k-corrected abs mags to define galaxies as quiescent or star-forming
-        # TODO make the cut per logLgal bin instead. Fit the results and make a formula like SDSS Dn4000 did
         quiescent = is_quiescent_BGS_gmr(log_L_gal, G_R_k).astype(int) 
         print(f"{quiescent.sum()} quiescent galaxies, {len(quiescent) - quiescent.sum()} star-forming galaxies")
     else:
