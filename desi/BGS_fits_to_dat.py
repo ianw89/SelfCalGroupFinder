@@ -90,10 +90,6 @@ def main():
     print("Reading FITS data from ", sys.argv[4])
     # Unobserved galaxies have masked rows in appropriate columns of the table
     u_table = Table.read(sys.argv[4], format='fits')
-
-    # Temp hack to get p_obs as ANY doesn't have it, unlike BRIGHT
-    p_table = Table.read('bin/mainbw-bright-allTiles_v1.fits')
-    u_table = join(u_table, p_table, keys='TARGETID')
     
     outname_base = sys.argv[5] 
 
