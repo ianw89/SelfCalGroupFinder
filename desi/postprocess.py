@@ -365,6 +365,71 @@ def plots(*datasets, truth_on=False):
     #    total_f_sat(f.all_data[f.all_data.L_gal > 1E9])
     
 
+def plots_color_split_lost_split(f):
+
+    q_lost = f.all_data[np.all([f.all_data.quiescent, f.all_data.z_assigned_flag], axis=0)].groupby(['Lgal_bin'])
+    q_obs = f.all_data[np.all([f.all_data.quiescent, np.invert(f.all_data.z_assigned_flag)], axis=0)].groupby(['Lgal_bin'])
+    sf_lost = f.all_data[np.all([np.invert(f.all_data.quiescent), f.all_data.z_assigned_flag], axis=0)].groupby(['Lgal_bin'])
+    sf_obs = f.all_data[np.all([np.invert(f.all_data.quiescent), np.invert(f.all_data.z_assigned_flag)], axis=0)].groupby(['Lgal_bin'])
+    #print("Red lost counts: ", q_lost.size())
+    #print("Red obs counts: ", q_obs.size())
+    #print("Blue lost counts: ", sf_lost.size())
+    #print("Blue obs counts: ", sf_obs.size())
+    
+
+    fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(10,4))
+    ax1=axes[0]
+    ax2=axes[1]
+    fig.set_dpi(DPI)
+    f_sat_q_lost = q_lost.apply(fsat_vmax_weighted)
+    f_sat_q_obs = q_obs.apply(fsat_vmax_weighted)
+    f_sat_sf_lost = sf_lost.apply(fsat_vmax_weighted)
+    f_sat_sf_obs = sf_obs.apply(fsat_vmax_weighted)
+    f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
+    f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
+    ax1.plot(f.L_gal_labels, f_sat_q_lost, '>', label=f.name + ' lost', color='r')
+    ax1.plot(f.L_gal_labels, f_sat_q_obs, '.', label=f.name + ' obs', color='r')
+    ax1.plot(f.L_gal_labels, f_sat_q, '-', label=f.name, color='r')
+    ax2.plot(f.L_gal_labels, f_sat_sf_lost, '>', label=f.name + ' lost', color='b')
+    ax2.plot(f.L_gal_labels, f_sat_sf_obs, '.', label=f.name + ' obs', color='b')
+    ax2.plot(f.L_gal_labels, f_sat_sf, '-', label=f.name, color='b')
+
+    widths = np.zeros(len(f.L_gal_bins)-1)
+    for i in range(0,len(f.L_gal_bins)-1):
+        widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / 2
+    ax3 = ax1.twinx()
+    idx = 0
+    # This version 1/vmax weights the counts
+    #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin').apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
+    ax3.bar(f.L_gal_labels+(widths*idx), q_lost.size(), width=widths, color='orange', align='edge', alpha=0.4)
+    idx+=1
+    ax3.bar(f.L_gal_labels+(widths*idx), q_obs.size(), width=widths, color='k', align='edge', alpha=0.4)
+    ax3.set_ylabel('$N_{gal}$')
+    ax3.set_yscale('log')
+
+    ax4 = ax2.twinx()
+    idx = 0
+    # This version 1/vmax weights the counts
+    #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin').apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
+    ax4.bar(f.L_gal_labels+(widths*idx), q_lost.size(), width=widths, color='orange', align='edge', alpha=0.4)
+    idx+=1
+    ax4.bar(f.L_gal_labels+(widths*idx), q_obs.size(), width=widths, color='k', align='edge', alpha=0.4)
+    ax4.set_ylabel('$N_{gal}$')
+    ax4.set_yscale('log')
+
+    ax1.set_xscale('log')
+    ax2.set_xscale('log')
+    ax1.set_xlabel("$L_{gal}$")
+    ax2.set_xlabel("$L_{gal}$")
+    ax1.set_ylabel("$f_{sat}$ ")
+    ax2.set_ylabel("$f_{sat}$ ")
+    ax2.legend()
+    ax1.set_xlim(3E8,1E11)
+    ax2.set_xlim(3E8,1E11)
+    ax1.set_ylim(0.0,0.8)
+    ax2.set_ylim(0.0,0.8)
+    fig.tight_layout()
+
 def plots_color_split(*datasets):
 
     # fsat vs Lgal tighter
