@@ -55,6 +55,7 @@ run_all_c=false
 run_fiber_only=false
 run_fiber_only20=false
 run_nn_kd=false 
+run_nn_kd_c=false 
 run_nn_kd20=false
 run_fancy=false
 run_fancy20=false
@@ -150,6 +151,10 @@ fi
 
 if [ "$run_nn_kd" = true ] ; then
     process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_nn_kd" 3 19.5 20.0 0
+fi
+
+if [ "$run_nn_kd_c" = true ] ; then
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_nn_kd_c" 3 19.5 20.0 1
 fi
 
 if [ "$run_nn_kd20" = true ] ; then

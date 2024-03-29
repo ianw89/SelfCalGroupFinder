@@ -103,6 +103,7 @@ def main():
     p_obs = u_table['PROB_OBS']
     unobserved = u_table['Z_not4clus'].mask # the masked values are what is unobserved
     deltachi2 = u_table['DELTACHI2'].data.data  
+    dn4000 = u_table['DN4000'].data.data
 
     orig_count = len(dec)
     print(orig_count, "objects in FITS file")
@@ -126,7 +127,6 @@ def main():
     treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, np.invert(deltachi2_filter)], axis=0)
     #print(f"We have {np.count_nonzero(treat_as_unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
     unobserved = np.all([app_mag_filter, np.logical_or(unobserved, treat_as_unobserved)], axis=0)
-    #print(f"We have {np.count_nonzero(unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
 
     if mode == Mode.ALL.value: # ALL is misnomer here it means 1pass or more
         keep = np.all([observed_requirements], axis=0)
@@ -163,6 +163,7 @@ def main():
     indexes_not_assigned = np.argwhere(unobserved)
     deltachi2 = deltachi2[keep]
     g_r = g_r[keep]
+    dn4000 = dn4000[keep]
 
     count = len(dec)
     print(count, "galaxies left after filters.")
@@ -209,7 +210,9 @@ def main():
     
     if COLORS_ON:
         # Use the k-corrected abs mags to define galaxies as quiescent or star-forming
-        quiescent = is_quiescent_BGS_gmr(log_L_gal, G_R_k).astype(int) 
+        quiescent_gmr = is_quiescent_BGS_gmr(log_L_gal, G_R_k).astype(int) 
+        quiescent = is_quiescent_BGS_smart(log_L_gal, dn4000, G_R_k).astype(int) 
+        print(f"Quiescent agreement between g-r and Dn4000 for observed galaxies: {np.sum(quiescent_gmr[observed] == quiescent[observed]) / np.sum(observed)}")
         print(f"{quiescent.sum()} quiescent galaxies, {len(quiescent) - quiescent.sum()} star-forming galaxies")
     else:
         quiescent = np.zeros(count, dtype=np.int8)
@@ -223,6 +226,7 @@ def main():
         np.array(target_id, dtype='str'), 
         np.array(unobserved, dtype='str'),
         np.array(G_R_k, dtype='str'),
+        np.array(dn4000, dtype='str'),
         ])
     write_dat_files(ra, dec, z_eff, log_L_gal, V_max, quiescent, chi, outname_base, frac_area, galprops)
 

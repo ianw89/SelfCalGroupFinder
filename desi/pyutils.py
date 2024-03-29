@@ -252,7 +252,7 @@ def build_app_mag_to_z_map(app_mag, z_obs):
 
 
 
-def make_map(ra, dec, alpha=0.1, dpi=100):
+def make_map(ra, dec, alpha=0.1, dpi=100, fig=None):
     """
     Give numpy array of ra and dec.
     """
@@ -269,9 +269,13 @@ def make_map(ra, dec, alpha=0.1, dpi=100):
     ra_angles = ra_angles.wrap_at(180*u.degree)
     dec_angles = coord.Angle(dec*u.degree)
 
-    fig = plt.figure(figsize=(12,6))
-    fig.dpi=dpi
-    ax = fig.add_subplot(111, projection="mollweide", )
+    if fig == None:
+        fig = plt.figure(figsize=(12,6))
+        fig.dpi=dpi
+        ax = fig.add_subplot(111, projection="mollweide")
+    else:
+        ax=fig.get_axes()[0]
+
     ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=.5)
     plt.grid(True)
     return fig
@@ -632,14 +636,28 @@ def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base,
 
 
 
+######################################
+# Color Cuts
+######################################
+
+def get_SDSS_Dcrit(logLgal):
+    return 1.42 + (0.35 / 2) * (1 + special.erf((logLgal - 9.9) / 0.8))
+
 def is_quiescent_SDSS_Dn4000(logLgal, Dn4000):
     """
     Takes in two arrays of log Lgal and Dn4000 and returns an array 
     indicating if the galaxies are quiescent using 2010.02946 eq 1
     """
-    Dcrit = 1.42 + (0.35 / 2) * (1 + special.erf((logLgal - 9.9) / 0.8))
+    Dcrit = get_SDSS_Dcrit(logLgal)
     return Dn4000 > Dcrit
 
+def is_quiescent_BGS_smart(logLgal, Dn4000, gmr):
+    """
+    Takes in two arrays of log Lgal and Dn4000 and returns an array 
+    indicating if the galaxies are quiescent using 2010.02946 eq 1
+    """
+    Dcrit = get_SDSS_Dcrit(logLgal)
+    return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
 
 # This is read off of a 1.0^G-R plot I made using GAMA polynomial k-corr
 # This also works well for MXXL

@@ -87,7 +87,8 @@ def main():
     APP_MAG_CUT = float(sys.argv[2])
     CATALOG_APP_MAG_CUT = float(sys.argv[3])
     FOOTPRINT_FRAC = 14800 / 41253
-    COLORS_ON = sys.argv[6]
+    COLORS_ON = sys.argv[6] == "1"
+    print(f"Color classificaiton sent to group finder: {COLORS_ON}")
 
     print("Reading HDF5 data from ", sys.argv[4])
     infile = h5py.File(sys.argv[4], 'r')

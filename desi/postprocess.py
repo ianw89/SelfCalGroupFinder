@@ -127,13 +127,13 @@ def process_MXXL(filename):
 
 def process_BGS(filename):
     filename_props = str.replace(filename, ".out", "_galprops.dat")
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
+    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r', 'Dn4000'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
     ds = read_and_combine_gf_output(filename, galprops)
-    ds.all_data['quiescent'] = is_quiescent_BGS_gmr(ds.all_data.logLgal, ds.all_data.g_r)
+    ds.all_data['quiescent'] = is_quiescent_BGS_smart(ds.all_data.logLgal, ds.all_data.Dn4000, ds.all_data.g_r)
     return finish_processing(ds)
 
 # TODO might be wise to double check that my manual calculation of q vs sf matches what the group finder was fed by
-# checking the input data. I think for now it shoudl be exactly the same, but maybe we want it to be different for
+# checking the input data. I think for now it should be exactly the same, but maybe we want it to be different for
 # apples to apples comparison between BGS and SDSS
 
 def finish_processing(dataset):
@@ -427,6 +427,15 @@ def plots_color_split_lost_split(f):
     ax1.set_ylim(0.0,1.0)
     ax2.set_ylim(0.0,1.0)
     fig.tight_layout()
+
+def compare_fsat_color_split(dataone, datatwo):
+    temp1 = dataone.marker
+    temp2 = datatwo.marker
+    dataone.marker = '-'
+    datatwo.marker = '--'
+    plots_color_split(dataone, datatwo)
+    dataone.marker = temp1
+    datatwo.marker = temp2
 
 def plots_color_split(*datasets, truth_on=False):
 
