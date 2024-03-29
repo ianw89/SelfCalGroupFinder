@@ -378,10 +378,11 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         t = time.time()
-        with open(f"bin/simple_redshift_guesser_{t}.npy", 'wb') as f:
-            np.save(f, self.quick_nn, allow_pickle=False)
-            np.save(f, self.quick_correct, allow_pickle=False)
-            np.save(f, self.quick_nn_bailed, allow_pickle=False)
+        if self.debug:
+            with open(f"bin/simple_redshift_guesser_{t}.npy", 'wb') as f:
+                np.save(f, self.quick_nn, allow_pickle=False)
+                np.save(f, self.quick_correct, allow_pickle=False)
+                np.save(f, self.quick_nn_bailed, allow_pickle=False)
         
         if self.quick_nn > 0 or self.random_choice > 0:
 
@@ -640,8 +641,10 @@ def is_quiescent_SDSS_Dn4000(logLgal, Dn4000):
     return Dn4000 > Dcrit
 
 
-# TODO check thsi value after switching to DESI k-corr
-GLOBAL_RED_COLOR_CUT = 0.76 # This is read off of a 1.0^G-R plot I made using GAMA polynomial k-corr
+# This is read off of a 1.0^G-R plot I made using GAMA polynomial k-corr
+# This also works well for MXXL
+# TODO check this value after switching to DESI k-corr
+GLOBAL_RED_COLOR_CUT = 0.76 
 
 # Turns out binnin by logLGal doesn't change much
 # TODO after swithcing to DESI k-corrections, ensure this is still true
@@ -652,14 +655,16 @@ def is_quiescent_BGS_gmr(logLgal, gmr):
     """
     Takes in two arrays of log Lgal and 0.1^(G-R) and returns an array
     indicating if the galaxies are quiescent using G-R color cut
-    from the BGS Y1 data, calculated for a bunch of logLgal bins.
+    from the BGS Y1 data.
 
     True for quiescent, False for star-forming.
     """
 
+    # This is the alternative implementation for using bins
     #logLgal_idx = np.digitize(logLgal, BGS_LOGLGAL_BINS)
     #per_galaxy_red_cut = BINWISE_RED_COLOR_CUT[logLgal_idx]
-
     #return gmr < per_galaxy_red_cut
 
-    return gmr < GLOBAL_RED_COLOR_CUT
+    # g-r: both are in mags, so more negative values of each are greater fluxes in those bands
+    # So a more positive g-r means a redder galaxy
+    return gmr > GLOBAL_RED_COLOR_CUT

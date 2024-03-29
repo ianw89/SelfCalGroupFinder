@@ -14,9 +14,6 @@ def get_app_mag(FLUX_R):
     return 22.5 - 2.5*np.log10(FLUX_R)
 
 
-def load_BGS():
-    
-
 def main():
     """
     INPUT FORMAT: FITS FILE 
@@ -104,7 +101,7 @@ def main():
     app_mag_g = get_app_mag(u_table['FLUX_G'])
     g_r = app_mag_g - app_mag_r
     p_obs = u_table['PROB_OBS']
-    unobserved = u_table['ZWARN'] == 999999
+    unobserved = u_table['Z_not4clus'].mask # the masked values are what is unobserved
     deltachi2 = u_table['DELTACHI2'].data.data  
 
     orig_count = len(dec)

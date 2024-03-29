@@ -38,17 +38,20 @@ omega_chi_L_q=0.48
 
 # Sirocco
 ROOT_FOLDER="bin/"
+DATA_FOLDER="data/"
 MXXL_FILES_FOLDER="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
 UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
 PYTHON="/home/users/imw2293/.conda/envs/ian-conda311/bin/python3"
 
 PYTHON_PROCESSING=true # whether to do python processing to create .DAT files before groupfinding
 GROUP_FINDING=true # whether to do the group finding
+ARCHIVE_PREVIOUS_VERSION=false
 
 # MXXL
 run_all_alt=false
 run_all=false
 run_all20=false
+run_all_c=false
 run_fiber_only=false
 run_fiber_only20=false
 run_nn_kd=false 
@@ -56,6 +59,7 @@ run_nn_kd20=false
 run_fancy=false
 run_fancy20=false
 run_simple=false
+run_simple_c=false
 run_simple20=false
 # UCHUU
 run_uchuu_all=false
@@ -74,10 +78,14 @@ function process_and_group_find () {
     if $PYTHON_PROCESSING ; then
         echo "Calling python pre-processor on ${name}"
         rm "${name}_old.dat" "${name}_old_galprops.dat" "${name}_old.out" "${name}_meta_old.out" 2>bin/null
-        mv "${name}.dat" "${name}_old.dat" 2>bin/null
-        mv "${name}_meta.dat" "${name}_meta_old.dat" 2>bin/null
-        mv "${name}_galprops.dat" "${name}_old_galprops.dat" 2>bin/null
-        mv "${name}.out" "${name}_old.out" 2>bin/null
+        if $ARCHIVE_PREVIOUS_VERSION ; then
+            mv "${name}.dat" "${name}_old.dat" 2>bin/null
+            mv "${name}_meta.dat" "${name}_meta_old.dat" 2>bin/null
+            mv "${name}_galprops.dat" "${name}_old_galprops.dat" 2>bin/null
+            mv "${name}.out" "${name}_old.out" 2>bin/null
+        fi
+        rm "${name}.dat" "${name}_galprops.dat" "${name}.out" "${name}_meta.out" 2>bin/null
+
         if $PYTHON $6 $2 $3 $4 $5 "${name}" $colors_on; then
             echo "Conversion to DAT successful"
         else
@@ -112,7 +120,7 @@ function process_and_group_find_uchuu () {
 }
 
 function process_and_group_find_BGS () {
-    process_and_group_find $1 $2 $3 $4 "${ROOT_FOLDER}ian_BGS_merged.fits" desi/BGS_fits_to_dat.py $5
+    process_and_group_find $1 $2 $3 $4 "${DATA_FOLDER}ian_BGS_merged.fits" desi/BGS_fits_to_dat.py $5
 }
 
 
@@ -122,6 +130,10 @@ fi
 
 if [ "$run_all" = true ] ; then
     process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_all" 1 19.5 20.0 0
+fi
+
+if [ "$run_all_c" = true ] ; then
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_all_c" 1 19.5 20.0 1
 fi
 
 if [ "$run_all20" = true ] ; then
@@ -155,6 +167,11 @@ fi
 if [ "$run_simple" = true ] ; then
     process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_simple_2" 5 19.5 20.0 0
 fi
+
+if [ "$run_simple_c" = true ] ; then
+    process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_simple_2_c" 5 19.5 20.0 1
+fi
+
 
 if [ "$run_simple20" = true ] ; then
     process_and_group_find_mxxl "${ROOT_FOLDER}mxxl_3pass_simple_2_20" 5 20.0 20.0 0
