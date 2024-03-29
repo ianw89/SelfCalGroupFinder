@@ -370,7 +370,7 @@ def plots_color_split_lost_split(f):
     #print("Blue obs counts: ", sf_obs.size())
     
 
-    fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(10,4))
+    fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(12,5))
     ax1=axes[0]
     ax2=axes[1]
     fig.set_dpi(DPI)
@@ -386,20 +386,20 @@ def plots_color_split_lost_split(f):
         f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
     if not hasattr(f, 'f_sat_sf'):
         f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
-    ax1.plot(f.L_gal_labels, f.f_sat_q_lost, '>', label=f.name + ' lost', color='r')
-    ax1.plot(f.L_gal_labels, f.f_sat_q_obs, '.', label=f.name + ' obs', color='r')
-    ax1.plot(f.L_gal_labels, f.f_sat_q, '-', label=f.name, color='r')
-    ax2.plot(f.L_gal_labels, f.f_sat_sf_lost, '>', label=f.name + ' lost', color='b')
-    ax2.plot(f.L_gal_labels, f.f_sat_sf_obs, '.', label=f.name + ' obs', color='b')
-    ax2.plot(f.L_gal_labels, f.f_sat_sf, '-', label=f.name, color='b')
+
+    ax1.plot(f.L_gal_labels, f.f_sat_q_lost, '>', label=f.name + ' lost q', color='r')
+    ax1.plot(f.L_gal_labels, f.f_sat_q_obs, '.', label=f.name + ' obs q', color='r')
+    ax1.plot(f.L_gal_labels, f.f_sat_q, '-', label=f.name + " q", color='r')
+    ax2.plot(f.L_gal_labels, f.f_sat_sf_lost, '>', label=f.name + ' lost sf', color='b')
+    ax2.plot(f.L_gal_labels, f.f_sat_sf_obs, '.', label=f.name + ' obs sf', color='b')
+    ax2.plot(f.L_gal_labels, f.f_sat_sf, '-', label=f.name + " sf", color='b')
 
     widths = np.zeros(len(f.L_gal_bins)-1)
     for i in range(0,len(f.L_gal_bins)-1):
         widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / 2
+
     ax3 = ax1.twinx()
     idx = 0
-    # This version 1/vmax weights the counts
-    #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin').apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
     ax3.bar(f.L_gal_labels+(widths*idx), q_lost.size(), width=widths, color='orange', align='edge', alpha=0.4)
     idx+=1
     ax3.bar(f.L_gal_labels+(widths*idx), q_obs.size(), width=widths, color='k', align='edge', alpha=0.4)
@@ -408,11 +408,9 @@ def plots_color_split_lost_split(f):
 
     ax4 = ax2.twinx()
     idx = 0
-    # This version 1/vmax weights the counts
-    #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin').apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
-    ax4.bar(f.L_gal_labels+(widths*idx), q_lost.size(), width=widths, color='orange', align='edge', alpha=0.4)
+    ax4.bar(f.L_gal_labels+(widths*idx), sf_lost.size(), width=widths, color='orange', align='edge', alpha=0.4)
     idx+=1
-    ax4.bar(f.L_gal_labels+(widths*idx), q_obs.size(), width=widths, color='k', align='edge', alpha=0.4)
+    ax4.bar(f.L_gal_labels+(widths*idx), sf_obs.size(), width=widths, color='k', align='edge', alpha=0.4)
     ax4.set_ylabel('$N_{gal}$')
     ax4.set_yscale('log')
 
@@ -422,14 +420,13 @@ def plots_color_split_lost_split(f):
     ax2.set_xlabel("$L_{gal}$")
     ax1.set_ylabel("$f_{sat}$ ")
     ax2.set_ylabel("$f_{sat}$ ")
+    ax1.legend()
     ax2.legend()
     ax1.set_xlim(3E7,1E11)
     ax2.set_xlim(3E7,1E11)
     ax1.set_ylim(0.0,1.0)
     ax2.set_ylim(0.0,1.0)
     fig.tight_layout()
-
-from matplotlib.ticker import FuncFormatter, MultipleLocator
 
 def plots_color_split(*datasets, truth_on=False):
 
