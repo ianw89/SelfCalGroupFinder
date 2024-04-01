@@ -73,6 +73,24 @@ def Lgal_vmax_weighted(series):
         return 0
     else:
         return np.average(series.L_gal, weights=1/series.V_max)
+
+def qf_Dn4000_1_6_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return np.average((series.Dn4000 >  1.6), weights=1/series.V_max)
+
+def qf_Dn4000_smart_eq_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return np.average(is_quiescent_BGS_smart(series.logLgal, series.Dn4000, series.g_r), weights=1/series.V_max)
+
+def qf_BGS_gmr_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return np.average(is_quiescent_BGS_gmr(series.logLgal, series.g_r), weights=1/series.V_max)
     
 def nsat_vmax_weighted(series):
     if len(series) == 0:
@@ -290,8 +308,8 @@ def plots(*datasets, truth_on=False):
             if f.has_truth:
                 plt.plot(f.L_gal_labels, f.truth_f_sat, 'v', label=f"{f.name} Truth", color=f.color)
     ax1.set_xscale('log')
-    ax1.set_xlabel("$L_{gal}$")
-    ax1.set_ylabel("$f_{sat}$")
+    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+    ax1.set_ylabel("$f_{\\mathrm{sat}}$")
     ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.set_xlim(2E7,3E11)
     ax1.set_ylim(0.0,0.6)
@@ -321,8 +339,8 @@ def plots(*datasets, truth_on=False):
             if 'is_sat_truth' in f.all_data.columns:
                 plt.plot(f.L_gal_labels, f.truth_f_sat, 'v', label=f"{f.name} Truth", color=f.color)
     ax1.set_xscale('log')
-    ax1.set_xlabel("$L_{gal}$")
-    ax1.set_ylabel("$f_{sat}$")
+    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+    ax1.set_ylabel("$f_{\\mathrm{sat}}$")
     #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     legend_ax(ax1, datasets)
     X_MIN = 3E8
@@ -333,7 +351,7 @@ def plots(*datasets, truth_on=False):
     ax2=ax1.twiny()
     ax2.plot(Mr_gal_labels, f.f_sat_q, ls="")
     ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(X_MIN)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
-    ax2.set_xlabel("$M_r$")
+    ax2.set_xlabel("$M_r$ - 5log(h)")
 
     #ax2 = ax1.twinx()
     #idx = 0
@@ -416,10 +434,10 @@ def plots_color_split_lost_split(f):
 
     ax1.set_xscale('log')
     ax2.set_xscale('log')
-    ax1.set_xlabel("$L_{gal}$")
-    ax2.set_xlabel("$L_{gal}$")
-    ax1.set_ylabel("$f_{sat}$ ")
-    ax2.set_ylabel("$f_{sat}$ ")
+    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+    ax2.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+    ax1.set_ylabel("$f_{\\mathrm{sat}}$ ")
+    ax2.set_ylabel("$f_{\\mathrm{sat}}$ ")
     ax1.legend()
     ax2.legend()
     ax1.set_xlim(3E7,1E11)
@@ -462,8 +480,8 @@ def plots_color_split(*datasets, truth_on=False):
                 plt.plot(f.L_gal_labels, f.f_sat_sf_t, 'v', label=f"{f.name} Truth", color='b')
 
     ax1.set_xscale('log')
-    ax1.set_xlabel("$L_{gal}$")
-    ax1.set_ylabel("$f_{sat}$ ")
+    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+    ax1.set_ylabel("$f_{\\mathrm{sat}}$ ")
     #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.legend()
     X_MIN = 3E8
@@ -490,6 +508,31 @@ def total_f_sat(df):
         print(f"  Truth (no weight):  {df['is_sat_truth'].mean():.3f}")
         print(f"  Truth (1 / V_max):  {fsat_truth_vmax_weighted(df):.3f}")
 
+def qf_cen_plot(*datasets):
+    """
+    Quiescent Fraction of Central Galaxies.
+    """
+    fig,ax1=plt.subplots()
+    fig.set_dpi(DPI)
+    for f in datasets:
+        #if not hasattr(f, 'qf_gmr'):
+        f.qf_gmr = f.centrals.groupby('Lgal_bin').apply(qf_BGS_gmr_vmax_weighted)
+        #if not hasattr(f, 'qf_dn4000'):
+        f.qf_dn4000 = f.centrals.groupby('Lgal_bin').apply(qf_Dn4000_smart_eq_vmax_weighted)
+        f.qf_dn4000_hard = f.centrals.groupby('Lgal_bin').apply(qf_Dn4000_1_6_vmax_weighted)
+        plt.plot(f.L_gal_labels, f.qf_gmr, '.', label=f'0.1^(g-r) < {GLOBAL_RED_COLOR_CUT}', color='b')
+        plt.plot(f.L_gal_labels, f.qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
+        plt.plot(f.L_gal_labels, f.qf_dn4000_hard, '-', label='Dn4000 > 1.6', color='r')
+
+    ax1.set_xscale('log')
+    ax1.set_xlabel("$L_{\\mathrm{cen}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+    ax1.set_ylabel("$f_{\\mathrm{Q}}$ ")
+    #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
+    ax1.legend()
+    X_MIN = 3E8
+    X_MAX = 1E11
+    ax1.set_xlim(X_MIN,X_MAX)
+    ax1.set_ylim(0.0,1.0)
 
 # It gives same result as NFW version! Good
 def get_vir_radius_mine(halo_mass):
@@ -645,25 +688,25 @@ def purity_complete_plots(*sets):
 
     axes[1][0].set_title('Satellite Purity')
     axes[1][0].set_xscale('log')
-    axes[1][0].set_xlabel('$L_{gal}$')
+    axes[1][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
     axes[1][0].set_xlim(2E8,1E11)
     axes[1][0].set_ylim(0.4,1.0)
 
     axes[1][1].set_title('Satellite Completeness')
     axes[1][1].set_xscale('log')
-    axes[1][1].set_xlabel('$L_{gal}$')
+    axes[1][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
     axes[1][1].set_xlim(2E8,1E11)
     axes[1][1].set_ylim(0.4,1.0)
 
     axes[0][0].set_title('Central Purity')
     axes[0][0].set_xscale('log')
-    axes[0][0].set_xlabel('$L_{gal}$')
+    axes[0][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
     axes[0][0].set_xlim(2E8,1E11)
     axes[0][0].set_ylim(0.4,1.0)
 
     axes[0][1].set_title('Central Completeness')
     axes[0][1].set_xscale('log')
-    axes[0][1].set_xlabel('$L_{gal}$')
+    axes[0][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
     axes[0][1].set_xlim(2E8,1E11)
     axes[0][1].set_ylim(0.4,1.0)
 
