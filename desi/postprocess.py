@@ -349,7 +349,7 @@ def plots(*datasets, truth_on=False):
     ax1.set_ylim(0.0,0.6)
 
     ax2=ax1.twiny()
-    ax2.plot(Mr_gal_labels, f.f_sat_q, ls="")
+    ax2.plot(Mr_gal_labels, datasets[0].f_sat, ls="")
     ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(X_MIN)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
     ax2.set_xlabel("$M_r$ - 5log(h)")
 

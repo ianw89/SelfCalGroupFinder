@@ -7,7 +7,8 @@ import time
 from enum import Enum
 from scipy import special
 import matplotlib.pyplot as plt
-import k_correction as kc
+import k_correction as gamakc
+import kcorr.k_corrections as desikc
 
 #sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
 #from hodpy.cosmology import CosmologyMXXL
@@ -57,14 +58,16 @@ def app_mag_to_abs_mag_k(app_mag, z_obs, gmr):
     """
     return k_correct(app_mag_to_abs_mag(app_mag, z_obs), z_obs, gmr)
 
+def k_correct_gama(abs_mag, z_obs, gmr, band='r'):
+    kcorr_r = gamakc.GAMA_KCorrection(band=band)
+    return abs_mag - kcorr_r.k(z_obs, gmr)
+
+def k_correct_bgs(abs_mag, z_obs, gmr, band='r'):
+    kcorr_r  = desikc.DESI_KCorrection(band=band, file='jmext', photsys='N') # N vs S... why seperated?
+    return abs_mag - kcorr_r.k(z_obs, gmr)
+
 def k_correct(abs_mag, z_obs, gmr, band='r'):
-    kcorr_r = kc.GAMA_KCorrection(band=band)
-    
-    # This is how I thought one would use it
-    ks = kcorr_r.k(z_obs, gmr)
-    # This is how they use it in the examples I saw in the DESI GitHubs
-    #ks = kcorr_r.k_nonnative_zref(0.0, z_obs, gmr)
-    return abs_mag - ks
+    return k_correct_bgs(abs_mag, z_obs, gmr, band)
 
 SOLAR_L_R_BAND = 4.65
 def abs_mag_r_to_log_solar_L(arr):

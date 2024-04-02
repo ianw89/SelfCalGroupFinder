@@ -175,6 +175,7 @@ def main():
         z_eff = z_eff[observed]
         prob_obs = prob_obs[observed]
         observed = observed[observed]
+        unobserved = np.invert(observed)
         assert np.all(observed)
         count = len(dec)
 

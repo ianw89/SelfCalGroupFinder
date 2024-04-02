@@ -9,7 +9,6 @@ def usage():
     print("  Will generate [output_filename].dat for use with kdGroupFinder and [output_filename]_galprops.dat with additional galaxy properties.")
     print("  These two files will have galaxies indexed in the same way (line-by-line matched).")
 
-# TODO ensure this is right
 def get_app_mag(FLUX_R):
     return 22.5 - 2.5*np.log10(FLUX_R)
 
@@ -211,8 +210,9 @@ def main():
     if COLORS_ON:
         # Use the k-corrected abs mags to define galaxies as quiescent or star-forming
         quiescent_gmr = is_quiescent_BGS_gmr(log_L_gal, G_R_k).astype(int) 
-        quiescent = is_quiescent_BGS_smart(log_L_gal, dn4000, G_R_k).astype(int) 
-        print(f"Quiescent agreement between g-r and Dn4000 for observed galaxies: {np.sum(quiescent_gmr[observed] == quiescent[observed]) / np.sum(observed)}")
+        #quiescent = is_quiescent_BGS_smart(log_L_gal, dn4000, G_R_k).astype(int) 
+        quiescent = quiescent_gmr
+        #print(f"Quiescent agreement between g-r and Dn4000 for observed galaxies: {np.sum(quiescent_gmr[observed] == quiescent[observed]) / np.sum(observed)}")
         print(f"{quiescent.sum()} quiescent galaxies, {len(quiescent) - quiescent.sum()} star-forming galaxies")
     else:
         quiescent = np.zeros(count, dtype=np.int8)

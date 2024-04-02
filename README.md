@@ -40,3 +40,8 @@ For formats of the input and outout files, see the file descriptions at the proj
 NB: The code expects a tabulated halo mass function is in the run directory, in a file called "halo_mass_function.dat." I have supplied one in the repo for the Bolshoi Planck cosmology using the Tinker et al (2008) halo mass function.
 
 NB: The code will run for 5 iterations and then output the current state of the group catalog. Five is usually a reasonable number for convergence of the satellite fraction to a couple of percent. This can be modified inside the code. There are several features currentl "turned off," which involve populating the halos of a simulation with HODs, and tabulating the L_sat values. These can be turned on with little effort in the main() function, but user-defined input is required to make them actually run, by supplying the necessary files.
+
+
+
+Attribution:
+Files in the desi/kcorr folder are from Same Moore                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
