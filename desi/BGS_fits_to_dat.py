@@ -145,6 +145,11 @@ def main():
         catalog_ra = ra[catalog_keep]
         catalog_dec = dec[catalog_keep]
         z_obs_catalog = z_obs[catalog_keep]
+        catalog_gmr = app_mag_g[catalog_keep] - app_mag_r[catalog_keep]
+        catalog_G_k = app_mag_to_abs_mag_k(app_mag_g[catalog_keep], z_obs_catalog, catalog_gmr, band='g')
+        catalog_R_k = app_mag_to_abs_mag_k(app_mag_r[catalog_keep], z_obs_catalog, catalog_gmr, band='r')
+        catalog_G_R_k = catalog_G_k - catalog_R_k
+        catalog_quiescent = is_quiescent_BGS_gmr(abs_mag_r_to_log_solar_L(catalog_R_k), catalog_G_R_k)
 
         print(len(z_obs_catalog), "galaxies in the NN catalog.")
 
@@ -170,6 +175,10 @@ def main():
     print(f'{100*unobserved.sum() / len(unobserved) :.1f}% of remaining galaxies need redshifts')
     #print(f'Min z: {min(z_obs):f}, Max z: {max(z_obs):f}')
 
+    # We need to guess a color for the unobserved galaxies to help the redshift guesser
+    quiescent_gmr = np.zeros(count, dtype=int)
+    np.put(quiescent_gmr, indexes_not_assigned, is_quiescent_lost_gal_guess(app_mag_g[unobserved] - app_mag_r[unobserved]).astype(int))
+
     z_eff = np.copy(z_obs)
 
     if mode == Mode.SIMPLE.value:
@@ -181,40 +190,35 @@ def main():
             neighbor_indexes, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
             ang_distances = d2d.to(u.arcsec).value
 
-            print(f"Assinging missing redshifts... ")   
+            print(f"Assigning missing redshifts... ")   
             j = 0 # j counts the number of unobserved galaxies in the catalog that have been assigned a redshift thus far
             for i in indexes_not_assigned: # i is the index of the unobserved galaxy in the main arrays
                 if j%10000==0:
                     print(f"{j}/{len(to_match)} complete", end='\r')
 
-                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes[j]], ang_distances[j], p_obs[i], app_mag_r[i])
+                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes[j]], ang_distances[j], p_obs[i], app_mag_r[i], quiescent_gmr[i], catalog_quiescent[j])
+                
                 z_eff[i] = chosen_z
+
                 j = j + 1 
 
             print(f"{j}/{len(to_match)} complete")
 
+    # Some of this is redudant with catalog calculations but oh well
     abs_mag_R = app_mag_to_abs_mag(app_mag_r, z_eff)
     abs_mag_R_k = k_correct(abs_mag_R, z_eff, g_r)
-
-    # the luminosities sent to the group finder will be k-corrected to z=0.1
+    abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_eff)
+    abs_mag_G_k = k_correct(abs_mag_G, z_eff, g_r, band='g')
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k) 
+    G_R_k = abs_mag_G_k - abs_mag_R_k
+    quiescent = is_quiescent_BGS_gmr(log_L_gal, G_R_k)
+    print(f"{quiescent.sum()} quiescent galaxies, {len(quiescent) - quiescent.sum()} star-forming galaxies")
+     #print(f"Quiescent agreement between g-r and Dn4000 for observed galaxies: {np.sum(quiescent_gmr[observed] == quiescent[observed]) / np.sum(observed)}")
 
     # the vmax should be calculated from un-k-corrected magnitudes
     V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
 
-    abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_eff)
-    abs_mag_G_k = k_correct(abs_mag_G, z_eff, g_r, band='g')
-    
-    G_R_k = abs_mag_G_k - abs_mag_R_k
-    
-    if COLORS_ON:
-        # Use the k-corrected abs mags to define galaxies as quiescent or star-forming
-        quiescent_gmr = is_quiescent_BGS_gmr(log_L_gal, G_R_k).astype(int) 
-        #quiescent = is_quiescent_BGS_smart(log_L_gal, dn4000, G_R_k).astype(int) 
-        quiescent = quiescent_gmr
-        #print(f"Quiescent agreement between g-r and Dn4000 for observed galaxies: {np.sum(quiescent_gmr[observed] == quiescent[observed]) / np.sum(observed)}")
-        print(f"{quiescent.sum()} quiescent galaxies, {len(quiescent) - quiescent.sum()} star-forming galaxies")
-    else:
+    if not COLORS_ON:
         quiescent = np.zeros(count, dtype=np.int8)
     
     # TODO get galaxy concentration from somewhere

@@ -122,6 +122,9 @@ def main():
     z_obs_catalog = z_obs[catalog_keep]
     halo_mass_catalog = mxxl_halo_mass[catalog_keep]
     halo_id_catalog = mxxl_halo_id[catalog_keep]
+    catalog_gmr = g_r[catalog_keep]
+    catalog_R_k = app_mag_to_abs_mag_k(app_mag[catalog_keep], z_obs_catalog, catalog_gmr, band='r')
+    catalog_quiescent = is_quiescent_BGS_gmr(abs_mag_r_to_log_solar_L(catalog_R_k), catalog_gmr)
 
     # Filter down inputs we want to actually process and keep
     bright_filter = app_mag < APP_MAG_CUT # makes a filter array (True/False values)
@@ -246,6 +249,11 @@ def main():
         
     elif mode == Mode.SIMPLE.value:
 
+        # We need to guess a color for the unobserved galaxies to help the redshift guesser
+        # For MXXL we have 0.1^G-R even for lost galaxies so this isn't quite like real BGS situation
+        quiescent_gmr = np.zeros(count, dtype=int)
+        np.put(quiescent_gmr, indexes_not_assigned, is_quiescent_BGS_gmr(None, g_r[unobserved]).astype(int))
+
         with SimpleRedshiftGuesser(app_mag[observed], z_obs[observed]) as scorer:
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
@@ -260,7 +268,7 @@ def main():
                 if j%10000==0:
                     print(f"{j}/{len(to_match)} complete", end='\r')
 
-                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes[j]], ang_distances[j], prob_obs[i], app_mag[i], z_obs[i])
+                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes[j]], ang_distances[j], prob_obs[i], app_mag[i], quiescent_gmr[i], catalog_quiescent[j], z_obs[i])
 
                 z_eff[i] = chosen_z
                 if isNN:

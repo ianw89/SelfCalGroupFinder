@@ -51,12 +51,12 @@ def app_mag_to_abs_mag(app_mag, zs):
     return app_mag - distmod(zs)
 
 
-def app_mag_to_abs_mag_k(app_mag, z_obs, gmr):
+def app_mag_to_abs_mag_k(app_mag, z_obs, gmr, band='r'):
     """
     Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts,
     with GAMA k-corrections.
     """
-    return k_correct(app_mag_to_abs_mag(app_mag, z_obs), z_obs, gmr)
+    return k_correct(app_mag_to_abs_mag(app_mag, z_obs), z_obs, gmr, band=band)
 
 def k_correct_gama(abs_mag, z_obs, gmr, band='r'):
     kcorr_r = gamakc.GAMA_KCorrection(band=band)
@@ -67,7 +67,7 @@ def k_correct_bgs(abs_mag, z_obs, gmr, band='r'):
     return abs_mag - kcorr_r.k(z_obs, gmr)
 
 def k_correct(abs_mag, z_obs, gmr, band='r'):
-    return k_correct_bgs(abs_mag, z_obs, gmr, band)
+    return k_correct_gama(abs_mag, z_obs, gmr, band)
 
 SOLAR_L_R_BAND = 4.65
 def abs_mag_r_to_log_solar_L(arr):
@@ -317,22 +317,29 @@ def get_NN_30_line(z, t_Pobs):
     arcsecs = base[zb]**exponent
     return arcsecs
 
-def get_NN_40_line(z, t_Pobs):
+def get_NN_40_line(z, t_Pobs, target_quiescent, nn_quiescent):
     """
     Gets the angular distance at which, according to MXXL, a target with the given Pobs will be in the same halo
     as a nearest neighbor at reshift z 40% of the time.
     """
-    FIT_SHIFT_RIGHT = [25,25,26,27,34,34,53,60]
-    FIT_SCALE = [10,10,10,10,10,10,10,10]
-    FIT_SHIFT_UP = [0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5]
+    FIT_SHIFT_RIGHT = np.array([[30,32,33,34,43,40,63,75],[15,25,26,26,34,32,50,50],[40,30,26,27,30,30,40,40],[30,20,20,20,25,25,35,40]])
+    FIT_SHIFT_UP = [0.7,0.7,0.7,0.7,0.7,0.7,0.6,0.5]
     FIT_SQUEEZE = [1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5]
     base = [1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04]
     zb = np.digitize(z, SimpleRedshiftGuesser.z_bins)
+    if target_quiescent == 1 and nn_quiescent == 1:
+        color_bin = 0
+    elif target_quiescent == 1 and nn_quiescent == 0:
+        color_bin = 1
+    elif target_quiescent == 0 and nn_quiescent == 1:
+        color_bin = 2
+    elif target_quiescent == 0 and nn_quiescent == 0:
+        color_bin = 3
 
     erf_in = FIT_SQUEEZE[zb]*(t_Pobs - FIT_SHIFT_UP[zb])
 
     # for middle ones use exponentiated inverse erf to get the curve 
-    exponent = FIT_SHIFT_RIGHT[zb] - FIT_SCALE[zb]*special.erfinv(erf_in)
+    exponent = FIT_SHIFT_RIGHT[color_bin][zb] - 10*special.erfinv(erf_in)
     arcsecs = base[zb]**exponent
     return arcsecs
 
@@ -370,7 +377,7 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
     HIGH_ABS_MAG_LIMIT = -13.0
 
     def __init__(self, app_mags, z_obs, debug=False):
-        print("Initializing v2.1 of SimpleRedshiftGuesser")
+        print("Initializing v4.0 of SimpleRedshiftGuesser")
         self.debug = debug
         self.rng = np.random.default_rng()
         self.quick_nn = 0
@@ -393,7 +400,6 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         
         if self.quick_nn > 0 or self.random_choice > 0:
 
-            # TODO adding 1 to denominator hack
             if self.quick_correct > 0 or self.random_correct > 0:
                 print(f"Quick NN uses: {self.quick_nn}. Success: {self.quick_correct / (self.quick_nn+1)}")
                 print(f"Random draw uses: {self.random_choice}. Success: {self.random_correct / (self.random_choice+1)}")
@@ -407,8 +413,8 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         super().__exit__(exc_type,exc_value,exc_tb)
 
 
-    def use_nn(self, neighbor_z, neighbor_ang_dist, target_pobs, target_app_mag):
-        angular_threshold = get_NN_40_line(neighbor_z, target_pobs)
+    def use_nn(self, neighbor_z, neighbor_ang_dist, target_pobs, target_app_mag, target_quiescent, nn_quiescent):
+        angular_threshold = get_NN_40_line(neighbor_z, target_pobs, target_quiescent, nn_quiescent)
 
         if self.debug:
             print(f"Threshold {angular_threshold}\". Nearest neighbor is {neighbor_z}\".")
@@ -423,13 +429,15 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
                 return False
             else:
                 return True
+            
+        return False
 
-    def choose_redshift(self, neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag, target_z_true=False):
+    def choose_redshift(self, neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag, target_quiescent, nn_quiescent, target_z_true=False):
         if self.debug:
             print(f"\nNew call to choose_winner")
 
         # Determine if we should use NN    
-        if self.use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag):
+        if self.use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag, target_quiescent, nn_quiescent):
             if (target_z_true):
                 if close_enough(target_z_true, neighbor_z):
                     self.quick_correct += 1
@@ -672,7 +680,10 @@ GLOBAL_RED_COLOR_CUT = 0.76
 BGS_LOGLGAL_BINS = [6.9, 9.0, 9.4, 9.7, 9.9, 10.1, 10.3, 10.7, 13.5]
 BINWISE_RED_COLOR_CUT = [0.76, 0.76, 0.77, 0.79, 0.77, 0.76, 0.76, 0.76, 0.76, 0.76]
 
-def is_quiescent_BGS_gmr(logLgal, gmr):
+def is_quiescent_lost_gal_guess(gmr):
+    return gmr > 1.0
+
+def is_quiescent_BGS_gmr(logLgal, G_R_k):
     """
     Takes in two arrays of log Lgal and 0.1^(G-R) and returns an array
     indicating if the galaxies are quiescent using G-R color cut
@@ -688,4 +699,4 @@ def is_quiescent_BGS_gmr(logLgal, gmr):
 
     # g-r: both are in mags, so more negative values of each are greater fluxes in those bands
     # So a more positive g-r means a redder galaxy
-    return gmr > GLOBAL_RED_COLOR_CUT
+    return G_R_k > GLOBAL_RED_COLOR_CUT
