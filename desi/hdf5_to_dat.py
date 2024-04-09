@@ -79,7 +79,9 @@ def main():
     elif mode == Mode.FANCY.value:
         print("\nMode FANCY")
     elif mode == Mode.SIMPLE.value:
-        print("\nMode SIMPLE")
+        print("\nMode SIMPLE v2")
+    elif mode == Mode.SIMPLE_v4.value:
+        print("\nMode SIMPLE v4")
     else:
         print("Unknown Mode")
         exit(4)
@@ -247,14 +249,20 @@ def main():
             print(f"{j}/{len(to_match)} complete")
 
         
-    elif mode == Mode.SIMPLE.value:
+    elif mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
+        if mode == Mode.SIMPLE.value:
+            ver = '2.0'
+        elif mode == Mode.SIMPLE_v4.value:
+            ver = '4.0'
+
 
         # We need to guess a color for the unobserved galaxies to help the redshift guesser
         # For MXXL we have 0.1^G-R even for lost galaxies so this isn't quite like real BGS situation
+        # TODO change if needed
         quiescent_gmr = np.zeros(count, dtype=int)
         np.put(quiescent_gmr, indexes_not_assigned, is_quiescent_BGS_gmr(None, g_r[unobserved]).astype(int))
 
-        with SimpleRedshiftGuesser(app_mag[observed], z_obs[observed]) as scorer:
+        with SimpleRedshiftGuesser(app_mag[observed], z_obs[observed], ver) as scorer:
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
@@ -268,7 +276,8 @@ def main():
                 if j%10000==0:
                     print(f"{j}/{len(to_match)} complete", end='\r')
 
-                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes[j]], ang_distances[j], prob_obs[i], app_mag[i], quiescent_gmr[i], catalog_quiescent[j], z_obs[i])
+                catalog_idx = neighbor_indexes[j]
+                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[catalog_idx], ang_distances[j], prob_obs[i], app_mag[i], quiescent_gmr[i], catalog_quiescent[catalog_idx], z_obs[i])
 
                 z_eff[i] = chosen_z
                 if isNN:

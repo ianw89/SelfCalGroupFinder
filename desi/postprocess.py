@@ -147,7 +147,7 @@ def process_BGS(filename):
     filename_props = str.replace(filename, ".out", "_galprops.dat")
     galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r', 'Dn4000'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
     ds = read_and_combine_gf_output(filename, galprops)
-    ds.all_data['quiescent'] = is_quiescent_BGS_smart(ds.all_data.logLgal, ds.all_data.Dn4000, ds.all_data.g_r)
+    ds.all_data['quiescent'] = is_quiescent_BGS_gmr(ds.all_data.logLgal, ds.all_data.g_r)
     return finish_processing(ds)
 
 # TODO might be wise to double check that my manual calculation of q vs sf matches what the group finder was fed by
@@ -364,6 +364,9 @@ def plots(*datasets, truth_on=False):
     #ax2.set_ylabel('$N_{sat}$')
     fig.tight_layout()
 
+    for d in datasets:
+        plots_color_split(d, truth_on=truth_on)
+        plots_color_split_lost_split(d)
 
     print("TOTAL f_sat - entire sample: ")
     for f in datasets:
@@ -431,6 +434,17 @@ def plots_color_split_lost_split(f):
     ax4.bar(f.L_gal_labels+(widths*idx), sf_obs.size(), width=widths, color='k', align='edge', alpha=0.4)
     ax4.set_ylabel('$N_{gal}$')
     ax4.set_yscale('log')
+
+    X_MIN = 3E7
+    X_MAX = 1E11
+    ax5=ax1.twiny()
+    ax5.plot(Mr_gal_labels, f.f_sat_q, ls="")
+    ax5.set_xlim(log_solar_L_to_abs_mag_r(np.log10(X_MIN)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
+    ax5.set_xlabel("$M_r$ - 5log(h)")
+    ax6=ax2.twiny()
+    ax6.plot(Mr_gal_labels, f.f_sat_q, ls="")
+    ax6.set_xlim(log_solar_L_to_abs_mag_r(np.log10(X_MIN)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
+    ax6.set_xlabel("$M_r$ - 5log(h)")
 
     ax1.set_xscale('log')
     ax2.set_xscale('log')

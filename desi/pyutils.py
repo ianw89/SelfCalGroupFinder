@@ -22,7 +22,7 @@ class Mode(Enum):
     NEAREST_NEIGHBOR = 3 # include all galaxies by assigned galaxies redshifts from their nearest neighbor
     FANCY = 4 
     SIMPLE = 5
-    ALL_ALEX_ABS_MAG = 6
+    SIMPLE_v4 = 6
 
 # using _h one makes distances Mpc / h instead
 _cosmo_h = FlatLambdaCDM(H0=100, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
@@ -218,7 +218,8 @@ def estimate_frac_area(ra, dec):
     return frac_area
         
 
-
+# TODO consider making this color aware
+# TODO consider making this use MXXL's lost galaxies only
 def build_app_mag_to_z_map(app_mag, z_obs):
     _NBINS = 100
     _MIN_GALAXIES_PER_BIN = 20
@@ -317,6 +318,25 @@ def get_NN_30_line(z, t_Pobs):
     arcsecs = base[zb]**exponent
     return arcsecs
 
+def get_NN_40_line_v2(z, t_Pobs):
+    """
+    Gets the angular distance at which, according to MXXL, a target with the given Pobs will be in the same halo
+    as a nearest neighbor at reshift z 40% of the time.
+    """
+    FIT_SHIFT_RIGHT = [25,25,26,27,34,34,53,60]
+    FIT_SHIFT_UP = [0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5]
+    FIT_SQUEEZE = [1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5]
+    base = [1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04]
+    zb = np.digitize(z, SimpleRedshiftGuesser.z_bins)
+
+    erf_in = FIT_SQUEEZE[zb]*(t_Pobs - FIT_SHIFT_UP[zb])
+
+    # for middle ones use exponentiated inverse erf to get the curve 
+    exponent = FIT_SHIFT_RIGHT[zb] - 10*special.erfinv(erf_in)
+    arcsecs = base[zb]**exponent
+    return arcsecs
+
+
 def get_NN_40_line(z, t_Pobs, target_quiescent, nn_quiescent):
     """
     Gets the angular distance at which, according to MXXL, a target with the given Pobs will be in the same halo
@@ -376,9 +396,15 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
     LOW_ABS_MAG_LIMIT = -23.5
     HIGH_ABS_MAG_LIMIT = -13.0
 
-    def __init__(self, app_mags, z_obs, debug=False):
-        print("Initializing v4.0 of SimpleRedshiftGuesser")
+    def __init__(self, app_mags, z_obs, ver, debug=False):
+        if ver == '2.0':
+            print("Initializing v2.0 of SimpleRedshiftGuesser")
+        elif ver == '4.0':
+            print("Initializing v4.0 of SimpleRedshiftGuesser")
+        else:
+            raise("Invalid version of SimpleRedshiftGuesser")
         self.debug = debug
+        self.version = ver
         self.rng = np.random.default_rng()
         self.quick_nn = 0
         self.quick_correct = 0
@@ -414,7 +440,10 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
 
 
     def use_nn(self, neighbor_z, neighbor_ang_dist, target_pobs, target_app_mag, target_quiescent, nn_quiescent):
-        angular_threshold = get_NN_40_line(neighbor_z, target_pobs, target_quiescent, nn_quiescent)
+        if self.version == '4.0':
+            angular_threshold = get_NN_40_line(neighbor_z, target_pobs, target_quiescent, nn_quiescent)
+        else:
+            angular_threshold = get_NN_40_line_v2(neighbor_z, target_pobs)
 
         if self.debug:
             print(f"Threshold {angular_threshold}\". Nearest neighbor is {neighbor_z}\".")
@@ -670,18 +699,18 @@ def is_quiescent_BGS_smart(logLgal, Dn4000, gmr):
     Dcrit = get_SDSS_Dcrit(logLgal)
     return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
 
-# This is read off of a 1.0^G-R plot I made using GAMA polynomial k-corr
+# This is read off of a 0.1^G-R plot I made using GAMA polynomial k-corr
 # This also works well for MXXL
 # TODO check this value after switching to DESI k-corr
 GLOBAL_RED_COLOR_CUT = 0.76 
 
-# Turns out binnin by logLGal doesn't change much
+# Turns out binning by logLGal doesn't change much
 # TODO after swithcing to DESI k-corrections, ensure this is still true
 BGS_LOGLGAL_BINS = [6.9, 9.0, 9.4, 9.7, 9.9, 10.1, 10.3, 10.7, 13.5]
 BINWISE_RED_COLOR_CUT = [0.76, 0.76, 0.77, 0.79, 0.77, 0.76, 0.76, 0.76, 0.76, 0.76]
 
 def is_quiescent_lost_gal_guess(gmr):
-    return gmr > 1.0
+    return gmr > 1.0 # TODO 1.0 is a better midpoint for g-r without k-corr
 
 def is_quiescent_BGS_gmr(logLgal, G_R_k):
     """

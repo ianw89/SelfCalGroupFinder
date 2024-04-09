@@ -5,7 +5,7 @@ from astropy.table import Table, join
 
 def usage():
     print("Usage: python3 BGS_fits_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename] [COLORS_ON]")
-    print("  Mode is 1 for OBSERVED 1+ PASSES, 2 for OBSERVED 3+ PASSES, and 5 for SIMPLE ")
+    print("  Mode is 1 for OBSERVED 1+ PASSES, 2 for OBSERVED 3+ PASSES, 5 for SIMPLE v2, and 6 for Simple v4 ")
     print("  Will generate [output_filename].dat for use with kdGroupFinder and [output_filename]_galprops.dat with additional galaxy properties.")
     print("  These two files will have galaxies indexed in the same way (line-by-line matched).")
 
@@ -57,17 +57,18 @@ def main():
 
     mode = int(sys.argv[1])
     if mode == Mode.ALL.value:
-        print("\nMode ALL - FIBER ASSIGNED ONLY WITH ANY NUMBER OF PASSES")
+        print("\nMode FIBER ASSIGNED ONLY 1+ PASSES")
     elif mode == Mode.FIBER_ASSIGNED_ONLY.value:
-        print("\nMode FIBER_ASSIGNED_ONLY")
+        print("\nMode FIBER ASSIGNED_ONLY 3+ PASSES")
     elif mode == Mode.NEAREST_NEIGHBOR.value:
-        print("\nMode NEAREST_NEIGHBOR NOT SUPPORTED")
-        exit(2)
+        print("\nMode NEAREST_NEIGHBOR")
     elif mode == Mode.FANCY.value:
         print("\nMode FANCY NOT SUPPORTED")
         exit(2)
     elif mode == Mode.SIMPLE.value:
-        print("\nMode SIMPLE")
+        print("\nMode SIMPLE v2")
+    elif mode == Mode.SIMPLE_v4.value:
+        print("\nMode SIMPLE v4")
 
     APP_MAG_CUT = float(sys.argv[2])
     CATALOG_APP_MAG_CUT = float(sys.argv[3])
@@ -81,28 +82,28 @@ def main():
         frac_area = FOOTPRINT_FRAC_1pass
 
     COLORS_ON = sys.argv[6] == "1"
-    print(f"Color classificaiton sent to group finder: {COLORS_ON}")
+    print(f"Color classification sent to group finder: {COLORS_ON}")
 
     print("Reading FITS data from ", sys.argv[4])
     # Unobserved galaxies have masked rows in appropriate columns of the table
-    u_table = Table.read(sys.argv[4], format='fits')
+    table = Table.read(sys.argv[4], format='fits')
     
     outname_base = sys.argv[5] 
 
     # astropy's Table used masked arrays, so we have to use .data.data to get the actual data
     # The masked rows are unobserved targets
-    obj_type = u_table['SPECTYPE'].data.data
-    dec = u_table['DEC']
-    ra = u_table['RA']
-    z_obs = u_table['Z_not4clus'].data.data
-    target_id = u_table['TARGETID']
-    app_mag_r = get_app_mag(u_table['FLUX_R'])
-    app_mag_g = get_app_mag(u_table['FLUX_G'])
+    obj_type = table['SPECTYPE'].data.data
+    dec = table['DEC']
+    ra = table['RA']
+    z_obs = table['Z_not4clus'].data.data
+    target_id = table['TARGETID']
+    app_mag_r = get_app_mag(table['FLUX_R'])
+    app_mag_g = get_app_mag(table['FLUX_G'])
     g_r = app_mag_g - app_mag_r
-    p_obs = u_table['PROB_OBS']
-    unobserved = u_table['Z_not4clus'].mask # the masked values are what is unobserved
-    deltachi2 = u_table['DELTACHI2'].data.data  
-    dn4000 = u_table['DN4000'].data.data
+    p_obs = table['PROB_OBS']
+    unobserved = table['Z_not4clus'].mask # the masked values are what is unobserved
+    deltachi2 = table['DELTACHI2'].data.data  
+    dn4000 = table['DN4000'].data.data
 
     orig_count = len(dec)
     print(orig_count, "objects in FITS file")
@@ -114,7 +115,7 @@ def main():
     # null values (masked rows) are unobserved targets; not all columns are masked though
 
     # Make filter arrays (True/False values)
-    three_pass_filter = u_table['NTILE'] >= 3 # 3pass coverage
+    three_pass_filter = table['NTILE'] >= 3 # 3pass coverage
     galaxy_observed_filter = obj_type == b'GALAXY'
     app_mag_filter = app_mag_r < APP_MAG_CUT
     redshift_filter = z_obs > Z_MIN
@@ -133,7 +134,7 @@ def main():
     if mode == Mode.FIBER_ASSIGNED_ONLY.value: # means 3pass 
         keep = np.all([three_pass_filter, observed_requirements], axis=0)
 
-    if mode == Mode.SIMPLE.value:
+    if mode == Mode.NEAREST_NEIGHBOR or Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
         keep = np.all([three_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
@@ -175,20 +176,60 @@ def main():
     print(f'{100*unobserved.sum() / len(unobserved) :.1f}% of remaining galaxies need redshifts')
     #print(f'Min z: {min(z_obs):f}, Max z: {max(z_obs):f}')
 
-    # We need to guess a color for the unobserved galaxies to help the redshift guesser
-    quiescent_gmr = np.zeros(count, dtype=int)
-    np.put(quiescent_gmr, indexes_not_assigned, is_quiescent_lost_gal_guess(app_mag_g[unobserved] - app_mag_r[unobserved]).astype(int))
 
     z_eff = np.copy(z_obs)
 
-    if mode == Mode.SIMPLE.value:
-        with SimpleRedshiftGuesser(app_mag_r[observed], z_obs[observed]) as scorer:
+    if mode == Mode.NEAREST_NEIGHBOR.value:
+
+        catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
+        to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
+
+        idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
+
+        # i is the index of the full sized array that needed a NN z value
+        # j is the index along the to_match list corresponding to that
+        # idx are the indexes of the NN from the catalog
+        assert len(indexes_not_assigned) == len(idx)
+
+        print("Copying over NN properties... ", end='\r')
+        j = 0
+        for i in indexes_not_assigned:  
+            z_eff[i] = z_obs_catalog[idx[j]]
+            j = j + 1 
+        print("Copying over NN properties... done")
+
+
+    if mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
+        if mode == Mode.SIMPLE.value:
+            ver = '2.0'
+        elif mode == Mode.SIMPLE_v4.value:
+            ver = '4.0'
+        with SimpleRedshiftGuesser(app_mag_r[observed], z_obs[observed], ver) as scorer:
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
 
+            # neighbor_indexes is the index of the nearest galaxy in the catalog arrays
             neighbor_indexes, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
             ang_distances = d2d.to(u.arcsec).value
+
+            # We need to guess a color for the unobserved galaxies to help the redshift guesser
+            # Multiple possible ideas
+
+            # 1) Use the NN's redshift to k-correct the lost galaxies
+            #abs_mag_R = app_mag_to_abs_mag(app_mag_r[unobserved], z_obs_catalog[neighbor_indexes])
+            #abs_mag_R_k = k_correct(abs_mag_R, z_obs_catalog[neighbor_indexes], app_mag_g[unobserved] - app_mag_r[unobserved])
+            #abs_mag_G = app_mag_to_abs_mag(app_mag_g[unobserved], z_obs_catalog[neighbor_indexes])
+            #abs_mag_G_k = k_correct(abs_mag_G, z_obs_catalog[neighbor_indexes], app_mag_g[unobserved] - app_mag_r[unobserved], band='g')
+            #log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k)
+            #G_R_k = abs_mag_G_k - abs_mag_R_k
+            #quiescent_gmr = is_quiescent_BGS_gmr(log_L_gal, G_R_k)
+
+            # 2) Use an uncorrected apparent g-r color cut to guess if the galaxy is quiescent or not
+            quiescent_gmr = is_quiescent_lost_gal_guess(app_mag_g[unobserved] - app_mag_r[unobserved]).astype(int)
+            
+            assert len(quiescent_gmr) == len(ang_distances)
+
 
             print(f"Assigning missing redshifts... ")   
             j = 0 # j counts the number of unobserved galaxies in the catalog that have been assigned a redshift thus far
@@ -196,7 +237,8 @@ def main():
                 if j%10000==0:
                     print(f"{j}/{len(to_match)} complete", end='\r')
 
-                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes[j]], ang_distances[j], p_obs[i], app_mag_r[i], quiescent_gmr[i], catalog_quiescent[j])
+                catalog_idx = neighbor_indexes[j]
+                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[catalog_idx], ang_distances[j], p_obs[i], app_mag_r[i], quiescent_gmr[j], catalog_quiescent[catalog_idx])
                 
                 z_eff[i] = chosen_z
 
