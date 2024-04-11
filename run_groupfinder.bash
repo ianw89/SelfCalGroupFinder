@@ -60,10 +60,10 @@ run_nn_kd20=false
 run_fancy=false
 run_fancy20=false
 run_simplev2=true
-run_simple_cv2=true
+run_simple_cv2=false
 run_simple20=false
 run_simplev4=true
-run_simple_cv4=true
+run_simple_cv4=false
 # UCHUU
 run_uchuu_all=false
 # DESI BGS
@@ -85,14 +85,14 @@ function process_and_group_find () {
     colors_on=$7
     if $PYTHON_PROCESSING ; then
         echo "Calling python pre-processor on ${name}"
-        rm "${name}_old.dat" "${name}_old_galprops.dat" "${name}_old.out" "${name}_meta_old.out" 2>bin/null
+        rm "${name}_old.dat" "${name}_old_galprops.dat" "${name}_old.out" "${name}_meta_old.dat" 2>bin/null
         if $ARCHIVE_PREVIOUS_VERSION ; then
             mv "${name}.dat" "${name}_old.dat" 2>bin/null
             mv "${name}_meta.dat" "${name}_meta_old.dat" 2>bin/null
             mv "${name}_galprops.dat" "${name}_old_galprops.dat" 2>bin/null
             mv "${name}.out" "${name}_old.out" 2>bin/null
         fi
-        rm "${name}.dat" "${name}_galprops.dat" "${name}.out" "${name}_meta.out" 2>bin/null
+        rm "${name}.dat" "${name}_galprops.dat" "${name}.out" "${name}_meta.dat" 2>bin/null
 
         if $PYTHON $6 $2 $3 $4 $5 "${name}" $colors_on; then
             echo "Conversion to DAT successful"

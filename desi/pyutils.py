@@ -9,6 +9,8 @@ from scipy import special
 import matplotlib.pyplot as plt
 import k_correction as gamakc
 import kcorr.k_corrections as desikc
+from dataloc import *
+import pickle
 
 #sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
 #from hodpy.cosmology import CosmologyMXXL
@@ -221,6 +223,7 @@ def estimate_frac_area(ra, dec):
 # TODO consider making this color aware
 # TODO consider making this use MXXL's lost galaxies only
 def build_app_mag_to_z_map(app_mag, z_obs):
+    # TODO tune these two paremeters
     _NBINS = 100
     _MIN_GALAXIES_PER_BIN = 20
     app_mag_bins = np.linspace(min(app_mag), max(app_mag), _NBINS)
@@ -233,6 +236,8 @@ def build_app_mag_to_z_map(app_mag, z_obs):
         the_map[bin_i] = this_bin_redshifts
 
     # for app mags smaller than the smallest we have, use the z distribution of the one right above it
+    if 0 in the_map:
+        print("UNEXPECTED")
     the_map[0] = the_map[1]
     assert len(app_mag_bins) == (len(the_map)-1)
 
@@ -243,11 +248,12 @@ def build_app_mag_to_z_map(app_mag, z_obs):
             the_map[k] = np.concatenate((the_map[k], the_map[k+1]))
             to_check.append(k) # recheck it to see if it's still too small
 
+    #print(app_mag_bins)
+
     # print off the length of every value in the map
     #for k in the_map:
     #    print(f"App Mag Bin {k} has {len(the_map[k])} galaxies")
 
-    #print(app_mag_bins)
 
     assert len(app_mag_bins) == (len(the_map)-1)
     #print(f"App Mag Building Complete: {the_map}")
@@ -396,7 +402,7 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
     LOW_ABS_MAG_LIMIT = -23.5
     HIGH_ABS_MAG_LIMIT = -13.0
 
-    def __init__(self, app_mags, z_obs, ver, debug=False):
+    def __init__(self, app_mags, z_obs, ver, debug=False, use_saved_map=True):
         if ver == '2.0':
             print("Initializing v2.0 of SimpleRedshiftGuesser")
         elif ver == '4.0':
@@ -411,7 +417,12 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         self.quick_nn_bailed = 0
         self.random_choice = 0
         self.random_correct = 0
-        self.app_mag_bins, self.app_mag_map = build_app_mag_to_z_map(app_mags, z_obs)
+
+        if use_saved_map:
+            with open(IAN_MXXL_LOST_APP_TO_Z_FILE, 'rb') as f:
+                self.app_mag_bins, self.app_mag_map = pickle.load(f)
+        else:
+            self.app_mag_bins, self.app_mag_map = build_app_mag_to_z_map(app_mags, z_obs)
 
     def __enter__(self):
         return super().__enter__()

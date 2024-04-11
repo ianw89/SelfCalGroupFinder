@@ -226,7 +226,6 @@ def main():
 
 
             print(f"Assinging missing redshifts... ")   
-            # TODO don't loop?
             j = 0
             for i in indexes_not_assigned:    
                 if j%10000==0:

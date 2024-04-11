@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 from pyutils import *
-from astropy.table import Table, join
+from astropy.table import Table
 
 def usage():
     print("Usage: python3 BGS_fits_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename] [COLORS_ON]")
@@ -51,11 +51,39 @@ def main():
         usage()
         exit(3)
 
+    mode = int(sys.argv[1])
+    app_mag_cut = float(sys.argv[2])
+    catalog_app_mag_cut = float(sys.argv[3])
+    colors_on = sys.argv[6] == "1"
+
+    print("Reading FITS data from ", sys.argv[4])
+    # Unobserved galaxies have masked rows in appropriate columns of the table
+    table = Table.read(sys.argv[4], format='fits')
+    
+    outname_base = sys.argv[5] 
+
+    pre_process_BGS(table, mode, outname_base, app_mag_cut, catalog_app_mag_cut, colors_on)
+
+
+
     ################
     # MAIN CODE
     ################
 
-    mode = int(sys.argv[1])
+def pre_process_BGS(table, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON):
+    """
+    Pre-processes the BGS data for use with the group finder.
+    """
+    Z_MIN = 0.01
+    Z_MAX = 0.8
+    
+    FOOTPRINT_FRAC_1pass = 0.187906 # As calculated from the randoms with 1-pass coverage
+    FOOTPRINT_FRAC = 0.0317538 # As calculated from the randoms with 3-pass coverage
+    # TODO update footprint with new calculation from ANY. It shouldn't change.
+    frac_area = FOOTPRINT_FRAC
+    if mode == Mode.ALL.value:
+        frac_area = FOOTPRINT_FRAC_1pass
+
     if mode == Mode.ALL.value:
         print("\nMode FIBER ASSIGNED ONLY 1+ PASSES")
     elif mode == Mode.FIBER_ASSIGNED_ONLY.value:
@@ -70,25 +98,7 @@ def main():
     elif mode == Mode.SIMPLE_v4.value:
         print("\nMode SIMPLE v4")
 
-    APP_MAG_CUT = float(sys.argv[2])
-    CATALOG_APP_MAG_CUT = float(sys.argv[3])
-    Z_MIN = 0.01
-    Z_MAX = 0.8
-    FOOTPRINT_FRAC_1pass = 0.187906 # As calculated from the randoms with 1-pass coverage
-    FOOTPRINT_FRAC = 0.0317538 # As calculated from the randoms with 3-pass coverage
-    # TODO update footprint with new calculation from ANY. It shouldn't change.
-    frac_area = FOOTPRINT_FRAC
-    if mode == Mode.ALL.value:
-        frac_area = FOOTPRINT_FRAC_1pass
-
-    COLORS_ON = sys.argv[6] == "1"
     print(f"Color classification sent to group finder: {COLORS_ON}")
-
-    print("Reading FITS data from ", sys.argv[4])
-    # Unobserved galaxies have masked rows in appropriate columns of the table
-    table = Table.read(sys.argv[4], format='fits')
-    
-    outname_base = sys.argv[5] 
 
     # astropy's Table used masked arrays, so we have to use .data.data to get the actual data
     # The masked rows are unobserved targets
