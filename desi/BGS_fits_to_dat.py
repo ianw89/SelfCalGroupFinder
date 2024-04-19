@@ -78,7 +78,7 @@ def pre_process_BGS(table, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     Z_MAX = 0.8
     
     FOOTPRINT_FRAC_1pass = 0.187906 # As calculated from the randoms with 1-pass coverage
-    FOOTPRINT_FRAC = 0.0317538 # As calculated from the randoms with 3-pass coverage
+    FOOTPRINT_FRAC = 0.0317538 # As calculated from the randoms with 3-pass coverage. 1310 degrees
     # TODO update footprint with new calculation from ANY. It shouldn't change.
     frac_area = FOOTPRINT_FRAC
     if mode == Mode.ALL.value:

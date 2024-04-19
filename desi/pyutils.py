@@ -262,7 +262,7 @@ def build_app_mag_to_z_map(app_mag, z_obs):
 
 
 
-def make_map(ra, dec, alpha=0.1, dpi=100, fig=None):
+def make_map(ra, dec, alpha=0.1, dpi=400, fig=None):
     """
     Give numpy array of ra and dec.
     """
@@ -280,7 +280,7 @@ def make_map(ra, dec, alpha=0.1, dpi=100, fig=None):
     dec_angles = coord.Angle(dec*u.degree)
 
     if fig == None:
-        fig = plt.figure(figsize=(12,6))
+        fig = plt.figure(figsize=(24,12))
         fig.dpi=dpi
         ax = fig.add_subplot(111, projection="mollweide")
     else:

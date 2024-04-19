@@ -59,23 +59,24 @@ run_nn_kd_c=false
 run_nn_kd20=false
 run_fancy=false
 run_fancy20=false
-run_simplev2=true
+run_simplev2=false
 run_simple_cv2=false
 run_simple20=false
-run_simplev4=true
+run_simplev4=false
 run_simple_cv4=false
 # UCHUU
 run_uchuu_all=false
 # DESI BGS
 run_bgs_fiberonly_1passok=false
 run_bgs_fiberonly=false 
-run_bgs_nn=false
+run_bgs_nn=true
+run_bgs_nn_sdsslike=true
 run_bgs_simplev2=false
 run_bgs_simple_cv2=false
 run_bgs_simplev4=false
-run_bgs_simple_sdsslikev4=false
+run_bgs_simple_sdsslikev4=true
 run_bgs_simple_cv4=false
-run_bgs_simple_sdsslike_cv4=false
+run_bgs_simple_sdsslike_cv4=true
 
 
 
@@ -218,6 +219,10 @@ if [ "$run_bgs_nn" = true ] ; then
     process_and_group_find_BGS "${ROOT_FOLDER}BGS_nn" 3 19.5 22.0 0
 fi
 
+if [ "$run_bgs_nn_sdsslike" = true ] ; then
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_nn_sdsslike" 3 17.7 17.7 0
+fi
+
 if [ "$run_bgs_simplev2" = true ] ; then
     process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_2" 5 19.5 22.0 0
 fi
@@ -231,7 +236,7 @@ if [ "$run_bgs_simplev4" = true ] ; then
 fi
 
 if [ "$run_bgs_simple_sdsslikev4" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_4_sdsslike" 6 17.7 22.0 0
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_4_sdsslike" 6 17.7 17.7 0
 fi
 
 if [ "$run_bgs_simple_cv4" = true ] ; then
@@ -239,5 +244,5 @@ if [ "$run_bgs_simple_cv4" = true ] ; then
 fi
 
 if [ "$run_bgs_simple_sdsslike_cv4" = true ] ; then
-    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_4_sdsslike_c" 6 17.7 22.0 1
+    process_and_group_find_BGS "${ROOT_FOLDER}BGS_simple_4_sdsslike_c" 6 17.7 17.7 1
 fi
