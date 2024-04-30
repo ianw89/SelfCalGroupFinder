@@ -30,6 +30,8 @@ def get_color(i):
 DPI = 80
 FONT_SIZE_DEFAULT = 12
 
+LGAL_XMINS = [6E7, 3E8]
+
 plt.style.use('default')
 plt.rcParams.update({'font.size': FONT_SIZE_DEFAULT})
 
@@ -48,7 +50,9 @@ L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1]
 Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
 
 
-
+##########################
+# Aggregation Helpers
+##########################
 
 def count_vmax_weighted(series):
     if len(series) == 0:
@@ -99,6 +103,13 @@ def nsat_vmax_weighted(series):
         print(series.N_sat)
         return np.average(series.N_sat, weights=1/series.V_max)
     
+
+
+
+##########################
+# Processing Group Finder Output File
+##########################
+
 def read_and_combine_gf_output(filename, galprops_df):
     main_df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
     all_data = pd.merge(main_df, galprops_df, left_index=True, right_index=True)
@@ -135,8 +146,8 @@ def process_MXXL(filename, compute_truth=False):
 
     df = ds.all_data
     ds.has_truth = compute_truth
+    df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3)
     if compute_truth:
-        df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3)
         df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
         df['L_gal_T'] = np.power(10, abs_mag_r_to_log_solar_L(app_mag_to_abs_mag_k(df.app_mag.to_numpy(), df.z_obs.to_numpy(), df.g_r.to_numpy())))
         df['Lgal_bin_T'] = pd.cut(x = df['L_gal_T'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
@@ -209,13 +220,19 @@ def process_core(filename, df):
     return dataset
 
 
+
+
+##########################
+# Plots
+##########################
+
 def legend(datasets):
     if len(datasets) > 1:
         plt.legend()
 
 def legend_ax(ax, datasets):
-    if len(datasets) > 1:
-        ax.legend()
+    #if len(datasets) > 1:
+    ax.legend()
 
 def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHOW_UNWEIGHTED=False):
     HOD_LGAL_CUT = 4E9
@@ -254,13 +271,20 @@ def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHO
     plt.draw()
 
 
+def get_dataset_display_name(d, keep_mag_limit=False):
+    name = d.name.replace("Fiber Only", "Observed").replace("Simple v4", "Our Algorithm").replace(" Vanilla", "").replace("Nearest Neighbor", "NN")
+    if keep_mag_limit:
+        return name
+    else:
+        return name.replace(" <19.5", "").replace(" <20.0", "")
+
 def hod_plots(*datasets, truth_on=True):
 
     for f in datasets:
-        do_hod_plot(f.all_data, f.centrals, f.sats, 'Mh_bin', f.labels, f.color, f.name)
+        do_hod_plot(f.all_data, f.centrals, f.sats, 'Mh_bin', f.labels, f.color, get_dataset_display_name(f))
 
         if truth_on and f.has_truth:
-            do_hod_plot(f.all_data, f.centrals_T, f.sats_T, 'Mh_bin_T', f.labels, 'k', f.name)
+            do_hod_plot(f.all_data, f.centrals_T, f.sats_T, 'Mh_bin_T', f.labels, 'k', get_dataset_display_name(f))
 
 
 
@@ -276,7 +300,7 @@ def plots(*datasets, truth_on=False):
         if ('20' not in f.name):
             lcen_means = f.centrals.groupby('Mh_bin').apply(Lgal_vmax_weighted)
             lcen_scatter = f.centrals.groupby('Mh_bin').L_gal.std()
-            plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=f.name, color=f.color)
+            plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('$M_{halo}$')
@@ -293,7 +317,7 @@ def plots(*datasets, truth_on=False):
             if ('20' in f.name):
                 lcen_means = f.centrals.groupby('Mh_bin').apply(Lgal_vmax_weighted)
                 lcen_scatter = f.centrals.groupby('Mh_bin').L_gal.std()
-                plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=f.name, color=f.color)
+                plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
         plt.xscale('log')
         plt.xlabel('$M_{halo}$')
         plt.ylabel('$log(L_{cen})$')
@@ -303,19 +327,19 @@ def plots(*datasets, truth_on=False):
         plt.ylim(3E7,3E12)
         plt.draw()
 
-    # fsat vs Lgal with Nsat
+    # fsat vs Lgal with Ngal
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
     for f in datasets:
-        plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=f.name, color=f.color)
+        plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=get_dataset_display_name(f), color=f.color)
     if truth_on:
         for f in datasets:
             if f.has_truth:
-                plt.plot(f.L_gal_labels, f.truth_f_sat, 'v', label=f"{f.name} Truth", color=f.color)
+                plt.plot(f.L_gal_labels, f.truth_f_sat, 'v', label=f"{get_dataset_display_name(f)} Truth", color=f.color)
     ax1.set_xscale('log')
     ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
     ax1.set_ylabel("$f_{\\mathrm{sat}}$")
-    ax1.set_title("Satellite fraction vs Galaxy Luminosity")
+    #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.set_xlim(2E7,3E11)
     ax1.set_ylim(0.0,0.6)
     legend_ax(ax1, datasets)
@@ -328,35 +352,33 @@ def plots(*datasets, truth_on=False):
         
         # This version 1/vmax weights the counts
         #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin').apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
-        ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin').size(), width=widths, color=f.color, align='edge', alpha=0.4)
+        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data.groupby('Lgal_bin').size(), width=widths, color=f.color, align='edge', alpha=0.4)
         idx+=1
-    ax2.set_ylabel('$N_{sat}$')
+    ax2.set_ylabel('$N_{gal}$')
     ax2.set_yscale('log')
     fig.tight_layout()
 
-    # fsat vs Lgal with Nsat tighter
-    fig,ax1=plt.subplots()
-    fig.set_dpi(DPI)
-    for f in datasets:
-        plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=f.name, color=f.color)
-    if truth_on:
+    # fsat vs Lgal 
+    for xmin in LGAL_XMINS:
+        fig,ax1=plt.subplots()
+        fig.set_dpi(DPI)
         for f in datasets:
-            if 'is_sat_truth' in f.all_data.columns:
-                plt.plot(f.L_gal_labels, f.truth_f_sat, 'v', label=f"{f.name} Truth", color=f.color)
-    ax1.set_xscale('log')
-    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
-    ax1.set_ylabel("$f_{\\mathrm{sat}}$")
-    #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
-    legend_ax(ax1, datasets)
-    X_MIN = 3E8
-    X_MAX = 1E11
-    ax1.set_xlim(X_MIN,X_MAX)
-    ax1.set_ylim(0.0,0.6)
-
-    ax2=ax1.twiny()
-    ax2.plot(Mr_gal_labels, datasets[0].f_sat, ls="")
-    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(X_MIN)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
-    ax2.set_xlabel("$M_r$ - 5log(h)")
+            plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=get_dataset_display_name(f), color=f.color)
+        if truth_on:
+            for f in datasets:
+                if 'is_sat_truth' in f.all_data.columns:
+                    plt.plot(f.L_gal_labels, f.truth_f_sat, 'v', label=f"{f.name} Truth", color=f.color)
+        ax1.set_xscale('log')
+        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+        ax1.set_ylabel("$f_{\\mathrm{sat}}$")
+        legend_ax(ax1, datasets)
+        X_MAX = 1E11
+        ax1.set_xlim(xmin,X_MAX)
+        ax1.set_ylim(0.0,0.6)
+        ax2=ax1.twiny()
+        ax2.plot(Mr_gal_labels, datasets[0].f_sat, ls="")
+        ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
+        ax2.set_xlabel("$M_r$ - 5log(h)")
 
     #ax2 = ax1.twinx()
     #idx = 0
@@ -369,10 +391,17 @@ def plots(*datasets, truth_on=False):
     #ax2.set_ylabel('$N_{sat}$')
     fig.tight_layout()
 
+    if len(datasets) == 1:
+        plots_color_split(*datasets, total_on=True)
+
     for d in datasets:
         plots_color_split(d, truth_on=truth_on)
         if 'z_assigned_flag' in d.all_data.columns:
             plots_color_split_lost_split(d)
+        if d.has_truth:
+            q_gals = d.all_data[d.all_data.quiescent]
+            sf_gals = d.all_data[np.invert(d.all_data.quiescent)]
+            plots_color_split_lost_split_inner(d.name + " Sim. Truth", d.L_gal_labels, d.L_gal_bins, q_gals, sf_gals, fsat_truth_vmax_weighted)
 
     print("TOTAL f_sat - entire sample: ")
     for f in datasets:
@@ -381,104 +410,81 @@ def plots(*datasets, truth_on=False):
 
 def plots_color_split_lost_split(f):
     q_gals = f.all_data[f.all_data.quiescent]
-    q_gals.reset_index(drop=True, inplace=True)
     sf_gals = f.all_data[np.invert(f.all_data.quiescent)]
-    sf_gals.reset_index(drop=True, inplace=True)
-    """
-    q_lost = f.all_data[np.all([f.all_data.quiescent, f.all_data.z_assigned_flag], axis=0)].groupby(['Lgal_bin'])
-    q_obs = f.all_data[np.all([f.all_data.quiescent, np.invert(f.all_data.z_assigned_flag)], axis=0)].groupby(['Lgal_bin'])
-    sf_lost = f.all_data[np.all([np.invert(f.all_data.quiescent), f.all_data.z_assigned_flag], axis=0)].groupby(['Lgal_bin'])
-    sf_obs = f.all_data[np.all([np.invert(f.all_data.quiescent), np.invert(f.all_data.z_assigned_flag)], axis=0)].groupby(['Lgal_bin'])
-    q_tot = f.all_data[f.all_data.quiescent]
-    sf_tot = f.all_data[np.invert(f.all_data.quiescent)]
-    print("Red lost counts: ", q_lost.size())
-    print("Red obs counts: ", q_obs.size())
-    print("Blue lost counts: ", sf_lost.size())
-    print("Blue obs counts: ", sf_obs.size())
-    
-    if not hasattr(f, 'f_sat_q_lost'):
-        f.f_sat_q_lost = q_lost.apply(fsat_vmax_weighted)
-    if not hasattr(f, 'f_sat_q_obs'):
-        f.f_sat_q_obs = q_obs.apply(fsat_vmax_weighted)
-    if not hasattr(f, 'f_sat_sf_lost'):
-        f.f_sat_sf_lost = sf_lost.apply(fsat_vmax_weighted)
-    if not hasattr(f, 'f_sat_sf_obs'):
-        f.f_sat_sf_obs = sf_obs.apply(fsat_vmax_weighted)
-    if not hasattr(f, 'f_sat_q'):
-        f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
-    if not hasattr(f, 'f_sat_sf'):
-        f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
-    """
+    plots_color_split_lost_split_inner(get_dataset_display_name(f), f.L_gal_labels, f.L_gal_bins, q_gals, sf_gals, fsat_vmax_weighted)
 
-    plots_color_split_lost_split_inner(f, q_gals, sf_gals)
-
-def plots_color_split_lost_split_inner(f, q_gals, sf_gals):
+def plots_color_split_lost_split_inner(name, L_gal_labels, L_gal_bins, q_gals, sf_gals, aggregation_func, show_plot=True):
     q_lost = q_gals[q_gals.z_assigned_flag].groupby(['Lgal_bin'])
     q_obs = q_gals[~q_gals.z_assigned_flag].groupby(['Lgal_bin'])
     sf_lost = sf_gals[sf_gals.z_assigned_flag].groupby(['Lgal_bin'])
     sf_obs = sf_gals[~sf_gals.z_assigned_flag].groupby(['Lgal_bin'])
-    fsat_qlost = q_lost.apply(fsat_vmax_weighted)
-    fsat_qobs = q_obs.apply(fsat_vmax_weighted)
-    fsat_sflost = sf_lost.apply(fsat_vmax_weighted)
-    fsat_sfobs = sf_obs.apply(fsat_vmax_weighted)
-    fsat_qtot = q_gals.groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
-    fsat_sftot = sf_gals.groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
+    fsat_qlost = q_lost.apply(aggregation_func)
+    fsat_qobs = q_obs.apply(aggregation_func)
+    fsat_sflost = sf_lost.apply(aggregation_func)
+    fsat_sfobs = sf_obs.apply(aggregation_func)
+    fsat_qtot = q_gals.groupby(['Lgal_bin']).apply(aggregation_func)
+    fsat_sftot = sf_gals.groupby(['Lgal_bin']).apply(aggregation_func)
 
-    fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(12,5))
-    ax1=axes[0]
-    ax2=axes[1]
-    fig.set_dpi(DPI)
-    ax1.plot(f.L_gal_labels, fsat_qlost, '>', label=f.name + ' lost q', color='r')
-    ax1.plot(f.L_gal_labels, fsat_qobs, '.', label=f.name + ' obs q', color='r')
-    ax1.plot(f.L_gal_labels, fsat_qtot, '-', label=f.name + " q", color='r')
-    ax2.plot(f.L_gal_labels, fsat_sflost, '>', label=f.name + ' lost sf', color='b')
-    ax2.plot(f.L_gal_labels, fsat_sfobs, '.', label=f.name + ' obs sf', color='b')
-    ax2.plot(f.L_gal_labels, fsat_sftot, '-', label=f.name + " sf", color='b')
+    if show_plot:
+        fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(12,5))
+        ax1=axes[0]
+        ax2=axes[1]
+        fig.set_dpi(DPI)
+        ax1.plot(L_gal_labels, fsat_qlost, '>', label='Lost quiescent', color='r')
+        ax1.plot(L_gal_labels, fsat_qobs, '.', label='Observed quiescent', color='r')
+        ax1.plot(L_gal_labels, fsat_qtot, '-', label="Total quiescent", color='r')
+        ax2.plot(L_gal_labels, fsat_sflost, '>', label='Lost star-forming', color='b')
+        ax2.plot(L_gal_labels, fsat_sfobs, '.', label='Observed star-forming', color='b')
+        ax2.plot(L_gal_labels, fsat_sftot, '-', label="Total star-forming", color='b')
 
-    widths = np.zeros(len(f.L_gal_bins)-1)
-    for i in range(0,len(f.L_gal_bins)-1):
-        widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / 2
+        widths = np.zeros(len(L_gal_bins)-1)
+        for i in range(0,len(L_gal_bins)-1):
+            widths[i]=(L_gal_bins[i+1] - L_gal_bins[i]) / 2
 
-    ax3 = ax1.twinx()
-    idx = 0
-    ax3.bar(f.L_gal_labels+(widths*idx), q_lost.size(), width=widths, color='orange', align='edge', alpha=0.4)
-    idx+=1
-    ax3.bar(f.L_gal_labels+(widths*idx), q_obs.size(), width=widths, color='k', align='edge', alpha=0.4)
-    ax3.set_ylabel('$N_{gal}$')
-    ax3.set_yscale('log')
+        ax3 = ax1.twinx()
+        idx = 0
+        ax3.bar(L_gal_labels+(widths*idx), q_lost.size(), width=widths, color='orange', align='edge', alpha=0.4)
+        idx+=1
+        ax3.bar(L_gal_labels+(widths*idx), q_obs.size(), width=widths, color='k', align='edge', alpha=0.4)
+        ax3.set_ylabel('$N_{gal}$')
+        ax3.set_yscale('log')
 
-    ax4 = ax2.twinx()
-    idx = 0
-    ax4.bar(f.L_gal_labels+(widths*idx), sf_lost.size(), width=widths, color='orange', align='edge', alpha=0.4)
-    idx+=1
-    ax4.bar(f.L_gal_labels+(widths*idx), sf_obs.size(), width=widths, color='k', align='edge', alpha=0.4)
-    ax4.set_ylabel('$N_{gal}$')
-    ax4.set_yscale('log')
+        ax4 = ax2.twinx()
+        idx = 0
+        ax4.bar(L_gal_labels+(widths*idx), sf_lost.size(), width=widths, color='orange', align='edge', alpha=0.4)
+        idx+=1
+        ax4.bar(L_gal_labels+(widths*idx), sf_obs.size(), width=widths, color='k', align='edge', alpha=0.4)
+        ax4.set_ylabel('$N_{gal}$')
+        ax4.set_yscale('log')
 
-    X_MIN = 3E7
-    X_MAX = 1E11
-    ax5=ax1.twiny()
-    ax5.plot(Mr_gal_labels, fsat_qtot, ls="") # dummy plot
-    ax5.set_xlim(log_solar_L_to_abs_mag_r(np.log10(X_MIN)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
-    ax5.set_xlabel("$M_r$ - 5log(h)")
-    ax6=ax2.twiny()
-    ax6.plot(Mr_gal_labels, fsat_qtot, ls="") # dummy plot
-    ax6.set_xlim(log_solar_L_to_abs_mag_r(np.log10(X_MIN)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
-    ax6.set_xlabel("$M_r$ - 5log(h)")
+        X_MIN = 3E7
+        X_MAX = 1E11
+        ax5=ax1.twiny()
+        ax5.plot(Mr_gal_labels, fsat_qtot, ls="") # dummy plot
+        ax5.set_xlim(log_solar_L_to_abs_mag_r(np.log10(X_MIN)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
+        ax5.set_xlabel("$M_r$ - 5log(h)")
+        ax6=ax2.twiny()
+        ax6.plot(Mr_gal_labels, fsat_qtot, ls="") # dummy plot
+        ax6.set_xlim(log_solar_L_to_abs_mag_r(np.log10(X_MIN)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
+        ax6.set_xlabel("$M_r$ - 5log(h)")
 
-    ax1.set_xscale('log')
-    ax2.set_xscale('log')
-    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
-    ax2.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
-    ax1.set_ylabel("$f_{\\mathrm{sat}}$ ")
-    ax2.set_ylabel("$f_{\\mathrm{sat}}$ ")
-    ax1.legend()
-    ax2.legend()
-    ax1.set_xlim(3E7,1E11)
-    ax2.set_xlim(3E7,1E11)
-    ax1.set_ylim(0.0,1.0)
-    ax2.set_ylim(0.0,1.0)
-    fig.tight_layout()
+        ax1.set_xscale('log')
+        ax2.set_xscale('log')
+        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+        ax2.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+        ax1.set_ylabel("$f_{\\mathrm{sat}}$ ")
+        ax2.set_ylabel("$f_{\\mathrm{sat}}$ ")
+        ax1.legend()
+        ax2.legend()
+        ax1.set_xlim(3E7,1E11)
+        ax2.set_xlim(3E7,1E11)
+        ax1.set_ylim(0.0,1.0)
+        ax2.set_ylim(0.0,1.0)
+
+        fig.suptitle(f"{name}")
+        fig.tight_layout()
+
+    return fsat_qlost.to_numpy(), fsat_qobs.to_numpy(), fsat_qtot.to_numpy(), fsat_sflost.to_numpy(), fsat_sfobs.to_numpy(), fsat_sftot.to_numpy()
 
 def compare_fsat_color_split(dataone, datatwo):
     temp1 = dataone.marker
@@ -489,45 +495,50 @@ def compare_fsat_color_split(dataone, datatwo):
     dataone.marker = temp1
     datatwo.marker = temp2
 
-def plots_color_split(*datasets, truth_on=False):
+def plots_color_split(*datasets, truth_on=False, total_on=False):
 
-    fig,ax1=plt.subplots()
-    fig.set_dpi(DPI)
-    for f in datasets:
-        if not hasattr(f, 'f_sat_q'):
-            f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
-        if not hasattr(f, 'f_sat_sf'):
-            f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
-        plt.plot(f.L_gal_labels, f.f_sat_q, f.marker, label=f.name, color='r')
-        plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, label=f.name, color='b')
+    for xmin in LGAL_XMINS:
 
-    for f in datasets:
-        if truth_on:
-            if f.has_truth:
-                truth_on = False
-                if not hasattr(f, 'f_sat_q_t'):
-                    f.f_sat_q_t = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin']).apply(fsat_truth_vmax_weighted)
-                if not hasattr(f, 'f_sat_sf_t'):
-                    f.f_sat_sf_t = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin']).apply(fsat_truth_vmax_weighted)
-                plt.plot(f.L_gal_labels, f.f_sat_q_t, 'v', label=f"{f.name} Truth", color='r')
-                plt.plot(f.L_gal_labels, f.f_sat_sf_t, 'v', label=f"{f.name} Truth", color='b')
+        fig,ax1=plt.subplots()
+        fig.set_dpi(DPI)
+        for f in datasets:
+            if not hasattr(f, 'f_sat_q'):
+                f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
+            if not hasattr(f, 'f_sat_sf'):
+                f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
+            plt.plot(f.L_gal_labels, f.f_sat_q, f.marker, label=get_dataset_display_name(f) + " Quiescent", color='r')
+            plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, label=get_dataset_display_name(f) + " Star-forming", color='b')
 
-    ax1.set_xscale('log')
-    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
-    ax1.set_ylabel("$f_{\\mathrm{sat}}$ ")
-    ax1.legend()
-    X_MIN = 3E8
-    X_MAX = 1E11
-    ax1.set_xlim(X_MIN,X_MAX)
-    ax1.set_ylim(0.0,1.0)
+            if total_on:
+                plt.plot(f.L_gal_labels, f.f_sat, label=get_dataset_display_name(f) + " Total", color='k')
 
-    ax2=ax1.twiny()
-    ax2.plot(Mr_gal_labels, f.f_sat_q, ls="")
-    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(X_MIN)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
-    ax2.set_xlabel("$M_r$ - 5log(h)")
+        for f in datasets:
+            if truth_on:
+                if f.has_truth:
+                    truth_on = False
+                    if not hasattr(f, 'f_sat_q_t'):
+                        f.f_sat_q_t = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin']).apply(fsat_truth_vmax_weighted)
+                    if not hasattr(f, 'f_sat_sf_t'):
+                        f.f_sat_sf_t = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin']).apply(fsat_truth_vmax_weighted)
+                    plt.plot(f.L_gal_labels, f.f_sat_q_t, 'x', label="Simulation's Truth", color='r')
+                    plt.plot(f.L_gal_labels, f.f_sat_sf_t, 'x', label="Simulation's Truth", color='b')
 
 
-    fig.tight_layout()
+        ax1.set_xscale('log')
+        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+        ax1.set_ylabel("$f_{\\mathrm{sat}}$ ")
+        ax1.legend()
+        X_MAX = 1E11
+        ax1.set_xlim(xmin,X_MAX)
+        ax1.set_ylim(0.0,1.0)
+
+        ax2=ax1.twiny()
+        ax2.plot(Mr_gal_labels, datasets[0].f_sat_q, ls="")
+        ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
+        ax2.set_xlabel("$M_r$ - 5log(h)")
+
+
+        fig.tight_layout()
 
 
 
@@ -542,9 +553,11 @@ def total_f_sat(ds):
         print(f"  Truth (no weight):  {ds.all_data['is_sat_truth'].mean():.3f}")
         print(f"  Truth (1 / V_max):  {fsat_truth_vmax_weighted(ds.all_data):.3f}")
 
-def fsat_by_z_bins(dataset):
+def fsat_by_z_bins(dataset, z_bins=np.array([0.0, 0.05, 0.1, 0.2, 0.3, 1.0]), show_plots=True, aggregation=fsat_vmax_weighted):
     # Call plots_color_split_lost_split for a few z bins
-    z_bins = [0.0, 0.05, 0.1, 0.2, 0.3, 1.0] 
+    fsat_qlost_arr, fsat_qobs_arr, fsat_qtot_arr, fsat_sflost_arr, fsat_sfobs_arr, fsat_sftot_arr = [], [], [], [], [], []
+    L_bin_number = 25
+
     for i in range(0, len(z_bins)-1):
         z_low = z_bins[i]
         z_high = z_bins[i+1]
@@ -554,7 +567,62 @@ def fsat_by_z_bins(dataset):
         #q_gals.reset_index(drop=True, inplace=True)
         sf_gals = dataset.all_data[np.all([np.invert(dataset.all_data.quiescent), z_cut], axis=0)]
         #sf_gals.reset_index(drop=True, inplace=True)
-        plots_color_split_lost_split_inner(dataset, q_gals, sf_gals)
+        fsat_qlost, fsat_qobs, fsat_qtot, fsat_sflost, fsat_sfobs, fsat_sftot = plots_color_split_lost_split_inner(f"{dataset.name} z: {z_low:.2} - {z_high:.2}", dataset.L_gal_labels, dataset.L_gal_bins, q_gals, sf_gals, aggregation, show_plot=show_plots)
+        fsat_qlost_arr.append(fsat_qlost[L_bin_number])
+        fsat_qobs_arr.append(fsat_qobs[L_bin_number])
+        fsat_qtot_arr.append(fsat_qtot[L_bin_number])
+        fsat_sflost_arr.append(fsat_sflost[L_bin_number])
+        fsat_sfobs_arr.append(fsat_sfobs[L_bin_number])
+        fsat_sftot_arr.append(fsat_sftot[L_bin_number])
+
+
+    # Pick one luminosity bin, and then make 6 lines for fsat_qlost, fsat_qobs, fsat_qtot, fsat_sflost, fsat_sfobs, fsat_sftot
+    # over over the z_bins
+    fig,ax1=plt.subplots()
+    fig.set_dpi(DPI)
+
+    z_bins_midpoints = (z_bins[1:] + z_bins[:-1]) / 2
+
+    plt.plot(z_bins_midpoints, fsat_qlost_arr, '>', label='Lost quiescent', color='r')
+    plt.plot(z_bins_midpoints, fsat_qobs_arr, '.', label='Observed quiescent', color='r')
+    plt.plot(z_bins_midpoints, fsat_qtot_arr, '-', label="Total quiescent", color='r')
+    plt.plot(z_bins_midpoints, fsat_sflost_arr, '>', label='Lost star-forming', color='b')
+    plt.plot(z_bins_midpoints, fsat_sfobs_arr, '.', label='Observed star-forming', color='b')
+    plt.plot(z_bins_midpoints, fsat_sftot_arr, '-', label="Total star-forming", color='b')
+    
+    ax1.set_xscale('linear')
+    ax1.set_xlabel("$z$")
+    ax1.set_ylabel("$f_{\\mathrm{sat}}$ ")
+    ax1.legend()
+    ax1.set_xlim(0.0,1.0)
+    ax1.set_ylim(0.0,1.0)
+    plt.title(f"{dataset.name} - $L$~{dataset.L_gal_labels[L_bin_number]:.1E}")
+
+
+
+def L_func_plot(datasets: list, values: list):
+    L_MIN = L_gal_labels[0]
+    L_MAX = 3E12
+    fig,ax1=plt.subplots()
+    fig.set_dpi(DPI)
+    for i in range(len(datasets)):
+        f = datasets[i]
+        plt.plot(f.L_gal_labels, values[i], f.marker, label=get_dataset_display_name(f), color=f.color)
+    ax1.set_xscale('log')
+    ax1.set_yscale('log')
+    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+    ax1.set_ylabel("$N_{gal}$")
+    #ax1.set_title("Galaxy Luminosity Counts")
+    legend(datasets)
+    ax1.set_xlim(L_MIN,L_MAX)
+    #ax1.set_ylim(0.5,1E4)
+
+    # Twin axis for Mr
+    ax2=ax1.twiny()
+    ax2.plot(Mr_gal_labels, values[0], ls="")
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(L_MIN)), log_solar_L_to_abs_mag_r(np.log10(L_MAX)))
+    ax2.set_xlabel("$M_r$ - 5log(h)")
+
 
 def qf_cen_plot(*datasets):
     """
@@ -685,8 +753,11 @@ def build_interior_bin_labels(bin_edges):
 def test_purity_and_completeness(*sets):
 
     for s in sets:
-        print(s.name)
+        print(get_dataset_display_name(s))
         data = s.all_data
+
+        if not s.has_truth:
+            data['is_sat_truth'] = np.logical_or(data.galaxy_type == 1, data.galaxy_type == 3)
 
         # No 1/vmax weightings for these sums as we're just trying to calculate the purity/completeness
         # of our sample
@@ -734,45 +805,58 @@ def purity_complete_plots(*sets):
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 8))
     fig.set_dpi(DPI/2)
 
+    XMIN = 6E7
+    XMAX = 5E10
+
     axes[1][0].set_title('Satellite Purity')
     axes[1][0].set_xscale('log')
     axes[1][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
-    axes[1][0].set_xlim(2E8,1E11)
+    axes[1][0].set_xlim(XMIN,XMAX)
     axes[1][0].set_ylim(0.4,1.0)
 
     axes[1][1].set_title('Satellite Completeness')
     axes[1][1].set_xscale('log')
     axes[1][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
-    axes[1][1].set_xlim(2E8,1E11)
+    axes[1][1].set_xlim(XMIN,XMAX)
     axes[1][1].set_ylim(0.4,1.0)
 
     axes[0][0].set_title('Central Purity')
     axes[0][0].set_xscale('log')
     axes[0][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
-    axes[0][0].set_xlim(2E8,1E11)
+    axes[0][0].set_xlim(XMIN,XMAX)
     axes[0][0].set_ylim(0.4,1.0)
 
     axes[0][1].set_title('Central Completeness')
     axes[0][1].set_xscale('log')
     axes[0][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
-    axes[0][1].set_xlim(2E8,1E11)
+    axes[0][1].set_xlim(XMIN,XMAX)
     axes[0][1].set_ylim(0.4,1.0)
 
     for s in sets:
-        axes[1][0].plot(s.L_gal_bins[s.keep], s.purity_g, s.marker, label=f"{s.name}", color=s.color)
-        axes[1][1].plot(s.L_gal_bins[s.keep2], s.completeness_g, s.marker, label=f"{s.name}", color=s.color)
-        axes[0][0].plot(s.L_gal_bins[s.keep3], s.purity_c_g, s.marker, label=f"{s.name}", color=s.color)
-        axes[0][1].plot(s.L_gal_bins[s.keep4], s.completeness_c_g, s.marker, label=f"{s.name}", color=s.color)
+        axes[1][0].plot(s.L_gal_bins[s.keep], s.purity_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
+        axes[1][1].plot(s.L_gal_bins[s.keep2], s.completeness_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
+        axes[0][0].plot(s.L_gal_bins[s.keep3], s.purity_c_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
+        axes[0][1].plot(s.L_gal_bins[s.keep4], s.completeness_c_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
 
     
     axes[0][0].legend()
     fig.tight_layout()
 
+
     font_restore()
 
+    # Make just the satellite purity plot on its own
+    plt.figure(dpi=DPI)
+    for s in sets:
+        plt.plot(s.L_gal_bins[s.keep], s.purity_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
 
-
-
+    plt.xscale('log')
+    plt.xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
+    plt.ylabel('Satellite Purity')
+    plt.legend()
+    plt.xlim(XMIN,XMAX)
+    plt.ylim(0.4,1.0)
+    plt.tight_layout()
 
 
 

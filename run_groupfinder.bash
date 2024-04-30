@@ -44,8 +44,11 @@ UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
 PYTHON="/home/users/imw2293/.conda/envs/ian-conda311/bin/python3"
 
 PYTHON_PROCESSING=true # whether to do python processing to create .DAT files before groupfinding
-GROUP_FINDING=true # whether to do the group finding
+GROUP_FINDING=false # whether to do the group finding
 ARCHIVE_PREVIOUS_VERSION=false
+
+# 20 runs are all VERY out of date
+# fancy is very very out of date
 
 # MXXL
 run_all_alt=false
@@ -67,16 +70,16 @@ run_simple_cv4=false
 # UCHUU
 run_uchuu_all=false
 # DESI BGS
-run_bgs_fiberonly_1passok=false
+run_bgs_fiberonly_1passok=true
 run_bgs_fiberonly=false 
-run_bgs_nn=true
-run_bgs_nn_sdsslike=true
+run_bgs_nn=false
+run_bgs_nn_sdsslike=false
 run_bgs_simplev2=false
 run_bgs_simple_cv2=false
 run_bgs_simplev4=false
-run_bgs_simple_sdsslikev4=true
+run_bgs_simple_sdsslikev4=false
 run_bgs_simple_cv4=false
-run_bgs_simple_sdsslike_cv4=true
+run_bgs_simple_sdsslike_cv4=false
 
 
 

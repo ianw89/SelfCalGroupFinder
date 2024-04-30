@@ -144,7 +144,7 @@ def pre_process_BGS(table, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if mode == Mode.FIBER_ASSIGNED_ONLY.value: # means 3pass 
         keep = np.all([three_pass_filter, observed_requirements], axis=0)
 
-    if mode == Mode.NEAREST_NEIGHBOR or Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
+    if mode == Mode.NEAREST_NEIGHBOR or mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
         keep = np.all([three_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
@@ -256,9 +256,11 @@ def pre_process_BGS(table, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
             print(f"{j}/{len(to_match)} complete")
 
+    assert np.all(z_eff > 0.0)
+
     # Some of this is redudant with catalog calculations but oh well
     abs_mag_R = app_mag_to_abs_mag(app_mag_r, z_eff)
-    abs_mag_R_k = k_correct(abs_mag_R, z_eff, g_r)
+    abs_mag_R_k = k_correct(abs_mag_R, z_eff, g_r, band='r')
     abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_eff)
     abs_mag_G_k = k_correct(abs_mag_G, z_eff, g_r, band='g')
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k) 
@@ -266,6 +268,8 @@ def pre_process_BGS(table, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     quiescent = is_quiescent_BGS_gmr(log_L_gal, G_R_k)
     print(f"{quiescent.sum()} quiescent galaxies, {len(quiescent) - quiescent.sum()} star-forming galaxies")
      #print(f"Quiescent agreement between g-r and Dn4000 for observed galaxies: {np.sum(quiescent_gmr[observed] == quiescent[observed]) / np.sum(observed)}")
+
+
 
     # the vmax should be calculated from un-k-corrected magnitudes
     V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)

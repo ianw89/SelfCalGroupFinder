@@ -91,7 +91,8 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area):
 
     # Use distance modulus
     d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc/h
-    d_cm = d_l / (1 + z_obs)
+    # chi = d_l * (1 + z_obs) # comoving distance in Mpc/h
+    d_cm = d_l * (1 + z_obs)
 
     v_max = (d_cm**3) * (4*np.pi/3) # in comoving Mpc^3 / h^3 
 
@@ -280,13 +281,13 @@ def make_map(ra, dec, alpha=0.1, dpi=400, fig=None):
     dec_angles = coord.Angle(dec*u.degree)
 
     if fig == None:
-        fig = plt.figure(figsize=(24,12))
+        fig = plt.figure(figsize=(12,6))
         fig.dpi=dpi
         ax = fig.add_subplot(111, projection="mollweide")
     else:
         ax=fig.get_axes()[0]
 
-    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=.5)
+    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=1)
     plt.grid(True)
     return fig
 
