@@ -44,7 +44,7 @@ UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
 PYTHON="/home/users/imw2293/.conda/envs/ian-conda311/bin/python3"
 
 PYTHON_PROCESSING=true # whether to do python processing to create .DAT files before groupfinding
-GROUP_FINDING=false # whether to do the group finding
+GROUP_FINDING=true # whether to do the group finding
 ARCHIVE_PREVIOUS_VERSION=false
 
 # 20 runs are all VERY out of date
@@ -117,7 +117,7 @@ function process_and_group_find () {
             bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q $omega0_sf $omega0_q $beta0q $betaLq $beta0sf $betaLsf > "${name}.out"
         else
             echo "Running kdGroupFinder_omp with colors off"
-            bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q 0 0 1 0 1 0 > "${name}.out"
+            bin/kdGroupFinder_omp "${name}.dat" $zmin $zmax $frac_area $fluxlim $color $omegaL_sf $sigma_sf $omegaL_q $sigma_q 0 0 10 0 10 0 > "${name}.out"
         fi
     fi
 

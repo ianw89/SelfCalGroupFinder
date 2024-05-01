@@ -87,7 +87,7 @@ def pre_process_BGS(table, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if mode == Mode.ALL.value:
         print("\nMode FIBER ASSIGNED ONLY 1+ PASSES")
     elif mode == Mode.FIBER_ASSIGNED_ONLY.value:
-        print("\nMode FIBER ASSIGNED_ONLY 3+ PASSES")
+        print("\nMode FIBER ASSIGNED ONLY 3+ PASSES")
     elif mode == Mode.NEAREST_NEIGHBOR.value:
         print("\nMode NEAREST_NEIGHBOR")
     elif mode == Mode.FANCY.value:

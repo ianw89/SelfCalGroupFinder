@@ -33,7 +33,7 @@ _cosmo_mxxl = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04)
 def get_MXXL_cosmology():
     return _cosmo_h 
 
-SIM_Z_THRESH = 0.003
+SIM_Z_THRESH = 0.005
 def close_enough(target_z, z_arr, threshold=SIM_Z_THRESH):
     return np.abs(z_arr - target_z) < threshold
 
@@ -262,8 +262,14 @@ def build_app_mag_to_z_map(app_mag, z_obs):
     return app_mag_bins, the_map
 
 
+# 36*18*640 / 41253 = 10.05 dots per sq degree
+# so a dot size of 1 is 0.1 sq deg
 
-def make_map(ra, dec, alpha=0.1, dpi=400, fig=None):
+# 0.00191 sq deg is area of a fiber's region
+# that is the size we want to draw for each galaxy
+#so s=0.01 is what we want
+
+def make_map(ra, dec, alpha=0.1, dpi=640, fig=None):
     """
     Give numpy array of ra and dec.
     """
@@ -281,15 +287,53 @@ def make_map(ra, dec, alpha=0.1, dpi=400, fig=None):
     dec_angles = coord.Angle(dec*u.degree)
 
     if fig == None:
-        fig = plt.figure(figsize=(12,6))
+        fig = plt.figure(figsize=(36,36))
         fig.dpi=dpi
         ax = fig.add_subplot(111, projection="mollweide")
     else:
         ax=fig.get_axes()[0]
 
-    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=1)
-    plt.grid(True)
+    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=0.01)
+    plt.grid(visible=True, which='both')
     return fig
+
+
+def plot_positions(*datasets, DEG_LONG=1):
+
+    fig,ax = plt.subplots(1)
+    fig.set_size_inches(10*DEG_LONG + 1,10*DEG_LONG + 1) # the extra inch is because of the frame, rough correction
+    dpi = 200
+    fig.set_dpi(dpi)
+    dots_per_sqdeg = 10 * 10 * dpi # so 10,000 dots in a square degree
+    ax.set_aspect('equal')
+    ax.set_xlabel("RA [deg]")
+    ax.set_ylabel("Dec [deg]")
+
+    for d in datasets:
+        plot_ra_dec_inner(d, ax, dots_per_sqdeg, DEG_LONG)
+
+def plot_ra_dec_inner(dataset, ax, dots_per_sqdeg, deg_long):
+    
+    unobs = dataset.all_data[dataset.all_data.z_assigned_flag]
+    obs = dataset.all_data[~dataset.all_data.z_assigned_flag]
+
+    ra_min = 20
+    ra_max = ra_min + deg_long
+    dec_min = 0
+    dec_max = dec_min + deg_long
+
+    obs_selected = obs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
+    unobs_selected = unobs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
+
+    # 8 sq deg / 5000 fibers is 0.0016 sq deg per fiber
+    # But in reality the paper says 0.0019 sq deg is area of a fiber's region (there is some overlap)
+    # That is the size we want to draw for each galaxy here.
+    # For 10,000 dots per sq degree, 0.0019 * 10000 = 
+    fiber_patrol_area = 0.00191 # in sq deg
+    size = fiber_patrol_area * dots_per_sqdeg
+    print(size)
+    ax.scatter(obs_selected.RA, obs_selected.Dec, s=size, alpha=1)
+    ax.scatter(unobs_selected.RA, unobs_selected.Dec, marker='x', s=size, alpha=1)
 
 
 

@@ -1,9 +1,11 @@
 MXXL_DATA_DIR="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
 
-#ROOT_FOLDER = "/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/"
-#ROOT_FOLDER = "/mnt/f/galaxy-groups-data/"
-ROOT_FOLDER = '/home/users/imw2293/SelfCalGroupFinder/bin/'
-DATA_FOLDER = '/home/users/imw2293/SelfCalGroupFinder/data/'
+#BASE_FOLDER = "/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/"
+#BASE_FOLDER = "/mnt/f/galaxy-groups-data/"
+BASE_FOLDER = '/home/users/imw2293/SelfCalGroupFinder/'
+ROOT_FOLDER = BASE_FOLDER + 'bin/' # TODO rename to BIN_FOLDER
+BIN_FOLDER = ROOT_FOLDER
+DATA_FOLDER = BASE_FOLDER + 'data/'
 
 SDSS_v1_DAT_FILE = DATA_FOLDER + 'sdss_fluxlim_v1.0.dat'
 
