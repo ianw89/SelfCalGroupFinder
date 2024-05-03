@@ -2,8 +2,11 @@
 
 Requires:
 - Clone https://github.com/amjsmith/hodpy/tree/master/hodpy
-- Various common python packages (tested on Python 3.9)
-- pip3 install Cython, nbodykit, scipy, numpy, jupyter, astropy
+- Various common python packages (tested on Python 3.11)
+- pip3 install Cython, scipy, numpy, jupyter, astropy, pydl
+
+
+The C-based group finder:
 
 Basic Usage:
 kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out
@@ -44,4 +47,4 @@ NB: The code will run for 5 iterations and then output the current state of the 
 
 
 Attribution:
-Files in the desi/kcorr folder are from Same Moore                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+Files in the desi/kcorr folder are from Sam Moore                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
