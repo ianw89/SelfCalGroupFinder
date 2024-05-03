@@ -298,44 +298,55 @@ def make_map(ra, dec, alpha=0.1, dpi=640, fig=None):
     return fig
 
 
-def plot_positions(*datasets, DEG_LONG=1):
+def plot_positions(*datasets, DEG_LONG=1, split=True):
+
+    ra_min = 30
+    ra_max = ra_min + DEG_LONG
+    dec_min = -5
+    dec_max = dec_min + DEG_LONG
 
     fig,ax = plt.subplots(1)
     fig.set_size_inches(10*DEG_LONG + 1,10*DEG_LONG + 1) # the extra inch is because of the frame, rough correction
-    dpi = 200
+    dpi = 100
     fig.set_dpi(dpi)
     dots_per_sqdeg = 10 * 10 * dpi # so 10,000 dots in a square degree
     ax.set_aspect('equal')
     ax.set_xlabel("RA [deg]")
     ax.set_ylabel("Dec [deg]")
+    ax.set_xlim(ra_min, ra_max)
+    ax.set_ylim(dec_min, dec_max)
 
+    tile_ids = np.array([], dtype=int)
     for d in datasets:
-        plot_ra_dec_inner(d, ax, dots_per_sqdeg, DEG_LONG)
-
-def plot_ra_dec_inner(dataset, ax, dots_per_sqdeg, deg_long):
+        tile_ids = np.concatenate([tile_ids, plot_ra_dec_inner(d, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split)])
     
-    unobs = dataset.all_data[dataset.all_data.z_assigned_flag]
-    obs = dataset.all_data[~dataset.all_data.z_assigned_flag]
+    return set(tile_ids)
 
-    ra_min = 20
-    ra_max = ra_min + deg_long
-    dec_min = 0
-    dec_max = dec_min + deg_long
 
-    obs_selected = obs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
-    unobs_selected = unobs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
+def plot_ra_dec_inner(dataset, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split):
+    
+    if split:
+        obs = dataset.all_data[~dataset.all_data.z_assigned_flag]
+        unobs = dataset.all_data[dataset.all_data.z_assigned_flag]
+    else:
+        obs = dataset.all_data
+
 
     # 8 sq deg / 5000 fibers is 0.0016 sq deg per fiber
     # But in reality the paper says 0.0019 sq deg is area of a fiber's region (there is some overlap)
     # That is the size we want to draw for each galaxy here.
     # For 10,000 dots per sq degree, 0.0019 * 10000 = 
     fiber_patrol_area = 0.00191 # in sq deg
-    size = fiber_patrol_area * dots_per_sqdeg
-    print(size)
+    ARBITRARY_SCALE_UP = 5 # my calculation didn't work so arbitrarilly sizing up with this
+    size = fiber_patrol_area * dots_per_sqdeg * ARBITRARY_SCALE_UP 
+
+    obs_selected = obs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
     ax.scatter(obs_selected.RA, obs_selected.Dec, s=size, alpha=1)
-    ax.scatter(unobs_selected.RA, unobs_selected.Dec, marker='x', s=size, alpha=1)
+    if split:
+        unobs_selected = unobs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
+        ax.scatter(unobs_selected.RA, unobs_selected.Dec, marker='x', s=size, alpha=1)
 
-
+    return obs_selected.TILEID.unique()
 
 
 class RedshiftGuesser():
