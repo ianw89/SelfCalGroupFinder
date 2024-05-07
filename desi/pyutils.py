@@ -262,6 +262,11 @@ def build_app_mag_to_z_map(app_mag, z_obs):
     return app_mag_bins, the_map
 
 
+
+###############################################
+# Routines for making RA DEC maps
+###############################################
+
 # 36*18*640 / 41253 = 10.05 dots per sq degree
 # so a dot size of 1 is 0.1 sq deg
 
@@ -348,6 +353,12 @@ def plot_ra_dec_inner(dataset, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_
 
     return obs_selected.TILEID.unique()
 
+
+
+
+###############################################
+# Lost Galaxy Redshift Assignment
+###############################################
 
 class RedshiftGuesser():
 
