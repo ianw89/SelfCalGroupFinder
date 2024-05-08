@@ -74,11 +74,11 @@ def pre_process_BGS(table, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     """
     Pre-processes the BGS data for use with the group finder.
     """
-    Z_MIN = 0.01
+    Z_MIN = 0.001
     Z_MAX = 0.8
     
     FOOTPRINT_FRAC_1pass = 0.187906 # As calculated from the randoms with 1-pass coverage
-    FOOTPRINT_FRAC = 0.0317538 # As calculated from the randoms with 3-pass coverage. 1310 degrees
+    FOOTPRINT_FRAC = 0.0649945 # As calculated from the randoms with 3-pass coverage. 1310 degrees
     # TODO update footprint with new calculation from ANY. It shouldn't change.
     frac_area = FOOTPRINT_FRAC
     if mode == Mode.ALL.value:
@@ -114,18 +114,18 @@ def pre_process_BGS(table, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     unobserved = table['Z_not4clus'].mask # the masked values are what is unobserved
     deltachi2 = table['DELTACHI2'].data.data  
     dn4000 = table['DN4000'].data.data
-
+    
     orig_count = len(dec)
     print(orig_count, "objects in FITS file")
 
-
     # If an observation was made, some automated system will evaluate the spectra and auto classify the SPECTYPE
     # as GALAXY, QSO, STAR. It is null (and masked) for non-observed targets.
-    # NTILE tracks how many DESI pointings could have observed the target
+    # NTILE tracks how many DESI pointings could have observed the target (at fiber level)
+    # NTILE_MINE gives how many tiles include just from inclusion in circles drawn around tile centers
     # null values (masked rows) are unobserved targets; not all columns are masked though
 
     # Make filter arrays (True/False values)
-    three_pass_filter = table['NTILE'] >= 3 # 3pass coverage
+    three_pass_filter = table['NTILE_MINE'] >= 3 # 3pass coverage
     galaxy_observed_filter = obj_type == b'GALAXY'
     app_mag_filter = app_mag_r < APP_MAG_CUT
     redshift_filter = z_obs > Z_MIN
@@ -144,14 +144,13 @@ def pre_process_BGS(table, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if mode == Mode.FIBER_ASSIGNED_ONLY.value: # means 3pass 
         keep = np.all([three_pass_filter, observed_requirements], axis=0)
 
-    if mode == Mode.NEAREST_NEIGHBOR or mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
+    if mode == Mode.NEAREST_NEIGHBOR.value or mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
         keep = np.all([three_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
         # TODO why bother with this for the real data? Use all we got, right? 
         # I upped the cut to 21 so it doesn't do anything
         catalog_bright_filter = app_mag_r < CATALOG_APP_MAG_CUT 
-        # TODO Shouldn't 3pass filter be in here too? I guess it doesn't matter
         catalog_keep = np.all([galaxy_observed_filter, catalog_bright_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
         catalog_ra = ra[catalog_keep]
         catalog_dec = dec[catalog_keep]

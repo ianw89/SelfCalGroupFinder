@@ -27,7 +27,7 @@ def get_color(i):
     co = colors[i%len(colors)]
     return co
 
-DPI = 80
+DPI = 400
 FONT_SIZE_DEFAULT = 12
 
 LGAL_XMINS = [6E7, 3E8]
@@ -300,7 +300,7 @@ def plots(*datasets, truth_on=False):
         if ('20' not in f.name):
             lcen_means = f.centrals.groupby('Mh_bin').apply(Lgal_vmax_weighted)
             lcen_scatter = f.centrals.groupby('Mh_bin').L_gal.std()
-            plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
+            plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color, alpha=0.5)
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('$M_{halo}$')
@@ -308,7 +308,7 @@ def plots(*datasets, truth_on=False):
     #plt.title("Central Luminosity vs. Halo Mass")
     legend(datasets)
     plt.xlim(2E11,1E15)
-    plt.ylim(3E7,3E12)
+    plt.ylim(3E8,2E12)
     plt.draw()
 
     if contains_20_data:
