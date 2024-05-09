@@ -10,7 +10,55 @@ import math
 import sys
 import pickle
 from scipy import special
+import subprocess as sp
 
+class GroupCatalog:
+
+    def __init__(self, name):
+        self.name = name
+        self.GF_outfile = BIN_FOLDER + self.name + ".out"
+        self.postprocess_func = None
+        self.results_file = BIN_FOLDER + self.name + ".pickle"
+        self.color = 'k'
+        self.marker = '-'
+        self.preprocess_func = None # Can not set this if you already have a file ready to go into the group finder
+        self.preprocess_file = None # Set path to that file here instead
+        self.GF_props = {}
+        self.dataset = None # TODO refactor later
+
+    def run_group_finder(self):
+
+        if self.preprocess_func is not None:
+            inname = self.preprocess_func() # TODO
+        else:
+            inname = self.preprocess_file
+
+        with open(self.GF_outfile, "w") as f:
+
+            #args = [BIN_FOLDER + "kdGroupFinder_omp", inname, self.GF_props['zmin'], self.GF_props['zmax'], self.GF_props['frac_area'], self.GF_props['fluxlim'], self.GF_props['color'], self.GF_props['omegaL_sf'], self.GF_props['sigma_sf'], self.GF_props['omegaL_q'], self.GF_props['sigma_q'], self.GF_props['omega0_sf'], self.GF_props['omega0_q'], self.GF_props['beta0q'], self.GF_props['betaLq'], self.GF_props['beta0sf'], self.GF_props['betaLsf'], self.GF_outname]
+            #sp.Popen(args, shell=True, stdout=sp.PIPE)
+
+            args = [BIN_FOLDER + "kdGroupFinder_omp", inname, *list(map(str,self.GF_props.values()))]
+            self.results = sp.run(args, cwd=BASE_FOLDER, stdout=f)
+
+    def postprocess(self):
+
+        if self.postprocess_func is not None:
+            self.dataset = self.postprocess_func(self.GF_outfile) # TODO
+        else:
+            print("Warning: no postprocesser function set.")
+
+
+def serialize(gc: GroupCatalog):
+    with open(gc.results_file, 'wb') as f:
+        pickle.dump(gc, f)
+
+def deserialize(gc: GroupCatalog):
+    with open(gc.results_file, 'rb') as f:    
+        return pickle.load(f)
+
+
+# OLD
 ROOT_FOLDER = "../bin/"
 def save_dataset(dataset):
     with open(ROOT_FOLDER + dataset.name, 'wb') as f:
@@ -19,6 +67,8 @@ def save_dataset(dataset):
 def load_dataset(dataset):
     with open(ROOT_FOLDER + dataset.name, 'rb') as f:    
         return pickle.load(f)
+
+
 
 # Common PLT helpers
 prop_cycle = plt.rcParams['axes.prop_cycle']
@@ -116,7 +166,7 @@ def read_and_combine_gf_output(filename, galprops_df):
     return process_core(filename, all_data)
 
 def process_sdss(filename):
-    galprops = pd.read_csv("../data/sdss_galprops_v1.0.dat", delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
+    galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
     galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
     ds = read_and_combine_gf_output(filename, galprops)
     ds.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(ds.all_data.logLgal, ds.all_data.Dn4000)
@@ -916,21 +966,3 @@ def assigned_halo_analysis(*sets):
         #plt.xlabel('$z_{eff}$ (effective/assigned redshift)')
         #plt.ylabel('Fraction Assigned Halo = True Host Halo')
         
-
-
-# TODO finish this refactor so bash can call this 
-if __name__ == "__main__":
-
-    if int(sys.argv[1]) == 1:
-        dataset = process_sdss(ROOT_FOLDER + sys.argv[2])
-    elif int(sys.argv[1]) == 2:
-        dataset = process_MXXL(ROOT_FOLDER + sys.argv[2])
-    elif int(sys.argv[1]) == 3:
-        dataset = process_uchuu(ROOT_FOLDER + sys.argv[2])
-    elif int(sys.argv[1]) == 4:
-        dataset = process_BGS(ROOT_FOLDER + sys.argv[2])
-
-    dataset.name = sys.argv[3]
-    dataset.color = get_color(sys.argv[4])
-    dataset.marker = sys.argv[5]
-    save_dataset(dataset)

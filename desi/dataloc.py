@@ -16,6 +16,7 @@ DATA_FOLDER = BASE_FOLDER + 'data/'
 
 # This file was acquried from https://cosmo.nyu.edu/~tinker/GROUP_FINDER/SELFCAL_GROUPS/sdss_fluxlim_v1.0.dat
 SDSS_v1_DAT_FILE = DATA_FOLDER + 'sdss_fluxlim_v1.0.dat'
+SDSS_v1_GALPROPS_FILE = DATA_FOLDER + "sdss_galprops_v1.0.dat"
 
 BGS_PREVIOUS_FOLDER = DATA_FOLDER + "BGS v1.0/"
 
