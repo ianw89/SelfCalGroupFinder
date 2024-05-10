@@ -12,6 +12,16 @@ import pickle
 from scipy import special
 import subprocess as sp
 
+# Shared bins for various purposes
+Mhalo_bins = np.logspace(10, 15.5, 40)
+Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1] 
+
+L_gal_bins = np.logspace(6, 12.5, 40)
+L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1]
+
+Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
+
+
 class GroupCatalog:
 
     def __init__(self, name):
@@ -24,7 +34,19 @@ class GroupCatalog:
         self.preprocess_func = None # Can not set this if you already have a file ready to go into the group finder
         self.preprocess_file = None # Set path to that file here instead
         self.GF_props = {}
-        self.dataset = None # TODO refactor later
+
+        self.has_truth = False
+        #self.filename = filename[filename.rfind('/')+1 : len(filename)-4] # TODO fix...
+        self.Mhalo_bins = Mhalo_bins
+        self.labels = Mhalo_labels
+        self.all_data = None
+        self.centrals = None
+        self.sats = None
+        self.L_gal_bins = L_gal_bins
+        self.L_gal_labels = L_gal_labels
+
+        self.f_sat = None # per Lgal bin 
+        self.Lgal_counts = None # size of Lgal bins 
 
     def run_group_finder(self):
 
@@ -43,10 +65,22 @@ class GroupCatalog:
 
     def postprocess(self):
 
+        # Expecting postprocess_func(GroupCatalog) => DataFrame
         if self.postprocess_func is not None:
-            self.dataset = self.postprocess_func(self.GF_outfile) # TODO
+            self.all_data = self.postprocess_func(self)
+            
+            # Compute some common aggregations upfront here
+            # TODO make these lazilly evaluated properties on the GroupCatalog object
+            # Can put more of them into this pattern from elsewhere in plotting code then
+            self.f_sat = self.all_data.groupby('Lgal_bin').apply(fsat_vmax_weighted)
+            self.Lgal_counts = self.all_data.groupby('Lgal_bin').RA.count()
+
+            # Setup some convenience subsets of the DataFrame
+            # TODO check memory implications of this
+            self.centrals = self.all_data[self.all_data.index == self.all_data.igrp]
+            self.sats = self.all_data[self.all_data.index != self.all_data.igrp]
         else:
-            print("Warning: no postprocesser function set.")
+            print("Warning: no postprocesser function set. all_data DataFrame is not set.")
 
 
 def serialize(gc: GroupCatalog):
@@ -90,14 +124,6 @@ def font_restore():
 
 
 
-# Shared bins for various purposes
-Mhalo_bins = np.logspace(10, 15.5, 40)
-Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1] 
-
-L_gal_bins = np.logspace(6, 12.5, 40)
-L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1]
-
-Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
 
 
 ##########################
@@ -160,82 +186,10 @@ def nsat_vmax_weighted(series):
 # Processing Group Finder Output File
 ##########################
 
-def read_and_combine_gf_output(filename, galprops_df):
-    main_df = pd.read_csv(filename, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
-    all_data = pd.merge(main_df, galprops_df, left_index=True, right_index=True)
-    return process_core(filename, all_data)
-
-def process_sdss(filename):
-    galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
-    galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
-    ds = read_and_combine_gf_output(filename, galprops)
-    ds.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(ds.all_data.logLgal, ds.all_data.Dn4000)
-    return finish_processing(ds)
-
-def process_uchuu(filename):
-    filename_props = str.replace(filename, ".out", "_galprops.dat")
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'central', 'uchuu_halo_mass', 'uchuu_halo_id'), dtype={'uchuu_halo_id': np.int64, 'central': np.bool_})
-    ds = read_and_combine_gf_output(filename, galprops)
-
-    df = ds.all_data
-    ds.has_truth = True
-    df['is_sat_truth'] = np.invert(df.central)
-    df['Mh_bin_T'] = pd.cut(x = df['uchuu_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
-    # TODO BUG Need L_gal_T
-    truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
-    ds.truth_f_sat = truth_f_sat
-    ds.centrals_T = df[np.invert(df.is_sat_truth)]
-    ds.sats_T = df[df.is_sat_truth]
-
-    return finish_processing(ds)
-
-def process_MXXL(filename, compute_truth=False):
-    filename_props = str.replace(filename, ".out", "_galprops.dat")
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'z_assigned_flag', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
-    ds = read_and_combine_gf_output(filename, galprops)
-
-    df = ds.all_data
-    ds.has_truth = compute_truth
-    df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3)
-    if compute_truth:
-        df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
-        df['L_gal_T'] = np.power(10, abs_mag_r_to_log_solar_L(app_mag_to_abs_mag_k(df.app_mag.to_numpy(), df.z_obs.to_numpy(), df.g_r.to_numpy())))
-        df['Lgal_bin_T'] = pd.cut(x = df['L_gal_T'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
-        ds.truth_f_sat = df.groupby('Lgal_bin_T').apply(fsat_truth_vmax_weighted)
-        ds.centrals_T = df[np.invert(df.is_sat_truth)]
-        ds.sats_T = df[df.is_sat_truth]
-    # TODO if we switch to using bins we need a Truth version of this
-    df['quiescent'] = is_quiescent_BGS_gmr(ds.all_data.logLgal, ds.all_data.g_r)
-
-    return finish_processing(ds)
-
-def process_BGS(filename):
-    filename_props = str.replace(filename, ".out", "_galprops.dat")
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r', 'Dn4000'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
-    ds = read_and_combine_gf_output(filename, galprops)
-    ds.all_data['quiescent'] = is_quiescent_BGS_gmr(ds.all_data.logLgal, ds.all_data.g_r)
-    return finish_processing(ds)
-
-# TODO might be wise to double check that my manual calculation of q vs sf matches what the group finder was fed by
-# checking the input data. I think for now it should be exactly the same, but maybe we want it to be different for
-# apples to apples comparison between BGS and SDSS
-
-def finish_processing(dataset):
-    """
-    Call after done doing thigns to the all_data dataframe.
-    """
-    # add convenient subsets for centrals and sats
-    df = dataset.all_data
-    centrals = df[df.index == df.igrp]
-    sats = df[df.index != df.igrp]
-    dataset.centrals = centrals
-    dataset.sats = sats
-    return dataset
-
-def process_core(filename, df):
-    """
-    Common functionality for processing groupfinder output regardless of source data.
-    """
+def read_and_combine_gf_output(gc: GroupCatalog, galprops_df):
+    # TODO instead of reading GF output from disk, have option to just keep in memory
+    main_df = pd.read_csv(gc.GF_outfile, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
+    df = pd.merge(main_df, galprops_df, left_index=True, right_index=True)
 
     # Drop bad data, should have been cleaned up earlier though!
     orig_count = len(df)
@@ -252,22 +206,65 @@ def process_core(filename, df):
     df['Mh_bin'] = pd.cut(x = df['M_halo'], bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
     df['Lgal_bin'] = pd.cut(x = df['L_gal'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
 
-    # compute f_sat and Lgal counts
-    f_sat = df.groupby('Lgal_bin').apply(fsat_vmax_weighted)
-    Lgal_counts = df.groupby('Lgal_bin').RA.count()
+    return df # TODO update callers
 
-    dataset = types.SimpleNamespace()
-    dataset.has_truth = False
-    dataset.filename = filename[filename.rfind('/')+1 : len(filename)-4]
-    dataset.Mhalo_bins = Mhalo_bins
-    dataset.labels = Mhalo_labels
-    dataset.all_data = df
-    dataset.L_gal_bins = L_gal_bins
-    dataset.L_gal_labels = L_gal_labels
-    dataset.f_sat = f_sat # per Lgal bin
-    dataset.Lgal_counts = Lgal_counts # size of Lgal bins
+def process_sdss(gc: GroupCatalog):
+    galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
+    galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
+    all_data = read_and_combine_gf_output(gc, galprops)
+    all_data['quiescent'] = is_quiescent_SDSS_Dn4000(all_data.logLgal, all_data.Dn4000)
+    return all_data
 
-    return dataset
+
+
+# TODO update below here
+def process_uchuu(gc: GroupCatalog):
+    filename_props = str.replace(gc.GF_outfile, ".out", "_galprops.dat")
+    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'central', 'uchuu_halo_mass', 'uchuu_halo_id'), dtype={'uchuu_halo_id': np.int64, 'central': np.bool_})
+    df = read_and_combine_gf_output(gc, galprops)
+
+    gc.has_truth = True
+    df['is_sat_truth'] = np.invert(df.central)
+    df['Mh_bin_T'] = pd.cut(x = df['uchuu_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
+    # TODO BUG Need L_gal_T
+    truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
+    gc.truth_f_sat = truth_f_sat
+    gc.centrals_T = df[np.invert(df.is_sat_truth)]
+    gc.sats_T = df[df.is_sat_truth]
+
+    return df
+
+def process_MXXL(gc: GroupCatalog, compute_truth=False):
+    filename_props = str.replace(gc.GF_outfile, ".out", "_galprops.dat")
+    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'z_assigned_flag', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
+    df = read_and_combine_gf_output(gc, galprops)
+
+    gc.has_truth = compute_truth
+    df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3)
+    if compute_truth:
+        df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
+        df['L_gal_T'] = np.power(10, abs_mag_r_to_log_solar_L(app_mag_to_abs_mag_k(df.app_mag.to_numpy(), df.z_obs.to_numpy(), df.g_r.to_numpy())))
+        df['Lgal_bin_T'] = pd.cut(x = df['L_gal_T'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
+        gc.truth_f_sat = df.groupby('Lgal_bin_T').apply(fsat_truth_vmax_weighted)
+        gc.centrals_T = df[np.invert(df.is_sat_truth)]
+        gc.sats_T = df[df.is_sat_truth]
+
+    # TODO if we switch to using bins we need a Truth version of this
+    df['quiescent'] = is_quiescent_BGS_gmr(df.logLgal, df.g_r)
+
+    return df
+
+def process_BGS(gc: GroupCatalog):
+    filename_props = str.replace(gc.GF_outfile, ".out", "_galprops.dat")
+    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r', 'Dn4000'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
+    df = read_and_combine_gf_output(gc, galprops)
+    df['quiescent'] = is_quiescent_BGS_gmr(df.logLgal, df.g_r)
+    return df
+
+# TODO might be wise to double check that my manual calculation of q vs sf matches what the group finder was fed by
+# checking the input data. I think for now it should be exactly the same, but maybe we want it to be different for
+# apples to apples comparison between BGS and SDSS
+
 
 
 
