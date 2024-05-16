@@ -4,13 +4,12 @@ import matplotlib.pyplot as plt
 import astropy.coordinates as coord
 import astropy.units as u
 from pyutils import *
-import types
-import numpy.ma as ma
 import math
-import sys
 import pickle
-from scipy import special
 import subprocess as sp
+from hdf5_to_dat import pre_process_mxxl
+from BGS_fits_to_dat import pre_process_BGS
+from uchuu_to_dat import pre_process_uchuu
 
 # Shared bins for various purposes
 Mhalo_bins = np.logspace(10, 15.5, 40)
@@ -26,17 +25,15 @@ class GroupCatalog:
 
     def __init__(self, name):
         self.name = name
-        self.GF_outfile = BIN_FOLDER + self.name + ".out"
-        self.postprocess_func = None
-        self.results_file = BIN_FOLDER + self.name + ".pickle"
-        self.color = 'k'
+        self.file_pattern = BIN_FOLDER + self.name
+        self.GF_outfile = self.file_pattern + ".out"
+        self.results_file = self.file_pattern + ".pickle"
+        self.color = 'k' # plotting color; nothing to do with galaxies
         self.marker = '-'
-        self.preprocess_func = None # Can not set this if you already have a file ready to go into the group finder
-        self.preprocess_file = None # Set path to that file here instead
-        self.GF_props = {}
+        self.preprocess_file = None
+        self.GF_props = {} # Properties that are sent as command-line arguments to the group finder executable
 
         self.has_truth = False
-        #self.filename = filename[filename.rfind('/')+1 : len(filename)-4] # TODO fix...
         self.Mhalo_bins = Mhalo_bins
         self.labels = Mhalo_labels
         self.all_data = None
@@ -50,24 +47,20 @@ class GroupCatalog:
 
     def run_group_finder(self):
 
-        if self.preprocess_func is not None:
-            inname = self.preprocess_func() # TODO
-        else:
-            inname = self.preprocess_file
+        if self.preprocess_file is None:
+            print("Warning: no input file set. Cannot run group finder.")
+            return
 
         with open(self.GF_outfile, "w") as f:
 
             #args = [BIN_FOLDER + "kdGroupFinder_omp", inname, self.GF_props['zmin'], self.GF_props['zmax'], self.GF_props['frac_area'], self.GF_props['fluxlim'], self.GF_props['color'], self.GF_props['omegaL_sf'], self.GF_props['sigma_sf'], self.GF_props['omegaL_q'], self.GF_props['sigma_q'], self.GF_props['omega0_sf'], self.GF_props['omega0_q'], self.GF_props['beta0q'], self.GF_props['betaLq'], self.GF_props['beta0sf'], self.GF_props['betaLsf'], self.GF_outname]
             #sp.Popen(args, shell=True, stdout=sp.PIPE)
 
-            args = [BIN_FOLDER + "kdGroupFinder_omp", inname, *list(map(str,self.GF_props.values()))]
+            args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file, *list(map(str,self.GF_props.values()))]
             self.results = sp.run(args, cwd=BASE_FOLDER, stdout=f)
 
     def postprocess(self):
-
-        # Expecting postprocess_func(GroupCatalog) => DataFrame
-        if self.postprocess_func is not None:
-            self.all_data = self.postprocess_func(self)
+        if self.all_data is not None:
             
             # Compute some common aggregations upfront here
             # TODO make these lazilly evaluated properties on the GroupCatalog object
@@ -80,10 +73,143 @@ class GroupCatalog:
             self.centrals = self.all_data[self.all_data.index == self.all_data.igrp]
             self.sats = self.all_data[self.all_data.index != self.all_data.igrp]
         else:
-            print("Warning: no postprocesser function set. all_data DataFrame is not set.")
+            print("Warning: postprocess called with all_data DataFrame is not set yet. Override postprocess() or after calling run_group_finder() set it.")
 
+class SDSSGroupCatalog(GroupCatalog):
+    
+    def __init__(self, name):
+        super().__init__(name)
+        self.preprocess_file = SDSS_v1_DAT_FILE
+
+    def postprocess(self):
+        galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
+        galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
+        self.all_data = read_and_combine_gf_output(self, galprops)
+        self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
+        super().postprocess()
+
+class MXXLGroupCatalog(GroupCatalog):
+
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool):
+        super().__init__(name)
+        self.mode = mode
+        self.mag_cut = mag_cut
+        self.catalog_mag_cut = catalog_mag_cut
+        self.use_colors = use_colors
+        self.color = mode_to_color(mode)
+        
+
+    def preprocess(self):
+        fname, props = pre_process_mxxl(MXXL_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors)
+        self.preprocess_file = fname
+        for p in props:
+            self.GF_props[p] = props[p]
+
+    def run_group_finder(self):
+        if self.preprocess_file is None:
+            self.preprocess()
+        super().run_group_finder()
+
+
+    def postprocess(self):
+        filename_props = str.replace(self.GF_outfile, ".out", "_galprops.dat")
+        galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'z_assigned_flag', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
+        self.all_data = read_and_combine_gf_output(self, galprops)
+        df = self.all_data
+        self.has_truth = self.mode.value == Mode.ALL.value
+        df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3)
+        if self.has_truth:
+            df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
+            df['L_gal_T'] = np.power(10, abs_mag_r_to_log_solar_L(app_mag_to_abs_mag_k(df.app_mag.to_numpy(), df.z_obs.to_numpy(), df.g_r.to_numpy())))
+            df['Lgal_bin_T'] = pd.cut(x = df['L_gal_T'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
+            self.truth_f_sat = df.groupby('Lgal_bin_T').apply(fsat_truth_vmax_weighted)
+            self.centrals_T = df[np.invert(df.is_sat_truth)]
+            self.sats_T = df[df.is_sat_truth]
+
+        # TODO if we switch to using bins we need a Truth version of this
+        df['quiescent'] = is_quiescent_BGS_gmr(df.logLgal, df.g_r)
+
+        super().postprocess()
+
+
+class UchuuGroupCatalog(GroupCatalog):
+   
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool):
+        super().__init__(name)
+        self.mode = mode
+        self.mag_cut = mag_cut
+        self.catalog_mag_cut = catalog_mag_cut
+        self.use_colors = use_colors
+        self.color = get_color(9)
+
+    def preprocess(self):
+        fname, props = pre_process_uchuu(UCHUU_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors)
+        self.preprocess_file = fname
+        for p in props:
+            self.GF_props[p] = props[p]
+
+    def run_group_finder(self):
+        if self.preprocess_file is None:
+            self.preprocess()
+        super().run_group_finder()
+
+
+    def postprocess(self):
+        filename_props = str.replace(self.GF_outfile, ".out", "_galprops.dat")
+        galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'central', 'uchuu_halo_mass', 'uchuu_halo_id'), dtype={'uchuu_halo_id': np.int64, 'central': np.bool_})
+        df = read_and_combine_gf_output(self, galprops)
+        self.all_data = df
+
+        self.has_truth = True
+        self['is_sat_truth'] = np.invert(df.central)
+        self['Mh_bin_T'] = pd.cut(x = self['uchuu_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
+        # TODO BUG Need L_gal_T, the below is wrong!
+        truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
+        self.truth_f_sat = truth_f_sat
+        self.centrals_T = df[np.invert(df.is_sat_truth)]
+        self.sats_T = df[df.is_sat_truth]
+
+        # TODO add quiescent column
+
+        super().postprocess()
+
+class BGSGroupCatalog(GroupCatalog):
+    
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool):
+        super().__init__(name)
+        self.mode = mode
+        self.mag_cut = mag_cut
+        self.catalog_mag_cut = catalog_mag_cut
+        self.use_colors = use_colors
+        self.color = mode_to_color(mode)
+
+    def preprocess(self):
+        fname, props = pre_process_BGS(IAN_BGS_MERGED_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors)
+        self.preprocess_file = fname
+        for p in props:
+            self.GF_props[p] = props[p]
+
+    def run_group_finder(self):
+        if self.preprocess_file is None:
+            self.preprocess()
+        super().run_group_finder()
+
+    def postprocess(self):
+        filename_props = str.replace(self.GF_outfile, ".out", "_galprops.dat")
+        galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r', 'Dn4000'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
+        df = read_and_combine_gf_output(self, galprops)
+        self.all_data = df
+        df['quiescent'] = is_quiescent_BGS_gmr(df.logLgal, df.g_r)
+        super().postprocess()
+
+
+
+# np.array(zip(*[line.split() for line in f])[1], dtype=float)
 
 def serialize(gc: GroupCatalog):
+    # TODO this is a hack to get around class redefinitions invalidating serialized objects
+    # Mess up subclasses?!
+    gc.__class__ = eval(gc.__class__.__name__) #reset __class__ attribute
     with open(gc.results_file, 'wb') as f:
         pickle.dump(gc, f)
 
@@ -110,6 +236,20 @@ colors = prop_cycle.by_key()['color']
 def get_color(i):
     co = colors[i%len(colors)]
     return co
+
+def mode_to_color(mode: Mode):
+    if mode == Mode.ALL:
+        return get_color(0)
+    elif mode == Mode.FIBER_ASSIGNED_ONLY:
+        return get_color(1)
+    elif mode == Mode.NEAREST_NEIGHBOR:
+        return get_color(2)
+    elif mode == Mode.FANCY:
+        return get_color(3)
+    elif mode == Mode.SIMPLE:
+        return get_color(6)
+    elif mode == Mode.SIMPLE_v4:
+        return 'k'
 
 DPI = 400
 FONT_SIZE_DEFAULT = 12
@@ -208,58 +348,7 @@ def read_and_combine_gf_output(gc: GroupCatalog, galprops_df):
 
     return df # TODO update callers
 
-def process_sdss(gc: GroupCatalog):
-    galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
-    galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
-    all_data = read_and_combine_gf_output(gc, galprops)
-    all_data['quiescent'] = is_quiescent_SDSS_Dn4000(all_data.logLgal, all_data.Dn4000)
-    return all_data
 
-
-
-# TODO update below here
-def process_uchuu(gc: GroupCatalog):
-    filename_props = str.replace(gc.GF_outfile, ".out", "_galprops.dat")
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'central', 'uchuu_halo_mass', 'uchuu_halo_id'), dtype={'uchuu_halo_id': np.int64, 'central': np.bool_})
-    df = read_and_combine_gf_output(gc, galprops)
-
-    gc.has_truth = True
-    df['is_sat_truth'] = np.invert(df.central)
-    df['Mh_bin_T'] = pd.cut(x = df['uchuu_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
-    # TODO BUG Need L_gal_T
-    truth_f_sat = df.groupby('Lgal_bin').apply(fsat_truth_vmax_weighted)
-    gc.truth_f_sat = truth_f_sat
-    gc.centrals_T = df[np.invert(df.is_sat_truth)]
-    gc.sats_T = df[df.is_sat_truth]
-
-    return df
-
-def process_MXXL(gc: GroupCatalog, compute_truth=False):
-    filename_props = str.replace(gc.GF_outfile, ".out", "_galprops.dat")
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'z_assigned_flag', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
-    df = read_and_combine_gf_output(gc, galprops)
-
-    gc.has_truth = compute_truth
-    df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3)
-    if compute_truth:
-        df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
-        df['L_gal_T'] = np.power(10, abs_mag_r_to_log_solar_L(app_mag_to_abs_mag_k(df.app_mag.to_numpy(), df.z_obs.to_numpy(), df.g_r.to_numpy())))
-        df['Lgal_bin_T'] = pd.cut(x = df['L_gal_T'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
-        gc.truth_f_sat = df.groupby('Lgal_bin_T').apply(fsat_truth_vmax_weighted)
-        gc.centrals_T = df[np.invert(df.is_sat_truth)]
-        gc.sats_T = df[df.is_sat_truth]
-
-    # TODO if we switch to using bins we need a Truth version of this
-    df['quiescent'] = is_quiescent_BGS_gmr(df.logLgal, df.g_r)
-
-    return df
-
-def process_BGS(gc: GroupCatalog):
-    filename_props = str.replace(gc.GF_outfile, ".out", "_galprops.dat")
-    galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r', 'Dn4000'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
-    df = read_and_combine_gf_output(gc, galprops)
-    df['quiescent'] = is_quiescent_BGS_gmr(df.logLgal, df.g_r)
-    return df
 
 # TODO might be wise to double check that my manual calculation of q vs sf matches what the group finder was fed by
 # checking the input data. I think for now it should be exactly the same, but maybe we want it to be different for
@@ -703,6 +792,7 @@ def get_vir_radius_mine(halo_mass):
     rho_m = (_cosmo.critical_density(0) * _cosmo.Om(0))
     return np.power(((3/(4*math.pi)) * halo_mass / (200*rho_m)), (1/3)).to(u.kpc).value
 
+# TODO use this again if needed
 def post_process(frame):
     """
     # TODO make work for UCHUU too; need refactoring regarding halo mass property names, etc

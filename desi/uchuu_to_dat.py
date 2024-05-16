@@ -57,6 +57,25 @@ def main():
     ################
 
     mode = int(sys.argv[1])
+
+
+    APP_MAG_CUT = float(sys.argv[2])
+    CATALOG_APP_MAG_CUT = float(sys.argv[3])
+    
+    COLORS_ON = sys.argv[6]
+    if COLORS_ON:
+        print("\nColors not supported yet. Exiting...")
+        exit(5)
+
+    fpath = sys.argv[4]
+    outname_base = sys.argv[5]
+
+    pre_process_uchuu(fpath, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON)
+
+def pre_process_uchuu(in_filepath: str, mode: int, outname_base: str, app_mag_cut: float, catalog_app_mag_cut: float, colors_on: bool):
+
+    FOOTPRINT_FRAC = 1.0 # UCHUU is whole sky
+
     if mode == Mode.ALL.value:
         print("\nMode ALL")
     elif mode == Mode.FIBER_ASSIGNED_ONLY.value:
@@ -72,19 +91,9 @@ def main():
         print("\nMode SIMPLE not possible on UCHUU (no fiber assignment data)")
         exit(2)
 
-    APP_MAG_CUT = float(sys.argv[2])
-    CATALOG_APP_MAG_CUT = float(sys.argv[3])
-    FOOTPRINT_FRAC = 1.0 # UCHUU is whole sky
-    
-    COLORS_ON = sys.argv[6]
-    if COLORS_ON:
-        print("\nColors not supported yet. Exiting...")
-        exit(5)
+    print("Reading FITS data from ", in_filepath)
+    u_table = Table.read(in_filepath, format='fits')
 
-    print("Reading FITS data from ", sys.argv[4])
-    u_table = Table.read(sys.argv[4], format='fits')
-
-    outname_base = sys.argv[5]
 
     # read everything we need into memory
     dec = u_table['DEC']
@@ -99,7 +108,7 @@ def main():
     uchuu_halo_id = u_table['HALO_ID']
 
     # set up filters on the galaxies
-    bright_filter = app_mag < APP_MAG_CUT 
+    bright_filter = app_mag < app_mag_cut 
     redshift_filter = z_obs > 0 
     keep = np.all([bright_filter, redshift_filter], axis=0)
 
@@ -118,7 +127,7 @@ def main():
     uchuu_halo_id = uchuu_halo_id[keep]
 
     count = len(dec)
-    print(count, "galaxies left after apparent mag cut at {0}".format(APP_MAG_CUT))
+    print(count, "galaxies left after apparent mag cut at {0}".format(app_mag_cut))
 
     #with open('bin/prob_obs.npy', 'rb') as f:
     #   prob_obs = np.load(f)
@@ -137,7 +146,7 @@ def main():
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_me_k) 
 
     # the vmax should be calculated from un-k-corrected magnitudes
-    V_max = get_max_observable_volume(abs_mag_me, z_eff, APP_MAG_CUT, FOOTPRINT_FRAC)
+    V_max = get_max_observable_volume(abs_mag_me, z_eff, app_mag_cut, FOOTPRINT_FRAC)
 
     colors = np.zeros(count, dtype=np.int8) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
@@ -151,6 +160,9 @@ def main():
         np.array(uchuu_halo_id, dtype='str')
         ])
     write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, FOOTPRINT_FRAC, galprops)
+
+    return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': FOOTPRINT_FRAC }
+
 
 if __name__ == "__main__":
     main()

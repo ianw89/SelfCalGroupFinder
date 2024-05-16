@@ -56,13 +56,11 @@ def main():
     catalog_app_mag_cut = float(sys.argv[3])
     colors_on = sys.argv[6] == "1"
 
-    print("Reading FITS data from ", sys.argv[4])
-    # Unobserved galaxies have masked rows in appropriate columns of the table
-    table = Table.read(sys.argv[4], format='fits')
+    fname = sys.argv[4]
     
     outname_base = sys.argv[5] 
 
-    pre_process_BGS(table, mode, outname_base, app_mag_cut, catalog_app_mag_cut, colors_on)
+    pre_process_BGS(fname, mode, outname_base, app_mag_cut, catalog_app_mag_cut, colors_on)
 
 
 
@@ -70,12 +68,16 @@ def main():
     # MAIN CODE
     ################
 
-def pre_process_BGS(table, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON):
+def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON):
     """
     Pre-processes the BGS data for use with the group finder.
     """
     Z_MIN = 0.001
     Z_MAX = 0.8
+
+    print("Reading FITS data from ", fname)
+    # Unobserved galaxies have masked rows in appropriate columns of the table
+    table = Table.read(fname, format='fits')
     
     FOOTPRINT_FRAC_1pass = 0.187906 # As calculated from the randoms with 1-pass coverage
     FOOTPRINT_FRAC = 0.0649945 # As calculated from the randoms with 3-pass coverage. 1310 degrees
@@ -288,6 +290,10 @@ def pre_process_BGS(table, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         np.array(dn4000, dtype='str'),
         ])
     write_dat_files(ra, dec, z_eff, log_L_gal, V_max, quiescent, chi, outname_base, frac_area, galprops)
+
+    return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': FOOTPRINT_FRAC }
+
+
 
 if __name__ == "__main__":
     main()

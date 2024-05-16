@@ -2,7 +2,7 @@ import numpy as np
 import h5py
 import sys
 from pyutils import *
-from enum import Enum
+from dataloc import *
 
 # Chooses 1 of the 2048 fiber assignment realizations with this bitstring and BITWORD as 'bitweight[0-31]
 BITWORD = 'bitweight0'
@@ -86,17 +86,21 @@ def main():
         print("Unknown Mode")
         exit(4)
 
-    APP_MAG_CUT = float(sys.argv[2])
-    CATALOG_APP_MAG_CUT = float(sys.argv[3])
-    FOOTPRINT_FRAC = 14800 / 41253
-    COLORS_ON = sys.argv[6] == "1"
-    print(f"Color classificaiton sent to group finder: {COLORS_ON}")
+    app_mag_cut = float(sys.argv[2])
+    catalog_app_mag_cut = float(sys.argv[3])
+    colors_on = sys.argv[6] == "1"
 
-    print("Reading HDF5 data from ", sys.argv[4])
-    infile = h5py.File(sys.argv[4], 'r')
+    pre_process_mxxl(sys.argv[4], mode, sys.argv[5], app_mag_cut, catalog_app_mag_cut, colors_on)
+
+
+def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT: float, CATALOG_APP_MAG_CUT: float, COLORS_ON: bool):
+
+    print("Reading HDF5 data from ", in_filepath)
+    infile = h5py.File(in_filepath, 'r')
     print(list(infile['Data']))
 
-    outname_base = sys.argv[5]
+    FOOTPRINT_FRAC = 14800 / 41253
+    print(f"Color classification sent to group finder: {COLORS_ON}")
 
     # read everything we need into memory
     dec = infile['Data/dec'][:]
@@ -154,8 +158,9 @@ def main():
     print(f"Catalog for nearest neighbor calculations is of size {len(catalog_ra)}")
 
 
-    with open('bin/prob_obs.npy', 'rb') as f:
+    with open(MXXL_PROB_OBS_FILE, 'rb') as f:
        prob_obs = np.load(f)
+    assert len(prob_obs) == orig_count
     prob_obs = prob_obs[keep]
 
     # z_eff: same as z_obs if a fiber was assigned and thus a real redshift measurement was made
@@ -322,5 +327,9 @@ def main():
         ])
     write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, FOOTPRINT_FRAC, galprops)
         
+    return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': FOOTPRINT_FRAC }
+
+
+
 if __name__ == "__main__":
     main()

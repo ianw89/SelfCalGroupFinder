@@ -2,7 +2,6 @@ import numpy as np
 import astropy.units as u
 from astropy.cosmology import FlatLambdaCDM
 import astropy.coordinates as coord
-from datetime import datetime
 import time
 from enum import Enum
 from scipy import special
