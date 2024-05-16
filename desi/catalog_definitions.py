@@ -1,5 +1,5 @@
-from postprocess import GroupCatalog, get_color, MXXLGroupCatalog, SDSSGroupCatalog, UchuuGroupCatalog, BGSGroupCatalog
-from pyutils import Mode
+from groupcatalog import GroupCatalog, MXXLGroupCatalog, SDSSGroupCatalog, UchuuGroupCatalog, BGSGroupCatalog
+from pyutils import Mode, get_color
 
 BSAT_DEFAULT = 10
 

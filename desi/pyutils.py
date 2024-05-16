@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.units as u
+import matplotlib as plt
 from astropy.cosmology import FlatLambdaCDM
 import astropy.coordinates as coord
 import time
@@ -11,9 +12,14 @@ import kcorr.k_corrections as desikc
 from dataloc import *
 import pickle
 
+
 #sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
 #from hodpy.cosmology import CosmologyMXXL
 #from hodpy.k_correction import GAMA_KCorrection
+
+def get_color(i):
+    co = colors[i%len(colors)]
+    return co
 
 DEGREES_ON_SPHERE = 41253
 
@@ -25,6 +31,27 @@ class Mode(Enum):
     SIMPLE = 5
     SIMPLE_v4 = 6
 
+# Common PLT helpers
+prop_cycle = plt.rcParams['axes.prop_cycle']
+colors = prop_cycle.by_key()['color']
+def get_color(i):
+    co = colors[i%len(colors)]
+    return co
+
+def mode_to_color(mode: Mode):
+    if mode == Mode.ALL:
+        return get_color(0)
+    elif mode == Mode.FIBER_ASSIGNED_ONLY:
+        return get_color(1)
+    elif mode == Mode.NEAREST_NEIGHBOR:
+        return get_color(2)
+    elif mode == Mode.FANCY:
+        return get_color(3)
+    elif mode == Mode.SIMPLE:
+        return get_color(6)
+    elif mode == Mode.SIMPLE_v4:
+        return 'k'
+
 # using _h one makes distances Mpc / h instead
 _cosmo_h = FlatLambdaCDM(H0=100, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 _cosmo_mxxl = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
@@ -35,6 +62,9 @@ def get_MXXL_cosmology():
 SIM_Z_THRESH = 0.005
 def close_enough(target_z, z_arr, threshold=SIM_Z_THRESH):
     return np.abs(z_arr - target_z) < threshold
+
+def get_app_mag(FLUX_R):
+    return 22.5 - 2.5*np.log10(FLUX_R)
 
 def z_to_ldist(zs):
     """
