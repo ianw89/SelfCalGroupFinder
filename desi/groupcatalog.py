@@ -343,27 +343,30 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     # If a lost galaxy matches the SDSS catalog, grab it's redshift and use that
     # TODO BUG replace this with SDSS source galaxies list doesn't have any NN-assigned galaxies in it
-    sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla"))
-    if sdss_vanilla.all_data is not None:
-        print("Matching lost galaxies to SDSS catalog... ", end='\r')
+    if unobserved.sum() > 0:
+        sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla"))
+        if sdss_vanilla.all_data is not None:
 
-        sdss_catalog = coord.SkyCoord(ra=sdss_vanilla.all_data.RA.to_numpy()*u.degree, dec=sdss_vanilla.all_data.Dec.to_numpy()*u.degree, frame='icrs')
-        to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
+            sdss_catalog = coord.SkyCoord(ra=sdss_vanilla.all_data.RA.to_numpy()*u.degree, dec=sdss_vanilla.all_data.Dec.to_numpy()*u.degree, frame='icrs')
+            to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
+            print(f"Matching {len(to_match)} lost galaxies to {len(sdss_catalog)} SDSS galaxies")
+            idx, d2d, d3d = coord.match_coordinates_sky(to_match, sdss_catalog, nthneighbor=1, storekdtree=False)
+            ang_distances = d2d.to(u.arcsec).value
+            sdss_z = sdss_vanilla.all_data.iloc[idx]['z'].to_numpy()
 
-        idx, d2d, d3d = coord.match_coordinates_sky(to_match, sdss_catalog, nthneighbor=1, storekdtree=False)
+            # if angular distance is < 3", then we consider it a match to SDSS catalog and copy over it's z
+            ANGULAR_DISTANCE_MATCH = 3
+            matched = ang_distances < ANGULAR_DISTANCE_MATCH
+            
+            z_eff[unobserved] = np.where(matched, sdss_z, np.nan)            
+            unobserved[unobserved] = np.where(matched, False, unobserved[unobserved])
+            observed = np.invert(unobserved)
+            indexes_not_assigned = np.argwhere(unobserved)
 
-        # if angular distance is < 3", then we consider it a match to SDSS catalog and copy over it's z
-        ANGULAR_DISTANCE_MATCH = 3*u.arcsec
-        matched = d2d < ANGULAR_DISTANCE_MATCH
-        z_eff = np.where(matched, sdss_vanilla.all_data.iloc[idx]['z'], z_eff)
-        unobserved = np.where(matched, False, unobserved)
-        observed = np.invert(unobserved)
-
-        print("Matching lost galaxies to SDSS catalog... done")
-        print(f"{matched.sum()} of {first_need_redshift_count} redshifts taken from SDSS.")
-        print(f"{unobserved.sum()} remaining galaxies need redshifts.")
-    else:
-        print("No SDSS catalog to match to. Skipping.")
+            print(f"{matched.sum()} of {first_need_redshift_count} redshifts taken from SDSS.")
+            print(f"{unobserved.sum()} remaining galaxies need redshifts.")
+        else:
+            print("No SDSS catalog to match to. Skipping.")
 
     if mode == Mode.NEAREST_NEIGHBOR.value:
 
