@@ -198,6 +198,16 @@ _cat = bgs_simple_4
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
+bgs_simple_4_no_sdss = BGSGroupCatalog("Simple v4 BGS <19.5 no-sdss", Mode.SIMPLE_v4, 19.5, 21.0, False, sdss_fill=False)
+_cat = bgs_simple_4_no_sdss
+_cat.marker = '.'
+_cat.GF_props = GF_PROPS_VANILLA.copy()
+
+bgs_simple_4_4p = BGSGroupCatalog("Simple v4 BGS <19.5 4pass", Mode.SIMPLE_v4, 19.5, 21.0, False, num_passes=4)
+_cat = bgs_simple_4_4p
+_cat.marker = '.'
+_cat.GF_props = GF_PROPS_VANILLA.copy()
+
 bgs_simple_4_c = BGSGroupCatalog("Simple v4 BGS <19.5 c", Mode.SIMPLE_v4, 19.5, 21.0, True)
 _cat = bgs_simple_4_c
 _cat.marker = '--'

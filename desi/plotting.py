@@ -101,8 +101,8 @@ def plots(*datasets, truth_on=False):
     plt.figure(dpi=DPI)
     for f in datasets:
         if ('20' not in f.name):
-            lcen_means = f.centrals.groupby('Mh_bin').apply(Lgal_vmax_weighted)
-            lcen_scatter = f.centrals.groupby('Mh_bin').L_gal.std()
+            lcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+            lcen_scatter = f.centrals.groupby('Mh_bin', observed=False).L_gal.std()
             plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color, alpha=0.5)
     plt.xscale('log')
     plt.yscale('log')
@@ -118,8 +118,8 @@ def plots(*datasets, truth_on=False):
         plt.figure(dpi=DPI)
         for f in datasets:
             if ('20' in f.name):
-                lcen_means = f.centrals.groupby('Mh_bin').apply(Lgal_vmax_weighted)
-                lcen_scatter = f.centrals.groupby('Mh_bin').L_gal.std()
+                lcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+                lcen_scatter = f.centrals.groupby('Mh_bin', observed=False).L_gal.std()
                 plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
         plt.xscale('log')
         plt.xlabel('$M_{halo}$')
@@ -154,8 +154,8 @@ def plots(*datasets, truth_on=False):
             widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(datasets)
         
         # This version 1/vmax weights the counts
-        #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin').apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
-        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data.groupby('Lgal_bin').size(), width=widths, color=f.color, align='edge', alpha=0.4)
+        #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin', observed=False).apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
+        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data.groupby('Lgal_bin', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
         idx+=1
     ax2.set_ylabel('$N_{gal}$')
     ax2.set_yscale('log')
@@ -189,7 +189,7 @@ def plots(*datasets, truth_on=False):
     #    widths = np.zeros(len(f.L_gal_bins)-1)
     #    for i in range(0,len(f.L_gal_bins)-1):
     #        widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / (len(datasets))
-    #    ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data.is_sat == True].groupby('Lgal_bin').size(), width=widths, color=f.color, align='edge', alpha=0.4)
+    #    ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data.is_sat == True].groupby('Lgal_bin', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
     #    idx+=1
     #ax2.set_ylabel('$N_{sat}$')
     fig.tight_layout()
@@ -217,16 +217,16 @@ def plots_color_split_lost_split(f):
     plots_color_split_lost_split_inner(get_dataset_display_name(f), f.L_gal_labels, f.L_gal_bins, q_gals, sf_gals, fsat_vmax_weighted)
 
 def plots_color_split_lost_split_inner(name, L_gal_labels, L_gal_bins, q_gals, sf_gals, aggregation_func, show_plot=True):
-    q_lost = q_gals[q_gals.z_assigned_flag].groupby(['Lgal_bin'])
-    q_obs = q_gals[~q_gals.z_assigned_flag].groupby(['Lgal_bin'])
-    sf_lost = sf_gals[sf_gals.z_assigned_flag].groupby(['Lgal_bin'])
-    sf_obs = sf_gals[~sf_gals.z_assigned_flag].groupby(['Lgal_bin'])
+    q_lost = q_gals[q_gals.z_assigned_flag].groupby(['Lgal_bin'], observed=False)
+    q_obs = q_gals[~q_gals.z_assigned_flag].groupby(['Lgal_bin'], observed=False)
+    sf_lost = sf_gals[sf_gals.z_assigned_flag].groupby(['Lgal_bin'], observed=False)
+    sf_obs = sf_gals[~sf_gals.z_assigned_flag].groupby(['Lgal_bin'], observed=False)
     fsat_qlost = q_lost.apply(aggregation_func)
     fsat_qobs = q_obs.apply(aggregation_func)
     fsat_sflost = sf_lost.apply(aggregation_func)
     fsat_sfobs = sf_obs.apply(aggregation_func)
-    fsat_qtot = q_gals.groupby(['Lgal_bin']).apply(aggregation_func)
-    fsat_sftot = sf_gals.groupby(['Lgal_bin']).apply(aggregation_func)
+    fsat_qtot = q_gals.groupby(['Lgal_bin'], observed=False).apply(aggregation_func)
+    fsat_sftot = sf_gals.groupby(['Lgal_bin'], observed=False).apply(aggregation_func)
 
     if show_plot:
         fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(12,5))
@@ -306,9 +306,9 @@ def plots_color_split(*datasets, truth_on=False, total_on=False):
         fig.set_dpi(DPI)
         for f in datasets:
             if not hasattr(f, 'f_sat_q'):
-                f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
+                f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
             if not hasattr(f, 'f_sat_sf'):
-                f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin']).apply(fsat_vmax_weighted)
+                f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
             plt.plot(f.L_gal_labels, f.f_sat_q, f.marker, label=get_dataset_display_name(f) + " Quiescent", color='r')
             plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, label=get_dataset_display_name(f) + " Star-forming", color='b')
 
@@ -320,9 +320,9 @@ def plots_color_split(*datasets, truth_on=False, total_on=False):
                 if f.has_truth:
                     truth_on = False
                     if not hasattr(f, 'f_sat_q_t'):
-                        f.f_sat_q_t = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin']).apply(fsat_truth_vmax_weighted)
+                        f.f_sat_q_t = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_truth_vmax_weighted)
                     if not hasattr(f, 'f_sat_sf_t'):
-                        f.f_sat_sf_t = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin']).apply(fsat_truth_vmax_weighted)
+                        f.f_sat_sf_t = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_truth_vmax_weighted)
                     plt.plot(f.L_gal_labels, f.f_sat_q_t, 'x', label="Simulation's Truth", color='r')
                     plt.plot(f.L_gal_labels, f.f_sat_sf_t, 'x', label="Simulation's Truth", color='b')
 
@@ -435,10 +435,10 @@ def qf_cen_plot(*datasets):
     fig.set_dpi(DPI)
     for f in datasets:
         #if not hasattr(f, 'qf_gmr'):
-        f.qf_gmr = f.centrals.groupby('Lgal_bin').apply(qf_BGS_gmr_vmax_weighted)
+        f.qf_gmr = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_BGS_gmr_vmax_weighted)
         #if not hasattr(f, 'qf_dn4000'):
-        f.qf_dn4000 = f.centrals.groupby('Lgal_bin').apply(qf_Dn4000_smart_eq_vmax_weighted)
-        f.qf_dn4000_hard = f.centrals.groupby('Lgal_bin').apply(qf_Dn4000_1_6_vmax_weighted)
+        f.qf_dn4000 = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
+        f.qf_dn4000_hard = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_Dn4000_1_6_vmax_weighted)
         plt.plot(f.L_gal_labels, f.qf_gmr, '.', label=f'0.1^(g-r) < {GLOBAL_RED_COLOR_CUT}', color='b')
         plt.plot(f.L_gal_labels, f.qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
         plt.plot(f.L_gal_labels, f.qf_dn4000_hard, '-', label='Dn4000 > 1.6', color='r')
@@ -579,26 +579,26 @@ def test_purity_and_completeness(*sets):
         print(f"Completeness of centrals: {1 - (np.sum(true_centrals.is_sat) / len(true_centrals.index)):.3f}")
 
         assigned_true_sats = assigned_sats[assigned_sats.is_sat_truth == True]
-        assigned_sats_g = assigned_sats.groupby('Lgal_bin').size().to_numpy()
-        assigned_sats_correct_g = assigned_true_sats.groupby('Lgal_bin').size().to_numpy()
+        assigned_sats_g = assigned_sats.groupby('Lgal_bin', observed=False).size().to_numpy()
+        assigned_sats_correct_g = assigned_true_sats.groupby('Lgal_bin', observed=False).size().to_numpy()
         s.keep=np.nonzero(assigned_sats_g)
         s.purity_g = assigned_sats_correct_g[s.keep] / assigned_sats_g[s.keep]
 
         true_sats_assigned = true_sats[true_sats.is_sat == True]
-        true_sats_g = true_sats.groupby('Lgal_bin').size().to_numpy()
-        true_sats_correct_g = true_sats_assigned.groupby('Lgal_bin').size().to_numpy()
+        true_sats_g = true_sats.groupby('Lgal_bin', observed=False).size().to_numpy()
+        true_sats_correct_g = true_sats_assigned.groupby('Lgal_bin', observed=False).size().to_numpy()
         s.keep2=np.nonzero(true_sats_g)
         s.completeness_g = true_sats_correct_g[s.keep2] / true_sats_g[s.keep2]
 
         assigned_true_centrals = assigned_centrals[assigned_centrals.is_sat_truth == False]
-        assigned_centrals_g = assigned_centrals.groupby('Lgal_bin').size().to_numpy()
-        assigned_centrals_correct_g = assigned_true_centrals.groupby('Lgal_bin').size().to_numpy()
+        assigned_centrals_g = assigned_centrals.groupby('Lgal_bin', observed=False).size().to_numpy()
+        assigned_centrals_correct_g = assigned_true_centrals.groupby('Lgal_bin', observed=False).size().to_numpy()
         s.keep3=np.nonzero(assigned_centrals_g)
         s.purity_c_g = assigned_centrals_correct_g[s.keep3] / assigned_centrals_g[s.keep3]
 
         true_centrals_assigned = true_centrals[true_centrals.is_sat == False]
-        true_centrals_g = true_centrals.groupby('Lgal_bin').size().to_numpy()
-        true_centrals_correct_g = true_centrals_assigned.groupby('Lgal_bin').size().to_numpy()
+        true_centrals_g = true_centrals.groupby('Lgal_bin', observed=False).size().to_numpy()
+        true_centrals_correct_g = true_centrals_assigned.groupby('Lgal_bin', observed=False).size().to_numpy()
         s.keep4=np.nonzero(true_centrals_g)
         s.completeness_c_g = true_centrals_correct_g[s.keep4] / true_centrals_g[s.keep4]
 

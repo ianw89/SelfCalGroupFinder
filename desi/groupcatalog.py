@@ -63,8 +63,8 @@ class GroupCatalog:
             # Compute some common aggregations upfront here
             # TODO make these lazilly evaluated properties on the GroupCatalog object
             # Can put more of them into this pattern from elsewhere in plotting code then
-            self.f_sat = self.all_data.groupby('Lgal_bin').apply(fsat_vmax_weighted)
-            self.Lgal_counts = self.all_data.groupby('Lgal_bin').RA.count()
+            self.f_sat = self.all_data.groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
+            self.Lgal_counts = self.all_data.groupby('Lgal_bin', observed=False).RA.count()
 
             # Setup some convenience subsets of the DataFrame
             # TODO check memory implications of this
@@ -173,16 +173,18 @@ class UchuuGroupCatalog(GroupCatalog):
 
 class BGSGroupCatalog(GroupCatalog):
     
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool):
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool, sdss_fill: bool = True, num_passes: int = 3):
         super().__init__(name)
         self.mode = mode
         self.mag_cut = mag_cut
         self.catalog_mag_cut = catalog_mag_cut
         self.use_colors = use_colors
         self.color = mode_to_color(mode)
+        self.sdss_fill = sdss_fill
+        self.num_passes = num_passes
 
     def preprocess(self):
-        fname, props = pre_process_BGS(IAN_BGS_MERGED_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors)
+        fname, props = pre_process_BGS(IAN_BGS_MERGED_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors, self.sdss_fill, self.num_passes)
         self.preprocess_file = fname
         for p in props:
             self.GF_props[p] = props[p]
@@ -213,13 +215,15 @@ def serialize(gc: GroupCatalog):
 def deserialize(gc: GroupCatalog):
     gc.__class__ = eval(gc.__class__.__name__) #reset __class__ attribute
     with open(gc.results_file, 'rb') as f:    
-        return pickle.load(f)
+        o: GroupCatalog = pickle.load(f)
+        if o.all_data is None:
+            print(f"Warning: deserialized object {o.name} has no all_data DataFrame.")
+        return o
 
 
 
 
-
-def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON):
+def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON, sdss_fill, num_passes_required):
     """
     Pre-processes the BGS data for use with the group finder.
     """
@@ -230,12 +234,23 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # Unobserved galaxies have masked rows in appropriate columns of the table
     table = Table.read(fname, format='fits')
     
-    FOOTPRINT_FRAC_1pass = 0.187906 # As calculated from the randoms with 1-pass coverage
-    FOOTPRINT_FRAC = 0.0649945 # As calculated from the randoms with 3-pass coverage. 1310 degrees
+    # These are calculated from randoms in BGS_study.ipynb
+    FOOTPRINT_FRAC_1pass = 0.187906 # 7751 degrees
+    FOORPRINT_FRAC_2pass = 0.1154274 # 4761 degrees
+    FOOTPRINT_FRAC_3pass = 0.0649945 # 1310 degrees
+    FOOTPRINT_FRAC_4pass = 0.0228144 # 941 degrees
     # TODO update footprint with new calculation from ANY. It shouldn't change.
-    frac_area = FOOTPRINT_FRAC
-    if mode == Mode.ALL.value:
+    if mode == Mode.ALL.value or num_passes_required == 1:
         frac_area = FOOTPRINT_FRAC_1pass
+    elif num_passes_required == 2:
+        frac_area = FOORPRINT_FRAC_2pass
+    elif num_passes_required == 3:
+        frac_area = FOOTPRINT_FRAC_3pass
+    elif num_passes_required == 4:
+        frac_area = FOOTPRINT_FRAC_4pass
+    else:
+        print(f"Need footprint calculation for num_passes_required = {num_passes_required}. Exiting")
+        exit(2)
 
     if mode == Mode.ALL.value:
         print("\nMode FIBER ASSIGNED ONLY 1+ PASSES")
@@ -278,7 +293,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # null values (masked rows) are unobserved targets; not all columns are masked though
 
     # Make filter arrays (True/False values)
-    three_pass_filter = table['NTILE_MINE'] >= 3 # 3pass coverage
+    multi_pass_filter = table['NTILE_MINE'] >= num_passes_required # 3pass coverage
     galaxy_observed_filter = obj_type == b'GALAXY'
     app_mag_filter = app_mag_r < APP_MAG_CUT
     redshift_filter = z_obs > Z_MIN
@@ -295,10 +310,10 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         keep = np.all([observed_requirements], axis=0)
 
     if mode == Mode.FIBER_ASSIGNED_ONLY.value: # means 3pass 
-        keep = np.all([three_pass_filter, observed_requirements], axis=0)
+        keep = np.all([multi_pass_filter, observed_requirements], axis=0)
 
     if mode == Mode.NEAREST_NEIGHBOR.value or mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
-        keep = np.all([three_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
+        keep = np.all([multi_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
         # TODO why bother with this for the real data? Use all we got, right? 
@@ -343,7 +358,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     # If a lost galaxy matches the SDSS catalog, grab it's redshift and use that
     # TODO BUG replace this with SDSS source galaxies list doesn't have any NN-assigned galaxies in it
-    if unobserved.sum() > 0:
+    if unobserved.sum() > 0 and sdss_fill:
         sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla"))
         if sdss_vanilla.all_data is not None:
 
@@ -472,7 +487,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         ])
     write_dat_files(ra, dec, z_eff, log_L_gal, V_max, quiescent, chi, outname_base, frac_area, galprops)
 
-    return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': FOOTPRINT_FRAC }
+    return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': frac_area }
 
 
 
