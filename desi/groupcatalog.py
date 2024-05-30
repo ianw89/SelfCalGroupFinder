@@ -6,6 +6,7 @@ from pyutils import *
 import pickle
 import subprocess as sp
 from astropy.table import Table
+import astropy.io.fits as fits
 from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
 
@@ -15,6 +16,9 @@ Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1]
 
 L_gal_bins = np.logspace(6, 12.5, 40)
 L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1]
+
+mstar_bins = np.logspace(6, 13, 40)
+mstar_labels = mstar_bins[0:len(mstar_bins)-1]
 
 Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
 
@@ -173,6 +177,8 @@ class UchuuGroupCatalog(GroupCatalog):
 
 class BGSGroupCatalog(GroupCatalog):
     
+    extra_prop_df: pd.DataFrame = None
+
     def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool, sdss_fill: bool = True, num_passes: int = 3):
         super().__init__(name)
         self.mode = mode
@@ -198,10 +204,31 @@ class BGSGroupCatalog(GroupCatalog):
         filename_props = str.replace(self.GF_outfile, ".out", "_galprops.dat")
         galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r', 'Dn4000'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
         df = read_and_combine_gf_output(self, galprops)
-        self.all_data = df
         df['quiescent'] = is_quiescent_BGS_gmr(df.logLgal, df.g_r)
+
+        # Get extra fastspecfit columns. Could have threaded these through with galprops
+        # But if they aren't used in group finding or preprocessing this is easier to update
+        if BGSGroupCatalog.extra_prop_df is None:
+            BGSGroupCatalog.extra_prop_df = get_extra_bgs_fastspectfit_data()
+        
+        prior_len = len(df)
+        df = pd.merge(df, BGSGroupCatalog.extra_prop_df, on='target_id', how='left')
+        assert prior_len == len(df)
+        df['Mstar_bin'] = pd.cut(x = df['mstar'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
+
+        self.all_data = df
         super().postprocess()
 
+def get_extra_bgs_fastspectfit_data():
+    hdul = fits.open(BGS_FASTSPEC_FILE, memmap=True)
+    #print(hdul[1].columns)
+    data = hdul[1].data
+    fastspecfit_id = data['TARGETID']
+    log_mstar = data['LOGMSTAR'].astype("<f8")
+    mstar = np.power(10, log_mstar)
+    hdul.close()
+
+    return pd.DataFrame({'target_id': fastspecfit_id, 'mstar': mstar})
 
 
 
@@ -556,6 +583,33 @@ def Lgal_vmax_weighted(series):
         return 0
     else:
         return np.average(series.L_gal, weights=1/series.V_max)
+
+# TODO not sure right way to do std error for this sort of data
+def Lgal_std_vmax_weighted(series):
+    """Lognormal error on Lgal"""
+    if len(series) == 0:
+        return 0
+    else:
+        return np.power(10, np.sqrt(np.average((np.log(series.L_gal) - np.log(Lgal_vmax_weighted(series)))**2, weights=1/series.V_max)))
+
+def mstar_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        should_mask = np.logical_or(series.z_assigned_flag, np.isnan(series.mstar))
+        masked_mstar = np.ma.masked_array(series.mstar, should_mask)
+        masked_vmax = np.ma.masked_array(series.V_max, should_mask)
+        return np.average(masked_mstar, weights=1/masked_vmax)
+
+# TODO not sure right way to do std error for this sort of data
+def mstar_std_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        should_mask = np.logical_or(series.z_assigned_flag, np.isnan(series.mstar))
+        masked_mstar = np.ma.masked_array(series.mstar, should_mask)
+        masked_vmax = np.ma.masked_array(series.V_max, should_mask)
+        return np.sqrt(np.average((masked_mstar - mstar_vmax_weighted(series))**2, weights=1/masked_vmax))
 
 def qf_Dn4000_1_6_vmax_weighted(series):
     if len(series) == 0:

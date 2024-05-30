@@ -97,21 +97,23 @@ def plots(*datasets, truth_on=False):
         if ('20' in f.name):
             contains_20_data = True
     
+    # TODO: I believe that Mh and Mstar don't have any h factors, but should double check.
+    # Probably depends on what was given to the group finder?
     # LHMR
     plt.figure(dpi=DPI)
     for f in datasets:
         if ('20' not in f.name):
             lcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-            lcen_scatter = f.centrals.groupby('Mh_bin', observed=False).L_gal.std()
-            plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color, alpha=0.5)
+            lcen_scatter = f.centrals.groupby('Mh_bin', observed=False).L_gal.std() # TODO not right?
+            plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('$M_{halo}$')
     plt.ylabel('$L_{cen}$')
     #plt.title("Central Luminosity vs. Halo Mass")
     legend(datasets)
-    plt.xlim(2E11,1E15)
-    plt.ylim(3E8,2E12)
+    plt.xlim(1E10,1E15)
+    plt.ylim(3E7,2E12)
     plt.draw()
 
     if contains_20_data:
@@ -122,13 +124,60 @@ def plots(*datasets, truth_on=False):
                 lcen_scatter = f.centrals.groupby('Mh_bin', observed=False).L_gal.std()
                 plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
         plt.xscale('log')
+        plt.yscale('log')
         plt.xlabel('$M_{halo}$')
         plt.ylabel('$log(L_{cen})$')
         plt.title("Central Luminosity vs. Halo Mass")
         legend(datasets)
-        plt.xlim(2E11,1E15)
-        plt.ylim(3E7,3E12)
+        plt.xlim(1E10,1E15)
+        plt.ylim(3E8,2E12)
         plt.draw()
+
+    # SHMR
+    plt.figure(dpi=DPI)
+    for f in datasets:
+        mcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+        #mcen_scatter = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_std_vmax_weighted)
+        plt.plot(f.labels, mcen_means, f.marker, label=get_dataset_display_name(f), color=f.color)
+        #plt.errorbar(f.labels, mcen_means, yerr=mcen_scatter, label=get_dataset_display_name(f), color=f.color)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('$M_{halo}$')
+    plt.ylabel('$M_{\\star}$')
+    legend(datasets)
+    plt.xlim(1E10,1E15)
+    #plt.ylim(1E6,3E12)
+    plt.draw()
+
+    # SHMR fractional
+    fig,ax1=plt.subplots()
+    fig.set_dpi(DPI)
+    for f in datasets:
+        mcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+        #mcen_scatter = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_std_vmax_weighted)
+        plt.plot(f.labels, mcen_means/f.labels, f.marker, label=get_dataset_display_name(f), color=f.color)
+        #plt.errorbar(f.labels, mcen_means/f.labels, yerr=mcen_scatter/f.labels, label=get_dataset_display_name(f), color=f.color)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('$M_{halo}$')
+    plt.ylabel('$M_{\\star}/M_{halo}$')
+    legend(datasets)
+    plt.xlim(1E10,1E15)
+    #plt.ylim(1E6,3E12)
+    ax2 = ax1.twinx()
+    idx = 0
+    for f in datasets:
+        widths = np.zeros(len(f.Mhalo_bins)-1)
+        for i in range(0,len(f.Mhalo_bins)-1):
+            widths[i]=(f.Mhalo_bins[i+1] - f.Mhalo_bins[i]) / len(datasets)
+        
+        # This version 1/vmax weights the counts
+        #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin', observed=False).apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
+        ax2.bar(f.labels+(widths*idx), f.all_data.groupby('Mh_bin', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
+        idx+=1
+    ax2.set_ylabel('$N_{gal}$')
+    ax2.set_yscale('log')
+    plt.draw()
 
     # fsat vs Lgal with Ngal
     fig,ax1=plt.subplots()
@@ -152,7 +201,6 @@ def plots(*datasets, truth_on=False):
         widths = np.zeros(len(f.L_gal_bins)-1)
         for i in range(0,len(f.L_gal_bins)-1):
             widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(datasets)
-        
         # This version 1/vmax weights the counts
         #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin', observed=False).apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
         ax2.bar(f.L_gal_labels+(widths*idx), f.all_data.groupby('Lgal_bin', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
