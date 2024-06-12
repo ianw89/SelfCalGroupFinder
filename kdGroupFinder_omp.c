@@ -154,7 +154,7 @@ int main(int argc, char **argv)
   groupfind();
   OUTPUT = 0;
   // NB: nothing with the halo files
-  exit(0);
+  // exit(0);
   lsat_model();
   tabulate_hods();
   populate_simulation_omp(-1, 0, 0);

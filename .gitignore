@@ -2,7 +2,7 @@ bin/
 obj/
 data/
 __pycache__/*
+**/__pycache__/*
 figs/
-desi/__pycache__/*
-desi/kcorr/__pycache__/*
 .DS_Store
+MCMC/mcmc_*/

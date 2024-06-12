@@ -1,0 +1,63 @@
+#!/bin/tcsh
+#PBS -q batch
+#PBS -N ian.emcee
+#PBS -l nodes=1:ppn=24
+#PBS -j oe
+#PBS -m abe
+#PBS -M ianwilliams@nyu.edu
+
+#%~dp0
+
+#set basepath = /export/sirocco1/imw2293/GROUP_CAT/MCMC/
+#if ( ! -e $basepath/???) then
+#    set basepath = /mount/sirocco1/imw2293/GROUP_CAT/MCMC/
+#endif
+
+set echo
+#cd $PBS_O_WORKDIR
+pwd
+cd /home/users/imw2293/SelfCalGroupFinder/MCMC
+#cd  /mount/sirocco1/imw2293/GROUP_CAT/MCMC/
+pwd
+set python=/home/users/imw2293/.conda/envs/ian-conda311/bin/python3.11
+setenv OMP_NUM_THREADS 12
+echo $OMP_NUM_THREADS
+
+set i = 7
+while ( $i < 8 )
+
+if (-d mcmc_$i) then
+    echo "Directory already exists"
+    # ask user if we should continue or exit
+    echo "Do you want to overwrite it? (y/n)"
+    set answer = $<
+    if ( $answer == "n" ) then
+        exit
+    endif
+endif
+
+mkdir mcmc_$i
+cd mcmc_$i
+cp ../parameters/wp_* .
+cp ../../halo_mass_function.dat .
+cp ../sh.wp .
+cp ../../lsat_lookup.dat .
+cp ../parameters/Lsat_SDSS_DnGMM.dat .
+cp ../parameters/lsat_sdss_con.dat .
+
+# groupfind.mcmc3.py call with parameters:
+# 1: galaxy file to input into group finder
+# 2: a random seed to use (for MCMC)
+# The output is written to a file called out.$i in this mcmc_$i folder
+# TODO add & again when we want to parallelize seperate seeded MCMCs
+$python /home/users/imw2293/SelfCalGroupFinder/MCMC/groupfind_mcmc3.py /home/users/imw2293/SelfCalGroupFinder/data/SDSS/sdss_fluxlim_v1.0.dat $i > out.$i
+@ i = $i + 1
+cd ..
+
+end
+wait
+
+exit
+
+
+
