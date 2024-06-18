@@ -27,7 +27,7 @@ class GroupCatalog:
 
     def __init__(self, name):
         self.name = name
-        self.file_pattern = BIN_FOLDER + self.name
+        self.file_pattern = OUTPUT_FOLDER + self.name
         self.GF_outfile = self.file_pattern + ".out"
         self.results_file = self.file_pattern + ".pickle"
         self.color = 'k' # plotting color; nothing to do with galaxies
@@ -250,7 +250,7 @@ def deserialize(gc: GroupCatalog):
 
 
 
-def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON, sdss_fill, num_passes_required):
+def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON, sdss_fill, num_passes_required, year):
     """
     Pre-processes the BGS data for use with the group finder.
     """
@@ -262,10 +262,22 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     table = Table.read(fname, format='fits')
     
     # These are calculated from randoms in BGS_study.ipynb
-    FOOTPRINT_FRAC_1pass = 0.187906 # 7751 degrees
-    FOORPRINT_FRAC_2pass = 0.1154274 # 4761 degrees
-    FOOTPRINT_FRAC_3pass = 0.0649945 # 1310 degrees
-    FOOTPRINT_FRAC_4pass = 0.0228144 # 941 degrees
+    if year == 1:
+        # For Y1-Iron  
+        FOOTPRINT_FRAC_1pass = 0.187906 # 7751 degrees
+        FOORPRINT_FRAC_2pass = 0.1154274 # 4761 degrees
+        FOOTPRINT_FRAC_3pass = 0.0649945 # 1310 degrees
+        FOOTPRINT_FRAC_4pass = 0.0228144 # 941 degrees
+    elif year == 3:
+        # For Y3-Jura
+        FOOTPRINT_FRAC_1pass = 0.310691 # 12816 degrees
+        FOORPRINT_FRAC_2pass = 0.286837 # 11832 degrees
+        FOOTPRINT_FRAC_3pass = 0.233920 # 9649 degrees
+        FOOTPRINT_FRAC_4pass = 0.115183 # 4751 degrees
+    else:
+        print("Invalid year. Exiting.")
+        exit(2)
+
     # TODO update footprint with new calculation from ANY. It shouldn't change.
     if mode == Mode.ALL.value or num_passes_required == 1:
         frac_area = FOOTPRINT_FRAC_1pass
@@ -300,13 +312,13 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     obj_type = table['SPECTYPE'].data.data
     dec = table['DEC']
     ra = table['RA']
-    z_obs = table['Z_not4clus'].data.data
+    z_obs = table['Z'].data.data
     target_id = table['TARGETID']
     app_mag_r = get_app_mag(table['FLUX_R'])
     app_mag_g = get_app_mag(table['FLUX_G'])
     g_r = app_mag_g - app_mag_r
     p_obs = table['PROB_OBS']
-    unobserved = table['Z_not4clus'].mask # the masked values are what is unobserved
+    unobserved = table['Z'].mask # the masked values are what is unobserved
     deltachi2 = table['DELTACHI2'].data.data  
     dn4000 = table['DN4000'].data.data
     
