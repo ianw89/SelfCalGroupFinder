@@ -1,5 +1,5 @@
 #! /bin/tcsh -f
-set echo
+#set echo
 
 # -- these are populated from the group finder - using CORRFUNC
 set pp = /export/sirocco1/tinker/src/Corrfunc/bin/
