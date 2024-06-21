@@ -15,6 +15,7 @@ CFLAGS = -O2 -fopenmp
 #CC = gcc-11
 #CFLAGS = -O2 -fopenmp
 
+SRCDIR = src
 ODIR = obj
 BDIR = bin
 
@@ -25,7 +26,7 @@ OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 main: $(BDIR)/kdGroupFinder_omp
 
-$(ODIR)/%.o: %.c 
+$(ODIR)/%.o: $(SRCDIR)/%.c 
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 $(BDIR)/kdGroupFinder_omp:	$(OBJ)
