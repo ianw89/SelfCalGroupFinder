@@ -6,6 +6,7 @@ import astropy.units as u
 from pyutils import *
 import math
 from groupcatalog import *
+from matplotlib.patches import Circle
 
 # np.array(zip(*[line.split() for line in f])[1], dtype=float)
 
@@ -501,31 +502,6 @@ def qf_cen_plot(*datasets):
     ax1.set_xlim(X_MIN,X_MAX)
     ax1.set_ylim(0.0,1.0)
 
-# It gives same result as NFW version! Good
-def get_vir_radius_mine(halo_mass):
-    _cosmo = get_MXXL_cosmology()
-    rho_m = (_cosmo.critical_density(0) * _cosmo.Om(0))
-    return np.power(((3/(4*math.pi)) * halo_mass / (200*rho_m)), (1/3)).to(u.kpc).value
-
-# TODO use this again if needed
-def post_process(frame):
-    """
-    # TODO make work for UCHUU too; need refactoring regarding halo mass property names, etc
-    """
-    df: pd.DataFrame = frame.all_data
-    
-    # Calculate additional halo properties
-    masses = df.loc[:, 'mxxl_halo_mass'].to_numpy() * 1E10 * u.solMass
-    df.loc[:, 'mxxl_halo_vir_radius_guess'] = get_vir_radius_mine(masses)
-
-    _cosmo = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
-    # TODO comoving or proper?
-    as_per_kpc = _cosmo.arcsec_per_kpc_proper(df.loc[:, 'z'].to_numpy())
-    df.loc[:, 'mxxl_halo_vir_radius_guess_arcsec'] =  df.loc[:, 'mxxl_halo_vir_radius_guess'] * as_per_kpc.to(u.arcsec / u.kpc).value
-
-    # Luminosity distance to z_obs
-    df.loc[:, 'ldist_true'] = z_to_ldist(df.z_obs.to_numpy())
-
 
 
 # Halo Masses (in group finder abundance matching)
@@ -768,3 +744,188 @@ def assigned_halo_analysis(*sets):
         #plt.xlabel('$z_{eff}$ (effective/assigned redshift)')
         #plt.ylabel('Fraction Assigned Halo = True Host Halo')
         
+
+
+# TODO could use angular size / redshift relation as part of this :-)
+def _getsize(z):
+    if z < 0.05:
+        return 300
+    elif z < 0.1:
+        return 200
+    elif z < 0.2:
+        return 120
+    elif z < 0.2:
+        return 75
+    elif z < 0.3:
+        return 45
+    elif z < 0.4:
+        return 25
+    elif z < 0.5:
+        return 15
+    elif z < 0.6:
+        return 8
+    else:
+        return 3
+
+def examine_area(ra_min, ra_max, dec_min, dec_max, data: pd.DataFrame):
+    length_arcmin = (ra_max - ra_min) * 60
+    galaxies = data.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
+    centrals = galaxies.query('is_sat == False')
+    sats = galaxies.query('is_sat == True')
+    textsize = 9
+
+    fig,ax = plt.subplots(1)
+    fig.set_size_inches(10,10)
+    ax.set_aspect('equal')
+
+    plt.scatter(centrals.RA, centrals.Dec, s=list(map(lambda x: _getsize(x)/(length_arcmin/10), centrals.z)), color='k')
+    plt.scatter(sats.RA, sats.Dec, s=list(map(lambda x: _getsize(x)/(length_arcmin/10), sats.z)), color='b')
+    plt.xlabel('RA')
+    plt.ylabel('Dec')
+    plt.title("Galaxies in Area")
+    plt.xlim(ra_min, ra_max)
+    plt.ylim(dec_min, dec_max)
+
+    # Add patches for virial radius of halos of centrals
+    for k in range(len(centrals)):
+        current = centrals.iloc[k]
+        radius = current.halo_radius_arcsec / 3600 # arcsec to degrees, like the plot
+        circ = Circle((current.RA,current.Dec), radius, color=get_color(0), alpha=0.10)
+        ax.add_patch(circ)
+
+    if len(galaxies) < 50:
+        for k in range(len(galaxies)):
+            plt.text(galaxies.iloc[k].RA, galaxies.iloc[k].Dec, "{0:.3f}".format(galaxies.iloc[k].z), size=textsize)
+
+    return galaxies
+
+def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord.Angle('5m')):
+
+    z_eff = target.z
+    #target_dist_true = z_to_ldist(target.z_obs)
+
+    ra_max = (coord.Angle(target.RA*u.degree) + nearby_angle).value
+    ra_min = (coord.Angle(target.RA*u.degree) - nearby_angle).value
+    dec_max = (coord.Angle(target.Dec*u.degree) + nearby_angle).value
+    dec_min = (coord.Angle(target.Dec*u.degree) - nearby_angle).value
+
+    nearby = data.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
+    nearby = nearby.drop(target.name) # drop the target itself from this df
+
+    target_observed = 'z_assigned_flag' not in nearby.columns or ~target.z_assigned_flag
+
+    # check if nearby has column z_assigned_flag
+    if 'z_assigned_flag' in nearby.columns:
+        nearby_obs = nearby.loc[nearby['z_assigned_flag'] == 0]
+        nearby_unobs = nearby.loc[nearby['z_assigned_flag'] == 1]
+    else:
+        nearby_obs = nearby
+        nearby_unobs = False
+
+    z_match = nearby_obs.query('z == @z_eff')
+    #assert len(z_match) == 1, len(z_match) # TODO need a better way to verify which row is the one that we assigned the z from
+    if len(z_match) > 0:
+        z_match = z_match.iloc[0]
+    #nearby_obs = nearby_obs.drop(z_match.name)
+
+    good_obs_z_filter = list(map(lambda a: close_enough(target.z, a), nearby_obs.z))
+    nearby_obs_good_z = nearby_obs.loc[good_obs_z_filter]
+    nearby_obs_good_z_dim = nearby_obs_good_z.loc[nearby_obs_good_z.app_mag > 19.5]
+    nearby_obs_good_z = nearby_obs_good_z.loc[np.invert(nearby_obs_good_z.app_mag > 19.5)]
+
+    if len(good_obs_z_filter) > 0:
+        nearby_obs_other = nearby_obs.loc[np.invert(good_obs_z_filter)]
+    else:
+        nearby_obs_other = nearby_obs
+    nearby_obs_other_dim = nearby_obs_other.loc[nearby_obs_other.app_mag > 19.5]
+    nearby_obs_other = nearby_obs_other.loc[np.invert(nearby_obs_other.app_mag > 19.5)]
+
+    if nearby_unobs is not False:
+        good_unobs_z_filter = list(map(lambda a: close_enough(target.z, a), nearby_unobs['z']))
+
+        nearby_unobs_good_z = nearby_unobs.loc[good_unobs_z_filter]
+        if good_unobs_z_filter:
+            nearby_unobs_other = nearby_unobs.loc[np.invert(good_unobs_z_filter)]
+            nearby_unobs_other_dim = nearby_unobs_other.loc[nearby_unobs_other.app_mag > 19.5]
+            nearby_unobs_other = nearby_unobs_other.loc[np.invert(nearby_unobs_other.app_mag > 19.5)]
+        else:
+            nearby_unobs_other = nearby_unobs_good_z # empty df
+            nearby_unobs_other_dim = nearby_unobs_good_z
+
+        nearby_unobs_good_z_dim = nearby_unobs_good_z.loc[nearby_unobs_good_z.app_mag > 19.5]
+        nearby_unobs_good_z = nearby_unobs_good_z.loc[np.invert(nearby_unobs_good_z.app_mag > 19.5)]
+
+    if target_observed:
+        title = "Observed Galaxy {0}: z_true={1:.3f}, z_NN={2:.3f}".format(target.name, target.z, target.z)
+    else:
+        title = "Lost Galaxy {0}: z_true={1:.3f}, z_NN={2:.3f}".format(target.name, target.z, target.z)
+
+    if len(nearby) > 1:
+
+        fig,ax = plt.subplots(1)
+        fig.set_size_inches(10,10)
+        ax.set_aspect('equal')
+
+        # Add virial radii or MXXL Halos to the observed galaxies
+        for k in range(len(nearby_obs)):
+            current = nearby_obs.iloc[k]
+            if current.is_sat:
+                continue
+            radius = current.halo_radius_arcsec / 3600 # arcsec to degrees, like the plot
+            #radius = current.mxxl_halo_vir_radius_guess_arcsec / 3600 # arcsec to degrees, like the plot
+            circ = Circle((current.RA,current.Dec), radius, color=get_color(0), alpha=0.10)
+            ax.add_patch(circ)
+
+        textsize = 9
+        dimalpha = 0.4
+
+        plt.scatter(nearby_obs_other.RA, nearby_obs_other.Dec, s=list(map(_getsize, nearby_obs_other.z)), color=get_color(0), label="Obs ({0})".format(len(nearby_obs_other)))
+        if len(nearby_obs_other_dim) > 0:
+            plt.scatter(nearby_obs_other_dim.RA, nearby_obs_other_dim.Dec, s=list(map(_getsize, nearby_obs_other_dim.z)), color=get_color(2), alpha=dimalpha, label="Obs dim ({0})".format(len(nearby_obs_other_dim)))
+        
+        plt.scatter(nearby_obs_good_z.RA, nearby_obs_good_z.Dec, s=list(map(_getsize, nearby_obs_good_z.z)), color=get_color(2), label="Obs good z ({0})".format(len(nearby_obs_good_z)))
+        if len(nearby_obs_good_z_dim) > 0:
+            plt.scatter(nearby_obs_good_z_dim.RA, nearby_obs_good_z_dim.Dec, s=list(map(_getsize, nearby_obs_good_z_dim.z)), color=get_color(0), alpha=dimalpha, label="Obs good z dim ({0})".format(len(nearby_obs_good_z_dim)))
+
+        if nearby_unobs is not False:
+            plt.scatter(nearby_unobs_other.RA, nearby_unobs_other.Dec, marker='x', s=list(map(_getsize, nearby_unobs_other.z)), color=get_color(0), label="Unobs ({0})".format(len(nearby_unobs_other)))
+            if len(nearby_unobs_other_dim) > 0:
+                plt.scatter(nearby_unobs_other_dim.RA, nearby_unobs_other_dim.Dec, marker='x', s=list(map(_getsize, nearby_unobs_other_dim.z)), color=get_color(0), alpha=dimalpha, label="Unobs dim ({0})".format(len(nearby_unobs_other_dim)))
+            
+            plt.scatter(nearby_unobs_good_z.RA, nearby_unobs_good_z.Dec, marker='x', s=list(map(_getsize, nearby_unobs_good_z.z)), color=get_color(2), label="Unobs good z ({0})".format(len(nearby_unobs_good_z)))
+            if len(nearby_unobs_good_z_dim) > 0:
+                plt.scatter(nearby_unobs_good_z_dim.RA, nearby_unobs_good_z_dim.Dec, marker='x', s=list(map(_getsize, nearby_unobs_good_z_dim.z)), color=get_color(2), alpha=dimalpha, label="Unobs good z dim ({0})".format(len(nearby_unobs_good_z_dim)))
+            
+        # redshift data labels
+        for k in range(len(nearby_obs)):
+            plt.text(nearby_obs.iloc[k].RA, nearby_obs.iloc[k].Dec, "{0:.3f}".format(nearby_obs.iloc[k].z), size=textsize)
+        if nearby_unobs is not False:
+            for k in range(len(nearby_unobs)):
+                plt.text(nearby_unobs.iloc[k].RA, nearby_unobs.iloc[k].Dec, "{0:.3f}".format(nearby_unobs.iloc[k].z), size=textsize)
+
+        # Circle assigned one
+        if len(z_match) > 0:
+            plt.scatter(z_match.RA, z_match.Dec, color=get_color(3), facecolors='none', s=_getsize(z_match.z)*2, label="Assigned")
+            plt.text(z_match.RA, z_match.Dec, "{0:.3f}".format(z_match.z), size=textsize)
+
+        # Target galaxy
+        if target_observed:
+            plt.scatter(target.RA, target.Dec, s=_getsize(target.z), color=get_color(1), label="Target")
+        else:
+            plt.scatter(target.RA, target.Dec, s=_getsize(target.z), marker='X', color=get_color(1), label="Target")  
+        plt.text(target.RA, target.Dec, "{0:.3f}".format(target.z), size=textsize)
+
+        # Add virial radii or MXXL Halos to the target
+        circ = Circle((target.RA,target.Dec), target.halo_radius_arcsec / 3600, color=get_color(1), alpha=0.20)
+        ax.add_patch(circ)
+        
+        plt.xlim(ra_min, ra_max)
+        plt.ylim(dec_min, dec_max)
+        plt.xlabel('RA')
+        plt.xlabel('Dec')
+        plt.legend()
+        plt.title(title)
+        plt.draw()
+    
+    else:
+        print("Skipping empty plot for {0}".format(title))

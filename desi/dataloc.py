@@ -3,14 +3,15 @@
 ###################################################
 
 # This is the root folder of this repository; update it to your own path
-BASE_FOLDER = '/home/users/imw2293/SelfCalGroupFinder/'
-BASE2_FOLDER = '/mount/sirocco1/imw2293/GROUP_CAT/'
+#BASE_FOLDER = '/home/users/imw2293/'
+BASE_FOLDER = '/mount/sirocco1/imw2293/GROUP_CAT/'
+REPO_FOLDER = BASE_FOLDER + 'SelfCalGroupFinder/'
 
 # Subfolders
-BIN_FOLDER = BASE_FOLDER + 'bin/'
-OUTPUT_FOLDER = BASE2_FOLDER + 'OUTPUT/'
-DATA_FOLDER = BASE2_FOLDER + 'DATA/'
-SDSS_FOLDER = BASE_FOLDER + 'data/' + 'SDSS/'
+BIN_FOLDER = REPO_FOLDER + 'bin/'
+OUTPUT_FOLDER = BASE_FOLDER + 'OUTPUT/'
+DATA_FOLDER = BASE_FOLDER + 'DATA/'
+SDSS_FOLDER = DATA_FOLDER + 'SDSS/'
 BGS_FOLDER = DATA_FOLDER + 'BGS_IRON/'
 BGS_Y3_FOLDER = DATA_FOLDER + 'BGS_JURA/'
 MXXL_DATA_DIR="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
@@ -22,6 +23,11 @@ UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
 # This file was acquried from https://cosmo.nyu.edu/~tinker/GROUP_FINDER/SELFCAL_GROUPS/sdss_fluxlim_v1.0.dat
 SDSS_v1_DAT_FILE = SDSS_FOLDER + 'sdss_fluxlim_v1.0.dat'
 SDSS_v1_GALPROPS_FILE = SDSS_FOLDER + "sdss_galprops_v1.0.dat"
+
+# TEST Data Files
+#################
+TEST_DAT_FILE = DATA_FOLDER + 'test_mini_fluxlim.dat'
+TEST_GALPROPS_FILE = DATA_FOLDER + 'test_mini_galprops.dat'
 
 # Simulation Data Files
 #######################

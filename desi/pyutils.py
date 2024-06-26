@@ -11,7 +11,7 @@ import k_correction as gamakc
 import kcorr.k_corrections as desikc
 from dataloc import *
 import pickle
-
+import math
 
 #sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
 #from hodpy.cosmology import CosmologyMXXL
@@ -56,8 +56,13 @@ def mode_to_color(mode: Mode):
 _cosmo_h = FlatLambdaCDM(H0=100, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 _cosmo_mxxl = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 
-def get_MXXL_cosmology():
+def get_cosmology():
     return _cosmo_h 
+
+_rho_m = (get_cosmology().critical_density(0) * get_cosmology().Om(0))
+def get_vir_radius_mine(halo_mass):
+    """Gets virial radius given halo masses (in solMass) in kpc/h."""
+    return np.power(((3/(4*math.pi)) * halo_mass / (200*_rho_m)), 1/3).to(u.kpc).value
 
 SIM_Z_THRESH = 0.005
 def close_enough(target_z, z_arr, threshold=SIM_Z_THRESH):
@@ -331,12 +336,9 @@ def make_map(ra, dec, alpha=0.1, dpi=640, fig=None):
     plt.grid(visible=True, which='both')
     return fig
 
+def plot_positions(*datasets, DEG_LONG=1, split=True, ra_min=30, dec_min = -5):
 
-def plot_positions(*datasets, DEG_LONG=1, split=True):
-
-    ra_min = 30
     ra_max = ra_min + DEG_LONG
-    dec_min = -5
     dec_max = dec_min + DEG_LONG
 
     fig,ax = plt.subplots(1)
@@ -380,7 +382,10 @@ def plot_ra_dec_inner(dataset, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_
         unobs_selected = unobs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
         ax.scatter(unobs_selected.RA, unobs_selected.Dec, marker='x', s=size, alpha=1)
 
-    return obs_selected.TILEID.unique()
+    if 'TILEID' in obs_selected.columns:
+        return obs_selected.TILEID.unique()
+    else:
+        return []
 
 
 

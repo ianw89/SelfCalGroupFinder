@@ -59,7 +59,7 @@ class GroupCatalog:
             #sp.Popen(args, shell=True, stdout=sp.PIPE)
 
             args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file, *list(map(str,self.GF_props.values()))]
-            self.results = sp.run(args, cwd=BASE_FOLDER, stdout=f)
+            self.results = sp.run(args, cwd=REPO_FOLDER, stdout=f)
 
     def postprocess(self):
         if self.all_data is not None:
@@ -86,9 +86,65 @@ class SDSSGroupCatalog(GroupCatalog):
     def postprocess(self):
         galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
         galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
+        galprops.rename(columns={'Mag_r': "app_mag"}, inplace=True)
         self.all_data = read_and_combine_gf_output(self, galprops)
         self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
         super().postprocess()
+
+class TestGroupCatalog(GroupCatalog):
+    """
+    A miniature flux-limited sample cut from SDSS data for quick testing purposes.
+
+    The COSMOS survey is centered at (J2000):
+    RA +150.11916667 (10:00:28.600)
+    DEC +2.20583333 (+02:12:21.00)
+
+    This sample is cut to around this, +/- 1 degree in RA and DEC.
+
+    """
+    def __init__(self, name):
+        super().__init__(name)
+        self.preprocess_file = TEST_DAT_FILE
+        self.GF_props = {
+            'zmin':0,
+            'zmax':1.0,
+            'frac_area':4.0/DEGREES_ON_SPHERE,
+            'fluxlim':1,
+            'color':1,
+            'omegaL_sf':13.1,
+            'sigma_sf':2.42,
+            'omegaL_q':12.9,
+            'sigma_q':4.84,
+            'omega0_sf':0,  
+            'omega0_q':0,    
+            'beta0q':10,    
+            'betaLq':0,
+            'beta0sf':10,
+            'betaLsf':0,
+        }
+
+    def create_test_dat_files(self):
+        gals = pd.read_csv(SDSS_v1_DAT_FILE, delimiter=' ', names=('ra', 'dec', 'z', 'logLgal', 'Vmax', 'quiescent', 'chi'))
+        galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
+
+        cut_gals = gals[np.logical_and(gals.ra > 149.119, gals.ra < 151.119)]
+        cut_gals = cut_gals[np.logical_and(cut_gals.dec > 1.205, cut_gals.dec < 3.205)]
+        indexes = cut_gals.index
+        print(f"Cut to {len(indexes)} galaxies.")
+        cut_galprops = galprops.iloc[indexes]
+
+        # write to TEST_DAT_FILE and TEST_GALPROPS_FILE
+        cut_gals.to_csv(TEST_DAT_FILE, sep=' ', header=False, index=False)
+        cut_galprops.to_csv(TEST_GALPROPS_FILE, sep=' ', header=False, index=False)
+
+    def postprocess(self):
+        galprops = pd.read_csv(TEST_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
+        galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
+        galprops.rename(columns={'Mag_r': "app_mag"}, inplace=True)
+        self.all_data = read_and_combine_gf_output(self, galprops)
+        self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
+        add_halo_columns(self)
+        return super().postprocess()
 
 class MXXLGroupCatalog(GroupCatalog):
 
@@ -248,6 +304,28 @@ def deserialize(gc: GroupCatalog):
         return o
 
 
+def add_halo_columns(catalog: GroupCatalog):
+    """
+    # TODO make work for UCHUU too; need refactoring regarding halo mass property names, etc
+    """
+    df: pd.DataFrame = catalog.all_data
+    
+    # Calculate additional halo properties
+    if 'mxxl_halo_mass' in df.columns:
+        mxxl_masses = df.loc[:, 'mxxl_halo_mass'].to_numpy() * 1E10 * u.solMass
+        df.loc[:, 'mxxl_halo_vir_radius_guess'] = get_vir_radius_mine(mxxl_masses)
+        # TODO comoving or proper?
+        as_per_kpc = get_cosmology().arcsec_per_kpc_proper(df['z'].to_numpy())
+        df.loc[:, 'mxxl_halo_vir_radius_guess_arcsec'] =  df.loc[:, 'mxxl_halo_vir_radius_guess'].to_numpy() * as_per_kpc.to(u.arcsec / u.kpc).value
+
+    masses = df['M_halo'].to_numpy() * u.solMass
+    df['halo_radius_kpc'] = get_vir_radius_mine(masses)
+    # TODO comoving or proper?
+    as_per_kpc = get_cosmology().arcsec_per_kpc_proper(df['z'].to_numpy())
+    df['halo_radius_arcsec'] = df['halo_radius_kpc'].to_numpy() * as_per_kpc.to(u.arcsec / u.kpc).value
+
+    # Luminosity distance to z_obs
+    #df.loc[:, 'ldist_true'] = z_to_ldist(df.z_obs.to_numpy())
 
 
 def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON, sdss_fill, num_passes_required, year):
