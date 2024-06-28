@@ -1,5 +1,6 @@
-from groupcatalog import GroupCatalog, MXXLGroupCatalog, SDSSGroupCatalog, UchuuGroupCatalog, BGSGroupCatalog
+from groupcatalog import GroupCatalog, MXXLGroupCatalog, SDSSGroupCatalog, UchuuGroupCatalog, BGSGroupCatalog, SDSSPublishedGroupCatalog
 from pyutils import Mode, get_color
+from dataloc import *
 
 BSAT_DEFAULT = 10
 
@@ -72,6 +73,8 @@ _cat.GF_props = {
     'omega_chi_L_sf':2.23,
     'omega_chi_L_q':0.48,
 }
+
+sdss_published = SDSSPublishedGroupCatalog("SDSS Published")
 
 GF_PROPS_VANILLA = {
     'zmin':0, 

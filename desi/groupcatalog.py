@@ -89,7 +89,66 @@ class SDSSGroupCatalog(GroupCatalog):
         galprops.rename(columns={'Mag_r': "app_mag"}, inplace=True)
         self.all_data = read_and_combine_gf_output(self, galprops)
         self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
+        self.all_data['mstar'] = np.power(10, self.all_data.log_M_star)
+        self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['mstar'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
         super().postprocess()
+
+class SDSSPublishedGroupCatalog(GroupCatalog):
+
+    def __init__(self, name):
+        super().__init__(name)
+        self.preprocess_file = None
+        self.GF_outfile = SDSS_FOLDER + 'sdss_kdgroups_v1.0.dat'
+        self.color = get_color(4)
+        self.marker = '-'
+        self.GF_props = {
+            'zmin':0,
+            'zmax':1.0,
+            'frac_area':0.179,
+            'fluxlim':1,
+            'color':1,
+            'omegaL_sf':13.1,
+            'sigma_sf':2.42,
+            'omegaL_q':12.9,
+            'sigma_q':4.84,
+            'omega0_sf':17.4,  
+            'omega0_q':2.67,    
+            'beta0q':-0.92,    
+            'betaLq':10.25,
+            'beta0sf':12.993,
+            'betaLsf':-8.04,
+            'omega_chi_0_sf':2.68,  
+            'omega_chi_0_q':1.10,
+            'omega_chi_L_sf':2.23,
+            'omega_chi_L_q':0.48,
+        }
+
+    def postprocess(self):
+        galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
+        galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
+        galprops.rename(columns={'Mag_r': "app_mag"}, inplace=True)
+        print(len(galprops))
+        
+        main_df = pd.read_csv(self.GF_outfile, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
+        print(len(main_df))
+        
+        df = pd.merge(main_df, galprops, left_index=True, right_index=True)
+
+        # add columns indicating if galaxy is a satellite
+        df['is_sat'] = (df.index != df.igrp).astype(int)
+        df['logLgal'] = np.log10(df.L_gal)
+
+        # add column for halo mass bins and Lgal bins
+        df['Mh_bin'] = pd.cut(x = df['M_halo'], bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
+        df['Lgal_bin'] = pd.cut(x = df['L_gal'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
+
+        self.all_data = df
+        self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
+        self.all_data['mstar'] = np.power(10, self.all_data.log_M_star)
+        self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['mstar'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
+        super().postprocess()
+        
+
 
 class TestGroupCatalog(GroupCatalog):
     """
@@ -686,7 +745,10 @@ def mstar_vmax_weighted(series):
     if len(series) == 0:
         return 0
     else:
-        should_mask = np.logical_or(series.z_assigned_flag, np.isnan(series.mstar))
+        if 'z_assigned_flag' in series.columns:
+            should_mask = np.logical_or(series.z_assigned_flag, np.isnan(series.mstar))
+        else:
+            should_mask = np.isnan(series.mstar)
         masked_mstar = np.ma.masked_array(series.mstar, should_mask)
         masked_vmax = np.ma.masked_array(series.V_max, should_mask)
         return np.average(masked_mstar, weights=1/masked_vmax)

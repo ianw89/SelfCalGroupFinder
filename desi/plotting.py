@@ -35,8 +35,8 @@ def legend(datasets):
         plt.legend()
 
 def legend_ax(ax, datasets):
-    #if len(datasets) > 1:
-    ax.legend()
+    if len(datasets) > 1:
+        ax.legend()
 
 def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHOW_UNWEIGHTED=False):
     HOD_LGAL_CUT = 4E9
@@ -190,7 +190,7 @@ def plots(*datasets, truth_on=False):
             if f.has_truth:
                 plt.plot(f.L_gal_labels, f.truth_f_sat, 'v', label=f"{get_dataset_display_name(f)} Truth", color=f.color)
     ax1.set_xscale('log')
-    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
     ax1.set_ylabel("$f_{\\mathrm{sat}}$")
     #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.set_xlim(2E7,3E11)
@@ -215,13 +215,16 @@ def plots(*datasets, truth_on=False):
         fig,ax1=plt.subplots()
         fig.set_dpi(DPI)
         for f in datasets:
-            plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=get_dataset_display_name(f), color=f.color)
+            if f.name == "SDSS Vanilla":
+                plt.plot(f.L_gal_labels[15:], f.f_sat[15:], f.marker, label=get_dataset_display_name(f), color=f.color)
+            else:
+                plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=get_dataset_display_name(f), color=f.color)
         if truth_on:
             for f in datasets:
                 if 'is_sat_truth' in f.all_data.columns:
                     plt.plot(f.L_gal_labels, f.truth_f_sat, 'v', label=f"{f.name} Truth", color=f.color)
         ax1.set_xscale('log')
-        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
         ax1.set_ylabel("$f_{\\mathrm{sat}}$")
         legend_ax(ax1, datasets)
         X_MAX = 1E11
@@ -322,8 +325,8 @@ def plots_color_split_lost_split_inner(name, L_gal_labels, L_gal_bins, q_gals, s
 
         ax1.set_xscale('log')
         ax2.set_xscale('log')
-        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
-        ax2.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
+        ax2.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
         ax1.set_ylabel("$f_{\\mathrm{sat}}$ ")
         ax2.set_ylabel("$f_{\\mathrm{sat}}$ ")
         ax1.legend()
@@ -377,7 +380,7 @@ def plots_color_split(*datasets, truth_on=False, total_on=False):
 
 
         ax1.set_xscale('log')
-        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
         ax1.set_ylabel("$f_{\\mathrm{sat}}$ ")
         ax1.legend()
         X_MAX = 1E11
@@ -462,7 +465,7 @@ def L_func_plot(datasets: list, values: list):
         plt.plot(f.L_gal_labels, values[i], f.marker, label=get_dataset_display_name(f), color=f.color)
     ax1.set_xscale('log')
     ax1.set_yscale('log')
-    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
     ax1.set_ylabel("$N_{gal}$")
     #ax1.set_title("Galaxy Luminosity Counts")
     legend(datasets)
@@ -493,7 +496,7 @@ def qf_cen_plot(*datasets):
         plt.plot(f.L_gal_labels, f.qf_dn4000_hard, '-', label='Dn4000 > 1.6', color='r')
 
     ax1.set_xscale('log')
-    ax1.set_xlabel("$L_{\\mathrm{cen}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$")
+    ax1.set_xlabel("$L_{\\mathrm{cen}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
     ax1.set_ylabel("$f_{\\mathrm{Q}}$ ")
     #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.legend()
@@ -638,25 +641,25 @@ def purity_complete_plots(*sets):
 
     axes[1][0].set_title('Satellite Purity')
     axes[1][0].set_xscale('log')
-    axes[1][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
+    axes[1][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[1][0].set_xlim(XMIN,XMAX)
     axes[1][0].set_ylim(0.4,1.0)
 
     axes[1][1].set_title('Satellite Completeness')
     axes[1][1].set_xscale('log')
-    axes[1][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
+    axes[1][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[1][1].set_xlim(XMIN,XMAX)
     axes[1][1].set_ylim(0.4,1.0)
 
     axes[0][0].set_title('Central Purity')
     axes[0][0].set_xscale('log')
-    axes[0][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
+    axes[0][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[0][0].set_xlim(XMIN,XMAX)
     axes[0][0].set_ylim(0.4,1.0)
 
     axes[0][1].set_title('Central Completeness')
     axes[0][1].set_xscale('log')
-    axes[0][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
+    axes[0][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[0][1].set_xlim(XMIN,XMAX)
     axes[0][1].set_ylim(0.4,1.0)
 
@@ -679,7 +682,7 @@ def purity_complete_plots(*sets):
         plt.plot(s.L_gal_bins[s.keep], s.purity_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
 
     plt.xscale('log')
-    plt.xlabel('$L_{\\mathrm{gal}}~[\\mathrm{h}^{-2} \\mathrm{L}_\\odot]$')
+    plt.xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     plt.ylabel('Satellite Purity')
     plt.legend()
     plt.xlim(XMIN,XMAX)
