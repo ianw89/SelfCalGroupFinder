@@ -12,24 +12,7 @@
 #include "groups.h"
 
 // Definitions
-#define OMEGA_M 0.25
-#define PI 3.141592741
-#define RHO_CRIT 2.775E+11
-#define DELTA_HALO 200
-#define SPEED_OF_LIGHT 3.0E+5
-#define c_on_H0 2997.92
-#define BIG_G 4.304E-9 /* BIG G in units of (km/s)^2*Mpc/M_sol */
-#define G0 (1.0 / sqrt(2.0 * 3.14159))
-#define ROOT2 1.41421
-#define Q0 2.0
-#define Q1 -1.0
-#define QZ0 0.1
-#define THIRD (1.0 / 3.0)
-#define ANG (PI / 180.0)
-#define RT2PI 2.50663
-
 #define NBINS 5 // TNG has 6 bins
-
 #define NRANDOM 1000000
 
 /* Global for the random numbers
@@ -75,6 +58,7 @@ float tabulated_uniform_random(int thisTask);
  */
 void lsat_model()
 {
+  // Indexes of lsatb, nhb, lsatr, nhr correspond to log(L or M*) / 0.1
   FILE *fp;
   int i, j, k, n, nt, nhb[150], nhr[150], im, ihm, ix;
   float *mx, *lx, lsatb[150], lsatr[150], *m2x, x;
@@ -115,6 +99,9 @@ void lsat_model()
   M0_PROPX = 0;
   DM_PROPX = 100; // evertyhing should be in one mass bin
 
+  if (!SILENT)
+    fprintf(stderr, "Applying Lsat model...\n");
+
   for (i = 0; i <= 5; ++i)
     for (j = -20; j <= 20; ++j)
       nhbx[i][j] = nhrx[i][j] = lsatbx[i][j] = lsatrx[i][j] = 0;
@@ -125,9 +112,9 @@ void lsat_model()
 
   fp = openfile("lsat_lookup.dat");
   nt = filesize(fp);
-  mx = vector(1, nt);
-  lx = vector(1, nt);
-  m2x = vector(1, nt);
+  mx = vector(1, nt); // log10 mass
+  lx = vector(1, nt); // log10 Lsat50
+  m2x = vector(1, nt); // spline interpolation
   for (i = 1; i <= nt; ++i)
     fscanf(fp, "%f %f", &mx[i], &lx[i]);
   fclose(fp);
@@ -141,9 +128,10 @@ void lsat_model()
   {
     if (GAL[i].psat > 0.5)
       continue;
-    // binning for lsat-vs-lum
+    // Bin the Lsat values according to the luminosity/stellar mass
     im = (int)(log10(GAL[i].mstellar) / 0.1 + 0.5);
-    splint(mx, lx, m2x, nt, log10(GAL[i].mass), &x);
+    // get x, the lsat value for this galaxy according to the lookup
+    splint(mx, lx, m2x, nt, log10(GAL[i].mass), &x); 
     if (GAL[i].color > 0.8)
     {
       nhr[im]++;
@@ -161,6 +149,7 @@ void lsat_model()
       continue;
 
     // if FIT3 binning, only do z<0.15
+    // Presumably the Lsat data is only valid in this regime?
     if (GAL[i].redshift > 0.15)
       continue;
 
@@ -177,16 +166,15 @@ void lsat_model()
     {
       nhrx[im][ix]++;
       lsatrx[im][ix] += pow(10.0, x);
-      // lsatrx[im][ix]+=GAL[i].mass;
     }
     if (GAL[i].color < 0.8)
     {
       nhbx[im][ix]++;
       lsatbx[im][ix] += pow(10.0, x);
-      // lsatbx[im][ix]+=GAL[i].mass;
     }
 
-  NEXT_PROP:
+  // TODO Not sure if this works
+  NEXT_PROP: 
     if (SECOND_PARAMETER == 1)
       continue;
     ix = (int)((GAL[i].propx2 - 0.1) * 5);
@@ -205,18 +193,19 @@ void lsat_model()
   }
 
   // output this to a pre-specified file
-  // (plus we knoe the limits of the data)
+  // (plus we know the limits of the data)
+  // Format: log(L or M*) log(<Lsat_r>)  log(<Lsat_b>)
   fp = fopen("lsat_groups.out", "w");
   if (STELLAR_MASS)
   {
-    for (i = 91; i <= 113; ++i) // UM
+    for (i = 91; i <= 113; ++i) // UniverseMachine ?
       fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
     fclose(fp);
   }
   else
   {
     for (i = 88; i <= 107; ++i) // C250
-      // for(i=88;i<=119;++i) //TNG
+      // for(i=88;i<=119;++i) // TNG
       fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
     fclose(fp);
   }
@@ -358,7 +347,8 @@ void tabulate_hods()
     for (j = 0; j < 200; ++j)
       ncenr[i][j] = nsatr[i][j] = nhalo[i][j] = ncenb[i][j] = nsatb[i][j] = 0;
   }
-  fprintf(stderr, "Tabulating HODs...\n");
+  if (!SILENT)
+    fprintf(stderr, "Tabulating HODs...\n");
 
   for (i = 0; i < NGAL; ++i)
   {

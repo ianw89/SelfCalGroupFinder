@@ -92,7 +92,7 @@ def main():
 
     pre_process_mxxl(sys.argv[4], mode, sys.argv[5], app_mag_cut, catalog_app_mag_cut, colors_on)
 
-
+# TODO this is absurdly slow now somehow
 def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT: float, CATALOG_APP_MAG_CUT: float, COLORS_ON: bool):
 
     print("Reading HDF5 data from ", in_filepath)

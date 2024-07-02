@@ -6,13 +6,13 @@
 #define SPEED_OF_LIGHT 3.0E+5
 #define c_on_H0 2997.92
 #define BIG_G 4.304E-9 /* BIG G in units of (km/s)^2*Mpc/M_sol */
-#define G0 (1.0/sqrt(2.0*3.14159))
+#define G0 (1.0 / sqrt(2.0 * 3.14159))
 #define ROOT2 1.41421
 #define Q0 2.0
 #define Q1 -1.0
 #define QZ0 0.1
-#define THIRD (1.0/3.0)
-#define ANG (PI/180.0)
+#define THIRD (1.0 / 3.0)
+#define ANG (PI / 180.0)
 #define RT2PI 2.50663
 
 
@@ -65,6 +65,8 @@ extern float FRAC_AREA;
 extern float MAXREDSHIFT;
 extern float MINREDSHIFT;
 extern float GALAXY_DENSITY;
+extern int SILENT;
+extern int VERBOSE;
 
 /* Imported functions from numerical recipes 
  */

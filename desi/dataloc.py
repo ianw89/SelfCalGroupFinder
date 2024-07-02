@@ -9,6 +9,8 @@ REPO_FOLDER = BASE_FOLDER + 'SelfCalGroupFinder/'
 
 # Subfolders
 BIN_FOLDER = REPO_FOLDER + 'bin/'
+MCMC_FOLDER = REPO_FOLDER + 'MCMC/'
+MCMC_PARAMS_FOLDER = MCMC_FOLDER + 'parameters/'
 OUTPUT_FOLDER = BASE_FOLDER + 'OUTPUT/'
 DATA_FOLDER = BASE_FOLDER + 'DATA/'
 SDSS_FOLDER = DATA_FOLDER + 'SDSS/'
@@ -17,6 +19,12 @@ BGS_Y3_FOLDER = DATA_FOLDER + 'BGS_JURA/'
 MXXL_DATA_DIR="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
 UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
 
+
+# Parameter Files
+#################
+WP_RADIAL_BINS_FILE = MCMC_PARAMS_FOLDER + 'wp_rbins.dat'
+HALO_MASS_FUNC_FILE = REPO_FOLDER + 'halo_mass_function.dat'
+LSAT_LOOKUP_FILE = REPO_FOLDER + 'lsat_lookup.dat'
 
 # SDSS Data Files
 #################

@@ -9,6 +9,9 @@ from astropy.table import Table
 import astropy.io.fits as fits
 from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
+import emcee
+import wp
+import os
 
 # Shared bins for various purposes
 Mhalo_bins = np.logspace(10, 15.5, 40)
@@ -27,7 +30,8 @@ class GroupCatalog:
 
     def __init__(self, name):
         self.name = name
-        self.file_pattern = OUTPUT_FOLDER + self.name
+        self.output_folder = OUTPUT_FOLDER
+        self.file_pattern = self.output_folder + self.name
         self.GF_outfile = self.file_pattern + ".out"
         self.results_file = self.file_pattern + ".pickle"
         self.color = 'k' # plotting color; nothing to do with galaxies
@@ -47,11 +51,22 @@ class GroupCatalog:
         self.f_sat = None # per Lgal bin 
         self.Lgal_counts = None # size of Lgal bins 
 
-    def run_group_finder(self):
+    def run_group_finder(self, popmock=False):
+
+        if not os.path.exists(self.output_folder):
+            os.makedirs(self.output_folder)
 
         if self.preprocess_file is None:
             print("Warning: no input file set. Cannot run group finder.")
             return
+        
+        if not os.path.exists(self.preprocess_file):
+            print(f"Warning: preprocess_file {self.preprocess_file} does not exist. Cannot run group finder.")
+            return
+        
+        # Group Finder expects these files in working directory
+        #sp.run(["cp", HALO_MASS_FUNC_FILE , self.output_folder])
+        #sp.run(["cp", LSAT_LOOKUP_FILE , self.output_folder])
 
         with open(self.GF_outfile, "w") as f:
             args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
@@ -62,13 +77,28 @@ class GroupCatalog:
                 args.append("-f")
             if self.GF_props['color'] == 1:
                 args.append("-c")
+            if popmock:
+                args.append("--popmock")
             args.append(f"--wcen={self.GF_props['omegaL_sf']},{self.GF_props['sigma_sf']},{self.GF_props['omegaL_q']},{self.GF_props['sigma_q']},{self.GF_props['omega0_sf']},{self.GF_props['omega0_q']}")
             args.append(f"--bsat={self.GF_props['beta0q']},{self.GF_props['betaLq']},{self.GF_props['beta0sf']},{self.GF_props['betaLsf']}")
             if self.GF_props.get('omega_chi_0_sf') is not None:
                 args.append(f"--chi1={self.GF_props['omega_chi_0_sf']},{self.GF_props['omega_chi_0_q']},{self.GF_props['omega_chi_L_sf']},{self.GF_props['omega_chi_L_q']}")            
 
             # The galaxies are written to stdout, so send ot the GF_outfile file stream
-            self.results = sp.run(args, cwd=REPO_FOLDER, stdout=f)
+            self.results = sp.run(args, cwd=self.output_folder, stdout=f)
+
+    def run_corrfunc(self):
+
+        if self.GF_outfile is None:
+            print("Warning: run_corrfunc() called without GF_outfile set.")
+            return
+        if not os.path.exists(self.GF_outfile):
+            print(f"Warning: run_corrfunc() should be called after run_group_finder(). File {self.GF_outfile} does not exist.")
+            return
+        
+        wp.run_corrfunc(OUTPUT_FOLDER)
+
+
 
     def postprocess(self):
         if self.all_data is not None:
@@ -88,9 +118,47 @@ class GroupCatalog:
 
 class SDSSGroupCatalog(GroupCatalog):
     
+    @staticmethod
+    def from_MCMC(reader: emcee.backends.HDFBackend, name: str):
+        gc = SDSSGroupCatalog(name)
+
+        # Use lowest chi squared (highest log prob) parameter set
+        idx = np.argmax(reader.get_log_prob(flat=True))
+        values = reader.get_chain(flat=True)[idx]
+        if len(values) != 10 and len(values) != 14:
+            print("Warning: reader has wrong number of parameters. Expected 10 or 14.")
+        gc.GF_props = {
+            'zmin':0,
+            'zmax':1.0,
+            'frac_area':0.179,
+            'fluxlim':1,
+            'color':1,
+            'omegaL_sf':values[0],
+            'sigma_sf':values[1],
+            'omegaL_q':values[2],
+            'sigma_q':values[3],
+            'omega0_sf':values[4],
+            'omega0_q':values[5],
+            'beta0q':values[6],
+            'betaLq':values[7],
+            'beta0sf':values[8],
+            'betaLsf':values[9],
+        }
+        if len(values) == 14:
+            gc.GF_props['omega_chi_0_sf'] = values[10]
+            gc.GF_props['omega_chi_0_q'] = values[11]
+            gc.GF_props['omega_chi_L_sf'] = values[12]
+            gc.GF_props['omega_chi_L_q'] = values[13]
+        
+        return gc
+
     def __init__(self, name):
         super().__init__(name)
         self.preprocess_file = SDSS_v1_DAT_FILE
+
+        self.volume = np.array([1.721e+06, 6.385e+06, 2.291e+07, 7.852e+07]) # Copied from Jeremy's groupfind_mcmc.py
+        self.vfac = (self.volume/250.0**3)**.5 # factor by which to multiply errors
+        self.efac = 0.1 # let's just add a constant fractional error bar
 
     def postprocess(self):
         galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
@@ -156,8 +224,6 @@ class SDSSPublishedGroupCatalog(GroupCatalog):
         self.all_data['mstar'] = np.power(10, self.all_data.log_M_star)
         self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['mstar'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
         super().postprocess()
-        
-
 
 class TestGroupCatalog(GroupCatalog):
     """
@@ -231,10 +297,10 @@ class MXXLGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self):
+    def run_group_finder(self, popmock=False):
         if self.preprocess_file is None:
             self.preprocess()
-        super().run_group_finder()
+        super().run_group_finder(popmock=popmock)
 
 
     def postprocess(self):
@@ -274,10 +340,10 @@ class UchuuGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self):
+    def run_group_finder(self, popmock=False):
         if self.preprocess_file is None:
             self.preprocess()
-        super().run_group_finder()
+        super().run_group_finder(popmock=popmock)
 
 
     def postprocess(self):
@@ -321,12 +387,12 @@ class BGSGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self):
+    def run_group_finder(self, popmock=False):
         if self.preprocess_file is None:
             self.preprocess()
         else:
             print("Skipping pre-processing")
-        super().run_group_finder()
+        super().run_group_finder(popmock=popmock)
 
     def postprocess(self):
         print("Post-processing")

@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import astropy.coordinates as coord
 import astropy.units as u
+from astropy.io import ascii
 from pyutils import *
 import math
 from groupcatalog import *
@@ -11,10 +12,10 @@ from matplotlib.patches import Circle
 # np.array(zip(*[line.split() for line in f])[1], dtype=float)
 
 
-DPI = 400
+DPI = 200
 FONT_SIZE_DEFAULT = 12
 
-LGAL_XMINS = [6E7, 3E8]
+LGAL_XMINS = [3E8]#[6E7, 3E8]
 
 plt.style.use('default')
 plt.rcParams.update({'font.size': FONT_SIZE_DEFAULT})
@@ -505,8 +506,65 @@ def qf_cen_plot(*datasets):
     ax1.set_xlim(X_MIN,X_MAX)
     ax1.set_ylim(0.0,1.0)
 
+def proj_clustering_plot(gc: GroupCatalog):
 
+    NUM = 4
+    imag = np.linspace(18,21,NUM,dtype='int')
 
+    fig,axes=plt.subplots(nrows=1, ncols=4, figsize=(12,3))
+
+    idx = 0
+    for i in imag:
+
+        # Data 
+        fname=REPO_FOLDER + "MCMC/parameters/" + 'wp_red_M'+"{:d}".format(i)+'.dat'
+        data = ascii.read(fname, delimiter='\s', format='no_header')
+        wp = np.array(data['col2'][...], dtype='float')
+        wp_err = np.array(data['col3'][...], dtype='float')
+        radius = np.array(data['col1'][...], dtype='float')
+        axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='r', capsize=2, ecolor='k', alpha=0.8)
+
+        fname=REPO_FOLDER + "MCMC/parameters/" + 'wp_blue_M'+"{:d}".format(i)+'.dat'
+        data = ascii.read(fname, delimiter='\s', format='no_header')
+        wp = np.array(data['col2'][...], dtype='float')
+        wp_err = np.array(data['col3'][...], dtype='float')
+        radius = np.array(data['col1'][...], dtype='float')
+        axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='b', capsize=2, ecolor='k', alpha=0.8)
+
+        # Populated mock for GroupCatalog gc
+        # TODO intead of storing all this in files (or in addition to), put in GroupCatalog object
+        fname=f'{gc.output_folder}wp_mock_red_M{i}.dat'
+        mock_data = ascii.read(fname, delimiter='\s', format='no_header')
+        wp_mock = np.array(mock_data['col5'][...], dtype='float')
+        errm = gc.vfac[idx]*wp_err + gc.efac*wp_mock
+        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=errm/wp_mock, capsize=2, color='r', alpha=0.8)
+
+        fname=f'{gc.output_folder}wp_mock_blue_M{i}.dat'
+        mock_data = ascii.read(fname, delimiter='\s', format='no_header')
+        wp_mock = np.array(mock_data['col5'][...], dtype='float')
+        errm = gc.vfac[idx]*wp_err + gc.efac*wp_mock
+        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=errm/wp_mock, capsize=2, color='b', alpha=0.8)
+
+        axes[idx].set_xlabel('log $r_p$ [Mpc/h]')
+        axes[idx].set_ylabel('log $w_p(r_p)$')
+        axes[idx].set_xlim(-1,1)
+        axes[idx].set_ylim(0,4)
+        axes[idx].set_title(f'[-{i}, -{i+1}]')
+
+        idx = idx + 1
+    
+    fig.tight_layout()
+
+    #wp_blue_M18_data = np.loadtxt(REPO_FOLDER + "MCMC/parameters/wp_blue_M18.dat")
+
+    #print(wp_blue_M18_data)
+
+def lsat_data_compare_plot(cat: GroupCatalog):
+    # read from lsat_lookup.dat
+    lsat_lookup = np.loadtxt(REPO_FOLDER + "lsat_lookup.dat")
+    print(lsat_lookup)
+
+    
 # Halo Masses (in group finder abundance matching)
 def group_finder_centrals_halo_masses_plots(all_df, comparisons):
     
