@@ -55,7 +55,7 @@ def main():
     
     outname_base = sys.argv[5] 
 
-    pp.pre_process_BGS(fname, mode, outname_base, app_mag_cut, catalog_app_mag_cut, colors_on, True, 3)
+    pp.pre_process_BGS(fname, mode, outname_base, app_mag_cut, catalog_app_mag_cut, colors_on, True, 3, "Y1-Iron")
 
 
 

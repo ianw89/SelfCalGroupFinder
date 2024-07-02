@@ -64,17 +64,22 @@ def chisqr(params):
     # Run the Group Finder (which also populates mock)
     # subprocess.run will wait for completion
     args = ['./kdGroupFinder_omp', galdata_file, *list(map(str,GF_props.values()))]
+    args = ['./kdGroupFinder_omp', galdata_file]
+    args.append(str(GF_props['zmin']))
+    args.append(str(GF_props['zmax']))
+    args.append(str(GF_props['frac_area']))
+    if GF_props['fluxlim'] == 1:
+        args.append("-f")
+    if GF_props['color'] == 1:
+        args.append("-c")
+    args.append(f"--wcen={GF_props['omegaL_sf']},{GF_props['sigma_sf']},{GF_props['omegaL_q']},{GF_props['sigma_q']},{GF_props['omega0_sf']},{GF_props['omega0_q']}")
+    args.append(f"--bsat={GF_props['beta0q']},{GF_props['betaLq']},{GF_props['beta0sf']},{GF_props['betaLsf']}")
+    if GF_props.get('omega_chi_0_sf') is not None:
+        args.append(f"--chi1={GF_props['omega_chi_0_sf']},{GF_props['omega_chi_0_q']},{GF_props['omega_chi_L_sf']},{GF_props['omega_chi_L_q']}")            
+
     print(args)
     f = open('outxx', 'w')
     sp.run(args, cwd=cwd, stdout=f)
-
-    #cmd = './kdGroupFinder_omp '+galdata_file+'  0 1 0.179 1 1 '
-    #md = cmd+' '+str(params[0])+' '+str(params[1])+' '+str(params[2])+' '+str(params[3])
-    #cmd = cmd+' '+str(params[4])+' '+str(params[5])+' '+str(params[6])+' '+str(params[7])
-    #cmd = cmd+' '+str(params[8])+' '+str(params[9]) + ' >outxx'
-    #cmd = cmd+' '+str(x[10])+' '+str(x[11])+' '+str(x[12])+' '+str(x[13])+' >outxx'
-    #print(cmd)
-    #os.system(cmd)
 
     # run the clustering sript
     os.system('./sh.wp')
@@ -220,7 +225,7 @@ def lnprob(theta):
 
 
 # ---- get things set up
-ncount = 10740 # might work 
+ncount = 1 # might work 
 nwalkers = 30
 niter = 40000
    

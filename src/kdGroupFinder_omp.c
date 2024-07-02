@@ -1,5 +1,6 @@
 // Initialization //
 
+#include <argp.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,27 +14,52 @@
 #include "groups.h"
 #include "fit_clustering_omp.h"
 
+// Input file format
+// 1 galaxy per line
+// RA DEC REDSHIFT MAINPROP [VMAX] [COLOR] [PROP1] [PROP2]
+// MAINPROP can be either LUMINOSITY OR STELLAR MASS (then provide -m), 
+// OR LOG10 OF EITHER (log is automatically detected)
+// If -f for fluxlim mode is given, VMAX is required
+// If -c for colors mode is given, the next color will be read as COLOR values. 
+//   If the color is less than 0.8, the galaxy is considered blue, otherwise red.
+//   When not provided, all galaxies are treated as blue.
+// PROP1, PROP2 are optional 
+
+/* Standard GNU command-line program stuff */
+const char *argp_program_version =  "kdGroupFinder-2.0";
+const char *argp_program_bug_address = "<imw2293@nyu.edu>";
+static char doc[] = "kdGroupFinder: A self-calibrated galaxy group finder\
+\vInput file format is 1 galaxy per line\n.\
+ RA DEC REDSHIFT MAINPROP [VMAX] [COLOR] [PROP1] [PROP2]\n\
+ MAINPROP can be either luminosity OR stellar mass (then provide -m),\
+ or log10 of either (automatically detected).\
+ If -f for fluxlim mode is given, a VMAX column is required.\
+ If -c for colors mode is given, the a color column is required. \
+ If the color is less than 0.8, the galaxy is considered blue, otherwise red.\
+ When not provided, all galaxies are treated as blue.\
+ PROP1, PROP2 are optional and not fully supported yet."; 
+
+ 
+static char args_doc[] = "inputfile zmin zmax frac_area";
+
+// stdout is used for printing the output of the program; 1 galaxy per line
+// stderr is used for printing the progress of the program and errors
+
 struct galaxy *GAL;
 int NGAL;
 int OUTPUT = 0;
 
-/* Local functions
- */
+/* Local functions */
 void find_satellites(int icen, void *kd);
 float radial_probability(float mass, float dr, float rad, float ang_rad);
 float fluxlim_correction(float z);
 void groupfind(void);
 
-/* Variables for determining
- * if a galaxy is a satellite
- */
-float BPROB = 10;
+/* Variables for determining if a galaxy is a satellite */
 float BPROB_RED = 5, BPROB_XRED = 0;
 float BPROB_BLUE = 15, BPROB_XBLUE = 0;
 
-/* Variables for weighting the
- * central galaxies of the blue galaxies
- */
+/* Variables for weighting the central galaxies of the blue galaxies */
 float WCEN_MASS = 10.5,
       WCEN_SIG = 0.5,
       WCEN_MASSR = 10.5,
@@ -52,81 +78,139 @@ float MINREDSHIFT;
 float MAXREDSHIFT;
 float GALAXY_DENSITY;
 float FRAC_AREA;
-int FLUXLIM, COLOR;
-int STELLAR_MASS;
-int ARGC;
-char **ARGV;
+int FLUXLIM = 0; // default is volume-limited
+int COLOR = 0; // default is no colors
+int STELLAR_MASS = 0; // defaulit is luminosities
+char *INPUTFILE;
 int RECENTERING = 0;
-int SECOND_PARAMETER = 0;
+int SECOND_PARAMETER = 0; // default is no extra per-galaxy parameters
+int SILENT = 0; // TODO make this work
+int VERBOSE = 0; // TODO make this work
+int POPULATE_MOCK = 0; // default is do not populate mock
+
+// TODO colors mode off doesn't really work with colors off I think
+static struct argp_option options[] = {
+  {"fluxlim",      'f', 0,                                    0,  "Indicate a flux limited sample", 1},
+  {"stellarmass",  'm', 0,                                    0,  "Abundance match on stellar mass, not luminosity", 1},
+  {"popmock",      'o', 0,                                    0,  "Populate the mock catalog after group finding", 1},
+  {"colors",       'c', 0,                                    0,  "Read in and use galaxy colors", 1},
+  {"wcen",         'w', "MASS,SIGMA,MASSR,SIGMAR,NORM,NORMR", 0,  "Six parameters for weighting the centrals", 2},
+  {"bsat",         'b', "RED,XRED,BLUE,XBLUE",                0,  "Four parameters for the satellite probability", 2},
+  {"chi1",         'p', "WEIGHT_B,WEIGHT_R,SLOPE_B,SLOPE_R",  0,  "Four parameters per-galaxy extra property weighting", 2},
+  {"verbose",      'v', 0,                                    0,  "Produce verbose output", 3},
+  {"quiet",        'q', 0,                                    0,  "Don't produce any output", 3 },
+  {"silent",       's', 0,                                    OPTION_ALIAS },
+  //{"output",   'o', "FILE", 0, "Output to FILE instead of standard output" },
+  { 0 }
+};
+
+/* Used by main to communicate with parse_opt. */
+struct arguments
+{
+  //char *inputfile;
+  //float zmin, zmax, frac_area;
+  int wcen_set, bsat_set, chi1_set;
+  //int silent, verbose, fluxlim, stellarmass, colors, popmock, wcen_set, bsat_set, chi1_set;
+  //float wcen_mass, wcen_sig, wcen_massr, wcen_sigr, wcen_norm, wcen_normr;
+  //float bprob_red, bprob_xred, bprob_blue, bprob_xblue;
+  //float propx_weight_blue, propx_weight_red, propx_slope_blue, propx_slope_red;
+};
+
+/* Parse a single option. */
+static error_t parse_opt (int key, char *arg, struct argp_state *state)
+{
+  /* Get the input argument from argp_parse, which we
+     know is a pointer to our arguments structure. */
+  struct arguments *arguments = state->input;
+
+  switch (key)
+  {
+    case 'f':
+      FLUXLIM = 1;
+      break;
+    case 'm':
+      STELLAR_MASS = 1;
+      break;
+    case 'c':
+      COLOR = 1;
+      break;
+    case 'o':
+      POPULATE_MOCK = 1;
+      break;
+    case 'v':
+      VERBOSE = 1;
+      break; 
+    case 'q': case 's':
+      SILENT = 1;
+      break;
+    case 'w':
+      arguments->wcen_set = 1;
+      sscanf(arg, "%f,%f,%f,%f,%f,%f", 
+             &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR));
+      break;
+    case 'b':
+      arguments->bsat_set = 1;
+      sscanf(arg, "%f,%f,%f,%f", 
+             &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE));
+      break;
+    case 'p':
+      arguments->chi1_set = 1;
+      sscanf(arg, "%f,%f,%f,%f", 
+             &(PROPX_WEIGHT_BLUE), &(PROPX_WEIGHT_RED), &(PROPX_SLOPE_BLUE), &(PROPX_SLOPE_RED));
+      break;
+
+    case ARGP_KEY_ARG:
+      if (state->arg_num >= 4)
+        /* Too many arguments. */
+        argp_usage (state);
+
+      switch (state->arg_num)
+      {
+        case 0:
+          INPUTFILE = arg;
+          break;
+        case 1:
+          MINREDSHIFT = atof(arg);
+          break;
+        case 2:
+          MAXREDSHIFT = atof(arg);
+          break;
+        case 3:
+          FRAC_AREA = atof(arg);
+          break;
+      }
+
+      break;
+
+    case ARGP_KEY_END:
+      if (state->arg_num < 4)
+        /* Not enough arguments. */
+        argp_usage (state);
+      break;
+
+    default:
+      return ARGP_ERR_UNKNOWN;
+  }
+  return 0;
+}
+
+/* Our argp parser. */
+static struct argp argp = { options, parse_opt, args_doc, doc };
 
 int main(int argc, char **argv)
 {
   double t0, t1;
   int istart, istep;
   int i;
-  if (argc < 5)
-  {
-    fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
-    exit(0);
-  }
-  if (argc > 7 && argc < 12)
-  {
-    fprintf(stderr, "If one [wcenvalues 1-6] is provided, all 6 must be.\n");
-    fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
-    exit(0);
-  }
-  if (argc > 13 && argc < 17)
-  {
-    fprintf(stderr, "If one [Bsat_values 1-4] is provided, all 4 must be.\n");
-    fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
-    exit(0);
-  }
-  if (argc > 17 && argc < 21)
-  {
-    fprintf(stderr, "If one [wchi_values 1-4] is provided, all 4 must be.\n");
-    fprintf(stderr, "kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out\n");
-    exit(0);
-  }
-  ARGC = argc;
-  ARGV = argv;
-  MINREDSHIFT = atof(argv[2]);
-  MAXREDSHIFT = atof(argv[3]);
-  FRAC_AREA = atof(argv[4]);
-  STELLAR_MASS = 0;
-  if (argc > 5)
-    FLUXLIM = atoi(argv[5]);
-  if (FLUXLIM < 0)
-  {
-    FLUXLIM = 0;
-    STELLAR_MASS = 1;
-  }
-  if (argc > 6)
-    COLOR = atoi(argv[6]);
-  if (argc > 7)
-  {
-    WCEN_MASS = atof(argv[7]);
-    WCEN_SIG = atof(argv[8]);
-    WCEN_MASSR = atof(argv[9]);
-    WCEN_SIGR = atof(argv[10]);
-    WCEN_NORM = atof(argv[11]);
-    WCEN_NORMR = atof(argv[12]);
-  }
-  if (argc > 13)
-  {
-    BPROB_RED = atof(argv[13]);
-    BPROB_XRED = atof(argv[14]);
-    BPROB_BLUE = atof(argv[15]);
-    BPROB_XBLUE = atof(argv[16]);
-  }
-  if (argc > 17)
-  {
-    SECOND_PARAMETER = 1;
-    PROPX_WEIGHT_BLUE = atof(argv[17]);
-    PROPX_WEIGHT_RED = atof(argv[18]);
-    PROPX_SLOPE_BLUE = atof(argv[19]);
-    PROPX_SLOPE_RED = atof(argv[20]);
-  }
-  /*
+  struct arguments arguments;
+  arguments.wcen_set = 0;
+  arguments.bsat_set = 0;
+  arguments.chi1_set = 0;
+
+  /* Parse our arguments; will set all the global variables the code uses directly. */
+  argp_parse (&argp, argc, argv, 0, 0, &arguments);
+
+   /*
   if(argc>19)
     {
       SECOND_PARAMETER=2;
@@ -134,49 +218,63 @@ int main(int argc, char **argv)
       PROPX2_WEIGHT_RED = atof(argv[20]);
     }
   */
+ /*
   if (argc > 21)
   {
     STELLAR_MASS = atoi(argv[21]);
   }
-  fprintf(stderr, "input> FLUXLIM= %d, STELLAR_MASS= %d \n", FLUXLIM, STELLAR_MASS);
-  fprintf(stderr, "input> %f %f %f %d\n", MINREDSHIFT, MAXREDSHIFT, FRAC_AREA, FLUXLIM);
-  fprintf(stderr, "input> %f %f %f %f %f %f\n", WCEN_MASS, WCEN_SIG, WCEN_MASSR, WCEN_SIGR,
-          WCEN_NORM, WCEN_NORMR);
-  fprintf(stderr, "input> SECOND_PARAMETER= %d\n", SECOND_PARAMETER);
-  fprintf(stderr, "input> %f %f %f %f\n", BPROB_RED, BPROB_XRED, BPROB_BLUE, BPROB_XBLUE);
-  fprintf(stderr, "input> %f %f %f %f\n", PROPX_WEIGHT_BLUE, PROPX_WEIGHT_RED,
-          PROPX_SLOPE_BLUE, PROPX_SLOPE_RED);
+  */
 
-  if (STELLAR_MASS)
-    fprintf(stderr, "NB! STELLAR_MASS=1\n");
+  if (!SILENT)
+  {
+    fprintf(stderr, "input> FLUXLIM: %d, STELLAR_MASS: %d \n", FLUXLIM, STELLAR_MASS);
+    fprintf(stderr, "input> z: %f-%f, frac_area: %f\n", MINREDSHIFT, MAXREDSHIFT, FRAC_AREA);
+    fprintf(stderr, "input> wcen: %f %f %f %f %f %f\n", WCEN_MASS, WCEN_SIG, WCEN_MASSR, WCEN_SIGR,
+            WCEN_NORM, WCEN_NORMR);
+    fprintf(stderr, "input> Bsat: %f %f %f %f\n", BPROB_RED, BPROB_XRED, BPROB_BLUE, BPROB_XBLUE);
+    fprintf(stderr, "input> SECOND_PARAMETER= %d\n", SECOND_PARAMETER);
+    fprintf(stderr, "input> %f %f %f %f\n", PROPX_WEIGHT_BLUE, PROPX_WEIGHT_RED,
+            PROPX_SLOPE_BLUE, PROPX_SLOPE_RED);
 
-  OUTPUT = 1;
+    if (STELLAR_MASS)
+      fprintf(stderr, "NB! STELLAR_MASS=1\n");
+  }
+
+  OUTPUT = 1; // TODO cleanup
   groupfind();
   OUTPUT = 0;
   // NB: nothing with the halo files
-  // exit(0);
-  lsat_model();
-  tabulate_hods();
-  populate_simulation_omp(-1, 0, 0);
-  // lsat_model_scatter();
-  t0 = omp_get_wtime();
-  for (i = 0; i < 10; i += 1)
+
+  if (POPULATE_MOCK)
   {
-    populate_simulation_omp(i / 2, i % 2, 1);
+    lsat_model();
+    tabulate_hods();
+    populate_simulation_omp(-1, 0, 0);
+    lsat_model_scatter();
+    t0 = omp_get_wtime();
+    for (i = 0; i < 10; i += 1)
+    {
+      populate_simulation_omp(i / 2, i % 2, 1);
+    }
+
+    /*
+    #pragma omp parallel private(i,istart,istep)
+    {
+      istart = omp_get_thread_num();
+      istep = omp_get_num_threads();
+      for(i=istart;i<10;i+=istep)
+        {
+    populate_simulation_omp(i/2,i%2,istart);
+        }
+    }
+    */
+
+    t1 = omp_get_wtime();
+    if (!SILENT)
+    {
+      fprintf(stderr, "popsim> %.2f sec\n", t1 - t0);
+    }
   }
-  /*
-#pragma omp parallel private(i,istart,istep)
-  {
-    istart = omp_get_thread_num();
-    istep = omp_get_num_threads();
-    for(i=istart;i<10;i+=istep)
-      {
-  populate_simulation_omp(i/2,i%2,istart);
-      }
-  }
-  */
-  t1 = omp_get_wtime();
-  fprintf(stderr, "popsim> %.2f sec\n", t1 - t0);
 }
 
 void groupfind()
@@ -198,7 +296,7 @@ void groupfind()
   {
     colors = COLOR;
     first_call = 0;
-    fp = openfile(ARGV[1]);
+    fp = openfile(INPUTFILE);
     NGAL = filesize(fp);
     fprintf(stderr, "Allocating space for [%d] galaxies\n", NGAL);
     GAL = calloc(NGAL, sizeof(struct galaxy));
@@ -221,14 +319,14 @@ void groupfind()
     galden = 0;
     for (i = 0; i < NGAL; ++i)
     {
-      // Thought called mstellar throughout the code, this galaxy property coudl be luminosity
-      // instead (at least, that's what Ian has been donig). Unclear if that is an issue yet. TODO
+      // Thought called mstellar throughout the code, this galaxy property could be luminosity
+      // instead (at least, that's what Ian has been doing). Unclear if that is an issue yet. TODO
       fscanf(fp, "%f %f %f %f", &GAL[i].ra, &GAL[i].dec, &GAL[i].redshift, &GAL[i].mstellar);
       GAL[i].ra *= PI / 180.;
       GAL[i].dec *= PI / 180.;
       GAL[i].id = i;
       GAL[i].rco = distance_redshift(GAL[i].redshift);
-      // check if the stellar mass is in log
+      // check if the stellar mass (or luminosity) is in log
       if (GAL[i].mstellar < 100)
         GAL[i].mstellar = pow(10.0, GAL[i].mstellar);
       if (FLUXLIM)
@@ -245,7 +343,7 @@ void groupfind()
       galden += 1 / GAL[i].vmax;
     }
     fclose(fp);
-    fprintf(stderr, "Done reading in from [%s]\n", ARGV[1]);
+    fprintf(stderr, "Done reading in from [%s]\n", INPUTFILE);
 
     if (!FLUXLIM)
     {

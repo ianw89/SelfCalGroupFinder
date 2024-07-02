@@ -38,9 +38,9 @@ class GroupCatalog:
         self.has_truth = False
         self.Mhalo_bins = Mhalo_bins
         self.labels = Mhalo_labels
-        self.all_data = None
-        self.centrals = None
-        self.sats = None
+        self.all_data: pd.DataFrame = None
+        self.centrals: pd.DataFrame = None
+        self.sats: pd.DataFrame = None
         self.L_gal_bins = L_gal_bins
         self.L_gal_labels = L_gal_labels
 
@@ -54,11 +54,20 @@ class GroupCatalog:
             return
 
         with open(self.GF_outfile, "w") as f:
+            args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
+            args.append(str(self.GF_props['zmin']))
+            args.append(str(self.GF_props['zmax']))
+            args.append(str(self.GF_props['frac_area']))
+            if self.GF_props['fluxlim'] == 1:
+                args.append("-f")
+            if self.GF_props['color'] == 1:
+                args.append("-c")
+            args.append(f"--wcen={self.GF_props['omegaL_sf']},{self.GF_props['sigma_sf']},{self.GF_props['omegaL_q']},{self.GF_props['sigma_q']},{self.GF_props['omega0_sf']},{self.GF_props['omega0_q']}")
+            args.append(f"--bsat={self.GF_props['beta0q']},{self.GF_props['betaLq']},{self.GF_props['beta0sf']},{self.GF_props['betaLsf']}")
+            if self.GF_props.get('omega_chi_0_sf') is not None:
+                args.append(f"--chi1={self.GF_props['omega_chi_0_sf']},{self.GF_props['omega_chi_0_q']},{self.GF_props['omega_chi_L_sf']},{self.GF_props['omega_chi_L_q']}")            
 
-            #args = [BIN_FOLDER + "kdGroupFinder_omp", inname, self.GF_props['zmin'], self.GF_props['zmax'], self.GF_props['frac_area'], self.GF_props['fluxlim'], self.GF_props['color'], self.GF_props['omegaL_sf'], self.GF_props['sigma_sf'], self.GF_props['omegaL_q'], self.GF_props['sigma_q'], self.GF_props['omega0_sf'], self.GF_props['omega0_q'], self.GF_props['beta0q'], self.GF_props['betaLq'], self.GF_props['beta0sf'], self.GF_props['betaLsf'], self.GF_outname]
-            #sp.Popen(args, shell=True, stdout=sp.PIPE)
-
-            args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file, *list(map(str,self.GF_props.values()))]
+            # The galaxies are written to stdout, so send ot the GF_outfile file stream
             self.results = sp.run(args, cwd=REPO_FOLDER, stdout=f)
 
     def postprocess(self):
@@ -294,7 +303,7 @@ class BGSGroupCatalog(GroupCatalog):
     
     extra_prop_df: pd.DataFrame = None
 
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool, sdss_fill: bool = True, num_passes: int = 3):
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool, sdss_fill: bool = True, num_passes: int = 3, data_cut: str = "Y1-Iron"):
         super().__init__(name)
         self.mode = mode
         self.mag_cut = mag_cut
@@ -303,9 +312,11 @@ class BGSGroupCatalog(GroupCatalog):
         self.color = mode_to_color(mode)
         self.sdss_fill = sdss_fill
         self.num_passes = num_passes
+        self.data_cut = data_cut
 
     def preprocess(self):
-        fname, props = pre_process_BGS(IAN_BGS_MERGED_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors, self.sdss_fill, self.num_passes)
+        print("Pre-processing...")
+        fname, props = pre_process_BGS(IAN_BGS_MERGED_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors, self.sdss_fill, self.num_passes, self.data_cut)
         self.preprocess_file = fname
         for p in props:
             self.GF_props[p] = props[p]
@@ -313,9 +324,12 @@ class BGSGroupCatalog(GroupCatalog):
     def run_group_finder(self):
         if self.preprocess_file is None:
             self.preprocess()
+        else:
+            print("Skipping pre-processing")
         super().run_group_finder()
 
     def postprocess(self):
+        print("Post-processing")
         filename_props = str.replace(self.GF_outfile, ".out", "_galprops.dat")
         galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r', 'Dn4000'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
         df = read_and_combine_gf_output(self, galprops)
@@ -387,7 +401,7 @@ def add_halo_columns(catalog: GroupCatalog):
     #df.loc[:, 'ldist_true'] = z_to_ldist(df.z_obs.to_numpy())
 
 
-def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON, sdss_fill, num_passes_required, year):
+def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON, sdss_fill, num_passes_required, data_cut):
     """
     Pre-processes the BGS data for use with the group finder.
     """
@@ -399,20 +413,20 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     table = Table.read(fname, format='fits')
     
     # These are calculated from randoms in BGS_study.ipynb
-    if year == 1:
+    if data_cut == "Y1-Iron":
         # For Y1-Iron  
         FOOTPRINT_FRAC_1pass = 0.187906 # 7751 degrees
         FOORPRINT_FRAC_2pass = 0.1154274 # 4761 degrees
         FOOTPRINT_FRAC_3pass = 0.0649945 # 1310 degrees
         FOOTPRINT_FRAC_4pass = 0.0228144 # 941 degrees
-    elif year == 3:
+    elif data_cut == "Y3-Jura":
         # For Y3-Jura
         FOOTPRINT_FRAC_1pass = 0.310691 # 12816 degrees
         FOORPRINT_FRAC_2pass = 0.286837 # 11832 degrees
         FOOTPRINT_FRAC_3pass = 0.233920 # 9649 degrees
         FOOTPRINT_FRAC_4pass = 0.115183 # 4751 degrees
     else:
-        print("Invalid year. Exiting.")
+        print("Invalid data cut. Exiting.")
         exit(2)
 
     # TODO update footprint with new calculation from ANY. It shouldn't change.
