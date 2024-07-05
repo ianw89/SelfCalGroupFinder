@@ -503,6 +503,7 @@ void lsat_model_scatter()
 
   // output this to a pre-specified file
   // (plus we knoe the limits of the data)
+  // TODO this OVERWRITES the lsat_groups.out file the other method makes!
   fp = fopen("lsat_groups.out", "w");
   for (i = 88; i <= 106; ++i)
     fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
