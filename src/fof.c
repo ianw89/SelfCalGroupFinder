@@ -240,10 +240,7 @@ void test_fof(void *kd)
       if(upid[ii]!=-1)continue;
 
       GAL[ii].mass = pow(10.0,mass[ii]);
-      GAL[ii].rad = pow(3*GAL[ii].mass/(4.*PI*DELTA_HALO*RHO_CRIT*OMEGA_M),THIRD);
-      GAL[ii].theta = GAL[ii].rad/GAL[ii].rco;
-      GAL[ii].sigmav = sqrt(BIG_G*GAL[ii].mass/2.0/GAL[ii].rad*(1+GAL[ii].redshift));
-      
+      update_galaxy_halo_props(&GAL[ii]);
       ntrue = nfof = 1;
       TEST_ID = ii;
       fof(kd);

@@ -161,9 +161,7 @@ void test_centering(void *kd)
       nhalo++;
       //first, set the central
       GAL[i].mass = pow(10.0,mass[i]);
-      GAL[i].rad = pow(3*GAL[i].mass/(4.*PI*DELTA_HALO*RHO_CRIT*OMEGA_M),THIRD);
-      GAL[i].theta = GAL[i].rad/GAL[i].rco;
-      GAL[i].sigmav = sqrt(BIG_G*GAL[i].mass/2.0/GAL[i].rad*(1+GAL[i].redshift));
+      update_galaxy_halo_props(&GAL[i]);
       GAL[i].igrp = i;
       GAL[i].nsat = 0;
       //printf("%e %e %e %e\n",mass[i],GAL[i].ra, GAL[i].dec, GAL[i].redshift);

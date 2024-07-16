@@ -517,26 +517,24 @@ def proj_clustering_plot(gc: GroupCatalog):
     for i in imag:
 
         # Data 
-        fname=REPO_FOLDER + "MCMC/parameters/" + 'wp_red_M'+"{:d}".format(i)+'.dat'
+        fname=PARAMS_FOLDER + 'wp_red_M'+"{:d}".format(i)+'.dat'
         wp, wp_err, radius = read_wp_file(fname)
         axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='r', capsize=2, ecolor='k', alpha=0.8)
 
-        fname=REPO_FOLDER + "MCMC/parameters/" + 'wp_blue_M'+"{:d}".format(i)+'.dat'
+        fname=PARAMS_FOLDER + 'wp_blue_M'+"{:d}".format(i)+'.dat'
         wp, wp_err, radius = read_wp_file(fname)
         axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='b', capsize=2, ecolor='k', alpha=0.8)
 
         # Populated mock for GroupCatalog gc
-        # TODO intead of storing all this in files (or in addition to), put in GroupCatalog object
-        fname=f'{gc.output_folder}wp_mock_red_M{i}.dat'
-        wp_mock = read_wp_mock_file(fname)
+        wp_mock = gc.__getattribute__(f'wp_mock_r_M{i}')[:,4]
         err_mock = gc.vfac[idx]*wp_err + gc.efac*wp_mock
         axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='r', alpha=0.8)
 
-        fname=f'{gc.output_folder}wp_mock_blue_M{i}.dat'
-        wp_mock = read_wp_mock_file(fname)
+        wp_mock = gc.__getattribute__(f'wp_mock_b_M{i}')[:,4]
         err_mock = gc.vfac[idx]*wp_err + gc.efac*wp_mock
         axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='b', alpha=0.8)
 
+        # Plot config
         axes[idx].set_xlabel('log $r_p$ [Mpc/h]')
         axes[idx].set_ylabel('log $w_p(r_p)$')
         axes[idx].set_xlim(-1,1)
@@ -554,19 +552,12 @@ def read_wp_file(fname):
     radius = data[:,0]
     return wp,wp_err,radius
 
-def read_wp_mock_file(fname):
-    data = np.loadtxt(fname, skiprows=0, dtype='float')
-    wp = data[:,4]
-    return wp
-
 def lsat_data_compare_plot(gc: GroupCatalog):
 
     # Get Lsat for r/b centrals from the group finder's output
-    fname=f'{gc.output_folder}lsat_groups.out'
-    lsat_groups = np.loadtxt(fname, skiprows=0, dtype='float')
-    lcen = lsat_groups[:,0] # log10 already
-    lsat_r = np.power(10, lsat_groups[:,1])
-    lsat_b = np.power(10, lsat_groups[:,2])
+    lcen = gc.lsat_groups[:,0] # log10 already
+    lsat_r = np.power(10, gc.lsat_groups[:,1])
+    lsat_b = np.power(10, gc.lsat_groups[:,2])
     ratio = lsat_r/lsat_b
 
     # Get Mean Lsat for r/b centrals from SDSS data
@@ -581,8 +572,7 @@ def lsat_data_compare_plot(gc: GroupCatalog):
 
     fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(9,4), dpi=DPI)
 
-    # TODO something wrong with obs_ratio_err
-    axes[0].errorbar(lcen, obs_ratio, yerr=obs_ratio_err, fmt='o', color='k', capsize=2, ecolor='k', label='SDSS Data')
+    axes[0].errorbar(obs_lcen, obs_ratio, yerr=obs_ratio_err, fmt='o', color='k', capsize=2, ecolor='k', label='SDSS Data')
     axes[0].plot(lcen, ratio, color='purple', label='Group Finder')
     axes[0].set_ylabel('$L_{sat_q}/L_{sat_sf}$')
     axes[0].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')

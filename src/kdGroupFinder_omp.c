@@ -1,6 +1,3 @@
-// Initialization //
-
-#include <argp.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -14,59 +11,27 @@
 #include "groups.h"
 #include "fit_clustering_omp.h"
 
-// Input file format
-// 1 galaxy per line
-// RA DEC REDSHIFT MAINPROP [VMAX] [COLOR] [PROP1] [PROP2]
-// MAINPROP can be either LUMINOSITY OR STELLAR MASS (then provide -m), 
-// OR LOG10 OF EITHER (log is automatically detected)
-// If -f for fluxlim mode is given, VMAX is required
-// If -c for colors mode is given, the next color will be read as COLOR values. 
-//   If the color is less than 0.8, the galaxy is considered blue, otherwise red.
-//   When not provided, all galaxies are treated as blue.
-// PROP1, PROP2 are optional 
-
-/* Standard GNU command-line program stuff */
-const char *argp_program_version =  "kdGroupFinder-2.0";
-const char *argp_program_bug_address = "<imw2293@nyu.edu>";
-static char doc[] = "kdGroupFinder: A self-calibrated galaxy group finder\
-\vInput file format is 1 galaxy per line\n.\
- RA DEC REDSHIFT MAINPROP [VMAX] [COLOR] [PROP1] [PROP2]\n\
- MAINPROP can be either luminosity OR stellar mass (then provide -m),\
- or log10 of either (automatically detected).\
- If -f for fluxlim mode is given, a VMAX column is required.\
- If -c for colors mode is given, the a color column is required. \
- If the color is less than 0.8, the galaxy is considered blue, otherwise red.\
- When not provided, all galaxies are treated as blue.\
- PROP1, PROP2 are optional and not fully supported yet."; 
-
- 
-static char args_doc[] = "inputfile zmin zmax frac_area";
-
-// stdout is used for printing the output of the program; 1 galaxy per line
-// stderr is used for printing the progress of the program and errors
+/* Initializes global variables for running group finder.
+ * Contains high level methods for group finding algorithm.
+ */
 
 struct galaxy *GAL;
 int NGAL;
-int OUTPUT = 0;
 
 /* Local functions */
 void find_satellites(int icen, void *kd);
-float radial_probability(float mass, float dr, float rad, float ang_rad);
 float fluxlim_correction(float z);
-void groupfind(void);
 
 /* Variables for determining if a galaxy is a satellite */
-float BPROB_RED = 5, BPROB_XRED = 0;
-float BPROB_BLUE = 15, BPROB_XBLUE = 0;
+int USE_BSAT = 0; // off by default
+const float BPROB_DEFAULT = 10.0;
+float BPROB_RED, BPROB_BLUE, BPROB_XRED, BPROB_XBLUE= 0.0;
 
 /* Variables for weighting the central galaxies of the blue galaxies */
-float WCEN_MASS = 10.5,
-      WCEN_SIG = 0.5,
-      WCEN_MASSR = 10.5,
-      WCEN_SIGR = 1.0,
-      WCEN_NORMR = 0.5,
-      WCEN_NORM = 0.5;
+int USE_WCEN = 0; // off by default
+float WCEN_MASS, WCEN_SIG, WCEN_MASSR, WCEN_SIGR, WCEN_NORM, WCEN_NORMR = 0.0;
 
+// TODO update these to new pattern
 float PROPX_WEIGHT_RED = 1000.0,
       PROPX_WEIGHT_BLUE = 1000.0;
 float PROPX_SLOPE_RED = 0,
@@ -74,208 +39,19 @@ float PROPX_SLOPE_RED = 0,
 float PROPX2_WEIGHT_RED = 1000.0,
       PROPX2_WEIGHT_BLUE = 1000.0;
 
+char *INPUTFILE;
 float MINREDSHIFT;
 float MAXREDSHIFT;
-float GALAXY_DENSITY;
 float FRAC_AREA;
+float GALAXY_DENSITY;
 int FLUXLIM = 0; // default is volume-limited
-int COLOR = 0; // default is no colors
+int COLOR = 0; // default is ignore color information (sometimes treating all as blue)
 int STELLAR_MASS = 0; // defaulit is luminosities
-char *INPUTFILE;
-int RECENTERING = 0;
+int RECENTERING = 0; // this options appears to always be off right now and hasn't been tested since fork
 int SECOND_PARAMETER = 0; // default is no extra per-galaxy parameters
 int SILENT = 0; // TODO make this work
 int VERBOSE = 0; // TODO make this work
 int POPULATE_MOCK = 0; // default is do not populate mock
-
-// TODO colors mode off doesn't really work with colors off I think
-static struct argp_option options[] = {
-  {"fluxlim",      'f', 0,                                    0,  "Indicate a flux limited sample", 1},
-  {"stellarmass",  'm', 0,                                    0,  "Abundance match on stellar mass, not luminosity", 1},
-  {"popmock",      'o', 0,                                    0,  "Populate the mock catalog after group finding", 1},
-  {"colors",       'c', 0,                                    0,  "Read in and use galaxy colors", 1},
-  {"wcen",         'w', "MASS,SIGMA,MASSR,SIGMAR,NORM,NORMR", 0,  "Six parameters for weighting the centrals", 2},
-  {"bsat",         'b', "RED,XRED,BLUE,XBLUE",                0,  "Four parameters for the satellite probability", 2},
-  {"chi1",         'p', "WEIGHT_B,WEIGHT_R,SLOPE_B,SLOPE_R",  0,  "Four parameters per-galaxy extra property weighting", 2},
-  {"verbose",      'v', 0,                                    0,  "Produce verbose output", 3},
-  {"quiet",        'q', 0,                                    0,  "Don't produce any output", 3 },
-  {"silent",       's', 0,                                    OPTION_ALIAS },
-  //{"output",   'o', "FILE", 0, "Output to FILE instead of standard output" },
-  { 0 }
-};
-
-/* Used by main to communicate with parse_opt. */
-struct arguments
-{
-  //char *inputfile;
-  //float zmin, zmax, frac_area;
-  int wcen_set, bsat_set, chi1_set;
-  //int silent, verbose, fluxlim, stellarmass, colors, popmock, wcen_set, bsat_set, chi1_set;
-  //float wcen_mass, wcen_sig, wcen_massr, wcen_sigr, wcen_norm, wcen_normr;
-  //float bprob_red, bprob_xred, bprob_blue, bprob_xblue;
-  //float propx_weight_blue, propx_weight_red, propx_slope_blue, propx_slope_red;
-};
-
-/* Parse a single option. */
-static error_t parse_opt (int key, char *arg, struct argp_state *state)
-{
-  /* Get the input argument from argp_parse, which we
-     know is a pointer to our arguments structure. */
-  struct arguments *arguments = state->input;
-
-  switch (key)
-  {
-    case 'f':
-      FLUXLIM = 1;
-      break;
-    case 'm':
-      STELLAR_MASS = 1;
-      break;
-    case 'c':
-      COLOR = 1;
-      break;
-    case 'o':
-      POPULATE_MOCK = 1;
-      break;
-    case 'v':
-      VERBOSE = 1;
-      break; 
-    case 'q': case 's':
-      SILENT = 1;
-      break;
-    case 'w':
-      arguments->wcen_set = 1;
-      sscanf(arg, "%f,%f,%f,%f,%f,%f", 
-             &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR));
-      break;
-    case 'b':
-      arguments->bsat_set = 1;
-      sscanf(arg, "%f,%f,%f,%f", 
-             &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE));
-      break;
-    case 'p':
-      arguments->chi1_set = 1;
-      sscanf(arg, "%f,%f,%f,%f", 
-             &(PROPX_WEIGHT_BLUE), &(PROPX_WEIGHT_RED), &(PROPX_SLOPE_BLUE), &(PROPX_SLOPE_RED));
-      break;
-
-    case ARGP_KEY_ARG:
-      if (state->arg_num >= 4)
-        /* Too many arguments. */
-        argp_usage (state);
-
-      switch (state->arg_num)
-      {
-        case 0:
-          INPUTFILE = arg;
-          break;
-        case 1:
-          MINREDSHIFT = atof(arg);
-          break;
-        case 2:
-          MAXREDSHIFT = atof(arg);
-          break;
-        case 3:
-          FRAC_AREA = atof(arg);
-          break;
-      }
-
-      break;
-
-    case ARGP_KEY_END:
-      if (state->arg_num < 4)
-        /* Not enough arguments. */
-        argp_usage (state);
-      break;
-
-    default:
-      return ARGP_ERR_UNKNOWN;
-  }
-  return 0;
-}
-
-/* Our argp parser. */
-static struct argp argp = { options, parse_opt, args_doc, doc };
-
-int main(int argc, char **argv)
-{
-  double t0, t1;
-  int istart, istep;
-  int i;
-  struct arguments arguments;
-  arguments.wcen_set = 0;
-  arguments.bsat_set = 0;
-  arguments.chi1_set = 0;
-
-  /* Parse our arguments; will set all the global variables the code uses directly. */
-  argp_parse (&argp, argc, argv, 0, 0, &arguments);
-
-   /*
-  if(argc>19)
-    {
-      SECOND_PARAMETER=2;
-      PROPX2_WEIGHT_BLUE = atof(argv[19]);
-      PROPX2_WEIGHT_RED = atof(argv[20]);
-    }
-  */
- /*
-  if (argc > 21)
-  {
-    STELLAR_MASS = atoi(argv[21]);
-  }
-  */
-
-  if (!SILENT)
-  {
-    fprintf(stderr, "input> FLUXLIM: %d, STELLAR_MASS: %d \n", FLUXLIM, STELLAR_MASS);
-    fprintf(stderr, "input> z: %f-%f, frac_area: %f\n", MINREDSHIFT, MAXREDSHIFT, FRAC_AREA);
-    fprintf(stderr, "input> wcen: %f %f %f %f %f %f\n", WCEN_MASS, WCEN_SIG, WCEN_MASSR, WCEN_SIGR,
-            WCEN_NORM, WCEN_NORMR);
-    fprintf(stderr, "input> Bsat: %f %f %f %f\n", BPROB_RED, BPROB_XRED, BPROB_BLUE, BPROB_XBLUE);
-    fprintf(stderr, "input> SECOND_PARAMETER= %d\n", SECOND_PARAMETER);
-    fprintf(stderr, "input> %f %f %f %f\n", PROPX_WEIGHT_BLUE, PROPX_WEIGHT_RED,
-            PROPX_SLOPE_BLUE, PROPX_SLOPE_RED);
-
-    if (STELLAR_MASS)
-      fprintf(stderr, "NB! STELLAR_MASS=1\n");
-  }
-
-  OUTPUT = 1; // TODO cleanup
-  groupfind();
-  OUTPUT = 0;
-  // NB: nothing with the halo files
-
-  if (POPULATE_MOCK)
-  {
-    lsat_model();
-    tabulate_hods();
-    populate_simulation_omp(-1, 0, 0);
-    lsat_model_scatter();
-    t0 = omp_get_wtime();
-    for (i = 0; i < 10; i += 1)
-    {
-      populate_simulation_omp(i / 2, i % 2, 1);
-    }
-
-    /*
-    #pragma omp parallel private(i,istart,istep)
-    {
-      istart = omp_get_thread_num();
-      istep = omp_get_num_threads();
-      for(i=istart;i<10;i+=istep)
-        {
-    populate_simulation_omp(i/2,i%2,istart);
-        }
-    }
-    */
-
-    t1 = omp_get_wtime();
-    if (!SILENT)
-    {
-      fprintf(stderr, "popsim> %.2f sec\n", t1 - t0);
-    }
-  }
-}
 
 void groupfind()
 {
@@ -298,7 +74,7 @@ void groupfind()
     first_call = 0;
     fp = openfile(INPUTFILE);
     NGAL = filesize(fp);
-    fprintf(stderr, "Allocating space for [%d] galaxies\n", NGAL);
+    if (!SILENT) fprintf(stderr, "Allocating space for [%d] galaxies\n", NGAL);
     GAL = calloc(NGAL, sizeof(struct galaxy));
     flag = ivector(0, NGAL - 1);
 
@@ -324,11 +100,12 @@ void groupfind()
       fscanf(fp, "%f %f %f %f", &GAL[i].ra, &GAL[i].dec, &GAL[i].redshift, &GAL[i].mstellar);
       GAL[i].ra *= PI / 180.;
       GAL[i].dec *= PI / 180.;
-      GAL[i].id = i;
+      //GAL[i].id = i;
       GAL[i].rco = distance_redshift(GAL[i].redshift);
       // check if the stellar mass (or luminosity) is in log
       if (GAL[i].mstellar < 100)
         GAL[i].mstellar = pow(10.0, GAL[i].mstellar);
+      // I think we can just set the bsat here
       if (FLUXLIM)
         fscanf(fp, "%f", &GAL[i].vmax);
       else
@@ -343,12 +120,12 @@ void groupfind()
       galden += 1 / GAL[i].vmax;
     }
     fclose(fp);
-    fprintf(stderr, "Done reading in from [%s]\n", INPUTFILE);
+    if (!SILENT) fprintf(stderr, "Done reading in from [%s]\n", INPUTFILE);
 
     if (!FLUXLIM)
     {
-      fprintf(stderr, "Volume= %e L_box= %f\n", volume, pow(volume, THIRD));
-      fprintf(stderr, "Number density= %e %e\n", NGAL / volume, galden);
+      if (!SILENT) fprintf(stderr, "Volume= %e L_box= %f\n", volume, pow(volume, THIRD));
+      if (!SILENT) fprintf(stderr, "Number density= %e %e\n", NGAL / volume, galden);
       GALAXY_DENSITY = NGAL / volume;
     }
 
@@ -365,13 +142,13 @@ void groupfind()
       xtmp[i] = -(GAL[i - 1].mstellar * lumshift[i - 1]);
       itmp[i] = i - 1;
     }
-    fprintf(stderr, "sorting galaxies...\n");
+    if (!SILENT) fprintf(stderr, "sorting galaxies...\n");
     sort2(NGAL, xtmp, itmp);
-    fprintf(stderr, "done sorting galaxies.\n");
+    if (!SILENT) fprintf(stderr, "done sorting galaxies.\n");
 
     // do the inverse-abundance matching
     density2host_halo(0.01);
-    fprintf(stderr, "Starting inverse-sham...\n");
+    if (!SILENT) fprintf(stderr, "Starting inverse-sham...\n");
     galden = 0;
     // reset the sham counters
     if (FLUXLIM)
@@ -389,22 +166,20 @@ void groupfind()
         GAL[i].mass = density2host_halo(galden);
       }
       // Set other properties derived from that
-      GAL[i].rad = pow(3 * GAL[i].mass / (4. * PI * DELTA_HALO * RHO_CRIT * OMEGA_M), THIRD);
-      GAL[i].theta = GAL[i].rad / GAL[i].rco;
-      GAL[i].sigmav = sqrt(BIG_G * GAL[i].mass / 2.0 / GAL[i].rad * (1 + GAL[i].redshift));
+      update_galaxy_halo_props(&GAL[i]);
       GAL[i].psat = 0;
       j = i;
       GAL[j].x = GAL[j].rco * cos(GAL[j].ra) * cos(GAL[j].dec);
       GAL[j].y = GAL[j].rco * sin(GAL[j].ra) * cos(GAL[j].dec);
       GAL[j].z = GAL[j].rco * sin(GAL[j].dec);
     }
-    fprintf(stderr, "Done inverse-sham.\n");
+    if (!SILENT) fprintf(stderr, "Done inverse-sham.\n");
     // assume that NGAL=NGROUP at first
     ngrp = NGAL;
   }
 
   // let's create a 3D KD tree
-  fprintf(stderr, "Building KD-tree...\n");
+  if (!SILENT) fprintf(stderr, "Building KD-tree...\n");
   kd = kd_create(3);
   for (i = 1; i <= NGAL; ++i)
   {
@@ -415,7 +190,7 @@ void groupfind()
     pt[2] = GAL[j].z;
     assert(kd_insert(kd, pt, (void *)&permanent_id[j]) == 0);
   }
-  fprintf(stderr, "Done building KD-tree. %d\n", ngrp);
+  if (!SILENT) fprintf(stderr, "Done building KD-tree. %d\n", ngrp);
 
   // test the FOF group finder
   // test_fof(kd);
@@ -423,7 +198,7 @@ void groupfind()
   // now let's go to the center finder
   // test_centering(kd);
 
-  // now start the group-finding iteratin
+  // now start the group-finding iterations
   for (niter = 1; niter <= MAX_ITER; ++niter)
   {
     t3 = omp_get_wtime();
@@ -435,6 +210,7 @@ void groupfind()
       GAL[j].nsat = 0;
       GAL[j].mtot = GAL[j].mstellar;
 
+      // Each galaxy can optionally have it's halo mass weighted by a property
       weight = 1.0;
       if (SECOND_PARAMETER)
       {
@@ -457,12 +233,19 @@ void groupfind()
           weight *= exp(GAL[j].propx2 / PROPX2_WEIGHT_RED);
       }
       GAL[j].mtot *= weight;
-      if (GAL[j].color < 0.8)
-        weight = 1 / pow(10.0, 0.5 * (1 + erf((log10(GAL[j].mstellar) - WCEN_MASS) / WCEN_SIG)) * WCEN_NORM);
-      else
-        weight = 1 / pow(10.0, 0.5 * (1 + erf((log10(GAL[j].mstellar) - WCEN_MASSR) / WCEN_SIGR)) * WCEN_NORMR);
-      // GAL[j].mtot*=weight;
+
+      // Color-dependent weighting of centrals masses
+      weight = 1.0;
+      if (USE_WCEN)
+      {
+        if (GAL[j].color < 0.8)
+          // If colors not provided, this is what will be used
+          weight = 1 / pow(10.0, 0.5 * (1 + erf((log10(GAL[j].mstellar) - WCEN_MASS) / WCEN_SIG)) * WCEN_NORM);
+        else
+          weight = 1 / pow(10.0, 0.5 * (1 + erf((log10(GAL[j].mstellar) - WCEN_MASSR) / WCEN_SIGR)) * WCEN_NORMR);
+      }
       GAL[j].weight = weight;
+
       flag[j] = 1;
     }
     // find the satellites for each halo, in order of group mass
@@ -517,6 +300,7 @@ void groupfind()
       }
     }
 
+    // Find new group centers if option enabled (its NOT)
     if (RECENTERING && niter != MAX_ITER)
     {
       for (j = 1; j <= ngrp; ++j)
@@ -533,8 +317,8 @@ void groupfind()
           if (icen_new != i)
           {
             // transfer the halo values
-            // printf("REC %d %d %d %d\n",niter, i, icen_new, j);
-            // fflush(stdout);
+            if (!SILENT && VERBOSE)
+              fprintf(stderr, "REC %d %d %d %d\n",niter, i, icen_new, j);
             itmp[j] = icen_new;
             GAL[i].psat = 1;
             GAL[i].igrp = icen_new; // need to swap all of them, fyi...
@@ -564,9 +348,7 @@ void groupfind()
         GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
       else
         GAL[i].mass = density2host_halo(galden);
-      GAL[i].rad = pow(3 * GAL[i].mass / (4. * PI * DELTA_HALO * RHO_CRIT * OMEGA_M), THIRD);
-      GAL[i].theta = GAL[i].rad / GAL[i].rco;
-      GAL[i].sigmav = sqrt(BIG_G * GAL[i].mass / 2.0 / GAL[i].rad * (1 + GAL[i].redshift));
+      update_galaxy_halo_props(&GAL[i]);
       nsat_tot += GAL[i].nsat;
     }
     t4 = omp_get_wtime();
@@ -576,41 +358,28 @@ void groupfind()
       if (GAL[j].psat > 0.5)
         GAL[j].mass = GAL[GAL[j].igrp].mass;
 
-    fprintf(stderr, "iter %d ngroups=%d fsat=%f (kdtime=%.2f %.2f)\n",
+    if (!SILENT) 
+      fprintf(stderr, "iter %d ngroups=%d fsat=%f (kdtime=%.2f %.2f)\n",
             niter, ngrp, nsat_tot / NGAL, t1 - t0, t4 - t3);
-  }
+  } // end of main iteration loop
 
   /* Output to disk the final results
    */
-  if (OUTPUT)
+  for (i = 0; i < NGAL; ++i)
   {
-    for (i = 0; i < NGAL; ++i)
-    {
-      printf("%d %f %f %f %e %e %f %e %e %e %d %e\n",
-             i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
-             GAL[i].mstellar, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
-             GAL[i].nsat, GAL[i].mtot, GAL[i].igrp, GAL[i].weight);
-    }
-    fflush(stdout);
+    // the weight printed off here is only the color-dependent centrals weight
+    // not the chi properties affected weight
+    // TODO: should we change that?
+    printf("%d %f %f %f %e %e %f %e %e %e %d %e\n",
+            i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
+            GAL[i].mstellar, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
+            GAL[i].nsat, GAL[i].mtot, GAL[i].igrp, GAL[i].weight);
   }
+  fflush(stdout);
+  
   /* let's free up the memory of the kdtree
    */
   kd_free(kd);
-}
-
-/* Distance-redshift relation
- */
-float func_dr1(float z)
-{
-  return pow(OMEGA_M * (1 + z) * (1 + z) * (1 + z) + (1 - OMEGA_M), -0.5);
-}
-float distance_redshift(float z)
-{
-  float x;
-  if (z <= 0)
-    return 0;
-  x = c_on_H0 * qromo(func_dr1, 0.0, z, midpnt);
-  return x;
 }
 
 /* Here is the main code to find satellites for a given central galaxy
@@ -675,25 +444,29 @@ void find_satellites(int icen, void *kd)
 
     // Now determine the probability of being a satellite
     //(both projected onto the sky, and along the line of sight).
-    prob_ang = radial_probability(GAL[icen].mass, theta, GAL[icen].rad, GAL[icen].theta);
-    prob_rad = exp(-dz * dz / (2 * GAL[icen].sigmav * GAL[icen].sigmav)) * SPEED_OF_LIGHT / (RT2PI * GAL[icen].sigmav);
 
     // set the background level
-    if (GAL[j].color > 0.8)
-      bprob = BPROB_RED + (log10(GAL[j].mstellar) - 9.5) * BPROB_XRED;
-    else
-      bprob = BPROB_BLUE + (log10(GAL[j].mstellar) - 9.5) * BPROB_XBLUE;
-
+    bprob = BPROB_DEFAULT;
+    if (USE_BSAT)
+    {
+      if (GAL[j].color > 0.8)
+        bprob = BPROB_RED + (log10(GAL[j].mstellar) - 9.5) * BPROB_XRED;
+      else
+        bprob = BPROB_BLUE + (log10(GAL[j].mstellar) - 9.5) * BPROB_XBLUE;
+    }
     // let's put a lower limit of the prob
     if (bprob < 0.001)
       bprob = 0.001;
 
-    // combine them into the total probability
-    p0 = (1 - 1 / (1 + prob_ang * prob_rad / bprob));
+    p0 = psat(&GAL[icen], theta, dz, bprob);
     if (isnan(p0))
+    {
       p0 = 1; //???
+      fprintf(stderr, "Unexpected nan result for prob sat at index %i", j);
+    }
+    // Keep track of the highest psat so far
     if (p0 > GAL[j].psat)
-      GAL[j].psat = p0;
+      GAL[j].psat = p0;    
     if (p0 < 0.5)
       continue;
 
@@ -724,41 +497,6 @@ void find_satellites(int icen, void *kd)
     GAL[icen].nsat /= vol_corr;
     GAL[icen].mtot /= vol_corr;
   }
-}
-
-/* angular separation between two points in ra/dec
- */
-float angular_separation(float a1, float d1, float a2, float d2)
-{
-  float cd1, cd2, sd1, sd2, ca1a2, sa1a2;
-
-  return atan((sqrt(cos(d2) * cos(d2) * sin(a2 - a1) * sin(a2 - a1) +
-                    pow(cos(d1) * sin(d2) - sin(d1) * cos(d2) * cos(a2 - a1), 2.0))) /
-              (sin(d1) * sin(d2) + cos(d1) * cos(d2) * cos(a2 - a1)));
-}
-
-/* Probability assuming a projected NFW profile
- */
-float radial_probability(float mass, float dr, float rad, float ang_rad)
-{
-  float c, x, rs, delta, f;
-
-  dr = dr * rad / ang_rad;
-
-  c = 10.0 * pow(mass / 1.0E+14, -0.11);
-  rs = rad / c;
-  x = dr / rs;
-
-  if (x < 1)
-    f = 1 / (x * x - 1) * (1 - log((1 + sqrt(1 - x * x)) / x) / (sqrt(1 - x * x)));
-  if (x == 1)
-    f = 1.0 / 3.0;
-  if (x > 1)
-    f = 1 / (x * x - 1) * (1 - atan(sqrt(x * x - 1)) / sqrt(x * x - 1));
-
-  delta = DELTA_HALO / 3.0 * c * c * c / (log(1 + c) - c / (1 + c));
-
-  return 1.0 / c_on_H0 * 2 * rs * delta * f;
 }
 
 /* This is calibrated from the MXXL BGS mock,

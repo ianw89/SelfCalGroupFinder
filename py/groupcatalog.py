@@ -48,10 +48,22 @@ class GroupCatalog:
         self.L_gal_bins = L_gal_bins
         self.L_gal_labels = L_gal_labels
 
+        self.wp_mock_b_M17 = None
+        self.wp_mock_r_M17 = None
+        self.wp_mock_b_M18 = None
+        self.wp_mock_r_M18 = None
+        self.wp_mock_b_M19 = None
+        self.wp_mock_r_M19 = None
+        self.wp_mock_b_M20 = None
+        self.wp_mock_r_M20 = None
+        self.wp_mock_b_M21 = None
+        self.wp_mock_r_M21 = None
+        self.lsat_groups = None
+
         self.f_sat = None # per Lgal bin 
         self.Lgal_counts = None # size of Lgal bins 
 
-    def run_group_finder(self, popmock=False):
+    def run_group_finder(self, popmock=False, silent=False):
 
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
@@ -73,19 +85,42 @@ class GroupCatalog:
             args.append(str(self.GF_props['zmin']))
             args.append(str(self.GF_props['zmax']))
             args.append(str(self.GF_props['frac_area']))
-            if self.GF_props['fluxlim'] == 1:
+            if self.GF_props.get('fluxlim') == 1:
                 args.append("-f")
-            if self.GF_props['color'] == 1:
+            if self.GF_props.get('color') == 1:
                 args.append("-c")
+            if silent:
+                args.append("-s")
             if popmock:
                 args.append("--popmock")
-            args.append(f"--wcen={self.GF_props['omegaL_sf']},{self.GF_props['sigma_sf']},{self.GF_props['omegaL_q']},{self.GF_props['sigma_q']},{self.GF_props['omega0_sf']},{self.GF_props['omega0_q']}")
-            args.append(f"--bsat={self.GF_props['beta0q']},{self.GF_props['betaLq']},{self.GF_props['beta0sf']},{self.GF_props['betaLsf']}")
-            if self.GF_props.get('omega_chi_0_sf') is not None:
+            if 'omegaL_sf' in self.GF_props:
+                args.append(f"--wcen={self.GF_props['omegaL_sf']},{self.GF_props['sigma_sf']},{self.GF_props['omegaL_q']},{self.GF_props['sigma_q']},{self.GF_props['omega0_sf']},{self.GF_props['omega0_q']}")
+            if 'beta0q' in self.GF_props:
+                args.append(f"--bsat={self.GF_props['beta0q']},{self.GF_props['betaLq']},{self.GF_props['beta0sf']},{self.GF_props['betaLsf']}")
+            if 'omega_chi_0_sf' in self.GF_props:
                 args.append(f"--chi1={self.GF_props['omega_chi_0_sf']},{self.GF_props['omega_chi_0_q']},{self.GF_props['omega_chi_L_sf']},{self.GF_props['omega_chi_L_q']}")            
 
             # The galaxies are written to stdout, so send ot the GF_outfile file stream
             self.results = sp.run(args, cwd=self.output_folder, stdout=f)
+            
+            #print(self.results.returncode)
+        
+        # TODO what about if there was an error? returncode for the GF doesn't seem useful right now
+        if popmock:
+            self.wp_mock_b_M17 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M17.dat', skiprows=0, dtype='float')
+            self.wp_mock_r_M17 = np.loadtxt(f'{self.output_folder}wp_mock_red_M17.dat', skiprows=0, dtype='float')
+            self.wp_mock_b_M18 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M18.dat', skiprows=0, dtype='float')
+            self.wp_mock_r_M18 = np.loadtxt(f'{self.output_folder}wp_mock_red_M18.dat', skiprows=0, dtype='float')
+            self.wp_mock_b_M19 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M19.dat', skiprows=0, dtype='float')
+            self.wp_mock_r_M19 = np.loadtxt(f'{self.output_folder}wp_mock_red_M19.dat', skiprows=0, dtype='float')
+            self.wp_mock_b_M20 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M20.dat', skiprows=0, dtype='float')
+            self.wp_mock_r_M20 = np.loadtxt(f'{self.output_folder}wp_mock_red_M20.dat', skiprows=0, dtype='float')
+            self.wp_mock_b_M21 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M21.dat', skiprows=0, dtype='float')
+            self.wp_mock_r_M21 = np.loadtxt(f'{self.output_folder}wp_mock_red_M21.dat', skiprows=0, dtype='float')
+            
+            self.lsat_groups = np.loadtxt(f'{self.output_folder}lsat_groups.out', skiprows=0, dtype='float')
+
+
 
     def run_corrfunc(self):
 
@@ -244,17 +279,7 @@ class TestGroupCatalog(GroupCatalog):
             'zmax':1.0,
             'frac_area':4.0/DEGREES_ON_SPHERE,
             'fluxlim':1,
-            'color':1,
-            'omegaL_sf':13.1,
-            'sigma_sf':2.42,
-            'omegaL_q':12.9,
-            'sigma_q':4.84,
-            'omega0_sf':0,  
-            'omega0_q':0,    
-            'beta0q':10,    
-            'betaLq':0,
-            'beta0sf':10,
-            'betaLsf':0,
+            'color':0,
         }
 
     def create_test_dat_files(self):
