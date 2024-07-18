@@ -7,7 +7,7 @@
 hd = $(HOME)/lib
 LIB = -lm -fopenmp -L${hd} -lcutil 
 CC = gcc
-CFLAGS = -O2 -fopenmp
+CFLAGS = -O2 -fopenmp -Wno-unused-result
 
 # Ian
 #hd = $(HOME)/lib

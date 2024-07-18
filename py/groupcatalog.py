@@ -429,6 +429,7 @@ class BGSGroupCatalog(GroupCatalog):
         # Get extra fastspecfit columns. Could have threaded these through with galprops
         # But if they aren't used in group finding or preprocessing this is easier to update
         if BGSGroupCatalog.extra_prop_df is None:
+            print("Getting fastspecfit data")
             BGSGroupCatalog.extra_prop_df = get_extra_bgs_fastspectfit_data()
         
         prior_len = len(df)
@@ -438,6 +439,13 @@ class BGSGroupCatalog(GroupCatalog):
 
         self.all_data = df
         super().postprocess()
+
+    def write_sharable_output_file(self):
+        print("Writing a sharable output file")
+        filename_out = str.replace(self.GF_outfile, ".out", "_catalog.out")
+        df = self.all_data.drop(columns=['Mstar_bin', 'Mh_bin', 'Lgal_bin', 'logLgal', 'Dn4000'])
+        print(df.columns)
+        df.to_csv(filename_out, header=True)
 
 def get_extra_bgs_fastspectfit_data():
     hdul = fits.open(BGS_FASTSPEC_FILE, memmap=True)

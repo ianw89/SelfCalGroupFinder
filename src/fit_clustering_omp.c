@@ -547,7 +547,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
     fprintf(stderr, "popsim> done reading halo data [%d].\n", NHALO);
 
     // lets create a list of random numbers
-    fprintf(stderr, "popsim> creating random numbers.\n", NHALO);
+    fprintf(stderr, "popsim> creating random numbers [%d].\n", NHALO);
     for (i = 0; i < NRANDOM; ++i)
     {
       UNIFORM_RANDOM[i] = drand48();
@@ -556,7 +556,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
     // each task gets its own counter
     for (i = 0; i < 100; ++i)
       IRAN_CURRENT[i] = (int)(drand48() * 100);
-    fprintf(stderr, "popsim> done with randoms.\n", NHALO);
+    fprintf(stderr, "popsim> done with randoms [%d].\n", NHALO);
 
     return;
   }

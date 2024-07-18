@@ -311,7 +311,7 @@ void groupfind()
           icen_new = group_center(i, kd);
           if (icen_new == -1)
           {
-            printf("ZERO %.1f %e\n", GAL[i].nsat, GAL[i].mass, GAL[i].psat);
+            printf("ZERO %.1f %e %.3f\n", GAL[i].nsat, GAL[i].mass, GAL[i].psat);
             exit(0);
           }
           if (icen_new != i)

@@ -145,7 +145,7 @@ void test_centering(void *kd)
 	   NGAL, filesize(fp));
   }
   for(i=0;i<NGAL;++i)
-    fscanf(fp,"%f %ld %ld %ld %d",&mass[i],&ii,&upid[i],&ii,&listid[i]);
+    fscanf(fp,"%e %lld %lld %d",&mass[i],&ii,&upid[i],&listid[i]);
   fclose(fp);
 
   // go through. send any halo with M>1e13
