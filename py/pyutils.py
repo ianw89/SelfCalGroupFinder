@@ -7,9 +7,9 @@ import time
 from enum import Enum
 from scipy import special
 import matplotlib.pyplot as plt
-import k_correction as gamakc
-import kcorr.k_corrections as desikc
-from dataloc import *
+import SelfCalGroupFinder.py.k_correction as gamakc
+import SelfCalGroupFinder.py.kcorr.k_corrections as desikc
+from SelfCalGroupFinder.py.dataloc import *
 import pickle
 import math
 from matplotlib.patches import Circle

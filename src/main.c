@@ -217,10 +217,13 @@ int main(int argc, char **argv)
     lsat_model();
     tabulate_hods();
     populate_simulation_omp(-1, 0, 0);
-    lsat_model_scatter();
+    // lsat_model_scatter(); // This is crashing for some reason...
+
+    if (!SILENT) fprintf(stderr, "Populating mock catalog\n");
     t0 = omp_get_wtime();
     for (i = 0; i < 10; i += 1)
     {
+      
       populate_simulation_omp(i / 2, i % 2, 1);
     }
 

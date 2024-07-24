@@ -100,7 +100,7 @@ void lsat_model()
   DM_PROPX = 100; // evertyhing should be in one mass bin
 
   if (!SILENT)
-    fprintf(stderr, "Applying Lsat model...\n");
+    fprintf(stderr, "lsat_model> Applying Lsat model...\n");
 
   for (i = 0; i <= 5; ++i)
     for (j = -20; j <= 20; ++j)
@@ -167,7 +167,7 @@ void lsat_model()
       nhrx[im][ix]++;
       lsatrx[im][ix] += pow(10.0, x);
     }
-    if (GAL[i].color < 0.8)
+    else
     {
       nhbx[im][ix]++;
       lsatbx[im][ix] += pow(10.0, x);
@@ -185,7 +185,7 @@ void lsat_model()
       nhrx2[im][ix]++;
       lsatrx2[im][ix] += pow(10.0, x);
     }
-    if (GAL[i].color < 0.8)
+    else
     {
       nhbx2[im][ix]++;
       lsatbx2[im][ix] += pow(10.0, x);
@@ -209,8 +209,11 @@ void lsat_model()
       fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
     fclose(fp);
   }
+  if (!SILENT) fprintf(stderr, "lsat_model> lsat_groups.out written\n");
+
   if (SECOND_PARAMETER == 0)
     return;
+
   // check if we're doing the FIT3 single bin
   if (DM_PROPX > 10)
   {
@@ -467,6 +470,8 @@ void lsat_model_scatter()
   int *indx;
   float *mvir;
 
+  if (!SILENT) fprintf(stderr, "lsat_model_scatter> start\n");
+
   indx = ivector(1, NHALO);
   mvir = vector(1, NHALO);
   for (i = 1; i <= NHALO; ++i)
@@ -475,7 +480,7 @@ void lsat_model_scatter()
     mvir[i] = HALO[i].mass;
   }
   sort2(NHALO, mvir, indx);
-  fprintf(stderr, "lsat> done sort\n");
+  if (!SILENT) fprintf(stderr, "lsat_model_scatter> done sorting\n");
 
   for (i = 0; i < 150; ++i)
     nhr[i] = lsatr[i] = nhb[i] = lsatb[i] = 0;
@@ -500,17 +505,26 @@ void lsat_model_scatter()
       lsatb[im] += lsat;
     }
   }
+  if (!SILENT) fprintf(stderr, "lsat_model_scatter> done with calculations\n");
 
   // output this to a pre-specified file
   // (plus we knoe the limits of the data)
   // TODO this OVERWRITES the lsat_groups.out file the other method makes!
-  fp = fopen("lsat_groups.out", "w");
+  fp = fopen("lsat_groups2.out", "w");
   for (i = 88; i <= 106; ++i)
     fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
+  //for (i = 88; i <= 107; ++i) // C250
+  //  fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
   fclose(fp);
+
+  if (!SILENT) fprintf(stderr, "lsat_model_scatter> lsat_groups2.out written\n");
+
   return;
 }
 
+/*
+ * Population a simulation's halo catalog using the tabulated HODs from tabulate_hods().
+ */
 void populate_simulation_omp(int imag, int blue_flag, int thisTask)
 {
   // static int flag=1;
@@ -527,7 +541,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
   if (imag < 0)
   {
     srand48(555);
-    fprintf(stderr, "popsim> reading halo data...\n");
+    if (!SILENT) fprintf(stderr, "popsim> reading halo data...\n");
     // flag = 0;
     // fp = openfile("/export/sirocco1/tinker/SIMULATIONS/BOLSHOI/hosthalo_z0.0_M1e10.dat");
 
@@ -544,10 +558,10 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
              &HALO[i].vx, &HALO[i].vy, &HALO[i].vz, &HALO[i].lsat);
     }
     fclose(fp);
-    fprintf(stderr, "popsim> done reading halo data [%d].\n", NHALO);
+    if (!SILENT) fprintf(stderr, "popsim> done reading halo data [%d].\n", NHALO);
 
     // lets create a list of random numbers
-    fprintf(stderr, "popsim> creating random numbers [%d].\n", NHALO);
+    if (!SILENT) fprintf(stderr, "popsim> creating random numbers [%d].\n", NHALO);
     for (i = 0; i < NRANDOM; ++i)
     {
       UNIFORM_RANDOM[i] = drand48();
@@ -556,7 +570,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
     // each task gets its own counter
     for (i = 0; i < 100; ++i)
       IRAN_CURRENT[i] = (int)(drand48() * 100);
-    fprintf(stderr, "popsim> done with randoms [%d].\n", NHALO);
+    if (!SILENT) fprintf(stderr, "popsim> done with randoms [%d].\n", NHALO);
 
     return;
   }
@@ -564,7 +578,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
   /* Put this in a global so that we know which HOD
    * to use.
    */
-  fprintf(stderr, "popsim> starting population for imag=%d, blue=%d\n", imag, blue_flag);
+  if (!SILENT) fprintf(stderr, "popsim> starting population for imag=%d, blue=%d\n", imag, blue_flag);
 
   imag_offset = 17;
   imag_mult = 1;

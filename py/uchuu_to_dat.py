@@ -1,7 +1,7 @@
 import numpy as np
 import h5py
 import sys
-from pyutils import *
+from SelfCalGroupFinder.py.pyutils import *
 from astropy.table import Table
 
 

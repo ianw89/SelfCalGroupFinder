@@ -3,10 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import astropy.coordinates as coord
 import astropy.units as u
-from astropy.io import ascii
-from pyutils import *
-import math
-from groupcatalog import *
+from SelfCalGroupFinder.py.pyutils import *
+from SelfCalGroupFinder.py.groupcatalog import *
 from matplotlib.patches import Circle
 
 # np.array(zip(*[line.split() for line in f])[1], dtype=float)
@@ -15,7 +13,7 @@ from matplotlib.patches import Circle
 DPI = 200
 FONT_SIZE_DEFAULT = 12
 
-LGAL_XMINS = [3E8]#[6E7, 3E8]
+LGAL_XMINS = [3E7]#[6E7, 3E8]
 
 plt.style.use('default')
 plt.rcParams.update({'font.size': FONT_SIZE_DEFAULT})

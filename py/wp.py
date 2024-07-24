@@ -1,6 +1,6 @@
 import subprocess
 import os
-from dataloc import *
+from SelfCalGroupFinder.py.dataloc import *
 
 # Define the path to the Corrfunc binary
 corrfunc_path = "/export/sirocco1/tinker/src/Corrfunc/bin/"

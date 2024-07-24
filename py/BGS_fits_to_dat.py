@@ -1,9 +1,9 @@
 import sys
-from pyutils import *
+from SelfCalGroupFinder.py.pyutils import *
 import plotting as pp
 
 def usage():
-    print("Usage: python3 BGS_fits_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename] [COLORS_ON]")
+    print("Usage: python3 BGS_fits_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename]")
     print("  Mode is 1 for OBSERVED 1+ PASSES, 2 for OBSERVED 3+ PASSES, 5 for SIMPLE v2, and 6 for Simple v4 ")
     print("  Will generate [output_filename].dat for use with kdGroupFinder and [output_filename]_galprops.dat with additional galaxy properties.")
     print("  These two files will have galaxies indexed in the same way (line-by-line matched).")
@@ -49,13 +49,12 @@ def main():
     mode = int(sys.argv[1])
     app_mag_cut = float(sys.argv[2])
     catalog_app_mag_cut = float(sys.argv[3])
-    colors_on = sys.argv[6] == "1"
 
     fname = sys.argv[4]
     
     outname_base = sys.argv[5] 
 
-    pp.pre_process_BGS(fname, mode, outname_base, app_mag_cut, catalog_app_mag_cut, colors_on, True, 3, "Y1-Iron")
+    pp.pre_process_BGS(fname, mode, outname_base, app_mag_cut, catalog_app_mag_cut, True, 3, 0, "Y1-Iron")
 
 
 

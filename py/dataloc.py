@@ -15,6 +15,7 @@ OUTPUT_FOLDER = BASE_FOLDER + 'OUTPUT/'
 DATA_FOLDER = BASE_FOLDER + 'DATA/'
 SDSS_FOLDER = DATA_FOLDER + 'SDSS/'
 BGS_FOLDER = DATA_FOLDER + 'BGS_IRON/'
+BGS_FUJI_FOLDER = DATA_FOLDER + 'BGS_FUJI/'
 BGS_Y3_FOLDER = DATA_FOLDER + 'BGS_JURA/'
 MXXL_DATA_DIR="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
 UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
@@ -42,6 +43,18 @@ TEST_GALPROPS_FILE = DATA_FOLDER + 'test_mini_galprops.dat'
 #######################
 MXXL_FILE = MXXL_DATA_DIR + "weights_3pass.hdf5"
 UCHUU_FILE = UCHUU_FILES_FOLDER + "BGS_LC_Uchuu.fits"
+
+# BGS SV3 DATA FILES
+###################
+# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/SV3/LSS/fuji/LSScats/3.1/BGS_ANY_full.dat.fits
+BGS_SV3_ANY_FULL_FILE = BGS_FUJI_FOLDER + "BGS_ANY_full.dat.fits"
+# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/SV3/LSS/fuji/LSScats/3.1/BGS_ANY_0_full.ran.fits
+BGS_SV3_RAND_FILE = BGS_FUJI_FOLDER + "BGS_ANY_0_full.ran.fits"
+# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/SV3/LSS/fuji/Alltiles_bright_tilelocs.dat.fits   
+BGS_SV3_PROB_OBS_FILE = BGS_FUJI_FOLDER + "Alltiles_bright_tilelocs.dat.fits"
+# This file is BUILT by running code in the BGS_study.ipynb notebook
+# It is a joined BGS file, with a filtered down set of rows and columns
+IAN_BGS_SV3_MERGED_FILE = BGS_FUJI_FOLDER + "ian_BGS_SV3_merged.fits"
 
 
 # BGS Y1 DATA FILES

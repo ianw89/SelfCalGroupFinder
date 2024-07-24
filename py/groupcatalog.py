@@ -2,16 +2,18 @@ import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
 import astropy.units as u
-from pyutils import *
+import os
+import emcee
 import pickle
 import subprocess as sp
 from astropy.table import Table
 import astropy.io.fits as fits
-from hdf5_to_dat import pre_process_mxxl
-from uchuu_to_dat import pre_process_uchuu
-import emcee
-import wp
-import os
+
+from SelfCalGroupFinder.py.pyutils import *
+from SelfCalGroupFinder.py.hdf5_to_dat import pre_process_mxxl
+from SelfCalGroupFinder.py.uchuu_to_dat import pre_process_uchuu
+import SelfCalGroupFinder.py.wp
+
 
 # Shared bins for various purposes
 Mhalo_bins = np.logspace(10, 15.5, 40)
@@ -48,6 +50,21 @@ class GroupCatalog:
         self.L_gal_bins = L_gal_bins
         self.L_gal_labels = L_gal_labels
 
+        # Geneated from popmock option in group finder
+        self.mock_b_M17 = None
+        self.mock_r_M17 = None
+        self.mock_b_M18 = None
+        self.mock_r_M18 = None
+        self.mock_b_M19 = None
+        self.mock_r_M19 = None
+        self.mock_b_M20 = None
+        self.mock_r_M20 = None
+        self.mock_b_M21 = None
+        self.mock_r_M21 = None
+        self.lsat_groups = None # lsat_model
+        self.lsat_groups2 = None # lsat_model_scatter
+
+        # Generated from run_corrfunc
         self.wp_mock_b_M17 = None
         self.wp_mock_r_M17 = None
         self.wp_mock_b_M18 = None
@@ -58,7 +75,6 @@ class GroupCatalog:
         self.wp_mock_r_M20 = None
         self.wp_mock_b_M21 = None
         self.wp_mock_r_M21 = None
-        self.lsat_groups = None
 
         self.f_sat = None # per Lgal bin 
         self.Lgal_counts = None # size of Lgal bins 
@@ -107,18 +123,19 @@ class GroupCatalog:
         
         # TODO what about if there was an error? returncode for the GF doesn't seem useful right now
         if popmock:
-            self.wp_mock_b_M17 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M17.dat', skiprows=0, dtype='float')
-            self.wp_mock_r_M17 = np.loadtxt(f'{self.output_folder}wp_mock_red_M17.dat', skiprows=0, dtype='float')
-            self.wp_mock_b_M18 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M18.dat', skiprows=0, dtype='float')
-            self.wp_mock_r_M18 = np.loadtxt(f'{self.output_folder}wp_mock_red_M18.dat', skiprows=0, dtype='float')
-            self.wp_mock_b_M19 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M19.dat', skiprows=0, dtype='float')
-            self.wp_mock_r_M19 = np.loadtxt(f'{self.output_folder}wp_mock_red_M19.dat', skiprows=0, dtype='float')
-            self.wp_mock_b_M20 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M20.dat', skiprows=0, dtype='float')
-            self.wp_mock_r_M20 = np.loadtxt(f'{self.output_folder}wp_mock_red_M20.dat', skiprows=0, dtype='float')
-            self.wp_mock_b_M21 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M21.dat', skiprows=0, dtype='float')
-            self.wp_mock_r_M21 = np.loadtxt(f'{self.output_folder}wp_mock_red_M21.dat', skiprows=0, dtype='float')
+            self.mock_b_M17 = np.loadtxt(f'{self.output_folder}mock_blue_M17.dat', skiprows=0, dtype='float')
+            self.mock_r_M17 = np.loadtxt(f'{self.output_folder}mock_red_M17.dat', skiprows=0, dtype='float')
+            self.mock_b_M18 = np.loadtxt(f'{self.output_folder}mock_blue_M18.dat', skiprows=0, dtype='float')
+            self.mock_r_M18 = np.loadtxt(f'{self.output_folder}mock_red_M18.dat', skiprows=0, dtype='float')
+            self.mock_b_M19 = np.loadtxt(f'{self.output_folder}mock_blue_M19.dat', skiprows=0, dtype='float')
+            self.mock_r_M19 = np.loadtxt(f'{self.output_folder}mock_red_M19.dat', skiprows=0, dtype='float')
+            self.mock_b_M20 = np.loadtxt(f'{self.output_folder}mock_blue_M20.dat', skiprows=0, dtype='float')
+            self.mock_r_M20 = np.loadtxt(f'{self.output_folder}mock_red_M20.dat', skiprows=0, dtype='float')
+            self.mock_b_M21 = np.loadtxt(f'{self.output_folder}mock_blue_M21.dat', skiprows=0, dtype='float')
+            self.mock_r_M21 = np.loadtxt(f'{self.output_folder}mock_red_M21.dat', skiprows=0, dtype='float')
             
             self.lsat_groups = np.loadtxt(f'{self.output_folder}lsat_groups.out', skiprows=0, dtype='float')
+            self.lsat_groups2 = np.loadtxt(f'{self.output_folder}lsat_groups2.out', skiprows=0, dtype='float')
 
 
 
@@ -131,7 +148,19 @@ class GroupCatalog:
             print(f"Warning: run_corrfunc() should be called after run_group_finder(). File {self.GF_outfile} does not exist.")
             return
         
-        wp.run_corrfunc(OUTPUT_FOLDER)
+        wp.run_corrfunc(self.output_folder)
+
+
+        self.wp_mock_b_M17 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M17.dat', skiprows=0, dtype='float')
+        self.wp_mock_r_M17 = np.loadtxt(f'{self.output_folder}wp_mock_red_M17.dat', skiprows=0, dtype='float')
+        self.wp_mock_b_M18 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M18.dat', skiprows=0, dtype='float')
+        self.wp_mock_r_M18 = np.loadtxt(f'{self.output_folder}wp_mock_red_M18.dat', skiprows=0, dtype='float')
+        self.wp_mock_b_M19 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M19.dat', skiprows=0, dtype='float')
+        self.wp_mock_r_M19 = np.loadtxt(f'{self.output_folder}wp_mock_red_M19.dat', skiprows=0, dtype='float')
+        self.wp_mock_b_M20 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M20.dat', skiprows=0, dtype='float')
+        self.wp_mock_r_M20 = np.loadtxt(f'{self.output_folder}wp_mock_red_M20.dat', skiprows=0, dtype='float')
+        self.wp_mock_b_M21 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M21.dat', skiprows=0, dtype='float')
+        self.wp_mock_r_M21 = np.loadtxt(f'{self.output_folder}wp_mock_red_M21.dat', skiprows=0, dtype='float')
 
 
 
@@ -394,20 +423,29 @@ class BGSGroupCatalog(GroupCatalog):
     
     extra_prop_df: pd.DataFrame = None
 
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool, sdss_fill: bool = True, num_passes: int = 3, data_cut: str = "Y1-Iron"):
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, drop_passes: int = 0, data_cut: str = "Y1-Iron"):
         super().__init__(name)
         self.mode = mode
         self.mag_cut = mag_cut
         self.catalog_mag_cut = catalog_mag_cut
-        self.use_colors = use_colors
         self.color = mode_to_color(mode)
         self.sdss_fill = sdss_fill
         self.num_passes = num_passes
+        self.drop_passes = drop_passes
         self.data_cut = data_cut
 
     def preprocess(self):
         print("Pre-processing...")
-        fname, props = pre_process_BGS(IAN_BGS_MERGED_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors, self.sdss_fill, self.num_passes, self.data_cut)
+        if self.data_cut == "Y1-Iron":
+            infile = IAN_BGS_MERGED_FILE
+        elif self.data_cut == "Y3-Jura":
+            infile = IAN_BGS_Y3_MERGED_FILE
+        elif self.data_cut == "sv3":
+            infile = IAN_BGS_SV3_MERGED_FILE
+        else:
+            raise ValueError("Unknown data_cut value")
+        
+        fname, props = pre_process_BGS(infile, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.sdss_fill, self.num_passes, self.drop_passes, self.data_cut)
         self.preprocess_file = fname
         for p in props:
             self.GF_props[p] = props[p]
@@ -442,10 +480,11 @@ class BGSGroupCatalog(GroupCatalog):
 
     def write_sharable_output_file(self):
         print("Writing a sharable output file")
-        filename_out = str.replace(self.GF_outfile, ".out", "_catalog.out")
+        filename_out = str.replace(self.GF_outfile, ".out", " Catalog.csv")
         df = self.all_data.drop(columns=['Mstar_bin', 'Mh_bin', 'Lgal_bin', 'logLgal', 'Dn4000'])
         print(df.columns)
-        df.to_csv(filename_out, header=True)
+        df.to_csv(filename_out, index=False, header=True)
+
 
 def get_extra_bgs_fastspectfit_data():
     hdul = fits.open(BGS_FASTSPEC_FILE, memmap=True)
@@ -500,7 +539,7 @@ def add_halo_columns(catalog: GroupCatalog):
     #df.loc[:, 'ldist_true'] = z_to_ldist(df.z_obs.to_numpy())
 
 
-def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, COLORS_ON, sdss_fill, num_passes_required, data_cut):
+def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, sdss_fill, num_passes_required, drop_passes, data_cut):
     """
     Pre-processes the BGS data for use with the group finder.
     """
@@ -510,6 +549,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     print("Reading FITS data from ", fname)
     # Unobserved galaxies have masked rows in appropriate columns of the table
     table = Table.read(fname, format='fits')
+
+    if drop_passes > 0 and data_cut != "sv3":
+        raise ValueError("Dropping passes is only for the sv3 study")
     
     # These are calculated from randoms in BGS_study.ipynb
     if data_cut == "Y1-Iron":
@@ -524,6 +566,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         FOORPRINT_FRAC_2pass = 0.286837 # 11832 degrees
         FOOTPRINT_FRAC_3pass = 0.233920 # 9649 degrees
         FOOTPRINT_FRAC_4pass = 0.115183 # 4751 degrees
+    elif data_cut == "sv3":
+        FOOTPRINT_FRAC_1pass = 173.87 / DEGREES_ON_SPHERE 
+        FOOTPRINT_FRAC_10pass = 138.192 / DEGREES_ON_SPHERE 
     else:
         print("Invalid data cut. Exiting.")
         exit(2)
@@ -537,6 +582,8 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         frac_area = FOOTPRINT_FRAC_3pass
     elif num_passes_required == 4:
         frac_area = FOOTPRINT_FRAC_4pass
+    elif num_passes_required == 10:
+        frac_area = FOOTPRINT_FRAC_10pass
     else:
         print(f"Need footprint calculation for num_passes_required = {num_passes_required}. Exiting")
         exit(2)
@@ -555,23 +602,33 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     elif mode == Mode.SIMPLE_v4.value:
         print("\nMode SIMPLE v4")
 
-    print(f"Color classification sent to group finder: {COLORS_ON}")
-
-    # astropy's Table used masked arrays, so we have to use .data.data to get the actual data
-    # The masked rows are unobserved targets
-    obj_type = table['SPECTYPE'].data.data
+    # Some versions of the LSS Catalogs use astropy's Table used masked arrays for unobserved spectral targets    
+    if table.masked:
+        z_obs = table['Z'].data.data
+        obj_type = table['SPECTYPE'].data.data
+        unobserved = table['Z'].mask # the masked values are what is unobserved
+        deltachi2 = table['DELTACHI2'].data.data  
+    else:
+        # SV3 version didn't do this
+        z_obs = table['Z']
+        obj_type = table['SPECTYPE']
+        unobserved = table['Z'].astype("<i8") == 999999
+        deltachi2 = table['DELTACHI2']
+        
     dec = table['DEC']
     ra = table['RA']
-    z_obs = table['Z'].data.data
     target_id = table['TARGETID']
     app_mag_r = get_app_mag(table['FLUX_R'])
     app_mag_g = get_app_mag(table['FLUX_G'])
     g_r = app_mag_g - app_mag_r
     p_obs = table['PROB_OBS']
-    unobserved = table['Z'].mask # the masked values are what is unobserved
-    deltachi2 = table['DELTACHI2'].data.data  
-    dn4000 = table['DN4000'].data.data
-    
+
+    # TODO inconsistent here...
+    if table.columns.get('DN4000') is None:
+        dn4000 = np.zeros(len(z_obs))
+    else:
+        dn4000 = table['DN4000'].data.data
+
     orig_count = len(dec)
     print(orig_count, "objects in FITS file")
 
@@ -582,7 +639,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # null values (masked rows) are unobserved targets; not all columns are masked though
 
     # Make filter arrays (True/False values)
-    multi_pass_filter = table['NTILE_MINE'] >= num_passes_required # 3pass coverage
+    multi_pass_filter = table['NTILE_MINE'] >= num_passes_required
     galaxy_observed_filter = obj_type == b'GALAXY'
     app_mag_filter = app_mag_r < APP_MAG_CUT
     redshift_filter = z_obs > Z_MIN
@@ -753,13 +810,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
      #print(f"Quiescent agreement between g-r and Dn4000 for observed galaxies: {np.sum(quiescent_gmr[observed] == quiescent[observed]) / np.sum(observed)}")
 
 
-
     # the vmax should be calculated from un-k-corrected magnitudes
     V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
 
-    if not COLORS_ON:
-        quiescent = np.zeros(count, dtype=np.int8)
-    
     # TODO get galaxy concentration from somewhere
     chi = np.zeros(count, dtype=np.int8) 
 

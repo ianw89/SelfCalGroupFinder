@@ -1,6 +1,6 @@
-from groupcatalog import GroupCatalog, MXXLGroupCatalog, SDSSGroupCatalog, UchuuGroupCatalog, BGSGroupCatalog, SDSSPublishedGroupCatalog
-from pyutils import Mode, get_color
-from dataloc import *
+from SelfCalGroupFinder.py.groupcatalog import GroupCatalog, MXXLGroupCatalog, SDSSGroupCatalog, UchuuGroupCatalog, BGSGroupCatalog, SDSSPublishedGroupCatalog
+from SelfCalGroupFinder.py.pyutils import Mode, get_color
+from SelfCalGroupFinder.py.dataloc import *
 
 BSAT_DEFAULT = 10
 
@@ -14,16 +14,6 @@ _cat.GF_props = {
     'frac_area':0.179,
     'fluxlim':1,
     'color':1,
-    'omegaL_sf':13.1,
-    'sigma_sf':2.42,
-    'omegaL_q':12.9,
-    'sigma_q':4.84,
-    'omega0_sf':0,  
-    'omega0_q':0,    
-    'beta0q':BSAT_DEFAULT,    
-    'betaLq':0,
-    'beta0sf':BSAT_DEFAULT,
-    'betaLsf':0,
 }
 
 sdss_colors = SDSSGroupCatalog("SDSS Colors")
@@ -82,16 +72,6 @@ GF_PROPS_VANILLA = {
     'frac_area':0, # should be filled in
     'fluxlim':1,
     'color':1,
-    'omegaL_sf':13.1,
-    'sigma_sf':2.42,
-    'omegaL_q':12.9,
-    'sigma_q':4.84,
-    'omega0_sf':0,  
-    'omega0_q':0,    
-    'beta0q':BSAT_DEFAULT,    
-    'betaLq':0,
-    'beta0sf':BSAT_DEFAULT,
-    'betaLsf':0,
 }
 GF_PROPS_COLORS = {
     'zmin':0, 
@@ -166,52 +146,65 @@ _cat = uchuu_all
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_fiberonly_1pass = BGSGroupCatalog("Observed 1pass+ BGS <19.5", Mode.ALL, 19.5, 21.0, False)
+bgs_fiberonly_1pass = BGSGroupCatalog("Observed 1pass+ BGS <19.5", Mode.ALL, 19.5, 21.0)
 _cat = bgs_fiberonly_1pass
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_fiberonly = BGSGroupCatalog("Observed BGS <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, False)
+bgs_fiberonly = BGSGroupCatalog("Observed BGS <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0)
 _cat = bgs_fiberonly
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_nn = BGSGroupCatalog("Nearest Neighbor BGS <19.5", Mode.NEAREST_NEIGHBOR, 19.5, 21.0, False)
+bgs_nn = BGSGroupCatalog("Nearest Neighbor BGS <19.5", Mode.NEAREST_NEIGHBOR, 19.5, 21.0)
 _cat = bgs_nn
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_nn_sdsslike = BGSGroupCatalog("Nearest Neighbor BGS <19.5 SDSS-like", Mode.NEAREST_NEIGHBOR, 17.7, 17.7, False)
+bgs_nn_sdsslike = BGSGroupCatalog("Nearest Neighbor BGS <19.5 SDSS-like", Mode.NEAREST_NEIGHBOR, 17.7, 17.7)
 _cat = bgs_nn_sdsslike
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_simple_2 = BGSGroupCatalog("Simple v2 BGS <19.5", Mode.SIMPLE, 19.5, 21.0, False)
+bgs_simple_2 = BGSGroupCatalog("Simple v2 BGS <19.5", Mode.SIMPLE, 19.5, 21.0)
 _cat = bgs_simple_2
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_simple_2_c = BGSGroupCatalog("Simple v2 BGS <19.5 c", Mode.SIMPLE, 19.5, 21.0, True)
+bgs_simple_2_c = BGSGroupCatalog("Simple v2 BGS <19.5 c", Mode.SIMPLE, 19.5, 21.0)
 _cat = bgs_simple_2_c
 _cat.marker = '--'
 _cat.GF_props = GF_PROPS_COLORS.copy()
 
-bgs_simple_4 = BGSGroupCatalog("Simple v4 BGS <19.5", Mode.SIMPLE_v4, 19.5, 21.0, False)
+bgs_simple_4 = BGSGroupCatalog("Simple v4 BGS <19.5", Mode.SIMPLE_v4, 19.5, 21.0)
 _cat = bgs_simple_4
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_simple_4_no_sdss = BGSGroupCatalog("Simple v4 BGS <19.5 no-sdss", Mode.SIMPLE_v4, 19.5, 21.0, False, sdss_fill=False)
+bgs_simple_4_1pass = BGSGroupCatalog("Simple v4 BGS <19.5 1pass", Mode.SIMPLE_v4, 19.5, 21.0, num_passes=1)
+_cat = bgs_simple_4_1pass
+_cat.marker = '.'
+_cat.GF_props = GF_PROPS_VANILLA.copy()
+
+bgs_simple_4_no_sdss = BGSGroupCatalog("Simple v4 BGS <19.5 no-sdss", Mode.SIMPLE_v4, 19.5, 21.0, sdss_fill=False)
 _cat = bgs_simple_4_no_sdss
 _cat.marker = '.'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_simple_4_4p = BGSGroupCatalog("Simple v4 BGS <19.5 4pass", Mode.SIMPLE_v4, 19.5, 21.0, False, num_passes=4)
+bgs_simple_4_4p = BGSGroupCatalog("Simple v4 BGS <19.5 4pass", Mode.SIMPLE_v4, 19.5, 21.0, num_passes=4)
 _cat = bgs_simple_4_4p
 _cat.marker = '.'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_simple_4_c = BGSGroupCatalog("Simple v4 BGS <19.5 c", Mode.SIMPLE_v4, 19.5, 21.0, True)
+bgs_simple_4_c = BGSGroupCatalog("Simple v4 BGS <19.5 c", Mode.SIMPLE_v4, 19.5, 21.0)
 _cat = bgs_simple_4_c
 _cat.marker = '--'
 _cat.GF_props = GF_PROPS_COLORS.copy()
+
+bgs_sv3_simple_4_10p = BGSGroupCatalog("Simple v4 BGS sv3 10pass", Mode.SIMPLE_v4, 19.5, 21.0, num_passes=10, data_cut='sv3')
+bgs_sv3_simple_4_10p.GF_props = GF_PROPS_VANILLA.copy()
+bgs_sv3_simple_4_10p.color = 'g'
+
+bgs_sv3_fiberonly_10p = BGSGroupCatalog("Observed BGS sv3 10pass", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=10, data_cut='sv3')
+bgs_sv3_fiberonly_10p.GF_props = GF_PROPS_VANILLA.copy()
+bgs_sv3_fiberonly_10p.color = 'r'

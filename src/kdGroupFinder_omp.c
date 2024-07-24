@@ -59,7 +59,6 @@ void groupfind()
   char aa[1000];
   int i, i1, niter, MAX_ITER = 5, j, ngrp_prev, icen_new;
   float frac_area, zmin, zmax, nsat_tot, weight, wx;
-  int colors = 1;
   double galden, pt[3], t0, t1, t3, t4;
   long IDUM1 = -555;
 
@@ -70,7 +69,6 @@ void groupfind()
 
   if (first_call)
   {
-    colors = COLOR;
     first_call = 0;
     fp = openfile(INPUTFILE);
     NGAL = filesize(fp);
@@ -110,7 +108,7 @@ void groupfind()
         fscanf(fp, "%f", &GAL[i].vmax);
       else
         GAL[i].vmax = volume;
-      if (colors)
+      if (COLOR)
         fscanf(fp, "%f", &GAL[i].color);
       if (SECOND_PARAMETER)
         fscanf(fp, "%f", &GAL[i].propx);
@@ -219,7 +217,7 @@ void groupfind()
           wx = PROPX_WEIGHT_BLUE + PROPX_SLOPE_BLUE * (log10(GAL[j].mstellar) - 9.5);
           weight = exp(GAL[j].propx / wx);
         }
-        if (GAL[j].color > 0.8)
+        else
         {
           wx = PROPX_WEIGHT_RED + PROPX_SLOPE_RED * (log10(GAL[j].mstellar) - 9.5);
           weight = exp(GAL[j].propx / wx);
@@ -229,7 +227,7 @@ void groupfind()
       {
         if (GAL[j].color < 0.8)
           weight *= exp(GAL[j].propx2 / PROPX2_WEIGHT_BLUE);
-        if (GAL[j].color > 0.8)
+        else
           weight *= exp(GAL[j].propx2 / PROPX2_WEIGHT_RED);
       }
       GAL[j].mtot *= weight;
