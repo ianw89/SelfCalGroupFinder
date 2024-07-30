@@ -30,9 +30,23 @@ LSAT_OBSERVATIONS_FILE = PARAMS_FOLDER + 'Lsat_SDSS_DnGMM.dat'
 
 # SDSS Data Files
 #################
-# This file was acquried from https://cosmo.nyu.edu/~tinker/GROUP_FINDER/SELFCAL_GROUPS/sdss_fluxlim_v1.0.dat
+# These files were acquried from https://cosmo.nyu.edu/~tinker/GROUP_FINDER/SELFCAL_GROUPS/sdss_fluxlim_v1.0.dat
+# They should have been built by Jeremy from the below DR7 NYU VAGC files
 SDSS_v1_DAT_FILE = SDSS_FOLDER + 'sdss_fluxlim_v1.0.dat'
+SDSS_v2_DAT_FILE = SDSS_FOLDER + 'sdss_fluxlim_v2.0.dat' # Built by me where DESI Y1 redshifts are added to SDSS missing ones
 SDSS_v1_GALPROPS_FILE = SDSS_FOLDER + "sdss_galprops_v1.0.dat"
+# Acquired from http://sdss.physics.nyu.edu/vagc-dr7/vagc2/object_catalog.fits
+SDSS_DR7_OBJECT_FILE = SDSS_FOLDER + "object_catalog.fits"
+# Acquired from http://sdss.physics.nyu.edu/vagc-dr7/vagc2/collisions/collisions.nearest.fits
+SDSS_DR7_COLLISIONS_FILE = SDSS_FOLDER + "collisions.nearest.fits"
+# Acquired from http://sdss.physics.nyu.edu/vagc-dr7/vagc2/object_sdss_spectro.fits    
+SDSS_DR7_SPECTRO_FILE = SDSS_FOLDER + "object_sdss_spectro.fits"
+# Acquired from http://sdss.physics.nyu.edu/vagc/flatfiles/object_sdss_imaging.fits.html
+SDSS_DR7_IMAGING_FILE = SDSS_FOLDER + "object_sdss_imaging.fits"
+
+SDSS_DR7B_ID_FILE = SDSS_FOLDER + "id.dr72bright34.dat"
+SDSS_DR7B_LSS_FILE = SDSS_FOLDER + "lss.dr72bright34.dat"
+SDSS_DR7B_PHOTO_FILE = SDSS_FOLDER + "photoinfo.dr72bright34.dat"
 
 # TEST Data Files
 #################

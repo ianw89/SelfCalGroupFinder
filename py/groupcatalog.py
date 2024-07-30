@@ -12,7 +12,7 @@ import astropy.io.fits as fits
 from SelfCalGroupFinder.py.pyutils import *
 from SelfCalGroupFinder.py.hdf5_to_dat import pre_process_mxxl
 from SelfCalGroupFinder.py.uchuu_to_dat import pre_process_uchuu
-import SelfCalGroupFinder.py.wp
+import SelfCalGroupFinder.py.wp as wp
 
 
 # Shared bins for various purposes
@@ -135,7 +135,8 @@ class GroupCatalog:
             self.mock_r_M21 = np.loadtxt(f'{self.output_folder}mock_red_M21.dat', skiprows=0, dtype='float')
             
             self.lsat_groups = np.loadtxt(f'{self.output_folder}lsat_groups.out', skiprows=0, dtype='float')
-            self.lsat_groups2 = np.loadtxt(f'{self.output_folder}lsat_groups2.out', skiprows=0, dtype='float')
+            if os.path.exists(f'{self.output_folder}lsat_groups2.out'):
+                self.lsat_groups2 = np.loadtxt(f'{self.output_folder}lsat_groups2.out', skiprows=0, dtype='float')
 
 
 
@@ -509,9 +510,14 @@ def serialize(gc: GroupCatalog):
 def deserialize(gc: GroupCatalog):
     gc.__class__ = eval(gc.__class__.__name__) #reset __class__ attribute
     with open(gc.results_file, 'rb') as f:    
-        o: GroupCatalog = pickle.load(f)
-        if o.all_data is None:
-            print(f"Warning: deserialized object {o.name} has no all_data DataFrame.")
+        try:
+            o: GroupCatalog = pickle.load(f)
+            if o.all_data is None:
+                print(f"Warning: deserialized object {o.name} has no all_data DataFrame.")
+        except:
+            print(f"Error deserializing {gc.results_file}")
+            gc.run_group_finder
+            o = None
         return o
 
 
@@ -589,9 +595,10 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         exit(2)
 
     if mode == Mode.ALL.value:
-        print("\nMode FIBER ASSIGNED ONLY 1+ PASSES")
+        print("\nMode ALL NOT SUPPORTED DUE TO FIBER INCOMPLETENESS")
+        exit(2)
     elif mode == Mode.FIBER_ASSIGNED_ONLY.value:
-        print("\nMode FIBER ASSIGNED ONLY 3+ PASSES")
+        print(f"\nMode FIBER ASSIGNED ONLY {num_passes_required}+ PASSES")
     elif mode == Mode.NEAREST_NEIGHBOR.value:
         print("\nMode NEAREST_NEIGHBOR")
     elif mode == Mode.FANCY.value:
@@ -603,7 +610,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         print("\nMode SIMPLE v4")
 
     # Some versions of the LSS Catalogs use astropy's Table used masked arrays for unobserved spectral targets    
-    if table.masked:
+    if np.ma.is_masked(table['Z']):
         z_obs = table['Z'].data.data
         obj_type = table['SPECTYPE'].data.data
         unobserved = table['Z'].mask # the masked values are what is unobserved
@@ -621,7 +628,11 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     app_mag_r = get_app_mag(table['FLUX_R'])
     app_mag_g = get_app_mag(table['FLUX_G'])
     g_r = app_mag_g - app_mag_r
-    p_obs = table['PROB_OBS']
+
+    if table.columns.get('PROB_OBS') is None:
+        p_obs = np.ones(len(z_obs)) * 0.8 # TODO BUG this is a hack to get around missing PROB_OBS in some versions of the LSS Catalogs
+    else:
+        p_obs = table['PROB_OBS']
 
     # TODO inconsistent here...
     if table.columns.get('DN4000') is None:

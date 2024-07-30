@@ -340,7 +340,7 @@ def plots_color_split_lost_split_inner(name, L_gal_labels, L_gal_bins, q_gals, s
 
     return fsat_qlost.to_numpy(), fsat_qobs.to_numpy(), fsat_qtot.to_numpy(), fsat_sflost.to_numpy(), fsat_sfobs.to_numpy(), fsat_sftot.to_numpy()
 
-def compare_fsat_color_split(dataone, datatwo):
+def compare_fsat_color_split(dataone, datatwo, project_percent=None):
     temp1 = dataone.marker
     temp2 = datatwo.marker
     dataone.marker = '-'
@@ -348,6 +348,52 @@ def compare_fsat_color_split(dataone, datatwo):
     plots_color_split(dataone, datatwo)
     dataone.marker = temp1
     datatwo.marker = temp2
+
+    # Absolute change in fsat  plot
+    red_difference = (dataone.f_sat_q - datatwo.f_sat_q)
+    blue_difference = (dataone.f_sat_sf - datatwo.f_sat_sf)
+
+    fig,ax1=plt.subplots()
+    fig.set_dpi(DPI)
+    plt.plot(dataone.L_gal_labels, red_difference, 'r', label="Quiescent")
+    plt.plot(dataone.L_gal_labels, blue_difference, 'b', label="SF")
+    if project_percent is not None:
+        red_difference_projected = red_difference / project_percent
+        blue_difference_projected = blue_difference / project_percent
+        plt.plot(dataone.L_gal_labels, red_difference_projected, 'r--', label="Quiescent (projected full)")
+        plt.plot(dataone.L_gal_labels, blue_difference_projected, 'b--', label="SF (projected full)")
+    ax1.set_xscale('log')
+    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
+    ax1.set_ylabel("$f_{\\mathrm{sat}}$ Absolute Difference")
+    ax1.legend()
+    X_MAX = 1E11
+    ax1.set_xlim(3E7,X_MAX)
+    ax1.set_ylim(-0.15, 0.15)
+    fig.tight_layout()
+
+    # % Change Difference fsat plot
+    red_difference_p = (dataone.f_sat_q - datatwo.f_sat_q) * 100
+    blue_difference_p = (dataone.f_sat_sf - datatwo.f_sat_sf) * 100
+
+    fig,ax1=plt.subplots()
+    fig.set_dpi(DPI)
+    plt.plot(dataone.L_gal_labels, red_difference_p, 'r', label="Quiescent")
+    plt.plot(dataone.L_gal_labels, blue_difference_p, 'b', label="SF")
+    if project_percent is not None:
+        red_difference_projected = red_difference_p / project_percent
+        blue_difference_projected = blue_difference_p / project_percent
+        plt.plot(dataone.L_gal_labels, red_difference_projected, 'r--', label="Quiescent (projected full)")
+        plt.plot(dataone.L_gal_labels, blue_difference_projected, 'b--', label="SF (projected full)")
+    ax1.set_xscale('log')
+    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
+    ax1.set_ylabel("$f_{\\mathrm{sat}}$ Difference (%)")
+    ax1.legend()
+    X_MAX = 1E11
+    ax1.set_xlim(3E7,X_MAX)
+    ax1.set_ylim(-20,20)
+    fig.tight_layout()
+
+
 
 def plots_color_split(*datasets, truth_on=False, total_on=False):
 
@@ -572,7 +618,7 @@ def lsat_data_compare_plot(gc: GroupCatalog):
 
     axes[0].errorbar(obs_lcen, obs_ratio, yerr=obs_ratio_err, fmt='o', color='k', capsize=2, ecolor='k', label='SDSS Data')
     axes[0].plot(lcen, ratio, color='purple', label='Group Finder')
-    axes[0].set_ylabel('$L_{sat_q}/L_{sat_sf}$')
+    axes[0].set_ylabel('$L_{sat}^{q}/L_{sat}^{sf}$')
     axes[0].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
     #axes[0].set_ylim(-0.2, 0.5)
     axes[0].legend()

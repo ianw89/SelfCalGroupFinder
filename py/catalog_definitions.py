@@ -2,8 +2,6 @@ from SelfCalGroupFinder.py.groupcatalog import GroupCatalog, MXXLGroupCatalog, S
 from SelfCalGroupFinder.py.pyutils import Mode, get_color
 from SelfCalGroupFinder.py.dataloc import *
 
-BSAT_DEFAULT = 10
-
 sdss_vanilla = SDSSGroupCatalog("SDSS Vanilla")
 _cat = sdss_vanilla
 _cat.color = get_color(4)
@@ -63,6 +61,33 @@ _cat.GF_props = {
     'omega_chi_L_sf':2.23,
     'omega_chi_L_q':0.48,
 }
+
+sdss_vanilla_v2 = SDSSGroupCatalog("SDSS Vanilla v2")
+sdss_vanilla_v2.preprocess_file = SDSS_v2_DAT_FILE
+_cat = sdss_vanilla_v2
+_cat.color = get_color(4)
+_cat.marker = '-'
+_cat.GF_props = {
+    'zmin':0,
+    'zmax':1.0, # BUG ?
+    'frac_area':0.179,
+    'fluxlim':1,
+    'color':1,
+}
+
+sdss_colors_v2 = SDSSGroupCatalog("SDSS Colors v2")
+sdss_colors_v2.preprocess_file = SDSS_v2_DAT_FILE
+_cat = sdss_colors_v2
+_cat.color = get_color(4)
+_cat.marker = '--'
+_cat.GF_props = sdss_colors.GF_props.copy()
+
+sdss_colors_chi_v2 = SDSSGroupCatalog("SDSS Colors Chi v2")
+sdss_colors_chi_v2.preprocess_file = SDSS_v2_DAT_FILE
+_cat = sdss_colors_chi_v2
+_cat.color = get_color(4)
+_cat.marker = '.'
+_cat.GF_props = sdss_colors_chi.GF_props.copy()
 
 sdss_published = SDSSPublishedGroupCatalog("SDSS Published")
 
@@ -200,6 +225,21 @@ bgs_simple_4_c = BGSGroupCatalog("Simple v4 BGS <19.5 c", Mode.SIMPLE_v4, 19.5, 
 _cat = bgs_simple_4_c
 _cat.marker = '--'
 _cat.GF_props = GF_PROPS_COLORS.copy()
+
+bgs_y3_simple_4 = BGSGroupCatalog("Simple v4 BGS Y3 <19.5", Mode.SIMPLE_v4, 19.5, 21.0, data_cut='Y3-Jura')
+_cat = bgs_y3_simple_4
+_cat.marker = '-'
+_cat.GF_props = GF_PROPS_VANILLA.copy()
+
+bgs_y3_fiberonly = BGSGroupCatalog("Observed BGS Y3 <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, data_cut='Y3-Jura')
+_cat = bgs_y3_fiberonly
+_cat.marker = '-'
+_cat.GF_props = GF_PROPS_VANILLA.copy()
+
+bgs_y3_fiberonly_1pass = BGSGroupCatalog("Observed BGS Y3 <19.5 1pass", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=1, data_cut='Y3-Jura')
+_cat = bgs_y3_fiberonly_1pass
+_cat.marker = '.'
+_cat.GF_props = GF_PROPS_VANILLA.copy()
 
 bgs_sv3_simple_4_10p = BGSGroupCatalog("Simple v4 BGS sv3 10pass", Mode.SIMPLE_v4, 19.5, 21.0, num_passes=10, data_cut='sv3')
 bgs_sv3_simple_4_10p.GF_props = GF_PROPS_VANILLA.copy()
