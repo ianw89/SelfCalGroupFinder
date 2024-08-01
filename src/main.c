@@ -123,10 +123,10 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
           INPUTFILE = arg;
           break;
         case 1:
-          MINREDSHIFT = atof(arg);
+          MINREDSHIFT = atof(arg); // only used in volume-limited mode TODO don't force you to give it
           break;
         case 2:
-          MAXREDSHIFT = atof(arg);
+          MAXREDSHIFT = atof(arg); // only used in volume-limited mode TODO don't force you to give it
           break;
         case 3:
           FRAC_AREA = atof(arg);

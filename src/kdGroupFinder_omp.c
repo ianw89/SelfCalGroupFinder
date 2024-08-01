@@ -58,7 +58,7 @@ void groupfind()
   FILE *fp;
   char aa[1000];
   int i, i1, niter, MAX_ITER = 5, j, ngrp_prev, icen_new;
-  float frac_area, zmin, zmax, nsat_tot, weight, wx;
+  float frac_area, nsat_tot, weight, wx;
   double galden, pt[3], t0, t1, t3, t4;
   long IDUM1 = -555;
 
@@ -76,15 +76,12 @@ void groupfind()
     GAL = calloc(NGAL, sizeof(struct galaxy));
     flag = ivector(0, NGAL - 1);
 
-    zmin = MINREDSHIFT;
-    zmax = MAXREDSHIFT;
-
     // For volume-limited samples, we calculate the volume and put that in the vmax
     // property of each galxaxy.
     if (!FLUXLIM)
     {
-      volume = 4. / 3. * PI * (pow(distance_redshift(zmax), 3.0)) * FRAC_AREA;
-      volume = volume - 4. / 3. * PI * (pow(distance_redshift(zmin), 3.0)) * FRAC_AREA;
+      volume = 4. / 3. * PI * (pow(distance_redshift(MAXREDSHIFT), 3.0)) * FRAC_AREA;
+      volume = volume - 4. / 3. * PI * (pow(distance_redshift(MINREDSHIFT), 3.0)) * FRAC_AREA;
     }
 
     // For flux-limited samples, we read in the vmax values from the file.
@@ -460,7 +457,7 @@ void find_satellites(int icen, void *kd)
     if (isnan(p0))
     {
       p0 = 1; //???
-      fprintf(stderr, "Unexpected nan result for prob sat at index %i", j);
+      fprintf(stderr, "Unexpected nan result for prob sat at index %i\n", j);
     }
     // Keep track of the highest psat so far
     if (p0 > GAL[j].psat)

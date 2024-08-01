@@ -63,7 +63,7 @@ def get_cosmology():
 
 _rho_m = (get_cosmology().critical_density(0) * get_cosmology().Om(0))
 def get_vir_radius_mine(halo_mass):
-    """Gets virial radius given halo masses (in solMass) in kpc/h."""
+    """Gets virial radius given halo masses (in solMass/h) in kpc/h."""
     return np.power(((3/(4*math.pi)) * halo_mass / (200*_rho_m)), 1/3).to(u.kpc).value
 
 SIM_Z_THRESH = 0.005
@@ -255,10 +255,31 @@ def estimate_frac_area(ra, dec):
     frac_area = min(filled_bincount / accessible_bins, 1.0)
     
     return frac_area
-        
+
+
+def build_app_mag_to_z_map_new(app_mag, z):
+    bincount = len(app_mag) // 1000 # TODO tune
+
+    df = pd.DataFrame({'app_mag': app_mag, 'z': z})
+    
+    # TODO BUG
+
+    # use pd.qcut to bin by apparent magnitude and make groupings of their z
+    df['app_mag_bin'], app_mag_bins = pd.qcut(df.app_mag, bincount, retbins=True)
+
+    #print(df.app_mag_bin.value_counts())
+
+    values = df.groupby('app_mag_bin', observed=False)['z'].apply(list).values
+
+    the_map = {i: values[i] for i in range(len(values))}
+
+    # debug dump the map
+    pickle.dump((app_mag_bins, the_map), open('SimpleRedshiftGuesserMap.pkl', 'wb'))
+
+    return app_mag_bins, the_map
+
 
 # TODO consider making this color aware
-# TODO consider making this use MXXL's lost galaxies only
 def build_app_mag_to_z_map(app_mag, z_obs):
     # TODO tune these two paremeters
     _NBINS = 100
@@ -296,7 +317,6 @@ def build_app_mag_to_z_map(app_mag, z_obs):
     #print(f"App Mag Building Complete: {the_map}")
 
     return app_mag_bins, the_map
-
 
 
 ###############################################
@@ -505,8 +525,8 @@ def get_NN_50_line(z, t_Pobs):
 class SimpleRedshiftGuesser(RedshiftGuesser):
 
     z_bins = [0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.36, 1.0]     
-    LOW_ABS_MAG_LIMIT = -23.5
-    HIGH_ABS_MAG_LIMIT = -13.0
+    LOW_ABS_MAG_LIMIT = -23.0
+    HIGH_ABS_MAG_LIMIT = -13.5
 
     def __init__(self, app_mags, z_obs, ver, debug=False, use_saved_map=True):
         if ver == '2.0':
@@ -523,6 +543,11 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         self.quick_nn_bailed = 0
         self.random_choice = 0
         self.random_correct = 0
+
+        if z_obs.max() > 10.0:
+            print(f"Warning: in SimpleRedshiftGuesser, z_obs values are very high. z_max={z_obs.max()}")
+        if np.isnan(z_obs).any(): 
+            print("Warning: in SimpleRedshiftGuesser, z_obs has NaNs")
 
         if use_saved_map:
             with open(IAN_MXXL_LOST_APP_TO_Z_FILE, 'rb') as f:
@@ -820,6 +845,7 @@ def is_quiescent_BGS_smart(logLgal, Dn4000, gmr):
 # This also works well for MXXL
 # TODO check this value after switching to DESI k-corr
 GLOBAL_RED_COLOR_CUT = 0.76 
+GLOBAL_RED_COLOR_CUT_NO_KCORR = 1.008
 
 # Turns out binning by logLGal doesn't change much
 # TODO after swithcing to DESI k-corrections, ensure this is still true
@@ -827,7 +853,9 @@ BGS_LOGLGAL_BINS = [6.9, 9.0, 9.4, 9.7, 9.9, 10.1, 10.3, 10.7, 13.5]
 BINWISE_RED_COLOR_CUT = [0.76, 0.76, 0.77, 0.79, 0.77, 0.76, 0.76, 0.76, 0.76, 0.76]
 
 def is_quiescent_lost_gal_guess(gmr):
-    return gmr > 1.0 # TODO 1.0 is a better midpoint for g-r without k-corr
+    # This better midpoint for g-r without k-corr. 
+    # It recovers the same red/blue fraction in BGS Y1 Observed gals as GLOBAL_RED_COLOR_CUT for k-corrected ones.
+    return gmr > GLOBAL_RED_COLOR_CUT_NO_KCORR
 
 def is_quiescent_BGS_gmr(logLgal, G_R_k):
     """

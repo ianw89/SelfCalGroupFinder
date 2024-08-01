@@ -27,6 +27,36 @@ mstar_labels = mstar_bins[0:len(mstar_bins)-1]
 
 Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
 
+# I built this list of tiles by looking at https://www.legacysurvey.org/viewer-desi and viewing DESI EDR tiles (look for SV3)
+sv3_regions = [
+    [122, 128, 125, 124, 120, 127, 126, 121, 123, 129],
+    [499, 497, 503, 500, 495, 502, 501, 496, 498, 504],
+    [14,  16,  20,  19,  13,  12,  21,  18,  15,  17 ],
+    [41,  47,  49,  44,  43,  39,  46,  45,  40,  42,  48],
+    [68,  74,  76,  71,  70,  66,  73,  72,  67,  69,  75],
+    [149, 155, 152, 147, 151, 154, 148, 156, 150, 153], 
+    #confirmed thru here, double check below
+    [527, 533, 530, 529, 525, 532, 531, 526, 528, 534], 
+    [236, 233, 230, 228, 238, 234, 232, 231, 235, 237, 229],
+    [265, 259, 257, 262, 263, 256, 260, 264, 255, 258, 261],
+    [286, 284, 289, 290, 283, 287, 291, 282, 285, 288],
+    [211, 205, 203, 208, 209, 202, 206, 210, 201, 204, 207],
+    [397, 394, 391, 400, 399, 392, 393, 398, 396, 395, 390],
+    [373, 365, 371, 367, 368, 363, 369, 370, 366, 364, 372],
+    [346, 338, 340, 344, 343, 341, 336, 342, 339, 337, 345],
+    [592, 589, 586, 595, 587, 593, 590, 594, 585, 588, 591],
+    [313, 316, 319, 311, 317, 314, 309, 310, 318, 312, 315],
+    [176, 182, 184, 179, 178, 174, 181, 180, 175, 177, 183],
+    [564, 558, 556, 561, 562, 555, 559, 560, 565, 563, 557],
+    [421, 424, 427, 419, 425, 422, 417, 423, 418, 420, 426],
+    [95,  101, 103, 98,  97,  93,  100, 99,  94,  96,  102],
+]
+sv3_regions_sorted = []
+for region in sv3_regions:
+    a = region.copy()
+    a.sort()
+    sv3_regions_sorted.append(a)
+
 
 class GroupCatalog:
 
@@ -181,11 +211,24 @@ class GroupCatalog:
         else:
             print("Warning: postprocess called with all_data DataFrame is not set yet. Override postprocess() or after calling run_group_finder() set it.")
 
+    def get_true_z_from(self, truth_df: pd.DataFrame):
+        """
+        Adds a column to the catalog's all_data DataFrame with the true redshifts from the truth_df DataFrame 
+        for rows with z_assigned_flag == True.
+        """
+        truth_df = truth_df[['target_id', 'z', 'z_assigned_flag', 'L_gal', 'logLgal', 'g_r', 'Lgal_bin']].copy()
+        truth_df.index = truth_df.target_id
+        self.all_data = self.all_data.join(truth_df, on='target_id', how='left', rsuffix='_T')
+        rows_to_nan = self.all_data['z_assigned_flag_T'] == True
+        self.all_data.loc[rows_to_nan, 'z_T'] = -99.99
+        self.all_data.drop(columns=['target_id_T', 'z_assigned_flag_T'], inplace=True)
+        self.has_truth = True
+
 class SDSSGroupCatalog(GroupCatalog):
     
     @staticmethod
-    def from_MCMC(reader: emcee.backends.HDFBackend, name: str):
-        gc = SDSSGroupCatalog(name)
+    def from_MCMC(reader: emcee.backends.HDFBackend, name: str, preprocessed_file: str, galprops_file: str):
+        gc = SDSSGroupCatalog(name, preprocessed_file, galprops_file)
 
         # Use lowest chi squared (highest log prob) parameter set
         idx = np.argmax(reader.get_log_prob(flat=True))
@@ -217,16 +260,17 @@ class SDSSGroupCatalog(GroupCatalog):
         
         return gc
 
-    def __init__(self, name):
+    def __init__(self, name: str, preprocessed_file: str, galprops_file: str):
         super().__init__(name)
-        self.preprocess_file = SDSS_v1_DAT_FILE
+        self.preprocess_file = preprocessed_file
+        self.galprops_file = galprops_file
 
         self.volume = np.array([1.721e+06, 6.385e+06, 2.291e+07, 7.852e+07]) # Copied from Jeremy's groupfind_mcmc.py
         self.vfac = (self.volume/250.0**3)**.5 # factor by which to multiply errors
         self.efac = 0.1 # let's just add a constant fractional error bar
 
     def postprocess(self):
-        galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
+        galprops = pd.read_csv(self.galprops_file, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star', 'z_assigned_flag'))
         galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
         galprops.rename(columns={'Mag_r': "app_mag"}, inplace=True)
         self.all_data = read_and_combine_gf_output(self, galprops)
@@ -378,7 +422,6 @@ class MXXLGroupCatalog(GroupCatalog):
 
         super().postprocess()
 
-
 class UchuuGroupCatalog(GroupCatalog):
    
     def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool):
@@ -516,9 +559,11 @@ def deserialize(gc: GroupCatalog):
                 print(f"Warning: deserialized object {o.name} has no all_data DataFrame.")
         except:
             print(f"Error deserializing {gc.results_file}")
-            gc.run_group_finder
             o = None
         return o
+
+
+
 
 
 def add_halo_columns(catalog: GroupCatalog):
@@ -535,8 +580,8 @@ def add_halo_columns(catalog: GroupCatalog):
         as_per_kpc = get_cosmology().arcsec_per_kpc_proper(df['z'].to_numpy())
         df.loc[:, 'mxxl_halo_vir_radius_guess_arcsec'] =  df.loc[:, 'mxxl_halo_vir_radius_guess'].to_numpy() * as_per_kpc.to(u.arcsec / u.kpc).value
 
-    masses = df['M_halo'].to_numpy() * u.solMass
-    df['halo_radius_kpc'] = get_vir_radius_mine(masses)
+    masses = df['M_halo'].to_numpy() * u.solMass # / h
+    df['halo_radius_kpc'] = get_vir_radius_mine(masses) # kpc / h
     # TODO comoving or proper?
     as_per_kpc = get_cosmology().arcsec_per_kpc_proper(df['z'].to_numpy())
     df['halo_radius_arcsec'] = df['halo_radius_kpc'].to_numpy() * as_per_kpc.to(u.arcsec / u.kpc).value
@@ -551,6 +596,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     """
     Z_MIN = 0.001
     Z_MAX = 0.8
+
+    # TODO BUG One galaxy is lost from this to group finder...
+
 
     print("Reading FITS data from ", fname)
     # Unobserved galaxies have masked rows in appropriate columns of the table
@@ -624,13 +672,16 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         
     dec = table['DEC']
     ra = table['RA']
+    if table.columns.get('TILEID') is not None:
+        # TODO
+        tileid = table['TILEID']
     target_id = table['TARGETID']
     app_mag_r = get_app_mag(table['FLUX_R'])
     app_mag_g = get_app_mag(table['FLUX_G'])
     g_r = app_mag_g - app_mag_r
 
     if table.columns.get('PROB_OBS') is None:
-        p_obs = np.ones(len(z_obs)) * 0.8 # TODO BUG this is a hack to get around missing PROB_OBS in some versions of the LSS Catalogs
+        p_obs = np.ones(len(z_obs)) * 0.5 # TODO BUG this is a hack to get around missing PROB_OBS in some versions of the LSS Catalogs
     else:
         p_obs = table['PROB_OBS']
 
@@ -639,6 +690,23 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         dn4000 = np.zeros(len(z_obs))
     else:
         dn4000 = table['DN4000'].data.data
+
+    # For SV3 Analysis: remove higher numbered (later observed) tiles from the list in each patch
+    # Note this increases the size of the catalog slightly as drop_passes goes up. 
+    # It is because some observations are stars or galaxies outside reshift range, which would have been removed.
+    # Now they will be in the catalog as unobserved galaxies.
+    if drop_passes > 0:
+        for patch_number in range(len(sv3_regions_sorted)):
+            tilelist = sv3_regions_sorted[patch_number]
+            
+            # Remove tiles in reverse TILEID order
+            for i in np.flip(np.arange(len(tilelist) - drop_passes, len(tilelist))):
+                if drop_passes > 0:
+                    active_tile = tilelist[i]
+                    observed_by_this_tile = tileid == active_tile
+
+                    # Count this tile's observations as unobserved
+                    unobserved = np.logical_or(unobserved, observed_by_this_tile)
 
     orig_count = len(dec)
     print(orig_count, "objects in FITS file")
@@ -676,7 +744,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         # TODO why bother with this for the real data? Use all we got, right? 
         # I upped the cut to 21 so it doesn't do anything
         catalog_bright_filter = app_mag_r < CATALOG_APP_MAG_CUT 
-        catalog_keep = np.all([galaxy_observed_filter, catalog_bright_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
+        catalog_keep = np.all([galaxy_observed_filter, catalog_bright_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, np.invert(unobserved)], axis=0)
         catalog_ra = ra[catalog_keep]
         catalog_dec = dec[catalog_keep]
         z_obs_catalog = z_obs[catalog_keep]
@@ -712,14 +780,17 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     #print(f'Min z: {min(z_obs):f}, Max z: {max(z_obs):f}')
 
     z_eff = np.copy(z_obs)
+    #print(f"z_eff, first copy: {z_eff[0:20]}")
 
     # If a lost galaxy matches the SDSS catalog, grab it's redshift and use that
-    # TODO BUG replace this with SDSS source galaxies list doesn't have any NN-assigned galaxies in it
     if unobserved.sum() > 0 and sdss_fill:
-        sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla"))
+        sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla v2", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE))
+        #sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla", SDSS_v1_DAT_FILE, SDSS_v1_GALPROPS_FILE))
         if sdss_vanilla.all_data is not None:
+            observed_sdss = sdss_vanilla.all_data.loc[sdss_vanilla.all_data.z_assigned_flag == False]
+            #observed_sdss = sdss_vanilla.all_data 
 
-            sdss_catalog = coord.SkyCoord(ra=sdss_vanilla.all_data.RA.to_numpy()*u.degree, dec=sdss_vanilla.all_data.Dec.to_numpy()*u.degree, frame='icrs')
+            sdss_catalog = coord.SkyCoord(ra=observed_sdss.RA.to_numpy()*u.degree, dec=observed_sdss.Dec.to_numpy()*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
             print(f"Matching {len(to_match)} lost galaxies to {len(sdss_catalog)} SDSS galaxies")
             idx, d2d, d3d = coord.match_coordinates_sky(to_match, sdss_catalog, nthneighbor=1, storekdtree=False)
@@ -730,13 +801,14 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             ANGULAR_DISTANCE_MATCH = 3
             matched = ang_distances < ANGULAR_DISTANCE_MATCH
             
-            z_eff[unobserved] = np.where(matched, sdss_z, np.nan)            
+            z_eff[unobserved] = np.where(matched, sdss_z, np.nan)    
             unobserved[unobserved] = np.where(matched, False, unobserved[unobserved])
             observed = np.invert(unobserved)
             indexes_not_assigned = np.argwhere(unobserved)
-
+     
             print(f"{matched.sum()} of {first_need_redshift_count} redshifts taken from SDSS.")
             print(f"{unobserved.sum()} remaining galaxies need redshifts.")
+            #print(f"z_eff, after SDSS match: {z_eff[0:20]}")   
         else:
             print("No SDSS catalog to match to. Skipping.")
 
@@ -765,7 +837,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             ver = '2.0'
         elif mode == Mode.SIMPLE_v4.value:
             ver = '4.0'
-        with SimpleRedshiftGuesser(app_mag_r[observed], z_obs[observed], ver) as scorer:
+        with SimpleRedshiftGuesser(app_mag_r[observed], z_eff[observed], ver) as scorer:
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
@@ -793,12 +865,16 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
 
             print(f"Assigning missing redshifts... ")   
+
+            
+
             j = 0 # j counts the number of unobserved galaxies in the catalog that have been assigned a redshift thus far
             for i in indexes_not_assigned: # i is the index of the unobserved galaxy in the main arrays
                 if j%10000==0:
                     print(f"{j}/{len(to_match)} complete", end='\r')
 
                 catalog_idx = neighbor_indexes[j]
+
                 chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[catalog_idx], ang_distances[j], p_obs[i], app_mag_r[i], quiescent_gmr[j], catalog_quiescent[catalog_idx])
                 
                 z_eff[i] = chosen_z
@@ -807,6 +883,8 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
             print(f"{j}/{len(to_match)} complete")
 
+
+    #print(f"z_eff, after assignment: {z_eff[0:20]}")   
     assert np.all(z_eff > 0.0)
 
     # Some of this is redudant with catalog calculations but oh well

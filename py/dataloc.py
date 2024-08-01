@@ -35,6 +35,7 @@ LSAT_OBSERVATIONS_FILE = PARAMS_FOLDER + 'Lsat_SDSS_DnGMM.dat'
 SDSS_v1_DAT_FILE = SDSS_FOLDER + 'sdss_fluxlim_v1.0.dat'
 SDSS_v2_DAT_FILE = SDSS_FOLDER + 'sdss_fluxlim_v2.0.dat' # Built by me where DESI Y1 redshifts are added to SDSS missing ones
 SDSS_v1_GALPROPS_FILE = SDSS_FOLDER + "sdss_galprops_v1.0.dat"
+SDSS_v2_GALPROPS_FILE = SDSS_FOLDER + "sdss_galprops_v2.0.dat"
 # Acquired from http://sdss.physics.nyu.edu/vagc-dr7/vagc2/object_catalog.fits
 SDSS_DR7_OBJECT_FILE = SDSS_FOLDER + "object_catalog.fits"
 # Acquired from http://sdss.physics.nyu.edu/vagc-dr7/vagc2/collisions/collisions.nearest.fits

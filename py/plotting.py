@@ -28,13 +28,13 @@ def font_restore():
 ##########################
 # Plots
 ##########################
-
+LEGENDS_ON = True
 def legend(datasets):
-    if len(datasets) > 1:
+    if len(datasets) > 1 and LEGENDS_ON:
         plt.legend()
 
 def legend_ax(ax, datasets):
-    if len(datasets) > 1:
+    if len(datasets) > 1 and LEGENDS_ON:
         ax.legend()
 
 def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHOW_UNWEIGHTED=False):
@@ -74,7 +74,7 @@ def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHO
     plt.draw()
 
 
-def get_dataset_display_name(d, keep_mag_limit=False):
+def get_dataset_display_name(d: GroupCatalog, keep_mag_limit=False):
     name = d.name.replace("Fiber Only", "Observed").replace("Simple v4", "Our Algorithm").replace(" Vanilla", "").replace("Nearest Neighbor", "NN")
     if keep_mag_limit:
         return name
@@ -89,7 +89,40 @@ def hod_plots(*datasets, truth_on=True):
         if truth_on and f.has_truth:
             do_hod_plot(f.all_data, f.centrals_T, f.sats_T, 'Mh_bin_T', f.labels, 'k', get_dataset_display_name(f))
 
+def single_plots(d: GroupCatalog, truth_on=False):
+    """
+    Plots that are nice for just 1 group catalog at a time.
+    """
 
+    plots_color_split(d, truth_on=truth_on, total_on=True)
+
+    if 'z_assigned_flag' in d.all_data.columns:
+        plots_color_split_lost_split(d)
+    if d.has_truth:
+        q_gals = d.all_data[d.all_data.quiescent]
+        sf_gals = d.all_data[np.invert(d.all_data.quiescent)]
+        plots_color_split_lost_split_inner(d.name + " Sim. Truth", d.L_gal_labels, d.L_gal_bins, q_gals, sf_gals, fsat_truth_vmax_weighted)
+
+    print("TOTAL f_sat - entire sample: ")
+    total_f_sat(d)
+
+def completeness_comparison(*datasets):        
+    fig,ax1=plt.subplots()
+    fig.set_dpi(DPI)
+
+    indexes = [9,12,15,18,21,24,27,30]
+    for index in indexes:
+        completeness = np.zeros(len(datasets))
+        fsat = np.zeros(len(datasets))
+        for i in range(0,len(datasets)):
+            completeness[i] = 1 - datasets[i].all_data.z_assigned_flag.mean()
+            fsat[i] = datasets[i].f_sat.iloc[index]
+        plt.plot(completeness, fsat, label=f'log(L)={np.log10(L_gal_labels[index]):.1f}', marker='o')
+    ax1.set_xlabel("Completeness")
+    ax1.set_ylabel("$f_{sat}$")
+    #ax1.legend()
+    ax1.set_ylim(0.0,0.6)
+    fig.tight_layout()
 
 def plots(*datasets, truth_on=False):
     contains_20_data = False
@@ -179,7 +212,7 @@ def plots(*datasets, truth_on=False):
     ax2.set_yscale('log')
     plt.draw()
 
-    # fsat vs Lgal with Ngal
+    # Wide fsat vs Lgal with Ngal
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
     for f in datasets:
@@ -209,6 +242,8 @@ def plots(*datasets, truth_on=False):
     ax2.set_yscale('log')
     fig.tight_layout()
 
+    X_MAX = 1E11
+
     # fsat vs Lgal 
     for xmin in LGAL_XMINS:
         fig,ax1=plt.subplots()
@@ -226,13 +261,55 @@ def plots(*datasets, truth_on=False):
         ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
         ax1.set_ylabel("$f_{\\mathrm{sat}}$")
         legend_ax(ax1, datasets)
-        X_MAX = 1E11
         ax1.set_xlim(xmin,X_MAX)
         ax1.set_ylim(0.0,0.6)
         ax2=ax1.twiny()
         ax2.plot(Mr_gal_labels, datasets[0].f_sat, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
         ax2.set_xlabel("$M_r$ - 5log(h)")
+        fig.tight_layout()
+
+    # Blue fsat
+    for xmin in LGAL_XMINS:
+        fig,ax1=plt.subplots()
+        fig.set_dpi(DPI)
+        for f in datasets:
+            if not hasattr(f, 'f_sat_sf'):
+                f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
+            plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, color=f.color, label=get_dataset_display_name(f))
+
+        ax1.set_xscale('log')
+        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
+        ax1.set_ylabel("Star-forming $f_{\\mathrm{sat}}$ ")
+        legend_ax(ax1, datasets)
+        ax1.set_xlim(xmin,X_MAX)
+        ax1.set_ylim(0.0,1.0)
+        ax2=ax1.twiny()
+        ax2.plot(Mr_gal_labels, datasets[0].f_sat_sf, ls="")
+        ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
+        ax2.set_xlabel("$M_r$ - 5log(h)")
+        fig.tight_layout()
+
+    # Red fsat
+    for xmin in LGAL_XMINS:
+        fig,ax1=plt.subplots()
+        fig.set_dpi(DPI)
+        for f in datasets:
+            if not hasattr(f, 'f_sat_q'):
+                f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
+            plt.plot(f.L_gal_labels, f.f_sat_q, f.marker, color=f.color, label=get_dataset_display_name(f))
+
+        ax1.set_xscale('log')
+        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
+        ax1.set_ylabel("Quiescent $f_{\\mathrm{sat}}$ ")
+        legend_ax(ax1, datasets)
+        ax1.set_xlim(xmin,X_MAX)
+        ax1.set_ylim(0.0,1.0)
+        ax2=ax1.twiny()
+        ax2.plot(Mr_gal_labels, datasets[0].f_sat_q, ls="")
+        ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
+        ax2.set_xlabel("$M_r$ - 5log(h)")
+        fig.tight_layout()
 
     #ax2 = ax1.twinx()
     #idx = 0
@@ -247,15 +324,6 @@ def plots(*datasets, truth_on=False):
 
     if len(datasets) == 1:
         plots_color_split(*datasets, total_on=True)
-
-    for d in datasets:
-        plots_color_split(d, truth_on=truth_on)
-        if 'z_assigned_flag' in d.all_data.columns:
-            plots_color_split_lost_split(d)
-        if d.has_truth:
-            q_gals = d.all_data[d.all_data.quiescent]
-            sf_gals = d.all_data[np.invert(d.all_data.quiescent)]
-            plots_color_split_lost_split_inner(d.name + " Sim. Truth", d.L_gal_labels, d.L_gal_bins, q_gals, sf_gals, fsat_truth_vmax_weighted)
 
     print("TOTAL f_sat - entire sample: ")
     for f in datasets:
@@ -449,7 +517,7 @@ def total_f_sat(ds):
     print(f"  (no weight):  {ds.all_data['is_sat'].mean():.3f}")
     print(f"  (1 / V_max):  {fsat_vmax_weighted(ds.all_data):.3f}")
     
-    if ds.has_truth:
+    if ds.has_truth and 'is_sat_truth' in ds.all_data.columns:
         print(f"  Truth (no weight):  {ds.all_data['is_sat_truth'].mean():.3f}")
         print(f"  Truth (1 / V_max):  {fsat_truth_vmax_weighted(ds.all_data):.3f}")
 
@@ -531,11 +599,11 @@ def qf_cen_plot(*datasets):
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
     for f in datasets:
-        #if not hasattr(f, 'qf_gmr'):
-        f.qf_gmr = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_BGS_gmr_vmax_weighted)
-        #if not hasattr(f, 'qf_dn4000'):
-        f.qf_dn4000 = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
-        f.qf_dn4000_hard = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_Dn4000_1_6_vmax_weighted)
+        if not hasattr(f, 'qf_gmr'):
+            f.qf_gmr = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_BGS_gmr_vmax_weighted)
+        if not hasattr(f, 'qf_dn4000'):
+            f.qf_dn4000 = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
+            f.qf_dn4000_hard = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_Dn4000_1_6_vmax_weighted)
         plt.plot(f.L_gal_labels, f.qf_gmr, '.', label=f'0.1^(g-r) < {GLOBAL_RED_COLOR_CUT}', color='b')
         plt.plot(f.L_gal_labels, f.qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
         plt.plot(f.L_gal_labels, f.qf_dn4000_hard, '-', label='Dn4000 > 1.6', color='r')
@@ -932,7 +1000,19 @@ def examine_area(ra_min, ra_max, dec_min, dec_max, data: pd.DataFrame):
 
     return galaxies
 
-def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord.Angle('5m')):
+
+textsize = 9
+def write_z(galaxy):
+    if hasattr(galaxy, 'z_truth'):
+        if close_enough(galaxy.z, galaxy.z_truth):
+            plt.text(galaxy.RA, galaxy.Dec, "{0:.3f}".format(galaxy.z), size=textsize, color='green')
+        else:
+            plt.text(galaxy.RA, galaxy.Dec, "{0:.3f}".format(galaxy.z), size=textsize, color='red')
+            plt.text(galaxy.RA, galaxy.Dec-0.0035, "{0:.3f}".format(galaxy.z_truth), size=textsize, color='blue')
+    else:
+        plt.text(galaxy.RA, galaxy.Dec, "{0:.3f}".format(galaxy.z), size=textsize, color='k')
+
+def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord.Angle('7m')):
 
     z_eff = target.z
     #target_dist_true = z_to_ldist(target.z_obs)
@@ -989,9 +1069,9 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
         nearby_unobs_good_z = nearby_unobs_good_z.loc[np.invert(nearby_unobs_good_z.app_mag > 19.5)]
 
     if target_observed:
-        title = "Observed Galaxy {0}: z_true={1:.3f}, z_NN={2:.3f}".format(target.name, target.z, target.z)
+        title = f"Observed Galaxy {target.name}: z={target.z:.3f}"
     else:
-        title = "Lost Galaxy {0}: z_true={1:.3f}, z_NN={2:.3f}".format(target.name, target.z, target.z)
+        title = f"Lost Galaxy {target.name}: z={target.z:.3f}"
 
     if len(nearby) > 1:
 
@@ -1009,7 +1089,6 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
             circ = Circle((current.RA,current.Dec), radius, color=get_color(0), alpha=0.10)
             ax.add_patch(circ)
 
-        textsize = 9
         dimalpha = 0.4
 
         plt.scatter(nearby_obs_other.RA, nearby_obs_other.Dec, s=list(map(_getsize, nearby_obs_other.z)), color=get_color(0), label="Obs ({0})".format(len(nearby_obs_other)))
@@ -1034,7 +1113,8 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
             plt.text(nearby_obs.iloc[k].RA, nearby_obs.iloc[k].Dec, "{0:.3f}".format(nearby_obs.iloc[k].z), size=textsize)
         if nearby_unobs is not False:
             for k in range(len(nearby_unobs)):
-                plt.text(nearby_unobs.iloc[k].RA, nearby_unobs.iloc[k].Dec, "{0:.3f}".format(nearby_unobs.iloc[k].z), size=textsize)
+                # Choose color for each based on if z_truth and z are close
+                write_z(nearby_unobs.iloc[k])
 
         # Circle assigned one
         if len(z_match) > 0:
@@ -1044,9 +1124,10 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
         # Target galaxy
         if target_observed:
             plt.scatter(target.RA, target.Dec, s=_getsize(target.z), color=get_color(1), label="Target")
+            plt.text(target.RA, target.Dec, "{0:.3f}".format(target.z), size=textsize)
         else:
             plt.scatter(target.RA, target.Dec, s=_getsize(target.z), marker='X', color=get_color(1), label="Target")  
-        plt.text(target.RA, target.Dec, "{0:.3f}".format(target.z), size=textsize)
+            write_z(target)
 
         # Add virial radii or MXXL Halos to the target
         circ = Circle((target.RA,target.Dec), target.halo_radius_arcsec / 3600, color=get_color(1), alpha=0.20)
@@ -1055,7 +1136,7 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
         plt.xlim(ra_min, ra_max)
         plt.ylim(dec_min, dec_max)
         plt.xlabel('RA')
-        plt.xlabel('Dec')
+        plt.ylabel('Dec')
         plt.legend()
         plt.title(title)
         plt.draw()
