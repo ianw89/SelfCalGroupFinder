@@ -8,6 +8,7 @@ import pickle
 import subprocess as sp
 from astropy.table import Table
 import astropy.io.fits as fits
+import copy
 
 from SelfCalGroupFinder.py.pyutils import *
 from SelfCalGroupFinder.py.hdf5_to_dat import pre_process_mxxl
@@ -35,7 +36,6 @@ sv3_regions = [
     [41,  47,  49,  44,  43,  39,  46,  45,  40,  42,  48],
     [68,  74,  76,  71,  70,  66,  73,  72,  67,  69,  75],
     [149, 155, 152, 147, 151, 154, 148, 156, 150, 153], 
-    #confirmed thru here, double check below
     [527, 533, 530, 529, 525, 532, 531, 526, 528, 534], 
     [236, 233, 230, 228, 238, 234, 232, 231, 235, 237, 229],
     [265, 259, 257, 262, 263, 256, 260, 264, 255, 258, 261],
@@ -194,20 +194,24 @@ class GroupCatalog:
         self.wp_mock_r_M21 = np.loadtxt(f'{self.output_folder}wp_mock_red_M21.dat', skiprows=0, dtype='float')
 
 
-
-    def postprocess(self):
+    def refresh_df_views(self):
         if self.all_data is not None:
-            
             # Compute some common aggregations upfront here
             # TODO make these lazilly evaluated properties on the GroupCatalog object
             # Can put more of them into this pattern from elsewhere in plotting code then
             self.f_sat = self.all_data.groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
+            self.f_sat_sf = self.all_data[self.all_data.quiescent == False].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
+            self.f_sat_q = self.all_data[self.all_data.quiescent == True].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
             self.Lgal_counts = self.all_data.groupby('Lgal_bin', observed=False).RA.count()
 
             # Setup some convenience subsets of the DataFrame
             # TODO check memory implications of this
-            self.centrals = self.all_data[self.all_data.index == self.all_data.igrp]
-            self.sats = self.all_data[self.all_data.index != self.all_data.igrp]
+            self.centrals = self.all_data.loc[self.all_data.index == self.all_data.igrp]
+            self.sats = self.all_data.loc[self.all_data.index != self.all_data.igrp]
+
+    def postprocess(self):
+        if self.all_data is not None:
+            self.refresh_df_views()
         else:
             print("Warning: postprocess called with all_data DataFrame is not set yet. Override postprocess() or after calling run_group_finder() set it.")
 
@@ -541,7 +545,46 @@ def get_extra_bgs_fastspectfit_data():
 
     return pd.DataFrame({'target_id': fastspecfit_id, 'mstar': mstar})
 
+def filter_SV3_to_avoid_edges(gc: GroupCatalog):
+    """
+    Take the built group catalog for SV3 and remove galaxies near the edges of the footprint.
+    """
+    df = gc.all_data
+    if gc.data_cut != "sv3":
+        print("Warning: filter_SV3_to_avoid_edges called for non-SV3 data cut.")
+        return
+    
+    SV3_tiles = pd.read_csv(BGS_Y3_TILES_FILE, delimiter=',', usecols=['TILEID', 'FAFLAVOR', 'TILERA', 'TILEDEC', 'TILERA', 'TILEDEC'])
+    SV3_tiles = SV3_tiles.loc[SV3_tiles.FAFLAVOR == 'sv3bright']
+    SV3_tiles.reset_index(inplace=True)
 
+    # define in inner radius that will ensure we select galaxies away from the edges of each circular region
+    INNER_RADIUS = 1.1 # degrees
+
+    # Cut to the regions of interest
+    center_ra = []
+    center_dec = []
+    for region in sv3_regions_sorted:
+        tiles = SV3_tiles.loc[SV3_tiles.TILEID.isin(region)]
+        center_ra.append(np.mean(tiles.TILERA))
+        center_dec.append(np.mean(tiles.TILEDEC))
+
+    # Get distance to nearest SV3 region center point for each galaxy
+    tiles_coord = coord.SkyCoord(ra=center_ra*u.degree, dec=center_dec*u.degree, frame='icrs')
+    gals_coord = coord.SkyCoord(ra=df.RA.to_numpy()*u.degree, dec=df.Dec.to_numpy()*u.degree, frame='icrs')
+    idx, d2d, d3d = coord.match_coordinates_sky(gals_coord, tiles_coord, nthneighbor=1, storekdtree='kdtree_tiles')
+    ang_distances = d2d.to(u.degree).value
+
+    # Filter out galaxies within INNER_RADIUS of any SV3 region center
+    inner_df = df.loc[ang_distances < INNER_RADIUS].copy()
+
+    new = copy.deepcopy(gc)
+    new.all_data = inner_df
+    new.refresh_df_views()
+
+    print(f"Filtered out {len(df) - len(inner_df)} ({(len(df)-len(inner_df)) / len(df)}) galaxies near the edges of the SV3 footprint.")
+
+    return new
 
 def serialize(gc: GroupCatalog):
     # TODO this is a hack to get around class redefinitions invalidating serialized objects

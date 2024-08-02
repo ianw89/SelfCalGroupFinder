@@ -125,20 +125,15 @@ def completeness_comparison(*datasets):
     fig.tight_layout()
 
 def plots(*datasets, truth_on=False):
-    contains_20_data = False
-    for f in datasets:
-        if ('20' in f.name):
-            contains_20_data = True
     
     # TODO: I believe that Mh and Mstar don't have any h factors, but should double check.
     # Probably depends on what was given to the group finder?
     # LHMR
     plt.figure(dpi=DPI)
     for f in datasets:
-        if ('20' not in f.name):
-            lcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-            lcen_scatter = f.centrals.groupby('Mh_bin', observed=False).L_gal.std() # TODO not right?
-            plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
+        lcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+        lcen_scatter = f.centrals.groupby('Mh_bin', observed=False).L_gal.std() # TODO not right?
+        plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('$M_{halo}$')
@@ -148,23 +143,6 @@ def plots(*datasets, truth_on=False):
     plt.xlim(1E10,1E15)
     plt.ylim(3E7,2E12)
     plt.draw()
-
-    if contains_20_data:
-        plt.figure(dpi=DPI)
-        for f in datasets:
-            if ('20' in f.name):
-                lcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-                lcen_scatter = f.centrals.groupby('Mh_bin', observed=False).L_gal.std()
-                plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
-        plt.xscale('log')
-        plt.yscale('log')
-        plt.xlabel('$M_{halo}$')
-        plt.ylabel('$log(L_{cen})$')
-        plt.title("Central Luminosity vs. Halo Mass")
-        legend(datasets)
-        plt.xlim(1E10,1E15)
-        plt.ylim(3E8,2E12)
-        plt.draw()
 
     # SHMR
     plt.figure(dpi=DPI)
@@ -484,10 +462,8 @@ def plots_color_split(*datasets, truth_on=False, total_on=False):
             if truth_on:
                 if f.has_truth:
                     truth_on = False
-                    if not hasattr(f, 'f_sat_q_t'):
-                        f.f_sat_q_t = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_truth_vmax_weighted)
-                    if not hasattr(f, 'f_sat_sf_t'):
-                        f.f_sat_sf_t = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_truth_vmax_weighted)
+                    f.f_sat_q_t = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_truth_vmax_weighted)
+                    f.f_sat_sf_t = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_truth_vmax_weighted)
                     plt.plot(f.L_gal_labels, f.f_sat_q_t, 'x', label="Simulation's Truth", color='r')
                     plt.plot(f.L_gal_labels, f.f_sat_sf_t, 'x', label="Simulation's Truth", color='b')
 
