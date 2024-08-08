@@ -106,6 +106,17 @@ def single_plots(d: GroupCatalog, truth_on=False):
     print("TOTAL f_sat - entire sample: ")
     total_f_sat(d)
 
+def z_assigned_fraction(*datasets: GroupCatalog):
+    for d in datasets:
+        assigned_count = (d.all_data.z_assigned_flag != 0).sum()
+        completeness = (d.all_data.z_assigned_flag == 0).mean()
+        nn_fraction = (d.all_data.z_assigned_flag == 1).sum() / assigned_count
+        other_fraction = (d.all_data.z_assigned_flag == 2).sum() / assigned_count
+
+        print(f"{d.name} - {completeness:.1%} completeness")
+        print(f"  NN: {nn_fraction:.1%}, Other: {other_fraction:.1%}")
+
+
 def completeness_comparison(*datasets):        
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
@@ -115,7 +126,7 @@ def completeness_comparison(*datasets):
         completeness = np.zeros(len(datasets))
         fsat = np.zeros(len(datasets))
         for i in range(0,len(datasets)):
-            completeness[i] = 1 - datasets[i].all_data.z_assigned_flag.mean()
+            completeness[i] = (datasets[i].all_data.z_assigned_flag == 0).mean()
             fsat[i] = datasets[i].f_sat.iloc[index]
         plt.plot(completeness, fsat, label=f'log(L)={np.log10(L_gal_labels[index]):.1f}', marker='o')
     ax1.set_xlabel("Completeness")
@@ -303,10 +314,11 @@ def plots(*datasets, truth_on=False):
     if len(datasets) == 1:
         plots_color_split(*datasets, total_on=True)
 
-    print("TOTAL f_sat - entire sample: ")
+    print("Summary Statistics: ")
     for f in datasets:
         print(f.name)
         total_f_sat(f)
+
 
 def plots_color_split_lost_split(f):
     q_gals = f.all_data[f.all_data.quiescent]
@@ -314,10 +326,10 @@ def plots_color_split_lost_split(f):
     plots_color_split_lost_split_inner(get_dataset_display_name(f), f.L_gal_labels, f.L_gal_bins, q_gals, sf_gals, fsat_vmax_weighted)
 
 def plots_color_split_lost_split_inner(name, L_gal_labels, L_gal_bins, q_gals, sf_gals, aggregation_func, show_plot=True):
-    q_lost = q_gals[q_gals.z_assigned_flag].groupby(['Lgal_bin'], observed=False)
-    q_obs = q_gals[~q_gals.z_assigned_flag].groupby(['Lgal_bin'], observed=False)
-    sf_lost = sf_gals[sf_gals.z_assigned_flag].groupby(['Lgal_bin'], observed=False)
-    sf_obs = sf_gals[~sf_gals.z_assigned_flag].groupby(['Lgal_bin'], observed=False)
+    q_lost = q_gals[q_gals.z_assigned_flag != 0].groupby(['Lgal_bin'], observed=False)
+    q_obs = q_gals[q_gals.z_assigned_flag == 0].groupby(['Lgal_bin'], observed=False)
+    sf_lost = sf_gals[sf_gals.z_assigned_flag != 0].groupby(['Lgal_bin'], observed=False)
+    sf_obs = sf_gals[sf_gals.z_assigned_flag == 0].groupby(['Lgal_bin'], observed=False)
     fsat_qlost = q_lost.apply(aggregation_func)
     fsat_qobs = q_obs.apply(aggregation_func)
     fsat_sflost = sf_lost.apply(aggregation_func)
@@ -490,12 +502,40 @@ def total_f_sat(ds):
     """
     Prints out the total f_sat for a dataframe, 1/Vmax weighted and not. 
     """
-    print(f"  (no weight):  {ds.all_data['is_sat'].mean():.3f}")
-    print(f"  (1 / V_max):  {fsat_vmax_weighted(ds.all_data):.3f}")
+    print(f"  fsat (no weight):  {ds.all_data['is_sat'].mean():.3f}")
+    print(f"  fsat (1 / V_max):  {fsat_vmax_weighted(ds.all_data):.3f}")
     
     if ds.has_truth and 'is_sat_truth' in ds.all_data.columns:
         print(f"  Truth (no weight):  {ds.all_data['is_sat_truth'].mean():.3f}")
         print(f"  Truth (1 / V_max):  {fsat_truth_vmax_weighted(ds.all_data):.3f}")
+
+
+def fsat_by_zbins_sv3_centers(*datasets, z_bins=np.array([0.0, 0.2, 1.0], dtype=float)):
+    for i in range(0, len(z_bins)-1):
+        z_low = z_bins[i]
+        z_high = z_bins[i+1]
+
+        fig,ax1=plt.subplots()
+        fig.set_dpi(DPI)
+
+        for d in datasets:
+            z_cut = np.all([d.all_data.z > z_low, d.all_data.z < z_high], axis=0)
+            print(f"z: {z_low:.2} - {z_high:.2} ({np.sum(z_cut)} galaxies)")
+            fsat_zcut = d.all_data[z_cut].groupby('Lgal_bin').apply(fsat_vmax_weighted)
+            plt.plot(d.L_gal_labels, fsat_zcut, d.marker, label=get_dataset_display_name(d), color=d.color)
+
+        ax1.set_xscale('log')
+        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
+        ax1.set_ylabel("$f_{\\mathrm{sat}}$")
+        legend_ax(ax1, datasets)
+        ax1.set_xlim(3E7,1E11)
+        ax1.set_ylim(0.0,0.6)
+        ax2=ax1.twiny()
+        ax2.plot(Mr_gal_labels, datasets[0].f_sat, ls="")
+        ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(3E7)), log_solar_L_to_abs_mag_r(np.log10(1E11)))
+        ax2.set_xlabel("$M_r$ - 5log(h)")
+        ax1.set_title(f"z: {z_low:.2} - {z_high:.2}")
+        fig.tight_layout()
 
 def fsat_by_z_bins(dataset, z_bins=np.array([0.0, 0.05, 0.1, 0.2, 0.3, 1.0]), show_plots=True, aggregation=fsat_vmax_weighted):
     # Call plots_color_split_lost_split for a few z bins
@@ -881,7 +921,7 @@ def assigned_halo_analysis(*sets):
         #same_mxxl_halo = data.all_data['assigned_halo_mass']
         #data.all_data['same_mxxl_halo'] = same_mxxl_halo
 
-        lost_galaxies = data.all_data[data.all_data.z_assigned_flag]
+        lost_galaxies = data.all_data[data.all_data.z_assigned_flag != 0]
         print(len(lost_galaxies), "lost galaxies")
 
         lost_galaxies = lost_galaxies[lost_galaxies['assigned_halo_id'] != 0]
@@ -1001,7 +1041,7 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
     nearby = data.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
     nearby = nearby.drop(target.name) # drop the target itself from this df
 
-    target_observed = 'z_assigned_flag' not in nearby.columns or ~target.z_assigned_flag
+    target_observed = 'z_assigned_flag' not in nearby.columns or target.z_assigned_flag == 0
 
     # check if nearby has column z_assigned_flag
     if 'z_assigned_flag' in nearby.columns:

@@ -74,10 +74,12 @@ IAN_BGS_SV3_MERGED_FILE = BGS_FUJI_FOLDER + "ian_BGS_SV3_merged.fits"
 
 # BGS Y1 DATA FILES
 ###################
-# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.2/BGS_ANY_full.dat.fits
+# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.5/BGS_ANY_full.dat.fits
 BGS_ANY_FULL_FILE = BGS_FOLDER + "BGS_ANY_full.dat.fits"
-# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.2/BGS_BRIGHT_0_full.ran.fits
-BGS_RAND_FILE = BGS_FOLDER + "BGS_BRIGHT_0_full.ran.fits"
+# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.2/BGS_ANY_full.dat.fits
+BGS_ANY_FULL_FILE_OLD = BGS_FOLDER + "BGS_ANY_full.dat.fits~"
+# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.5/BGS_ANY_0_full.ran.fits
+BGS_RAND_FILE = BGS_FOLDER + "BGS_ANY_0_full.ran.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/mainbw-bright-allTiles_v1.fits
 BGS_PROB_OBS_FILE = BGS_FOLDER + "mainbw-bright-allTiles_v1.fits"
 # File was acquired from Index of /public/dr1/vac/dr1/fastspecfit/iron/v2.1/catalogs/fastspec-iron-main-bright.fits
@@ -87,6 +89,7 @@ BGS_TILES_FILE = BGS_FOLDER + "tiles-iron.csv"
 # This file is BUILT by running code in the BGS_study.ipynb notebook
 # It is a joined BGS file, with a filtered down set of rows and columns
 IAN_BGS_MERGED_FILE = BGS_FOLDER + "ian_BGS_merged.fits"
+IAN_BGS_MERGED_FILE_OLD = BGS_FOLDER + "ian_BGS_merged.fits~"
 
 
 # BGS Y3 DATA FILES

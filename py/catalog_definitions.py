@@ -168,7 +168,7 @@ _cat = uchuu_all
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_fiberonly_1pass = BGSGroupCatalog("Observed 1pass+ BGS <19.5", Mode.ALL, 19.5, 21.0)
+bgs_fiberonly_1pass = BGSGroupCatalog("Observed 1pass+ BGS <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=1)
 _cat = bgs_fiberonly_1pass
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
@@ -197,6 +197,12 @@ bgs_simple_2_c = BGSGroupCatalog("Simple v2 BGS <19.5 c", Mode.SIMPLE, 19.5, 21.
 _cat = bgs_simple_2_c
 _cat.marker = '--'
 _cat.GF_props = GF_PROPS_COLORS.copy()
+
+bgs_simple_4_old = BGSGroupCatalog("Simple v4 BGS <19.5 v1.2", Mode.SIMPLE_v4, 19.5, 21.0, data_cut='Y1-Iron-v1.2')
+_cat = bgs_simple_4_old
+_cat.marker = '-'
+_cat.color = 'gray'
+_cat.GF_props = GF_PROPS_VANILLA.copy()
 
 bgs_simple_4 = BGSGroupCatalog("Simple v4 BGS <19.5", Mode.SIMPLE_v4, 19.5, 21.0)
 _cat = bgs_simple_4

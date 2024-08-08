@@ -394,8 +394,8 @@ def plot_positions(*datasets, tiles_df: pd.DataFrame, DEG_LONG=1, split=True, ra
 def plot_ra_dec_inner(dataset, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split):
     
     if split:
-        obs = dataset.all_data[~dataset.all_data.z_assigned_flag]
-        unobs = dataset.all_data[dataset.all_data.z_assigned_flag]
+        obs = dataset.all_data[dataset.all_data.z_assigned_flag == 0]
+        unobs = dataset.all_data[dataset.all_data.z_assigned_flag != 0]
     else:
         obs = dataset.all_data
 
@@ -783,7 +783,7 @@ class FancyRedshiftGuesser(RedshiftGuesser):
 
 
 
-def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, frac_area, galprops):
+def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, frac_area):
     """
     Use np.column_stack with dtype='str' to convert your galprops arrays into an all-string
     array before passing it in.
@@ -791,30 +791,39 @@ def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base,
 
     count = len(ra)
     outname_1 = outname_base + ".dat"
-    outname_2 = outname_base + "_galprops.dat"
-    outname_3 = outname_base + "_meta.dat"
+    #outname_2 = outname_base + "_galprops.dat"
 
-    print("Output files will be {0}, {1}, and {2}".format(outname_1, outname_2, outname_3))
+    print(f"Output file will be {outname_1}")
 
+    # Time the two approaches
+    t1 = time.time()
     print("Building output file string... ", end='\r')
     lines_1 = []
-    lines_2 = []
+    #lines_2 = []
 
     for i in range(0, count):
-        lines_1.append(f'{ra[i]:f} {dec[i]:f} {z_eff[i]:f} {log_L_gal[i]:f} {V_max[i]:f} {colors[i]} {chi[i]}')  
-        lines_2.append(' '.join(map(str, galprops[i])))
-
-    outstr_3 = f'{np.min(z_eff)} {np.max(z_eff)} {frac_area}'
+        lines_1.append(f'{ra[i]:.14f} {dec[i]:.14f} {z_eff[i]:.14f} {log_L_gal[i]:f} {V_max[i]:f} {colors[i]} {chi[i]}')  
+        #lines_2.append(' '.join(map(str, galprops[i])))
 
     outstr_1 = "\n".join(lines_1)
-    outstr_2 = "\n".join(lines_2)    
+    #outstr_2 = "\n".join(lines_2)    
     print("Building output file string... done")
 
     print("Writing output files... ",end='\r')
     open(outname_1, 'w').write(outstr_1)
-    open(outname_2, 'w').write(outstr_2)
-    open(outname_3, 'w').write(outstr_3)
+    #open(outname_2, 'w').write(outstr_2)
     print("Writing output files... done")
+    t2 = time.time()
+
+    # Experiment
+    #t3 = time.time()
+    #pd.DataFrame({'ra':ra, 'dec':dec, 'z_eff':z_eff, 'log_L_gal':log_L_gal, 'V_max':V_max, 'colors':colors, 'chi':chi}).to_csv(outname_base + ".dat~", sep=' ', index=False, header=False)
+    #pd.DataFrame(galprops).to_csv(outname_base + "_galprops.dat~", sep=' ', index=False, header=False)
+    #t4 = time.time()
+
+    print(f"Time for file writing: {t2-t1}")
+    #print(f"Time for pandas-based file writing: {t4-t3}")
+
 
 
 

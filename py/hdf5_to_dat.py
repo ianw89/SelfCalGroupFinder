@@ -151,6 +151,9 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
     unobserved = np.invert(observed)
     indexes_not_assigned = np.argwhere(unobserved)
 
+    # Want 0 for observed (DESI OR SDSS fill in), 1 for NN-assigned, 2 for other assigned
+    z_assigned_flag = np.zeros(len(z_obs), dtype=np.int8)
+
 
     count = len(dec)
     print(count, "galaxies left after apparent mag cut at {0}".format(APP_MAG_CUT))
@@ -211,6 +214,9 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
             j = j + 1 
         print("Copying over NN properties... done")
 
+        z_assigned_flag[unobserved] = 1
+
+
     elif mode == Mode.FANCY.value:
 
         NUM_NEIGHBORS = 10
@@ -249,6 +255,9 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
                 assigned_halo_mass[i] = halo_mass_catalog[winner_index]
                 assigned_halo_id[i] = halo_id_catalog[winner_index]
                 j = j + 1 
+
+                z_assigned_flag[i] = 1 # TODO
+
 
             print(f"{j}/{len(to_match)} complete")
 
@@ -292,6 +301,9 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
                     assigned_halo_id[i] = -1
                 j = j + 1 
 
+                z_assigned_flag[i] = 1 if isNN else 2
+
+
         print(f"{j}/{len(to_match)} complete")
     
 
@@ -314,18 +326,23 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
     chi = np.zeros(count, dtype=np.int8) # TODO compute chi
     
     # Output files
-    galprops = np.column_stack([
-        np.array(app_mag, dtype='str'), 
-        np.array(g_r, dtype='str'), 
-        np.array(galaxy_type, dtype='str'), 
-        np.array(mxxl_halo_mass, dtype='str'),
-        np.array(unobserved, dtype='str'),
-        np.array(assigned_halo_mass, dtype='str'),
-        np.array(z_obs, dtype='str'),
-        np.array(mxxl_halo_id, dtype='str'),
-        np.array(assigned_halo_id, dtype='str')
-        ])
-    write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, FOOTPRINT_FRAC, galprops)
+    t1 = time.time()
+    galprops= pd.DataFrame({
+        'app_mag': app_mag, 
+        'g_r': g_r, 
+        'galaxy_type': galaxy_type, 
+        'mxxl_halo_mass': mxxl_halo_mass,
+        'z_assigned_flag': z_assigned_flag,
+        'assigned_halo_mass': assigned_halo_mass,
+        'z_obs': z_obs,
+        'mxxl_halo_id': mxxl_halo_id,
+        'assigned_halo_id': assigned_halo_id
+    })
+    galprops.to_pickle(outname_base + "_galprops.pkl")
+    t2 = time.time()
+    print(f"Galprops pickling took {t2-t1:.4f} seconds")
+    
+    write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, FOOTPRINT_FRAC)
         
     return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': FOOTPRINT_FRAC }
 

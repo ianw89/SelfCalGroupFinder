@@ -218,12 +218,12 @@ class GroupCatalog:
     def get_true_z_from(self, truth_df: pd.DataFrame):
         """
         Adds a column to the catalog's all_data DataFrame with the true redshifts from the truth_df DataFrame 
-        for rows with z_assigned_flag == True.
+        for rows with z_assigned_flag != 0.
         """
         truth_df = truth_df[['target_id', 'z', 'z_assigned_flag', 'L_gal', 'logLgal', 'g_r', 'Lgal_bin']].copy()
         truth_df.index = truth_df.target_id
         self.all_data = self.all_data.join(truth_df, on='target_id', how='left', rsuffix='_T')
-        rows_to_nan = self.all_data['z_assigned_flag_T'] == True
+        rows_to_nan = self.all_data['z_assigned_flag_T'] != 0
         self.all_data.loc[rows_to_nan, 'z_T'] = -99.99
         self.all_data.drop(columns=['target_id_T', 'z_assigned_flag_T'], inplace=True)
         self.has_truth = True
@@ -407,8 +407,14 @@ class MXXLGroupCatalog(GroupCatalog):
 
 
     def postprocess(self):
-        filename_props = str.replace(self.GF_outfile, ".out", "_galprops.dat")
-        galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'z_assigned_flag', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32})
+
+        filename_props_fast = str.replace(self.GF_outfile, ".out", "_galprops.pkl")
+        filename_props_slow = str.replace(self.GF_outfile, ".out", "_galprops.dat")
+        if os.path.exists(filename_props_fast):
+            galprops = pd.read_pickle(filename_props_fast)
+        else:
+            galprops = pd.read_csv(filename_props_slow, delimiter=' ', names=('app_mag', 'g_r', 'galaxy_type', 'mxxl_halo_mass', 'z_assigned_flag', 'assigned_halo_mass', 'z_obs', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32, 'z_assigned_flag': np.int8})
+        
         self.all_data = read_and_combine_gf_output(self, galprops)
         df = self.all_data
         self.has_truth = self.mode.value == Mode.ALL.value
@@ -449,8 +455,13 @@ class UchuuGroupCatalog(GroupCatalog):
 
 
     def postprocess(self):
-        filename_props = str.replace(self.GF_outfile, ".out", "_galprops.dat")
-        galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'g_r', 'central', 'uchuu_halo_mass', 'uchuu_halo_id'), dtype={'uchuu_halo_id': np.int64, 'central': np.bool_})
+        filename_props_fast = str.replace(self.GF_outfile, ".out", "_galprops.pkl")
+        filename_props_slow = str.replace(self.GF_outfile, ".out", "_galprops.dat")
+        if os.path.exists(filename_props_fast):
+            galprops = pd.read_pickle(filename_props_fast)
+        else:
+            galprops = pd.read_csv(filename_props_slow, delimiter=' ', names=('app_mag', 'g_r', 'central', 'uchuu_halo_mass', 'uchuu_halo_id'), dtype={'uchuu_halo_id': np.int64, 'central': np.bool_})
+        
         df = read_and_combine_gf_output(self, galprops)
         self.all_data = df
 
@@ -486,6 +497,8 @@ class BGSGroupCatalog(GroupCatalog):
         print("Pre-processing...")
         if self.data_cut == "Y1-Iron":
             infile = IAN_BGS_MERGED_FILE
+        elif self.data_cut == "Y1-Iron-v1.2":
+            infile = IAN_BGS_MERGED_FILE_OLD
         elif self.data_cut == "Y3-Jura":
             infile = IAN_BGS_Y3_MERGED_FILE
         elif self.data_cut == "sv3":
@@ -507,9 +520,17 @@ class BGSGroupCatalog(GroupCatalog):
 
     def postprocess(self):
         print("Post-processing")
-        filename_props = str.replace(self.GF_outfile, ".out", "_galprops.dat")
-        galprops = pd.read_csv(filename_props, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r', 'Dn4000'), dtype={'target_id': np.int64, 'z_assigned_flag': np.bool_})
+        filename_props_fast = str.replace(self.GF_outfile, ".out", "_galprops.pkl")
+        filename_props_slow = str.replace(self.GF_outfile, ".out", "_galprops.dat")
+        if os.path.exists(filename_props_fast):
+            galprops = pd.read_pickle(filename_props_fast)
+        else:
+            # g_r is k-corrected
+            galprops = pd.read_csv(filename_props_slow, delimiter=' ', names=('app_mag', 'target_id', 'z_assigned_flag', 'g_r', 'Dn4000'), dtype={'target_id': np.int64, 'z_assigned_flag': np.int8})
+        
         df = read_and_combine_gf_output(self, galprops)
+
+        # TODO we write this to the .dat file, use that instead of re-evaluating and double check all is the same
         df['quiescent'] = is_quiescent_BGS_gmr(df.logLgal, df.g_r)
 
         # Get extra fastspecfit columns. Could have threaded these through with galprops
@@ -545,7 +566,7 @@ def get_extra_bgs_fastspectfit_data():
 
     return pd.DataFrame({'target_id': fastspecfit_id, 'mstar': mstar})
 
-def filter_SV3_to_avoid_edges(gc: GroupCatalog):
+def filter_SV3_to_avoid_edges(gc: GroupCatalog, INNER_RADIUS = 1.1):
     """
     Take the built group catalog for SV3 and remove galaxies near the edges of the footprint.
     """
@@ -559,7 +580,6 @@ def filter_SV3_to_avoid_edges(gc: GroupCatalog):
     SV3_tiles.reset_index(inplace=True)
 
     # define in inner radius that will ensure we select galaxies away from the edges of each circular region
-    INNER_RADIUS = 1.1 # degrees
 
     # Cut to the regions of interest
     center_ra = []
@@ -637,7 +657,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     """
     Pre-processes the BGS data for use with the group finder.
     """
-    Z_MIN = 0.001
+    Z_MIN = 0.001 # BUG The Group Finder blows up if you lower this
     Z_MAX = 0.8
 
     # TODO BUG One galaxy is lost from this to group finder...
@@ -651,12 +671,13 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         raise ValueError("Dropping passes is only for the sv3 study")
     
     # These are calculated from randoms in BGS_study.ipynb
-    if data_cut == "Y1-Iron":
+    if data_cut == "Y1-Iron" or data_cut == "Y1-Iron-v1.2":
         # For Y1-Iron  
-        FOOTPRINT_FRAC_1pass = 0.187906 # 7751 degrees
-        FOORPRINT_FRAC_2pass = 0.1154274 # 4761 degrees
-        FOOTPRINT_FRAC_3pass = 0.0649945 # 1310 degrees
-        FOOTPRINT_FRAC_4pass = 0.0228144 # 941 degrees
+        FOOTPRINT_FRAC_1pass = 0.1876002 # 7739 degrees
+        FOORPRINT_FRAC_2pass = 0.1153344 # 4758 degrees
+        FOOTPRINT_FRAC_3pass = 0.0649677 # 2680 degrees
+        FOOTPRINT_FRAC_4pass = 0.0228093 # 940 degrees
+        # 0% 5pass coverage
     elif data_cut == "Y3-Jura":
         # For Y3-Jura
         FOOTPRINT_FRAC_1pass = 0.310691 # 12816 degrees
@@ -724,6 +745,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     g_r = app_mag_g - app_mag_r
 
     if table.columns.get('PROB_OBS') is None:
+        print("WARNING: PROB_OBS column not found in FITS file. Using 0.5 for all unobserved galaxies.")
         p_obs = np.ones(len(z_obs)) * 0.5 # TODO BUG this is a hack to get around missing PROB_OBS in some versions of the LSS Catalogs
     else:
         p_obs = table['PROB_OBS']
@@ -815,6 +837,10 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     g_r = g_r[keep]
     dn4000 = dn4000[keep]
 
+    # Want 0 for observed (DESI OR SDSS fill in), 1 for NN-assigned, 2 for other assigned
+    z_assigned_flag = np.zeros(len(z_obs), dtype=np.int8)
+
+
     count = len(dec)
     print(count, "galaxies left after filters.")
     first_need_redshift_count = unobserved.sum()
@@ -830,7 +856,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla v2", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE))
         #sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla", SDSS_v1_DAT_FILE, SDSS_v1_GALPROPS_FILE))
         if sdss_vanilla.all_data is not None:
-            observed_sdss = sdss_vanilla.all_data.loc[sdss_vanilla.all_data.z_assigned_flag == False]
+            observed_sdss = sdss_vanilla.all_data.loc[sdss_vanilla.all_data.z_assigned_flag == 0]
             #observed_sdss = sdss_vanilla.all_data 
 
             sdss_catalog = coord.SkyCoord(ra=observed_sdss.RA.to_numpy()*u.degree, dec=observed_sdss.Dec.to_numpy()*u.degree, frame='icrs')
@@ -873,6 +899,8 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             z_eff[i] = z_obs_catalog[idx[j]]
             j = j + 1 
         print("Copying over NN properties... done")
+
+        z_assigned_flag[unobserved] = 1
 
 
     if mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
@@ -921,6 +949,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
                 chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[catalog_idx], ang_distances[j], p_obs[i], app_mag_r[i], quiescent_gmr[j], catalog_quiescent[catalog_idx])
                 
                 z_eff[i] = chosen_z
+                z_assigned_flag[i] = 1 if isNN else 2
 
                 j = j + 1 
 
@@ -951,15 +980,21 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # TODO What value should z_assigned_flag be for SDSS-assigned?
     # Should update it from binary to an enum I think
 
+
     # Output files
-    galprops = np.column_stack([
-        np.array(app_mag_r, dtype='str'), 
-        np.array(target_id, dtype='str'), 
-        np.array(unobserved, dtype='str'),
-        np.array(G_R_k, dtype='str'),
-        np.array(dn4000, dtype='str'),
-        ])
-    write_dat_files(ra, dec, z_eff, log_L_gal, V_max, quiescent, chi, outname_base, frac_area, galprops)
+    t1 = time.time()
+    galprops= pd.DataFrame({
+        'app_mag': app_mag_r.astype("<f8"),
+        'target_id': target_id.astype("<i8"),
+        'z_assigned_flag': z_assigned_flag.astype("<i1"),
+        'g_r': G_R_k.astype("<f8"),
+        'Dn4000': dn4000.astype("<f8"),
+    })
+    galprops.to_pickle(outname_base + "_galprops.pkl")
+    t2 = time.time()
+    print(f"Galprops pickling took {t2-t1:.4f} seconds")
+
+    write_dat_files(ra, dec, z_eff, log_L_gal, V_max, quiescent, chi, outname_base, frac_area)
 
     return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': frac_area }
 
@@ -1044,7 +1079,7 @@ def mstar_vmax_weighted(series):
         return 0
     else:
         if 'z_assigned_flag' in series.columns:
-            should_mask = np.logical_or(series.z_assigned_flag, np.isnan(series.mstar))
+            should_mask = np.logical_or(series.z_assigned_flag != 0, np.isnan(series.mstar))
         else:
             should_mask = np.isnan(series.mstar)
         masked_mstar = np.ma.masked_array(series.mstar, should_mask)
@@ -1056,7 +1091,7 @@ def mstar_std_vmax_weighted(series):
     if len(series) == 0:
         return 0
     else:
-        should_mask = np.logical_or(series.z_assigned_flag, np.isnan(series.mstar))
+        should_mask = np.logical_or(series.z_assigned_flag != 0, np.isnan(series.mstar))
         masked_mstar = np.ma.masked_array(series.mstar, should_mask)
         masked_vmax = np.ma.masked_array(series.V_max, should_mask)
         return np.sqrt(np.average((masked_mstar - mstar_vmax_weighted(series))**2, weights=1/masked_vmax))
