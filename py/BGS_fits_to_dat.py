@@ -1,6 +1,8 @@
 import sys
-from SelfCalGroupFinder.py.pyutils import *
 import plotting as pp
+if './SelfCalGroupFinder/py/' not in sys.path:
+    sys.path.append('./SelfCalGroupFinder/py/')
+from pyutils import *
 
 def usage():
     print("Usage: python3 BGS_fits_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].hdf5 [output_filename]")

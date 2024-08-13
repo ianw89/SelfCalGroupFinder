@@ -1,9 +1,10 @@
 import numpy as np
 import h5py
 import sys
-from SelfCalGroupFinder.py.pyutils import *
 from astropy.table import Table
-
+if './SelfCalGroupFinder/py/' not in sys.path:
+    sys.path.append('./SelfCalGroupFinder/py/')
+from pyutils import *
 
 def usage():
     print("Usage: python3 uchuu_to_dat.py [mode] [APP_MAG_CUT] [CATALOG_APP_MAG_CUT] [input_filename].fits [output_filename] [COLORS_ON]")

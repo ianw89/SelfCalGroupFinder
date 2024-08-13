@@ -9,11 +9,14 @@ import subprocess as sp
 from astropy.table import Table
 import astropy.io.fits as fits
 import copy
+import sys
 
-from SelfCalGroupFinder.py.pyutils import *
-from SelfCalGroupFinder.py.hdf5_to_dat import pre_process_mxxl
-from SelfCalGroupFinder.py.uchuu_to_dat import pre_process_uchuu
-import SelfCalGroupFinder.py.wp as wp
+if './SelfCalGroupFinder/py/' not in sys.path:
+    sys.path.append('./SelfCalGroupFinder/py/')
+from pyutils import *
+from hdf5_to_dat import pre_process_mxxl
+from uchuu_to_dat import pre_process_uchuu
+import wp as wp
 
 
 # Shared bins for various purposes
@@ -57,6 +60,14 @@ for region in sv3_regions:
     a.sort()
     sv3_regions_sorted.append(a)
 
+# Build a dictionary of tile_id to region index
+sv3_tile_to_region = {}
+for i, region in enumerate(sv3_regions):
+    for tile in region:
+        sv3_tile_to_region[tile] = i
+def tile_to_region_raw(key):
+    return sv3_tile_to_region.get(key, None)  # Return None if key is not found
+tile_to_region = np.vectorize(tile_to_region_raw)
 
 class GroupCatalog:
 
@@ -518,8 +529,37 @@ class BGSGroupCatalog(GroupCatalog):
             print("Skipping pre-processing")
         super().run_group_finder(popmock=popmock)
 
+    def add_bootstrapped_f_sat(self, N_ITERATIONS = 200):
+        df = self.all_data
+
+        if self.data_cut == 'sv3':
+            # label the SV3 region each galaxy is in
+            df['region'] = tile_to_region(df['nearest_tile_id'])
+
+            # Add bootstrapped error bars for fsat
+            N_ITERATIONS = 100
+            f_sat_realizations = []
+            f_sat_sf_realizations = []
+            f_sat_q_realizations = []
+
+            for i in range(N_ITERATIONS):
+                region_indices = np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)
+                alt_df = pd.DataFrame(columns=df.columns)
+                for idx in region_indices:
+                    rows_to_add = df.loc[df.region == idx].copy()
+                    alt_df = alt_df._append(rows_to_add, ignore_index=True)
+                f_sat_realizations.append(alt_df.groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted))
+                f_sat_sf_realizations.append(alt_df[alt_df.quiescent == False].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted))
+                f_sat_q_realizations.append(alt_df[alt_df.quiescent == True].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted))
+
+            self.f_sat_err = np.std(f_sat_realizations, axis=0)
+            self.f_sat_sf_err = np.std(f_sat_sf_realizations, axis=0)
+            self.f_sat_q_err = np.std(f_sat_q_realizations, axis=0)
+        else:
+            pass
+
     def postprocess(self):
-        print("Post-processing")
+        print("Post-processing...")
         filename_props_fast = str.replace(self.GF_outfile, ".out", "_galprops.pkl")
         filename_props_slow = str.replace(self.GF_outfile, ".out", "_galprops.dat")
         if os.path.exists(filename_props_fast):
@@ -545,7 +585,14 @@ class BGSGroupCatalog(GroupCatalog):
         df['Mstar_bin'] = pd.cut(x = df['mstar'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
 
         self.all_data = df
+
         super().postprocess()
+        print("Post-processing done.")
+
+
+    def refresh_df_views(self):
+        super().refresh_df_views()
+        self.add_bootstrapped_f_sat()
 
     def write_sharable_output_file(self):
         print("Writing a sharable output file")
@@ -566,7 +613,7 @@ def get_extra_bgs_fastspectfit_data():
 
     return pd.DataFrame({'target_id': fastspecfit_id, 'mstar': mstar})
 
-def filter_SV3_to_avoid_edges(gc: GroupCatalog, INNER_RADIUS = 1.1):
+def filter_SV3_to_avoid_edges(gc: GroupCatalog, INNER_RADIUS = 1.3):
     """
     Take the built group catalog for SV3 and remove galaxies near the edges of the footprint.
     """
@@ -740,6 +787,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         # TODO
         tileid = table['TILEID']
     target_id = table['TARGETID']
+    ntid = table['NEAREST_TILEIDS'][:,0] # just need to nearest tile for our purposes
     app_mag_r = get_app_mag(table['FLUX_R'])
     app_mag_g = get_app_mag(table['FLUX_G'])
     g_r = app_mag_g - app_mag_r
@@ -836,6 +884,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     deltachi2 = deltachi2[keep]
     g_r = g_r[keep]
     dn4000 = dn4000[keep]
+    ntid = ntid[keep]
 
     # Want 0 for observed (DESI OR SDSS fill in), 1 for NN-assigned, 2 for other assigned
     z_assigned_flag = np.zeros(len(z_obs), dtype=np.int8)
@@ -989,6 +1038,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         'z_assigned_flag': z_assigned_flag.astype("<i1"),
         'g_r': G_R_k.astype("<f8"),
         'Dn4000': dn4000.astype("<f8"),
+        'nearest_tile_id': ntid.astype("<i8"),
     })
     galprops.to_pickle(outname_base + "_galprops.pkl")
     t2 = time.time()

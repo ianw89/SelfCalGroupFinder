@@ -3,10 +3,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import astropy.coordinates as coord
 import astropy.units as u
-from SelfCalGroupFinder.py.pyutils import *
-from SelfCalGroupFinder.py.groupcatalog import *
 from matplotlib.patches import Circle
-
+import sys
+if './SelfCalGroupFinder/py/' not in sys.path:
+    sys.path.append('./SelfCalGroupFinder/py/')
+from pyutils import *
+from groupcatalog import *
 # np.array(zip(*[line.split() for line in f])[1], dtype=float)
 
 
@@ -263,8 +265,8 @@ def plots(*datasets, truth_on=False):
         fig,ax1=plt.subplots()
         fig.set_dpi(DPI)
         for f in datasets:
-            if not hasattr(f, 'f_sat_sf'):
-                f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
+            #if not hasattr(f, 'f_sat_sf'):
+            #    f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
             plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, color=f.color, label=get_dataset_display_name(f))
 
         ax1.set_xscale('log')
@@ -284,8 +286,8 @@ def plots(*datasets, truth_on=False):
         fig,ax1=plt.subplots()
         fig.set_dpi(DPI)
         for f in datasets:
-            if not hasattr(f, 'f_sat_q'):
-                f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
+            #if not hasattr(f, 'f_sat_q'):
+            #    f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
             plt.plot(f.L_gal_labels, f.f_sat_q, f.marker, color=f.color, label=get_dataset_display_name(f))
 
         ax1.set_xscale('log')
@@ -460,15 +462,26 @@ def plots_color_split(*datasets, truth_on=False, total_on=False):
         fig,ax1=plt.subplots()
         fig.set_dpi(DPI)
         for f in datasets:
-            if not hasattr(f, 'f_sat_q'):
-                f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
-            if not hasattr(f, 'f_sat_sf'):
-                f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
-            plt.plot(f.L_gal_labels, f.f_sat_q, f.marker, label=get_dataset_display_name(f) + " Quiescent", color='r')
-            plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, label=get_dataset_display_name(f) + " Star-forming", color='b')
-
+            #if not hasattr(f, 'f_sat_q'):
+            #    f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
+            #if not hasattr(f, 'f_sat_sf'):
+            #    f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
+            
+            if hasattr(f, 'f_sat_q_err'):
+                plt.errorbar(f.L_gal_labels, f.f_sat_q, yerr=f.f_sat_q_err, label=get_dataset_display_name(f) + " Quiescent", color='r')
+            else:
+                plt.plot(f.L_gal_labels, f.f_sat_q, label=get_dataset_display_name(f) + " Quiescent", color='r')
+                
+            if hasattr(f, 'f_sat_sf_err'):
+                plt.errorbar(f.L_gal_labels, f.f_sat_sf, yerr=f.f_sat_sf_err, label=get_dataset_display_name(f) + " Star-forming", color='b')
+            else:
+                plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, label=get_dataset_display_name(f) + " Star-forming", color='b')
+            
             if total_on:
-                plt.plot(f.L_gal_labels, f.f_sat, label=get_dataset_display_name(f) + " Total", color='k')
+                if hasattr(f, 'f_sat_err'):
+                    plt.errorbar(f.L_gal_labels, f.f_sat, yerr=f.f_sat_err, label=get_dataset_display_name(f) + " Total", color='k')
+                else:
+                    plt.plot(f.L_gal_labels, f.f_sat, label=get_dataset_display_name(f) + " Total", color='k')
 
         for f in datasets:
             if truth_on:

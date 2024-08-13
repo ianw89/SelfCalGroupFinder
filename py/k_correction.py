@@ -1,7 +1,6 @@
 import os
 import numpy as np
-
-from   scipy.interpolate import interp1d
+from scipy.interpolate import interp1d
 
 raw_dir = '/home/users/imw2293/SelfCalGroupFinder/desi'
 

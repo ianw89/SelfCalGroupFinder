@@ -1,6 +1,9 @@
-from SelfCalGroupFinder.py.groupcatalog import GroupCatalog, MXXLGroupCatalog, SDSSGroupCatalog, UchuuGroupCatalog, BGSGroupCatalog, SDSSPublishedGroupCatalog
-from SelfCalGroupFinder.py.pyutils import Mode, get_color
-from SelfCalGroupFinder.py.dataloc import *
+import sys
+if './SelfCalGroupFinder/py/' not in sys.path:
+    sys.path.append('./SelfCalGroupFinder/py/')
+from groupcatalog import GroupCatalog, MXXLGroupCatalog, SDSSGroupCatalog, UchuuGroupCatalog, BGSGroupCatalog, SDSSPublishedGroupCatalog
+from pyutils import Mode, get_color
+from dataloc import *
 
 sdss_vanilla = SDSSGroupCatalog("SDSS Vanilla", SDSS_v1_DAT_FILE, SDSS_v1_GALPROPS_FILE)
 _cat = sdss_vanilla

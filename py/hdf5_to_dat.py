@@ -1,8 +1,10 @@
 import numpy as np
 import h5py
 import sys
-from SelfCalGroupFinder.py.pyutils import *
-from SelfCalGroupFinder.py.dataloc import *
+if './SelfCalGroupFinder/py/' not in sys.path:
+    sys.path.append('./SelfCalGroupFinder/py/')
+from pyutils import *
+from dataloc import *
 
 # Chooses 1 of the 2048 fiber assignment realizations with this bitstring and BITWORD as 'bitweight[0-31]
 BITWORD = 'bitweight0'

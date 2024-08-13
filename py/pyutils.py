@@ -7,13 +7,17 @@ import time
 from enum import Enum
 from scipy import special
 import matplotlib.pyplot as plt
-import SelfCalGroupFinder.py.k_correction as gamakc
-import SelfCalGroupFinder.py.kcorr.k_corrections as desikc
-from SelfCalGroupFinder.py.dataloc import *
 import pickle
 import math
 from matplotlib.patches import Circle
 import pandas as pd
+import sys
+
+if './SelfCalGroupFinder/py/' not in sys.path:
+    sys.path.append('./SelfCalGroupFinder/py/')
+import k_correction as gamakc
+import kcorr.k_corrections as desikc
+from dataloc import *
 
 #sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
 #from hodpy.cosmology import CosmologyMXXL
@@ -358,7 +362,7 @@ def make_map(ra, dec, alpha=0.1, dpi=640, fig=None):
     plt.grid(visible=True, which='both')
     return fig
 
-def plot_positions(*datasets, tiles_df: pd.DataFrame, DEG_LONG=1, split=True, ra_min=30, dec_min = -5):
+def plot_positions(*dataframes, tiles_df: pd.DataFrame = None, DEG_LONG=1, split=True, ra_min=30, dec_min = -5):
 
     ra_max = ra_min + DEG_LONG
     dec_max = dec_min + DEG_LONG
@@ -387,31 +391,32 @@ def plot_positions(*datasets, tiles_df: pd.DataFrame, DEG_LONG=1, split=True, ra
             circ = Circle((row.RA, row.Dec), tile_radius, color='k', fill=False, lw=10)
             ax.add_patch(circ)
 
-    for d in datasets:
-        plot_ra_dec_inner(d, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split)
+    alpha = 1 if len(dataframes) == 1 else 0.5
+    for d in dataframes:
+        plot_ra_dec_inner(d, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split, alpha)
 
 
-def plot_ra_dec_inner(dataset, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split):
-    
+def plot_ra_dec_inner(dataframe: pd.DataFrame, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split, alpha):
+
     if split:
-        obs = dataset.all_data[dataset.all_data.z_assigned_flag == 0]
-        unobs = dataset.all_data[dataset.all_data.z_assigned_flag != 0]
+        obs = dataframe[dataframe.z_assigned_flag == 0]
+        unobs = dataframe[dataframe.z_assigned_flag != 0]
     else:
-        obs = dataset.all_data
+        obs = dataframe
 
     # 8 sq deg / 5000 fibers is 0.0016 sq deg per fiber
     # But in reality the paper says 0.0019 sq deg is area of a fiber's region (there is some overlap)
     # That is the size we want to draw for each galaxy here.
     # For 10,000 dots per sq degree, 0.0019 * 10000 = 
     fiber_patrol_area = 0.00191 # in sq deg
-    ARBITRARY_SCALE_UP = 5 # my calculation didn't work so arbitrarilly sizing up with this
+    ARBITRARY_SCALE_UP = 1 # my calculation didn't work so arbitrarilly sizing up with this
     size = fiber_patrol_area * dots_per_sqdeg * ARBITRARY_SCALE_UP 
 
     obs_selected = obs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
-    ax.scatter(obs_selected.RA, obs_selected.Dec, s=size, alpha=1)
+    ax.scatter(obs_selected.RA, obs_selected.Dec, s=size, alpha=alpha)
     if split:
         unobs_selected = unobs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
-        ax.scatter(unobs_selected.RA, unobs_selected.Dec, marker='x', s=size, alpha=1)
+        ax.scatter(unobs_selected.RA, unobs_selected.Dec, marker='x', s=size, alpha=alpha)
 
 
 
@@ -883,3 +888,4 @@ def is_quiescent_BGS_gmr(logLgal, G_R_k):
     # g-r: both are in mags, so more negative values of each are greater fluxes in those bands
     # So a more positive g-r means a redder galaxy
     return G_R_k > GLOBAL_RED_COLOR_CUT
+
