@@ -12,6 +12,8 @@ from astropy.table import Table,join,vstack,unique
 from astropy.utils.exceptions import AstropyWarning
 import warnings
 from pathlib import Path
+import asyncio
+import aiohttp
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -19,11 +21,10 @@ from dataloc import *
 
 # PHOTO-Z MERGING UTILS
 
-START = 118
-END = 200
-
+START = 948
+END = 1436
 FILE_COUNT_LIMIT = 25
-
+TASK_LIMIT = 10
 
 url_base_pz = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr10/south/sweep/10.1-photo-z/'
 url_base_main = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr10/south/sweep/10.1/'
@@ -55,95 +56,88 @@ def get_photoz_file_lists():
 
     return fits_links_pz, fits_links_main
 
+async def download_file(session, url, filename, i):
+    success = False
 
+    while not success:
+        try:
+            response = await session.get(url)
+            response.raise_for_status()
+            content = await response.read()
+            # TODO write async
+            with open(os.path.join(BGS_IMAGES_FOLDER, filename), 'wb') as file:
+                file.write(content)
+            print(f"Downloaded #{i}: {filename}", flush=True)
+            success = True
+            response.close()
+        except Exception as e:
+            print(f"Error downloading #{i} {filename}: {e}. Retry in 5s", flush=True)
+            await asyncio.sleep(5)
+    
+    return success
 
+def too_many_files():
+    filecount = len([name for name in os.listdir(BGS_IMAGES_FOLDER) if os.path.isfile(os.path.join(BGS_IMAGES_FOLDER, name))])
+    return filecount > FILE_COUNT_LIMIT
 
-def download_photoz_files():
+async def download_photoz_files_async():
     """
-    Download the photo-z sweep files from the web and save them to disk. Don't let more than 20 files build up. 
+    Download the photo-z sweep files from the web and save them to disk. Don't let too many files build up. 
     Block until other program has processed them and then deleted.
     """
-
     fits_links_pz, fits_links_main = get_photoz_file_lists()
 
-    for i in range(START,END):
+    async with aiohttp.ClientSession() as session:
 
-        link_pz = fits_links_pz[i]
-        fits_pz_url = urljoin(url_base_pz, link_pz)
-        fits_pz_filename = os.path.basename(fits_pz_url)
+        for i in range(START,END):
+            # Make filenames, etc
+            link_pz = fits_links_pz[i]
+            fits_pz_url = urljoin(url_base_pz, link_pz)
+            fits_pz_filename = os.path.basename(fits_pz_url)
+            link_main = fits_links_main[i]
+            fits_main_url = urljoin(url_base_main, link_main)
+            fits_main_filename = os.path.basename(fits_main_url)
+            # Ensure Bricks are matched
+            assert fits_pz_filename[6:20] == fits_main_filename[6:20] 
 
-        link_main = fits_links_main[i]
-        fits_main_url = urljoin(url_base_main, link_main)
-        fits_main_filename = os.path.basename(fits_main_url)
+            check_for_block = False
+            
 
-        check_for_block = False
+            # PHOTO Z SWEEP FILE
+            f1 = Path(BGS_IMAGES_FOLDER + fits_pz_filename)
+            file_done = os.path.isfile(f1) and f1.stat().st_size != 0
+            if file_done:
+                print(f"File {fits_pz_filename} already exists and is not empty. Skipping download.", flush=True)
+            else:
+                print(f"Requesting #{i} {fits_pz_filename}", flush=True)
+                check_for_block = True
+                asyncio.create_task(download_file(session, fits_pz_url, fits_pz_filename, i))
 
-        # Ensure Bricks are matched
-        assert fits_pz_filename[6:20] == fits_main_filename[6:20] 
-        
-        # TODO writing to disk and then reading into astropy table is silly. 
-        # Wish I knew how to read the response content buffer into astropy table
+            # GENERAL SWEEP FILE    
+            f2 = Path(BGS_IMAGES_FOLDER + fits_main_filename)
+            file_done = os.path.isfile(f2) and f2.stat().st_size != 0
+            if file_done:
+                print(f"File #{i} {fits_main_filename} already exists and is not empty. Skipping download.", flush=True)
+            else:
+                print(f"Requesting #{i} {fits_main_filename}", flush=True)
+                check_for_block = True
+                asyncio.create_task(download_file(session, fits_main_url, fits_main_filename, i))
 
+            # Block before continuing loop if too many files are present
+            if check_for_block:
+                ongoing = [task for task in asyncio.all_tasks() if not task.done()]
+                if len(ongoing) > TASK_LIMIT:
+                    # remove the main task, await the rest
+                    ongoing.remove(asyncio.current_task())
+                    await asyncio.gather(*ongoing)
+                    print("Finished batch of tasks. Continuing...", flush=True)
 
-        # PHOTO Z SWEEP FILE
-        f1 = Path(BGS_IMAGES_FOLDER + fits_pz_filename)
-        file_done = os.path.isfile(BGS_IMAGES_FOLDER + fits_pz_filename) and f1.stat().st_size != 0
-        if file_done:
-            print(f"File {fits_pz_filename} already exists and is not empty. Skipping download.", flush=True)
-
-        while not file_done:
-            with open(BGS_IMAGES_FOLDER + fits_pz_filename, 'wb') as file:
-                try:
-                    print(f"Downloading #{i}: {fits_pz_filename}", flush=True)
-                    fits_response_pz = requests.get(fits_pz_url, timeout=60*5)
-                    fits_response_pz.raise_for_status()  # Check that the request was successful
-                    file.write(fits_response_pz.content)
-                    check_for_block = True
-                except Exception as e:
-                    print(f"Error downloading {fits_pz_filename}: {e}. Will retry in 15s", flush=True)
-                    time.sleep(15)
-                finally: 
-                    file_done = os.path.isfile(BGS_IMAGES_FOLDER + fits_pz_filename) and f1.stat().st_size != 0
-
+                while too_many_files():
+                    print(f"Waiting for more files to be processed...", flush=True)
+                    await asyncio.sleep(5)
                 
-        # GENERAL SWEEP FILE    
-        f2 = Path(BGS_IMAGES_FOLDER + fits_main_filename)
-        file_done = os.path.isfile(BGS_IMAGES_FOLDER + fits_main_filename) and f2.stat().st_size != 0
-        if file_done:
-            print(f"File {fits_main_filename} already exists and is not empty. Skipping download.", flush=True)
 
-        while not file_done:
-            with open(BGS_IMAGES_FOLDER + fits_main_filename, 'wb') as file:
-                try:
-                    print(f"Downloading #{i}: {fits_main_filename}", flush=True)
-                    fits_response = requests.get(fits_main_url)
-                    fits_response.raise_for_status()  # Check that the request was successful
-                    file.write(fits_response.content)
-                    check_for_block = True
-                except Exception as e:
-                    print(f"Error downloading {fits_main_filename}: {e}. Will retry in 15s", flush=True)
-                    time.sleep(15)
-                finally:
-                    file_done = os.path.isfile(BGS_IMAGES_FOLDER + fits_main_filename) and f2.stat().st_size != 0
-
-
-        # Block before continuing loop if too many files are present
-        if check_for_block:
-            filecount = len([name for name in os.listdir(BGS_IMAGES_FOLDER) if os.path.isfile(os.path.join(BGS_IMAGES_FOLDER, name))])
-            while filecount > FILE_COUNT_LIMIT:
-                print(f"Waiting for more files to be processed...", end='\r', flush=True)
-                time.sleep(5)
-                filecount = len([name for name in os.listdir(BGS_IMAGES_FOLDER) if os.path.isfile(os.path.join(BGS_IMAGES_FOLDER, name))])
-                if filecount <= FILE_COUNT_LIMIT:
-                    print(f"Files processed, continuing to download sweep #{i}...", flush=True)
-
-
-
-
-
-
-
-def process_photoz_files():
+async def process_photoz_files():
 
     # Read in the DESI TARGETS table
     desi_targets_table = pickle.load(open(IAN_PHOT_Z_FILE, 'rb'))
@@ -153,10 +147,9 @@ def process_photoz_files():
     #for i in range(len(fits_links_pz)):
     for i in range(START,END):
 
-        print(f"Start processing brick i={i}", flush=True)
+        print(f"Start processing brick #{i}", flush=True)
 
         try:
-
             link_pz = fits_links_pz[i]
             fits_pz_url = urljoin(url_base_pz, link_pz)
             fits_pz_filename = os.path.basename(fits_pz_url)
@@ -257,16 +250,13 @@ def process_photoz_files():
     
         except Exception as e:
             print(f"Error processing brick {i}: {e}")
-            #bad_sweeps.append(i)
 
         finally:            
-            print(f"Writing progress to disk...")
-            sys.stdout.flush()
+            print(f"Writing progress to disk...", flush=True)
             pickle.dump(desi_targets_table, open(IAN_PHOT_Z_FILE, 'wb'))
-            #pickle.dump(bad_sweeps, open(BGS_IMAGES_FOLDER + 'bad_sweeps.pkl', 'wb'))
     
 
-def main():
+async def main():
     """
     To use this program, call it once with argument 1 to download the photo-z files, 
     and simultaneously call it with argument 2 from another shell to process them.
@@ -281,13 +271,13 @@ def main():
 
     if sys.argv[1] == '1':
         print("DOWNLOAD MODE")
-        download_photoz_files()
+        await download_photoz_files_async()
 
     if sys.argv[1] == '2':
         print("PROCESS MODE")
-        process_photoz_files()
+        await process_photoz_files()
 
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
