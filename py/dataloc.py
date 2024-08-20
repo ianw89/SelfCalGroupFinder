@@ -96,7 +96,8 @@ IAN_BGS_MERGED_FILE_OLD = BGS_FOLDER + "ian_BGS_merged.fits~"
 # BGS Y3 DATA FILES
 ###################
 # TODO Jura is unofficial Y3, replace later
-# TODO need mainbw and fastspec files but they don't exist for Jura yet
+# TODO this is noveto version, want BGS_ANY_full.dat.fits instead
+# TODO need PROB_OBS for Y3...
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/jura-v1/LSScats/test/BGS_ANY_full_noveto.dat.fits    
 BGS_Y3_ANY_FULL_FILE = BGS_Y3_FOLDER + "BGS_ANY_full_noveto.dat.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/jura-v1/LSScats/test/BGS_BRIGHT_0_full.ran.fits
