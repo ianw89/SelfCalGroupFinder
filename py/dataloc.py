@@ -118,3 +118,4 @@ IAN_PHOT_Z_FILE = BGS_IMAGES_FOLDER + "IAN_PHOTZ_MATCHES.fits"
 IAN_MXXL_LOST_APP_TO_Z_FILE = BGS_FOLDER + "mxxl_lost_appmag_to_z_map.dat"
 # This file is BUILT by running code in the MXXL_study.ipynb notebook
 MXXL_PROB_OBS_FILE = OUTPUT_FOLDER + "prob_obs.npy"
+MXXL_ABS_MAG_R_FILE = OUTPUT_FOLDER + "mxxl_abs_mag_r_mine.npy"

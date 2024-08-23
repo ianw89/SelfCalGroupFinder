@@ -12,6 +12,7 @@ import math
 from matplotlib.patches import Circle
 import pandas as pd
 import sys
+from scipy.special import erf
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -22,6 +23,35 @@ from dataloc import *
 #sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
 #from hodpy.cosmology import CosmologyMXXL
 #from hodpy.k_correction import GAMA_KCorrection
+
+################################
+# BINS USED FOR VARIOUS PURPOSES
+#
+# For the bin count to be right, whether data falls above or below the lowest and highest bin matters
+# For plotting, it's better to use midpoints of the bins (or for the edges, a reasonable made up value)
+################################
+
+POBS_BIN_COUNT = 15
+POBS_BINS = np.linspace(0.01, 1.01, POBS_BIN_COUNT) # upper bound is higher than any data, lower bound is not
+POBS_BINS_MIDPOINTS = np.append([0.0], 0.5*(POBS_BINS[1:] + POBS_BINS[:-1]))
+
+APP_MAG_BIN_COUNT = 15
+APP_MAG_BINS = np.linspace(15.5, 20.01, APP_MAG_BIN_COUNT) # upper bound is higher than any data, lower bound is not
+APP_MAG_BINS_MIDPOINTS = np.append([15.0], 0.5*(APP_MAG_BINS[1:] + APP_MAG_BINS[:-1]))
+
+ANG_DIST_BIN_COUNT = 20
+ANGULAR_BINS = np.append(np.logspace(np.log10(3), np.log10(900), ANG_DIST_BIN_COUNT - 1), 3600) # upper bound is higher than any data, lower bound is not
+ANGULAR_BINS_MIDPOINTS = np.append([2], 0.5*(ANGULAR_BINS[1:] + ANGULAR_BINS[:-1]))
+
+Z_BIN_COUNT = 8
+Z_BINS = [0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.36, 1.0]  # upper bound is higher than any data, lower bound is not
+Z_BINS_MIDPOINTS = [0.04, 0.10, 0.14, 0.18, 0.22, 0.26, 0.33, 0.4]
+
+ABS_MAG_BIN_COUNT = 15
+ABS_MAG_BINS = np.append(np.linspace(-22.5, -15, ABS_MAG_BIN_COUNT - 1), -5) # upper bound is higher than any data, lower bound is not
+ABS_MAG_MIDPOINTS = np.append(np.append([-23], 0.5*(ABS_MAG_BINS[1:-1] + ABS_MAG_BINS[:-2])), -14.5)
+
+################################
 
 def get_color(i):
     co = colors[i%len(colors)]
@@ -36,6 +66,7 @@ class Mode(Enum):
     FANCY = 4 
     SIMPLE = 5
     SIMPLE_v4 = 6
+    SIMPLE_v5 = 7
 
 # Common PLT helpers
 prop_cycle = plt.rcParams['axes.prop_cycle']
@@ -74,6 +105,16 @@ SIM_Z_THRESH = 0.005
 def close_enough(target_z, z_arr, threshold=SIM_Z_THRESH):
     return np.abs(z_arr - target_z) < threshold
 
+def sim_z_score(target_z, z_arr):
+    """
+    Compares two arrays of redshifts. Instead of binary close enough evaluations like close_enough,
+    this will give a 1.0 for close enough values and smoothly go to 0.0 for definintely far away targets.
+
+    """
+    TUNABLE = 6
+    TURNING = 0.0023
+    return np.round(1.0 - erf((np.abs(z_arr-target_z) / (np.pi * TURNING))**TUNABLE), 3)
+
 def get_app_mag(FLUX_R):
     return 22.5 - 2.5*np.log10(FLUX_R)
 
@@ -108,6 +149,7 @@ def k_correct_bgs(abs_mag, z_obs, gmr, band='r'):
     kcorr_r  = desikc.DESI_KCorrection(band=band, file='jmext', photsys='N') # N vs S... why seperated?
     return abs_mag - kcorr_r.k(z_obs, gmr)
 
+# TODO switch to new DESI version
 def k_correct(abs_mag, z_obs, gmr, band='r'):
     return k_correct_gama(abs_mag, z_obs, gmr, band)
 
@@ -436,16 +478,94 @@ class RedshiftGuesser():
     def choose_winner(self, neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag, target_z_true):
         pass
 
+# TODO photo-z instead of (or in addition to) app mag. But cannot do for MXXL, so need a SV3 version of this analysis first.
+
+def get_NN_40_line_v5(z, t_appmag, target_quiescent, nn_quiescent):
+    assert len(z) == len(t_appmag)
+    if not isinstance(target_quiescent,(list,pd.core.series.Series,np.ndarray)):
+        target_quiescent = np.repeat(target_quiescent, len(z))
+    if not isinstance(nn_quiescent,(list,pd.core.series.Series,np.ndarray)):
+        nn_quiescent = np.repeat(nn_quiescent, len(z))
+    assert len(z) == len(target_quiescent)
+    assert len(z) == len(nn_quiescent)
+    target_quiescent = target_quiescent.astype(bool)
+    nn_quiescent = nn_quiescent.astype(bool)
+
+    #zb = np.digitize(z, Z_BINS)
+    #t_appmag_b = np.digitize(t_appmag, APP_MAG_BINS)
+    
+    # Treat mags lower than 15.0 as 15.0
+    r = t_appmag - 14.0 # so will be between 1 and 6 usually
+    r = np.where(r < 1.0, 1.0, r)
+
+    # Treat redshifts higher than 0.4 as 0.4
+    z = np.where(z > 0.4, 0.4, z)
+
+    # Sets a app magnitude cutoff via an erf.
+    # Inside the erf, the multiplier squeezes it (transitions quicker),
+    # and the number before r is the offset in app mag space, and the number
+    # before z controls redshift dependence on the offset
+    cutoff_dim = np.ones(len(z))
+    cutoff_bright = np.ones(len(z))
+
+    # Redshift dependence changes slope. z in 0.0 to 0.4 to slope of -0.3 to 0.3
+    # Redshift dependence also lowers distance thrshold
+    
+    # m controls slope
+    m = np.zeros(len(z))
+
+    # increasing b by 1 shifts the line right by 1 order of magnitude in ang dist
+    b = np.zeros(len(z))
+
+    # Sets a hard upp limit on the distance threshold
+    upper_lim = np.ones(len(z)) * 250
+             
+    idx = np.flatnonzero(nn_quiescent & target_quiescent)
+    m[idx] = 0
+    b[idx] = 2.2 - 2.0*z[idx]
+    cutoff_dim[idx] = -0.5 * erf(1.5*(-3.5+r[idx] - 12.0*z[idx])) + 0.5
+    cutoff_bright[idx] = 0.5 * erf(2*(1.2+r[idx] - 15.0*z[idx])) + 0.5
+    #logangdist = 2 - 0.05*zb
+
+    idx = np.flatnonzero(nn_quiescent & ~target_quiescent)
+    m[idx] = (1.8*z[idx]) - 0.6
+    b[idx] = 3.8 - 5.0*z[idx] - 11.0*z[idx]**2
+    upper_lim[idx] = 250 -  380.0*np.sqrt(z[idx]) # that is 10 for z=0.4
+    cutoff_bright[idx] = 0.5 * erf(2*(0.5+r[idx] - 14.0*z[idx])) + 0.5
+    #logangdist = 2 - 0.2*zb
+
+    idx = np.flatnonzero(~nn_quiescent & target_quiescent)
+    m[idx] = (5*z[idx]) - 1.2
+    b[idx] = 4.5 - 2.8*z[idx] - 40.0*z[idx]**2
+    upper_lim[idx] = 250 - 1250.0*z[idx] + 1450*z[idx]**2 
+    upper_lim[idx] = np.where(upper_lim[idx] < 10, 10, upper_lim[idx])
+    cutoff_bright[idx] = 0.5 * erf(2*(0.5+r[idx] - 14.0*z[idx])) + 0.5
+    #logangdist = 2 - 0.1*zb
+
+    idx = np.flatnonzero(~nn_quiescent & ~target_quiescent)
+    m[idx] = (1.9*z[idx]) - 0.5
+    b[idx] = 3.3 - 5.5*z[idx] - 13.0*z[idx]**2
+    cutoff_bright[idx] = 0.5 * erf(2*(1.0+r[idx] - 22.0*z[idx] + 15*z[idx]**2)) + 0.5
+    #logangdist = 2 - 0.2*zb
+
+    d = (m*r + b) * cutoff_dim * cutoff_bright
+
+    results = 10**d
+    results = np.where(10**(d) > upper_lim, upper_lim, results)
+    results = np.where(10**(d) < 0.0, 0.0, results)
+    return results
+
+
 def get_NN_30_line(z, t_Pobs):
     """
     Gets the angular distance at which, according to MXXL, a target with the given Pobs will be in the same halo
     as a nearest neighbor at reshift z 30% of the time.
     """
-    FIT_SHIFT_RIGHT = [37,30,31,30,39,39,63,72]
-    FIT_SCALE = [10,10,10,10,10,10,10,10]
-    FIT_SHIFT_UP = [0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5]
-    FIT_SQUEEZE = [1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5]
-    base = [1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04]
+    FIT_SHIFT_RIGHT = np.array([37,30,31,30,39,39,63,72])
+    FIT_SCALE = np.array([10,10,10,10,10,10,10,10])
+    FIT_SHIFT_UP = np.array([0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5])
+    FIT_SQUEEZE = np.array([1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5])
+    base = np.array([1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04])
     zb = np.digitize(z, SimpleRedshiftGuesser.z_bins)
 
     erf_in = FIT_SQUEEZE[zb]*(t_Pobs - FIT_SHIFT_UP[zb])
@@ -460,43 +580,58 @@ def get_NN_40_line_v2(z, t_Pobs):
     Gets the angular distance at which, according to MXXL, a target with the given Pobs will be in the same halo
     as a nearest neighbor at reshift z 40% of the time.
     """
-    FIT_SHIFT_RIGHT = [25,25,26,27,34,34,53,60]
-    FIT_SHIFT_UP = [0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5]
-    FIT_SQUEEZE = [1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5]
-    base = [1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04]
+    FIT_SHIFT_RIGHT = np.array([25,25,26,27,34,34,53,60])
+    FIT_SHIFT_UP = np.array([0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5])
+    FIT_SQUEEZE = np.array([1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5])
+    base = np.array([1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04])
     zb = np.digitize(z, SimpleRedshiftGuesser.z_bins)
 
     erf_in = FIT_SQUEEZE[zb]*(t_Pobs - FIT_SHIFT_UP[zb])
 
-    # for middle ones use exponentiated inverse erf to get the curve 
     exponent = FIT_SHIFT_RIGHT[zb] - 10*special.erfinv(erf_in)
+
     arcsecs = base[zb]**exponent
     return arcsecs
 
 
-def get_NN_40_line(z, t_Pobs, target_quiescent, nn_quiescent):
+def get_NN_40_line_v4(z, t_Pobs, target_quiescent, nn_quiescent):
     """
     Gets the angular distance at which, according to MXXL, a target with the given Pobs will be in the same halo
     as a nearest neighbor at reshift z 40% of the time.
-    """
+    """    
+    assert len(z) == len(t_Pobs)
+    if not isinstance(target_quiescent,(list,pd.core.series.Series,np.ndarray)):
+        target_quiescent = np.repeat(target_quiescent, len(z))
+    if not isinstance(nn_quiescent,(list,pd.core.series.Series,np.ndarray)):
+        nn_quiescent = np.repeat(nn_quiescent, len(z))
+    assert len(z) == len(target_quiescent)
+    assert len(z) == len(nn_quiescent)
+    target_quiescent = target_quiescent.astype(bool)
+    nn_quiescent = nn_quiescent.astype(bool)
+
     FIT_SHIFT_RIGHT = np.array([[30,32,33,34,43,40,63,75],[15,25,26,26,34,32,50,50],[40,30,26,27,30,30,40,40],[30,20,20,20,25,25,35,40]])
-    FIT_SHIFT_UP = [0.7,0.7,0.7,0.7,0.7,0.7,0.6,0.5]
-    FIT_SQUEEZE = [1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5]
-    base = [1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04]
+    FIT_SHIFT_UP = np.array([0.7,0.7,0.7,0.7,0.7,0.7,0.6,0.5])
+    FIT_SQUEEZE = np.array([1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5])
+    base = np.array([1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04])
     zb = np.digitize(z, SimpleRedshiftGuesser.z_bins)
-    if target_quiescent == 1 and nn_quiescent == 1:
-        color_bin = 0
-    elif target_quiescent == 1 and nn_quiescent == 0:
-        color_bin = 1
-    elif target_quiescent == 0 and nn_quiescent == 1:
-        color_bin = 2
-    elif target_quiescent == 0 and nn_quiescent == 0:
-        color_bin = 3
 
     erf_in = FIT_SQUEEZE[zb]*(t_Pobs - FIT_SHIFT_UP[zb])
 
-    # for middle ones use exponentiated inverse erf to get the curve 
-    exponent = FIT_SHIFT_RIGHT[color_bin][zb] - 10*special.erfinv(erf_in)
+    # The exponent is color-dependent
+    exponent = np.ones(len(z))
+
+    idx = np.flatnonzero(nn_quiescent & target_quiescent)
+    exponent[idx] = FIT_SHIFT_RIGHT[0][zb[idx]] - 10*special.erfinv(erf_in[idx])
+
+    idx = np.flatnonzero(~nn_quiescent & target_quiescent)
+    exponent[idx] = FIT_SHIFT_RIGHT[1][zb[idx]] - 10*special.erfinv(erf_in[idx])
+
+    idx = np.flatnonzero(nn_quiescent & ~target_quiescent)
+    exponent[idx] = FIT_SHIFT_RIGHT[2][zb[idx]] - 10*special.erfinv(erf_in[idx])
+
+    idx = np.flatnonzero(~nn_quiescent & ~target_quiescent)
+    exponent[idx] = FIT_SHIFT_RIGHT[3][zb[idx]] - 10*special.erfinv(erf_in[idx])
+
     arcsecs = base[zb]**exponent
     return arcsecs
 
@@ -505,11 +640,11 @@ def get_NN_50_line(z, t_Pobs):
     Gets the angular distance at which, according to MXXL, a target with the given Pobs will be in the same halo
     as a nearest neighbor at reshift z 50% of the time.
     """
-    FIT_SHIFT_RIGHT = [15,20,20,20,25,25,35,40]
-    FIT_SCALE = [10,10,10,10,10,10,10,10]
-    FIT_SHIFT_UP = [0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5]
-    FIT_SQUEEZE = [1.3,1.3,1.3,1.3,1.4,1.4,1.5,1.5]
-    base = [1.16,1.16,1.16,1.16,1.12,1.12,1.08,1.08]
+    FIT_SHIFT_RIGHT = np.array([15,20,20,20,25,25,35,40])
+    FIT_SCALE = np.array([10,10,10,10,10,10,10,10])
+    FIT_SHIFT_UP = np.array([0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5])
+    FIT_SQUEEZE = np.array([1.3,1.3,1.3,1.3,1.4,1.4,1.5,1.5])
+    base = np.array([1.16,1.16,1.16,1.16,1.12,1.12,1.08,1.08])
     zb = np.digitize(z, SimpleRedshiftGuesser.z_bins)
 
     # for higher and lower z bit just use simple cut
@@ -529,7 +664,7 @@ def get_NN_50_line(z, t_Pobs):
 
 class SimpleRedshiftGuesser(RedshiftGuesser):
 
-    z_bins = [0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.36, 1.0]     
+    z_bins = Z_BINS
     LOW_ABS_MAG_LIMIT = -23.0
     HIGH_ABS_MAG_LIMIT = -13.5
 
@@ -538,6 +673,8 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
             print("Initializing v2.0 of SimpleRedshiftGuesser")
         elif ver == '4.0':
             print("Initializing v4.0 of SimpleRedshiftGuesser")
+        elif ver == '5.0':
+            print("Initializing v5.0 of SimpleRedshiftGuesser")
         else:
             raise("Invalid version of SimpleRedshiftGuesser")
         self.debug = debug
@@ -549,10 +686,11 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         self.random_choice = 0
         self.random_correct = 0
 
-        if z_obs.max() > 10.0:
-            print(f"Warning: in SimpleRedshiftGuesser, z_obs values are very high. z_max={z_obs.max()}")
-        if np.isnan(z_obs).any(): 
-            print("Warning: in SimpleRedshiftGuesser, z_obs has NaNs")
+        if z_obs is not None:
+            if np.max(z_obs) > 10.0:
+                print(f"Warning: in SimpleRedshiftGuesser, z_obs values are very high. z_max={z_obs.max()}")
+            if np.isnan(z_obs).any(): 
+                print("Warning: in SimpleRedshiftGuesser, z_obs has NaNs")
 
         if use_saved_map:
             with open(IAN_MXXL_LOST_APP_TO_Z_FILE, 'rb') as f:
@@ -587,61 +725,56 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
 
 
     def use_nn(self, neighbor_z, neighbor_ang_dist, target_pobs, target_app_mag, target_quiescent, nn_quiescent):
-        if self.version == '4.0':
-            angular_threshold = get_NN_40_line(neighbor_z, target_pobs, target_quiescent, nn_quiescent)
+        if self.version == '5.0':
+            angular_threshold = get_NN_40_line_v5(neighbor_z, target_app_mag, target_quiescent, nn_quiescent)
+        elif self.version == '4.0':
+            angular_threshold = get_NN_40_line_v4(neighbor_z, target_pobs, target_quiescent, nn_quiescent)
         else:
             angular_threshold = get_NN_40_line_v2(neighbor_z, target_pobs)
 
-        if self.debug:
-            print(f"Threshold {angular_threshold}\". Nearest neighbor is {neighbor_z}\".")
-
         close_enough = neighbor_ang_dist < angular_threshold
+        close_candidiates = np.sum(close_enough)
+        close_idx = np.argwhere(close_enough)
+        
+        if len(close_idx) > 0:
+            implied_abs_mag = app_mag_to_abs_mag(target_app_mag[close_idx], neighbor_z[close_idx])
+            bad_abs_mag = np.logical_or(implied_abs_mag < SimpleRedshiftGuesser.LOW_ABS_MAG_LIMIT, implied_abs_mag > SimpleRedshiftGuesser.HIGH_ABS_MAG_LIMIT)
+            self.quick_nn_bailed += np.sum(bad_abs_mag)
 
-        if close_enough:
-            implied_abs_mag = app_mag_to_abs_mag(target_app_mag, neighbor_z)
+            close_enough[close_idx] = ~bad_abs_mag
+            assert close_candidiates == (np.sum(close_enough) + np.sum(bad_abs_mag))
 
-            if implied_abs_mag < SimpleRedshiftGuesser.LOW_ABS_MAG_LIMIT or implied_abs_mag > SimpleRedshiftGuesser.HIGH_ABS_MAG_LIMIT:
-                self.quick_nn_bailed += 1
-                return False
-            else:
-                return True
-            
-        return False
+        return close_enough
 
     def choose_redshift(self, neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag, target_quiescent, nn_quiescent, target_z_true=False):
-        if self.debug:
-            print(f"\nNew call to choose_winner")
 
         # Determine if we should use NN    
-        if self.use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag, target_quiescent, nn_quiescent):
-            if (target_z_true):
-                if close_enough(target_z_true, neighbor_z):
-                    self.quick_correct += 1
-            self.quick_nn += 1
-            if self.debug:
-                if (target_z_true):
-                    print(f"Used quick NN. True z={target_z_true}. NN: z={neighbor_z}, ang dist={neighbor_ang_dist}")
-                else:
-                    print(f"Used quick NN. NN: z={neighbor_z}, ang dist={neighbor_ang_dist}")
-            return neighbor_z, True
+        use_nn = self.use_nn(neighbor_z, neighbor_ang_dist, target_prob_obs, target_app_mag, target_quiescent, nn_quiescent)
+        
+        if (target_z_true):
+            self.quick_correct += np.sum(close_enough(target_z_true, neighbor_z))
+
+        nn_uses = np.sum(use_nn)
+        self.quick_nn += nn_uses
+        self.random_choice += len(use_nn) - nn_uses
 
         # Otherwise draw a random redshift from the apparent mag bin similar to the target
-        bin_i = np.digitize(target_app_mag, self.app_mag_bins)
+        bin_i = np.digitize(target_app_mag[~use_nn], self.app_mag_bins)
 
         #if len(self.app_mag_map[bin_i[0]]) == 0:
         #    if bin_i[0] < len(self.app_mag_map) - 2:
         #    bin_i[0] = bin_i[0]+1
         #    print(f"Trouble with app mag {target_app_mag}, which goes in bin {bin_i}")
 
-        z_chosen = self.rng.choice(self.app_mag_map[bin_i[0]])
-        self.random_choice += 1
+        random_z = np.copy(neighbor_z)
+        idx_for_random = np.argwhere(~use_nn)
 
-        if close_enough(target_z_true, z_chosen):
-            self.random_correct += 1
-        return z_chosen, False
-
-
-
+        #z_chosen = self.rng.choice(self.app_mag_map[bin_i[0]])
+        for i in np.arange(len(bin_i)):
+            random_z[idx_for_random[i]] = np.random.choice(self.app_mag_map[bin_i[i]])
+        
+        return_z = np.where(use_nn, neighbor_z, random_z)
+        return return_z, use_nn
 
 
 

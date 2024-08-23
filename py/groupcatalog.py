@@ -503,6 +503,8 @@ class BGSGroupCatalog(GroupCatalog):
         self.num_passes = num_passes
         self.drop_passes = drop_passes
         self.data_cut = data_cut
+        self.is_centered_version = False
+        self.centered = None # SV3 Centered version shortcut.
 
     def preprocess(self):
         print("Pre-processing...")
@@ -547,7 +549,8 @@ class BGSGroupCatalog(GroupCatalog):
                 alt_df = pd.DataFrame(columns=df.columns)
                 for idx in region_indices:
                     rows_to_add = df.loc[df.region == idx].copy()
-                    alt_df = alt_df._append(rows_to_add, ignore_index=True)
+                    if len(rows_to_add) > 0:
+                        alt_df = alt_df._append(rows_to_add, ignore_index=True)
                 f_sat_realizations.append(alt_df.groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted))
                 f_sat_sf_realizations.append(alt_df[alt_df.quiescent == False].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted))
                 f_sat_q_realizations.append(alt_df[alt_df.quiescent == True].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted))
@@ -576,8 +579,9 @@ class BGSGroupCatalog(GroupCatalog):
         # Get extra fastspecfit columns. Could have threaded these through with galprops
         # But if they aren't used in group finding or preprocessing this is easier to update
         if BGSGroupCatalog.extra_prop_df is None:
-            print("Getting fastspecfit data")
+            print("Getting fastspecfit data...", end='\r')
             BGSGroupCatalog.extra_prop_df = get_extra_bgs_fastspectfit_data()
+            print("Getting fastspecfit data... done")
         
         prior_len = len(df)
         df = pd.merge(df, BGSGroupCatalog.extra_prop_df, on='target_id', how='left')
@@ -587,6 +591,10 @@ class BGSGroupCatalog(GroupCatalog):
         self.all_data = df
 
         super().postprocess()
+
+        if self.data_cut == 'sv3':
+            self.centered = filter_SV3_to_avoid_edges(self)
+
         print("Post-processing done.")
 
 
@@ -603,15 +611,44 @@ class BGSGroupCatalog(GroupCatalog):
 
 
 def get_extra_bgs_fastspectfit_data():
-    hdul = fits.open(BGS_FASTSPEC_FILE, memmap=True)
-    #print(hdul[1].columns)
-    data = hdul[1].data
-    fastspecfit_id = data['TARGETID']
-    log_mstar = data['LOGMSTAR'].astype("<f8")
-    mstar = np.power(10, log_mstar)
-    hdul.close()
+    fname = OUTPUT_FOLDER + 'bgs_mstar.pkl'
+    if os.path.isfile(fname):
+        return pickle.load(open(fname, 'rb'))
+    else:
+        hdul = fits.open(BGS_FASTSPEC_FILE, memmap=True)
+        data = hdul[1].data
+        fastspecfit_id = data['TARGETID']
+        log_mstar = data['LOGMSTAR'].astype("<f8")
+        mstar = np.power(10, log_mstar)
+        hdul.close()
 
-    return pd.DataFrame({'target_id': fastspecfit_id, 'mstar': mstar})
+        df = pd.DataFrame({'target_id': fastspecfit_id, 'mstar': mstar})
+        pickle.dump(df, open(fname, 'wb'))
+
+
+def get_objects_near_sv3_regions(gals_coord, radius_deg):
+    """
+    Returns a true/false array of len(gals_coord) that is True for objects within radius_deg 
+    of an SV3 region.
+    """
+
+    SV3_tiles = pd.read_csv(BGS_Y3_TILES_FILE, delimiter=',', usecols=['TILEID', 'FAFLAVOR', 'TILERA', 'TILEDEC', 'TILERA', 'TILEDEC'])
+    SV3_tiles = SV3_tiles.loc[SV3_tiles.FAFLAVOR == 'sv3bright']
+    SV3_tiles.reset_index(inplace=True)
+
+    # Cut to the regions of interest
+    center_ra = []
+    center_dec = []
+    for region in sv3_regions_sorted:
+        tiles = SV3_tiles.loc[SV3_tiles.TILEID.isin(region)]
+        center_ra.append(np.mean(tiles.TILERA))
+        center_dec.append(np.mean(tiles.TILEDEC))
+    
+    tiles_coord = coord.SkyCoord(ra=center_ra*u.degree, dec=center_dec*u.degree, frame='icrs')
+    idx, d2d, d3d = coord.match_coordinates_sky(gals_coord, tiles_coord, nthneighbor=1, storekdtree='kdtree_sv3_tiles')
+    ang_distances = d2d.to(u.degree).value
+
+    return ang_distances < radius_deg
 
 def filter_SV3_to_avoid_edges(gc: GroupCatalog, INNER_RADIUS = 1.3):
     """
@@ -622,30 +659,16 @@ def filter_SV3_to_avoid_edges(gc: GroupCatalog, INNER_RADIUS = 1.3):
         print("Warning: filter_SV3_to_avoid_edges called for non-SV3 data cut.")
         return
     
-    SV3_tiles = pd.read_csv(BGS_Y3_TILES_FILE, delimiter=',', usecols=['TILEID', 'FAFLAVOR', 'TILERA', 'TILEDEC', 'TILERA', 'TILEDEC'])
-    SV3_tiles = SV3_tiles.loc[SV3_tiles.FAFLAVOR == 'sv3bright']
-    SV3_tiles.reset_index(inplace=True)
-
-    # define in inner radius that will ensure we select galaxies away from the edges of each circular region
-
-    # Cut to the regions of interest
-    center_ra = []
-    center_dec = []
-    for region in sv3_regions_sorted:
-        tiles = SV3_tiles.loc[SV3_tiles.TILEID.isin(region)]
-        center_ra.append(np.mean(tiles.TILERA))
-        center_dec.append(np.mean(tiles.TILEDEC))
-
     # Get distance to nearest SV3 region center point for each galaxy
-    tiles_coord = coord.SkyCoord(ra=center_ra*u.degree, dec=center_dec*u.degree, frame='icrs')
     gals_coord = coord.SkyCoord(ra=df.RA.to_numpy()*u.degree, dec=df.Dec.to_numpy()*u.degree, frame='icrs')
-    idx, d2d, d3d = coord.match_coordinates_sky(gals_coord, tiles_coord, nthneighbor=1, storekdtree='kdtree_tiles')
-    ang_distances = d2d.to(u.degree).value
+    close_array = get_objects_near_sv3_regions(gals_coord, INNER_RADIUS)
 
     # Filter out galaxies within INNER_RADIUS of any SV3 region center
-    inner_df = df.loc[ang_distances < INNER_RADIUS].copy()
+    inner_df = df.loc[close_array].copy()
 
     new = copy.deepcopy(gc)
+    new.is_centered_version = True
+    new.results_file = str.replace(new.results_file, '.pickle', '_cen.pkl')
     new.all_data = inner_df
     new.refresh_df_views()
 
@@ -767,6 +790,8 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         print("\nMode SIMPLE v2")
     elif mode == Mode.SIMPLE_v4.value:
         print("\nMode SIMPLE v4")
+    elif mode == Mode.SIMPLE_v5.value:
+        print("\nMode SIMPLE v5")
 
     # Some versions of the LSS Catalogs use astropy's Table used masked arrays for unobserved spectral targets    
     if np.ma.is_masked(table['Z']):
@@ -850,7 +875,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if mode == Mode.FIBER_ASSIGNED_ONLY.value: # means 3pass 
         keep = np.all([multi_pass_filter, observed_requirements], axis=0)
 
-    if mode == Mode.NEAREST_NEIGHBOR.value or mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
+    if mode == Mode.NEAREST_NEIGHBOR.value or mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value or mode == Mode.SIMPLE_v5.value:
         keep = np.all([multi_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
@@ -880,7 +905,6 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     p_obs = p_obs[keep]
     unobserved = unobserved[keep]
     observed = np.invert(unobserved)
-    indexes_not_assigned = np.argwhere(unobserved)
     deltachi2 = deltachi2[keep]
     g_r = g_r[keep]
     dn4000 = dn4000[keep]
@@ -922,7 +946,6 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             z_eff[unobserved] = np.where(matched, sdss_z, np.nan)    
             unobserved[unobserved] = np.where(matched, False, unobserved[unobserved])
             observed = np.invert(unobserved)
-            indexes_not_assigned = np.argwhere(unobserved)
      
             print(f"{matched.sum()} of {first_need_redshift_count} redshifts taken from SDSS.")
             print(f"{unobserved.sum()} remaining galaxies need redshifts.")
@@ -932,31 +955,25 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     if mode == Mode.NEAREST_NEIGHBOR.value:
 
+        print("Getting nearest neighbor redshifts...")
         catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
         to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
 
         idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
 
-        # i is the index of the full sized array that needed a NN z value
-        # j is the index along the to_match list corresponding to that
-        # idx are the indexes of the NN from the catalog
-        assert len(indexes_not_assigned) == len(idx)
-
-        print("Copying over NN properties... ", end='\r')
-        j = 0
-        for i in indexes_not_assigned:  
-            z_eff[i] = z_obs_catalog[idx[j]]
-            j = j + 1 
-        print("Copying over NN properties... done")
-
+        z_eff[unobserved] = z_obs_catalog[idx]
         z_assigned_flag[unobserved] = 1
+        print("Copying over nearest neighbor properties complete.")
 
 
-    if mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
+    if mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value or mode == Mode.SIMPLE_v5.value:
         if mode == Mode.SIMPLE.value:
             ver = '2.0'
         elif mode == Mode.SIMPLE_v4.value:
             ver = '4.0'
+        elif mode == Mode.SIMPLE_v5.value:
+            ver = '5.0'
+        
         with SimpleRedshiftGuesser(app_mag_r[observed], z_eff[observed], ver) as scorer:
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
@@ -979,30 +996,18 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             #quiescent_gmr = is_quiescent_BGS_gmr(log_L_gal, G_R_k)
 
             # 2) Use an uncorrected apparent g-r color cut to guess if the galaxy is quiescent or not
+
+            # TODO k-correct with the photo-z! Will be much better
             quiescent_gmr = is_quiescent_lost_gal_guess(app_mag_g[unobserved] - app_mag_r[unobserved]).astype(int)
             
             assert len(quiescent_gmr) == len(ang_distances)
 
-
             print(f"Assigning missing redshifts... ")   
+            chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes], ang_distances, p_obs[unobserved], app_mag_r[unobserved], quiescent_gmr, catalog_quiescent[neighbor_indexes])
+            z_eff[unobserved] = chosen_z
+            z_assigned_flag[unobserved] = np.where(isNN, 1, 2)
+            print(f"Assigning missing redshifts complete.")   
 
-            
-
-            j = 0 # j counts the number of unobserved galaxies in the catalog that have been assigned a redshift thus far
-            for i in indexes_not_assigned: # i is the index of the unobserved galaxy in the main arrays
-                if j%10000==0:
-                    print(f"{j}/{len(to_match)} complete", end='\r')
-
-                catalog_idx = neighbor_indexes[j]
-
-                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[catalog_idx], ang_distances[j], p_obs[i], app_mag_r[i], quiescent_gmr[j], catalog_quiescent[catalog_idx])
-                
-                z_eff[i] = chosen_z
-                z_assigned_flag[i] = 1 if isNN else 2
-
-                j = j + 1 
-
-            print(f"{j}/{len(to_match)} complete")
 
 
     #print(f"z_eff, after assignment: {z_eff[0:20]}")   

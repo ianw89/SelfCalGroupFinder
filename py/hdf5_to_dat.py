@@ -286,27 +286,12 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
             ang_distances = d2d.to(u.arcsec).value
 
             print(f"Assigning missing redshifts... ")   
-            j = 0 # j counts the number of unobserved galaxies in the catalog that have been assigned a redshift thus far
-            for i in indexes_not_assigned:  # i is the index of the unobserved galaxy in the main arrays
-                if j%10000==0:
-                    print(f"{j}/{len(to_match)} complete", end='\r')
-
-                catalog_idx = neighbor_indexes[j]
-                chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[catalog_idx], ang_distances[j], prob_obs[i], app_mag[i], quiescent_gmr[i], catalog_quiescent[catalog_idx], z_obs[i])
-
-                z_eff[i] = chosen_z
-                if isNN:
-                    assigned_halo_mass[i] = halo_mass_catalog[neighbor_indexes[j]]
-                    assigned_halo_id[i] = halo_id_catalog[neighbor_indexes[j]]
-                else:
-                    assigned_halo_mass[i] = -1 
-                    assigned_halo_id[i] = -1
-                j = j + 1 
-
-                z_assigned_flag[i] = 1 if isNN else 2
-
-
-        print(f"{j}/{len(to_match)} complete")
+            chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes], ang_distances, prob_obs[unobserved], app_mag[unobserved], quiescent_gmr, catalog_quiescent[neighbor_indexes])
+            z_eff[unobserved] = chosen_z
+            z_assigned_flag[unobserved] = np.where(isNN, 1, 2)
+            assigned_halo_mass = np.where(isNN, halo_mass_catalog[neighbor_indexes], -1)
+            assigned_halo_id = np.where(isNN, halo_id_catalog[neighbor_indexes], -1)
+            print(f"Assigning missing redshifts complete.")   
     
 
     abs_mag = app_mag_to_abs_mag(app_mag, z_eff)

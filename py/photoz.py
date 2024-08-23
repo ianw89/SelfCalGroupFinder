@@ -21,7 +21,7 @@ from dataloc import *
 
 # PHOTO-Z MERGING UTILS
 
-START = 948
+START = 800
 END = 1436
 FILE_COUNT_LIMIT = 25
 TASK_LIMIT = 10
@@ -136,6 +136,12 @@ async def download_photoz_files_async():
                     print(f"Waiting for more files to be processed...", flush=True)
                     await asyncio.sleep(5)
                 
+        ongoing = [task for task in asyncio.all_tasks() if not task.done()]
+        # remove the main task, await the rest
+        ongoing.remove(asyncio.current_task())
+        await asyncio.gather(*ongoing)
+        print("Finished all tasks.", flush=True)
+
 
 async def process_photoz_files():
 
