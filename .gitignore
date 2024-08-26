@@ -6,3 +6,5 @@ __pycache__/*
 figs/
 .DS_Store
 MCMC/mcmc_*/
+conda_env
+.vscode/settings.json
