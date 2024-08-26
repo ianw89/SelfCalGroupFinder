@@ -70,6 +70,7 @@ extern int VERBOSE;
 extern int RECENTERING;
 extern int POPULATE_MOCK;
 extern char *INPUTFILE;
+extern char *HALO_MASS_FUNC_FILE;
 
 /* Variables for determining threshold if a galaxy is a satellite */
 extern const float BPROB_DEFAULT;

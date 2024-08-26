@@ -5,8 +5,13 @@ Requires:
 - Various common python packages (tested on Python 3.11)
 - pip3 install Cython, scipy, numpy, jupyter, astropy, pydl
 
+There is a Python GroupCatalog class that wraps the C-based group finder and handles some pre-processing and post-processing. Documentation on what python packages are needed to use this is pending. Using the GroupCatalog class to make a BGS catalog is out of the box is broken right now by:
+- IAN_MXXL_LOST_APP_TO_Z_FILE, not part of repo
+- SDSS Vanilla v2.pickle for SDSS fill-ins, not part of repo
+
 
 The C-based group finder:
+THIS IS OUT OF DATE; NEED TO UPDATE.
 
 Basic Usage:
 kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out
@@ -15,6 +20,7 @@ kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [
 - zmin: minimum redshift. Mainly for volume-limited samples. For flux-limited, use value below all galaxies in file.
 - zmax: maximum redshift. Mainly for volume-limited samples. For flux-limited, use value above all galaxies in file.
 - fracarea: the fraction of the sky covered by the galaxy sample. (Used to calculate volumes).
+- halomassfunction: a file with a halo mass function; see example one in this repo for the format
 - fluxlim - 1/0 to delineate if the input file is flux-limted or volume-limited.
 - color - 1/0 will the input file have color information (for each galaxy, 1=quiescent, 0=star-forming).
 - wcenvalues - these are the 6 free parameters that govern the weights on the total group luminosity. These are taken from Equation (4) in the SDSS Application paper (Tinker 2020).

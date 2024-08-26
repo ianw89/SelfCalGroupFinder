@@ -823,6 +823,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     else:
         p_obs = table['PROB_OBS']
 
+    if table.columns.get('Z_PHOT') is None:
+        print("WARNING: Z_PHOT column not found in FITS file. Will be set to nan for all.")
+        z_phot = np.ones(len(z_obs)) * np.nan
+    else:
+        z_phot = table['Z_PHOT']
+
     # TODO inconsistent here...
     if table.columns.get('DN4000') is None:
         dn4000 = np.zeros(len(z_obs))
@@ -909,6 +915,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     g_r = g_r[keep]
     dn4000 = dn4000[keep]
     ntid = ntid[keep]
+    z_phot = z_phot[keep]
 
     # Want 0 for observed (DESI OR SDSS fill in), 1 for NN-assigned, 2 for other assigned
     z_assigned_flag = np.zeros(len(z_obs), dtype=np.int8)
@@ -1044,8 +1051,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         'g_r': G_R_k.astype("<f8"),
         'Dn4000': dn4000.astype("<f8"),
         'nearest_tile_id': ntid.astype("<i8"),
+        'z_phot': z_phot.astype("<f8")
     })
-    galprops.to_pickle(outname_base + "_galprops.pkl")
+    galprops.to_pickle(outname_base + "_galprops.pkl")  
     t2 = time.time()
     print(f"Galprops pickling took {t2-t1:.4f} seconds")
 

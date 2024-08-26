@@ -1,8 +1,13 @@
 import os
+import sys
 import numpy as np
 from scipy.interpolate import interp1d
 
-raw_dir = '/home/users/imw2293/SelfCalGroupFinder/desi'
+if './SelfCalGroupFinder/py/' not in sys.path:
+    sys.path.append('./SelfCalGroupFinder/py/')
+from dataloc import *
+
+raw_dir = PY_SRC_FOLDER
 
 class GAMA_KCorrection(object):
     def __init__(self, band, kind="linear"):

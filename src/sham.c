@@ -16,6 +16,7 @@ void spline(float x[], float y[], int n, float yp1, float ypn, float y2[]);
 void splint(float xa[], float ya[], float y2a[], int n, float x, float *y);
 void sort2(int n, float arr[], int id[]);
 float zbrent(float (*func)(float, float), float x1, float x2, float tol, float galaxy_density);
+char* HALO_MASS_FUNC_FILE;
 
 /* Local functions
  */
@@ -163,7 +164,7 @@ float halo_abundance(float m)
 
   if (!n)
   {
-    fp = openfile("halo_mass_function.dat");
+    fp = openfile(HALO_MASS_FUNC_FILE);
     // fp = openfile("wmap1.massfunc");
     // fp = openfile("s8_0.7.massfunc");
     n = filesize(fp);
