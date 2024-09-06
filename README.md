@@ -1,56 +1,30 @@
 # SelfCalGroupFinder
 
-Requires:
-- Clone https://github.com/amjsmith/hodpy/tree/master/hodpy
-- Various common python packages (tested on Python 3.11)
-- pip3 install Cython, scipy, numpy, jupyter, astropy, pydl
+This repository is a fork of Jeremy Tinker's SelfCalGroupFinder, a halo-based galxay group finder written in C. That project's webpage, which has not been updated since this fork began, is located at https://www.galaxygroupfinder.net/.
 
-There is a Python GroupCatalog class that wraps the C-based group finder and handles some pre-processing and post-processing. Documentation on what python packages are needed to use this is pending. Using the GroupCatalog class to make a BGS catalog is out of the box is broken right now by:
+This ongoing fork contains various Python notebooks and a GroupCatalog class that wraps the C-based group finder and handles some pre-processing and post-processing. This is still under development. To setup a conda-based python environment that is known to work with this repository, do the following:
+
+```
+conda create -n "my-env"
+conda activate my-env
+conda install python=3.11 jupyter astropy scipy aiohttp pandas matplotlib h5py
+pip install emcee
+```
+
+The dataloc.py file is for updating the paths to both the code and data files.
+
+Using the GroupCatalog class to make a BGS catalog is requires the following files to be buitl from the notebooks:
 - IAN_MXXL_LOST_APP_TO_Z_FILE, not part of repo
 - SDSS Vanilla v2.pickle for SDSS fill-ins, not part of repo
 
+The C-based group finder can be built using the makefile which may need to be updated on your system. It will require an additional library that can be cloned and built from here: https://github.com/jltinker/lib
 
-The C-based group finder:
-THIS IS OUT OF DATE; NEED TO UPDATE.
+For usage of the groupfinder, build it and then just run it from the commandline with --help. For formats of the input and outout files, see the file descriptions at the project's web page, which SDSS catalogs are available.
 
-Basic Usage:
-kdGroupFinder inputfile zmin zmax frac_area [fluxlim] [color] [wcenvalues 1-6] [Bsat_values 1-4] [wchi_values 1-4]> out
+The code expects a tabulated halo mass function is in the run directory, in a file called "halo_mass_function.dat." I have supplied one in the repo for the Bolshoi Planck cosmology using the Tinker et al (2008) halo mass function.
 
-- inputfile: the galaxy file in which to find the groups (format described below)
-- zmin: minimum redshift. Mainly for volume-limited samples. For flux-limited, use value below all galaxies in file.
-- zmax: maximum redshift. Mainly for volume-limited samples. For flux-limited, use value above all galaxies in file.
-- fracarea: the fraction of the sky covered by the galaxy sample. (Used to calculate volumes).
-- halomassfunction: a file with a halo mass function; see example one in this repo for the format
-- fluxlim - 1/0 to delineate if the input file is flux-limted or volume-limited.
-- color - 1/0 will the input file have color information (for each galaxy, 1=quiescent, 0=star-forming).
-- wcenvalues - these are the 6 free parameters that govern the weights on the total group luminosity. These are taken from Equation (4) in the SDSS Application paper (Tinker 2020).
-  - wcen[1] - omega_L,sf 
-  - wcen[2] - sigma_sf
-  - wcen[3] - omega_L,q
-  - wcen[4] - sigma_q
-  - wcen[5] - omega_0,sf
-  - wcen[6] - omega_0,q
-- Bsat_values - these are the 4 free parameters that set the satellite probability threshold. Taken from Equation (3).
-  - Bsat[1] - beta_0,q
-  - Bsat[2] - beta_L,q
-  - Bsat[3] - beta_0,sf
-  - Bsat[4] - beta_L,sf
-- wchi values - these are the 4 free parameters that set the weights by normalized galaxy property chi. Taken from Equation (5).
-  - wchi[1] - omega_chi,0,sf
-  - wchi[2] - omega_chi,0,q
-  - wchi[3] - omega_chi,L,sf
-  - wchi[4] - omega_chi,L,q
-
-Example Usage, taken randomly from the posterior distribution of parameters in the MCMC anlaysis in the paper.
-- kdGroupFinder_omp sdss_fluxlim_v1.0.dat  0 1 0.179 1 1 13.1 2.42 12.9 4.84 17.4 2.67 -0.92 10.25 12.993 -8.04 2.68 1.10 2.23 0.48 >outxx
-
-For formats of the input and outout files, see the file descriptions at the project's web page. Note that the actual input file for the catalog is provided.
-
-NB: The code expects a tabulated halo mass function is in the run directory, in a file called "halo_mass_function.dat." I have supplied one in the repo for the Bolshoi Planck cosmology using the Tinker et al (2008) halo mass function.
-
-NB: The code will run for 5 iterations and then output the current state of the group catalog. Five is usually a reasonable number for convergence of the satellite fraction to a couple of percent. This can be modified inside the code. There are several features currentl "turned off," which involve populating the halos of a simulation with HODs, and tabulating the L_sat values. These can be turned on with little effort in the main() function, but user-defined input is required to make them actually run, by supplying the necessary files.
-
-
+The code will run for 5 iterations and then output the current state of the group catalog. Five is usually a reasonable number for convergence of the satellite fraction to a couple of percent.
 
 Attribution:
-Files in the desi/kcorr folder are from Sam Moore                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+This code is developed by Jeremy Tinker and Ian Williams.
+Files in the py/kcorr folder are from Sam Moore.   
