@@ -19,26 +19,30 @@ if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from dataloc import *
 
+# Recommended usage:
+# nohup python photoz.py 1 N > outN.1 &
+# nohup python photoz.py 2 N > outN.2 &
+# And then later,
+# nohup python photoz.py 1 S > outS.1 &
+# nohup python photoz.py 2 S > outS.2 &
+
 # PHOTO-Z MERGING UTILS
 
-START = 0
-END = 1436
-FILE_COUNT_LIMIT = 25
-TASK_LIMIT = 12
+START = 10
+END = 283 #1436 for South, 283 for North
+FILE_COUNT_LIMIT = 40
+TASK_LIMIT = 14
 
 # TODO keep track of which bricks have been processed and which ones have no DESI target hits
 
 # TODO instead of waiting for a batch to finish, start downloading a new one every time one finishes?
 
-url_base_pz = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr10/south/sweep/10.1-photo-z/'
-url_base_main = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr10/south/sweep/10.1/'
-
-def get_photoz_file_lists():
+def get_photoz_file_lists(url_base_pz, url_base_main, pz_links_file, main_links_file):
     # Download HTML from url_base_pz and then search for <a href="*.fits" and download those files
 
-    if os.path.isfile(BGS_IMAGES_FOLDER + 'fits_links_pz.pkl') and os.path.isfile(BGS_IMAGES_FOLDER + 'fits_links_main.pkl'):
-        fits_links_pz = pickle.load(open(BGS_IMAGES_FOLDER + 'fits_links_pz.pkl', 'rb'))
-        fits_links_main = pickle.load(open(BGS_IMAGES_FOLDER + 'fits_links_main.pkl', 'rb'))
+    if os.path.isfile(BGS_IMAGES_FOLDER + pz_links_file) and os.path.isfile(BGS_IMAGES_FOLDER + main_links_file):
+        fits_links_pz = pickle.load(open(BGS_IMAGES_FOLDER + pz_links_file, 'rb'))
+        fits_links_main = pickle.load(open(BGS_IMAGES_FOLDER + main_links_file, 'rb'))
         return fits_links_pz, fits_links_main
 
     # Step 1: Download the HTML content
@@ -55,8 +59,8 @@ def get_photoz_file_lists():
     fits_links_main = re.findall(r'<a\s+(?:[^>]*?\s+)?href="([^"]*\.fits)"', html_content_main) 
 
     # Step 3: Save the lists to disk
-    pickle.dump(fits_links_pz, open(BGS_IMAGES_FOLDER + 'fits_links_pz.pkl', 'wb'))
-    pickle.dump(fits_links_main, open(BGS_IMAGES_FOLDER + 'fits_links_main.pkl', 'wb'))
+    pickle.dump(fits_links_pz, open(BGS_IMAGES_FOLDER + pz_links_file, 'wb'))
+    pickle.dump(fits_links_main, open(BGS_IMAGES_FOLDER + main_links_file, 'wb'))
 
     return fits_links_pz, fits_links_main
 
@@ -65,7 +69,7 @@ async def download_file(session, url, filename, i):
 
     while not success:
         try:
-            response = await session.get(url, timeout=1200) 
+            response = await session.get(url, timeout=600) 
             response.raise_for_status()
             print(f"Connected #{i}: {filename}", flush=True)
             content = await response.read()
@@ -86,16 +90,27 @@ def too_many_files():
     filecount = len([name for name in os.listdir(BGS_IMAGES_FOLDER) if os.path.isfile(os.path.join(BGS_IMAGES_FOLDER, name))])
     return filecount > FILE_COUNT_LIMIT
 
-async def download_photoz_files_async():
+async def download_photoz_files_async(url_base_pz, url_base_main, pz_links_file, main_links_file, bricks_to_skip_file):
     """
     Download the photo-z sweep files from the web and save them to disk. Don't let too many files build up. 
     Block until other program has processed them and then deleted.
     """
-    fits_links_pz, fits_links_main = get_photoz_file_lists()
+    fits_links_pz, fits_links_main = get_photoz_file_lists(url_base_pz, url_base_main, pz_links_file, main_links_file)
+
+    if os.path.isfile(bricks_to_skip_file):
+        print("Loading bricks to skip...", flush=True)
+        bricks_to_skip = pickle.load(open(bricks_to_skip_file, 'rb'))
+    else:
+        print("No bricks to skip found. Exiting", flush=True)
+        exit(1)
 
     async with aiohttp.ClientSession() as session:
 
         for i in range(START,END):
+            if i in bricks_to_skip:
+                print(f"Skipping brick #{i} as it has no DESI targets.", flush=True)
+                continue
+    
             # Make filenames, etc
             link_pz = fits_links_pz[i]
             fits_pz_url = urljoin(url_base_pz, link_pz)
@@ -107,7 +122,6 @@ async def download_photoz_files_async():
             assert fits_pz_filename[6:20] == fits_main_filename[6:20] 
 
             check_for_block = False
-            
 
             # PHOTO Z SWEEP FILE
             f1 = Path(BGS_IMAGES_FOLDER + fits_pz_filename)
@@ -149,15 +163,26 @@ async def download_photoz_files_async():
         print("Finished all tasks.", flush=True)
 
 
-async def process_photoz_files():
+async def process_photoz_files(url_base_pz, url_base_main, pz_links_file, main_links_file, bricks_to_skip_file):
 
     # Read in the DESI TARGETS table
     desi_targets_table = pickle.load(open(IAN_PHOT_Z_FILE, 'rb'))
     desi_coords = coord.SkyCoord(ra=desi_targets_table['RA'].to_numpy()*u.degree, dec=desi_targets_table['DEC'].to_numpy()*u.degree, frame='icrs')
-    fits_links_pz, fits_links_main = get_photoz_file_lists()
+    fits_links_pz, fits_links_main = get_photoz_file_lists(url_base_pz, url_base_main, pz_links_file, main_links_file)
+
+    if os.path.isfile(bricks_to_skip_file):
+        print("Loading bricks to skip...", flush=True)
+        bricks_to_skip = pickle.load(open(bricks_to_skip_file, 'rb'))
+    else:
+        print("No bricks to skip found. Exiting", flush=True)
+        exit(1)
 
     #for i in range(len(fits_links_pz)):
     for i in range(START,END):
+
+        if i in bricks_to_skip:
+            print(f"Skipping brick #{i} as it has no DESI targets.", flush=True)
+            continue
 
         print(f"Start processing brick #{i}", flush=True)
 
@@ -182,7 +207,10 @@ async def process_photoz_files():
 
             # TODO speedup reading...
             table_pz = Table.read(BGS_IMAGES_FOLDER + fits_pz_filename, format='fits')
-            table_pz.keep_columns(['RELEASE', 'BRICKID', 'OBJID', 'Z_PHOT_MEDIAN', 'Z_PHOT_MEDIAN_I', 'Z_SPEC'])
+            if 'Z_PHOT_MEDIAN_I' in table_pz.columns:
+                table_pz.keep_columns(['RELEASE', 'BRICKID', 'OBJID', 'Z_PHOT_MEDIAN', 'Z_PHOT_MEDIAN_I', 'Z_SPEC'])
+            else:
+                table_pz.keep_columns(['RELEASE', 'BRICKID', 'OBJID', 'Z_PHOT_MEDIAN', 'Z_SPEC'])
             df = table_pz.to_pandas()
             del(table_pz)
 
@@ -205,23 +233,28 @@ async def process_photoz_files():
             df['Z_LEGACY_BEST'] = df['Z_SPEC']
             #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
 
-            no_z = np.isclose(df['Z_LEGACY_BEST'], -99.0)
-            df.loc[no_z, 'Z_LEGACY_BEST'] = df.loc[no_z, 'Z_PHOT_MEDIAN_I']
-            #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
+            if 'Z_PHOT_MEDIAN_I' in df.columns:
+                no_z = np.isclose(df['Z_LEGACY_BEST'], -99.0)
+                df.loc[no_z, 'Z_LEGACY_BEST'] = df.loc[no_z, 'Z_PHOT_MEDIAN_I']
+                #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
 
             no_z = np.isclose(df['Z_LEGACY_BEST'], -99.0)
             df.loc[no_z, 'Z_LEGACY_BEST'] = df.loc[no_z, 'Z_PHOT_MEDIAN']
             #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
 
             # Remove rows that still have no redshift
-            df = df[np.invert(np.isclose(df['Z_LEGACY_BEST'], -99.0))]
+            df = df[np.invert(np.isclose(df['Z_LEGACY_BEST'], -99.0))].copy()
             #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
 
             # Remove rows that are point sources (stars, generally)
-            df = df[df['TYPE'] != b'PSF'] # TODO BUG maybe this is an issue? Should we not filter?
+            #df = df[df['TYPE'] != b'PSF'] # TODO BUG maybe this is an issue? Should we not filter?
 
             # Drop columns that are no longer needed
-            df.drop(columns=['Z_PHOT_MEDIAN', 'Z_PHOT_MEDIAN_I', 'Z_SPEC'], inplace=True)
+            if 'Z_PHOT_MEDIAN_I' in df.columns:
+                df.drop(columns=['Z_PHOT_MEDIAN', 'Z_PHOT_MEDIAN_I', 'Z_SPEC'], inplace=True)
+            else:
+                df.drop(columns=['Z_PHOT_MEDIAN', 'Z_SPEC'], inplace=True)
+
             df.reset_index(drop=True, inplace=True)
 
             # At this point df only contains galaxies with a redshift, and the best redshift from the legacy catalog.
@@ -235,6 +268,16 @@ async def process_photoz_files():
             matched = ang_distances < 3
             print(f"Matched {matched.sum()} out of {len(matched):,}", flush=True)
 
+            # if we matched nothing, add this brick index to the list to skip for the future
+            if matched.sum() == 0:
+                bricks_to_skip.append(i)
+                pickle.dump(bricks_to_skip, open(bricks_to_skip_file, 'wb'))
+                print(f"Brick #{i} has no matches. Will skip in the future.", flush=True)
+
+                os.remove(BGS_IMAGES_FOLDER + fits_pz_filename)
+                os.remove(BGS_IMAGES_FOLDER + fits_main_filename)
+                continue
+
             # Reduce dataframe to galaxies matched to DESI targets only
             df = df.loc[matched]
             df.reset_index(drop=True, inplace=True)
@@ -243,11 +286,11 @@ async def process_photoz_files():
             df['MATCH_DIST'] = ang_distances[matched]
 
             # For each DESI target with a match, we must determine the legacy source that is closest.
-            # TODO confirm this bug fix works
-            results = df.groupby('TARGETID').apply(lambda x: x.loc[x['MATCH_DIST'].idxmin()])
-            ids_to_set = results['TARGETID'].to_numpy()
+            results = df.groupby('TARGETID').apply(lambda x: x.loc[x['MATCH_DIST'].idxmin()], include_groups=False)
+            ids_to_set = results.index.to_numpy()
 
             # Ensure we don't overwrite a closer match from a previous brick
+            # TODO confirm this bug fix works
             better = results['MATCH_DIST'] < desi_targets_table.loc[ids_to_set, 'MATCH_DIST']
             ids_to_set = ids_to_set[better]
             results = results.loc[better]
@@ -284,17 +327,33 @@ async def main():
     """
     warnings.simplefilter('ignore', category=AstropyWarning)
 
-    if len(sys.argv) != 2:
-        print("Usage: python photoz.py <1 or 2>")
+    if len(sys.argv) != 3:
+        print("Usage: python photoz.py <1 or 2> <N or S>")
+        sys.exit(1)
+
+    if sys.argv[2] == 'N':
+        url_base_pz = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr9/north/sweep/9.1-photo-z/'
+        url_base_main = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr9/north/sweep/9.0/'
+        pz_links_file = 'fits_links_pz_n.pkl'
+        main_links_file = 'fits_links_main_n.pkl'
+        bricks_to_skip_file = BRICKS_TO_SKIP_N_FILE
+    elif sys.argv[2] == 'S':
+        url_base_pz = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr10/south/sweep/10.1-photo-z/'
+        url_base_main = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr10/south/sweep/10.1/'
+        pz_links_file = 'fits_links_pz.pkl'
+        main_links_file = 'fits_links_main.pkl'
+        bricks_to_skip_file = BRICKS_TO_SKIP_S_FILE
+    else:
+        print("Usage: python photoz.py <1 or 2> <N or S>")
         sys.exit(1)
 
     if sys.argv[1] == '1':
         print("DOWNLOAD MODE")
-        await download_photoz_files_async()
+        await download_photoz_files_async(url_base_pz, url_base_main, pz_links_file, main_links_file, bricks_to_skip_file)
 
     if sys.argv[1] == '2':
         print("PROCESS MODE")
-        await process_photoz_files()
+        await process_photoz_files(url_base_pz, url_base_main, pz_links_file, main_links_file, bricks_to_skip_file)
 
 
 
