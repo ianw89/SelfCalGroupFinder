@@ -27,8 +27,7 @@ from dataloc import *
 # nohup python photoz.py 2 S > outS.2 &
 
 # PHOTO-Z MERGING UTILS
-
-START = 10
+START = 0
 END = 283 #1436 for South, 283 for North
 FILE_COUNT_LIMIT = 40
 TASK_LIMIT = 14
