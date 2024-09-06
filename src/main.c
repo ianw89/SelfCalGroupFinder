@@ -47,6 +47,7 @@ static char doc[] = "kdGroupFinder: A self-calibrated galaxy group finder\
 static char args_doc[] = "inputfile zmin zmax frac_area";
 
 static struct argp_option options[] = {
+  {"halomassfunc", 'h', "FILE",                               0,  "File containing the halo mass function", 1},
   {"fluxlim",      'f', 0,                                    0,  "Indicate a flux limited sample", 1},
   {"stellarmass",  'm', 0,                                    0,  "Abundance match on stellar mass, not luminosity", 1},
   {"popmock",      'o', 0,                                    0,  "Populate the mock catalog after group finding", 1},
@@ -111,6 +112,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       sscanf(arg, "%f,%f,%f,%f", 
              &(PROPX_WEIGHT_BLUE), &(PROPX_WEIGHT_RED), &(PROPX_SLOPE_BLUE), &(PROPX_SLOPE_RED));
       break;
+    case 'h':
+      HALO_MASS_FUNC_FILE = arg;
+      break;
 
     case ARGP_KEY_ARG:
       if (state->arg_num >= 4)
@@ -160,6 +164,7 @@ int main(int argc, char **argv)
   arguments.wcen_set = 0;
   arguments.bsat_set = 0;
   arguments.chi1_set = 0;
+  HALO_MASS_FUNC_FILE = "halo_mass_function.dat"; // Default value
 
   /* Parse our arguments; will set all the global variables the code uses directly. */
   argp_parse (&argp, argc, argv, 0, 0, &arguments);
