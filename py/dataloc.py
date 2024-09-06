@@ -23,6 +23,7 @@ BGS_Y3_FOLDER = DATA_FOLDER + 'BGS_JURA/'
 #MXXL_DATA_DIR="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
 MXXL_DATA_DIR=DATA_FOLDER + "MXXL/"
 UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
+K_CORR_PARAMETERS = PY_SRC_FOLDER + 'kcorr/parameters'
 
 
 # Parameter Files
@@ -74,6 +75,7 @@ BGS_SV3_PROB_OBS_FILE = BGS_FUJI_FOLDER + "Alltiles_bright_tilelocs.dat.fits"
 # This file is BUILT by running code in the BGS_study.ipynb notebook
 # It is a joined BGS file, with a filtered down set of rows and columns
 IAN_BGS_SV3_MERGED_FILE = BGS_FUJI_FOLDER + "ian_BGS_SV3_merged.fits"
+IAN_BGS_SV3_MERGED_NOY3_FILE = BGS_FUJI_FOLDER + "ian_BGS_SV3_merged_noY3.fits"
 
 
 # BGS Y1 DATA FILES
@@ -112,6 +114,8 @@ BGS_Y3_TILES_FILE = BGS_Y3_FOLDER + "tiles-jura.csv"
 IAN_BGS_Y3_MERGED_FILE = BGS_Y3_FOLDER + "ian_BGS_Y3_merged.fits"
 
 IAN_PHOT_Z_FILE = BGS_IMAGES_FOLDER + "IAN_PHOTZ_MATCHES.pkl"
+BRICKS_TO_SKIP_S_FILE = BGS_IMAGES_FOLDER + "BRICKS_TO_SKIP.pkl"
+BRICKS_TO_SKIP_N_FILE = BGS_IMAGES_FOLDER + "BRICKS_TO_SKIP_N.pkl"
 
 
 # MXXL DERIVED AUXILERY FILES

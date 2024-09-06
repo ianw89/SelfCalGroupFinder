@@ -847,6 +847,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             for i in np.flip(np.arange(len(tilelist) - drop_passes, len(tilelist))):
                 if drop_passes > 0:
                     active_tile = tilelist[i]
+                    # TODO We are unsure if this is actually right
                     observed_by_this_tile = tileid == active_tile
 
                     # Count this tile's observations as unobserved

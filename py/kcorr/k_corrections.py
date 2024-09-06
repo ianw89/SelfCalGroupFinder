@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -7,6 +8,10 @@ from   astropy.table     import Table, Column, vstack
 from   scipy.optimize    import curve_fit
 from   scipy.interpolate import interp1d
 from   .cosmo             import cosmo, distmod
+
+if './SelfCalGroupFinder/py/' not in sys.path:
+    sys.path.append('./SelfCalGroupFinder/py/')
+from dataloc import *
 
 '''
 Generates a rest frame colour look-up table and corresponding set of r-band k-corrections
@@ -595,8 +600,7 @@ class DESI_KCorrection(object):
         # print('FILE:', file)
         # print('PHOTSYS:', photsys)
         
-        # NEW USERS - CHANGE THIS!
-        raw_dir = '/home/users/imw2293/SelfCalGroupFinder/desi/kcorr/parameters'
+        raw_dir = K_CORR_PARAMETERS #'/home/users/imw2293/SelfCalGroupFinder/desi/kcorr/parameters'
         
         
         if file == 'ajs':
