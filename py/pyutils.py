@@ -18,6 +18,7 @@ if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 import k_correction as gamakc
 import kcorr.k_corrections as desikc
+import k_corr_new.k_corrections as desikc2
 from dataloc import *
 
 #sys.path.append("/Users/ianw89/Documents/GitHub/hodpy")
@@ -142,14 +143,19 @@ def app_mag_to_abs_mag_k(app_mag, z_obs, gmr, band='r'):
     return k_correct(app_mag_to_abs_mag(app_mag, z_obs), z_obs, gmr, band=band)
 
 def k_correct_gama(abs_mag, z_obs, gmr, band='r'):
-    kcorr_r = gamakc.GAMA_KCorrection(band=band)
-    return abs_mag - kcorr_r.k(z_obs, gmr)
+    corrector = gamakc.GAMA_KCorrection(band=band)
+    return abs_mag - corrector.k(z_obs, gmr)
 
 def k_correct_bgs(abs_mag, z_obs, gmr, band='r'):
-    kcorr_r  = desikc.DESI_KCorrection(band=band, file='jmext', photsys='N') # N vs S... why seperated?
-    return abs_mag - kcorr_r.k(z_obs, gmr)
+    corrector  = desikc.DESI_KCorrection(band=band, file='jmext', photsys='S') # N vs S... why seperated?
+    return abs_mag - corrector.k(z_obs, gmr)
+
+def k_correct_bgs_v2(abs_mag, z_obs, gmr, band='r'):
+    corrector  = desikc2.DESI_KCorrection(band=band, file='jmext', photsys='S') # N vs S... why seperated?
+    return abs_mag - corrector.k(z_obs, gmr)
 
 # TODO switch to new DESI version
+# This is what gets called in production code
 def k_correct(abs_mag, z_obs, gmr, band='r'):
     return k_correct_gama(abs_mag, z_obs, gmr, band)
 

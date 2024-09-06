@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -7,9 +8,18 @@ from   astropy.table     import Table, join, Column, vstack
 from   scipy.optimize    import curve_fit
 from   scipy.interpolate import splev, splrep, UnivariateSpline
 from   scipy.interpolate import interp1d
+
+if './SelfCalGroupFinder/py/' not in sys.path:
+    sys.path.append('./SelfCalGroupFinder/py/')
+from dataloc import *
+
+if './SelfCalGroupFinder/py/k_corr_new/' not in sys.path:
+    sys.path.append('./SelfCalGroupFinder/py/k_corr_new/')
 from   pkg_resources     import resource_filename
 from   cosmo             import cosmo, distmod, volcom
 from   tmr_kcorr         import tmr_kcorr
+
+
 
 '''
 Generates a rest frame colour look-up table and corresponding set of r-band k-corrections
@@ -590,9 +600,11 @@ class DESI_KCorrection(object):
         """
         
         #import os
-        os.environ['CODE_ROOT'] = './'
-        raw_dir = os.environ['CODE_ROOT'] + '/data/'        
+        #os.environ['CODE_ROOT'] = './'
+        #raw_dir = os.environ['CODE_ROOT'] + '/data/'        
         #print(os.environ['CODE_ROOT'])
+
+        raw_dir = PY_SRC_FOLDER + 'k_corr_new/data' #'/home/users/imw2293/SelfCalGroupFinder/desi/kcorr/parameters'
         
         # check pointing to right directory.
         # print('FILE:', file)
@@ -602,7 +614,7 @@ class DESI_KCorrection(object):
             k_corr_file = raw_dir + '/ajs_kcorr_{}band_z01.dat'.format(band.lower())
                  
         elif file == 'jmext':
-            k_corr_file = raw_dir + '/jmext_kcorr_{}_{}band_z01.dat'.format(photsys.upper(), band.lower())
+            k_corr_file = raw_dir + '/jmext_kcorr_{}_{}band_z01.dat.mpeg'.format(photsys.upper(), band.lower())
             
         elif file == 'jmextcol':
             # WARNING: These are the colour polynomials.

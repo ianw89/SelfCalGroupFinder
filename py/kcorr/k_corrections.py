@@ -601,7 +601,7 @@ class DESI_KCorrection(object):
         # print('PHOTSYS:', photsys)
         
         raw_dir = K_CORR_PARAMETERS #'/home/users/imw2293/SelfCalGroupFinder/desi/kcorr/parameters'
-        
+
         
         if file == 'ajs':
             k_corr_file = raw_dir + '/ajs_kcorr_{}band_z01.txt'.format(band.lower())
