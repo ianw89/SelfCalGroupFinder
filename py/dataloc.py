@@ -3,7 +3,7 @@
 ###################################################
 
 # This is the root folder of this repository; update it to your own path
-#BASE_FOLDER = '/home/users/imw2293/'
+#BASE_FOLDER = '/Users/ianw89/Repos/SelfCalGroupFinder/'
 BASE_FOLDER = '/mount/sirocco1/imw2293/GROUP_CAT/'
 REPO_FOLDER = BASE_FOLDER + 'SelfCalGroupFinder/'
 
@@ -12,13 +12,16 @@ BIN_FOLDER = REPO_FOLDER + 'bin/'
 PY_SRC_FOLDER = REPO_FOLDER + 'py/'
 PARAMS_FOLDER = PY_SRC_FOLDER + 'parameters/'
 OUTPUT_FOLDER = BASE_FOLDER + 'OUTPUT/'
+#OUTPUT_FOLDER = "/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/OUTPUT/"
 DATA_FOLDER = BASE_FOLDER + 'DATA/'
+#DATA_FOLDER = "/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/DATA/"
 SDSS_FOLDER = DATA_FOLDER + 'SDSS/'
 BGS_IMAGES_FOLDER = DATA_FOLDER + 'BGS_IMAGES/'
 BGS_FOLDER = DATA_FOLDER + 'BGS_IRON/'
 BGS_FUJI_FOLDER = DATA_FOLDER + 'BGS_FUJI/'
 BGS_Y3_FOLDER = DATA_FOLDER + 'BGS_JURA/'
-MXXL_DATA_DIR="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
+#MXXL_DATA_DIR="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
+MXXL_DATA_DIR=DATA_FOLDER + "MXXL/"
 UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
 
 
@@ -108,7 +111,7 @@ BGS_Y3_TILES_FILE = BGS_Y3_FOLDER + "tiles-jura.csv"
 # It is a joined BGS file, with a filtered down set of rows and columns
 IAN_BGS_Y3_MERGED_FILE = BGS_Y3_FOLDER + "ian_BGS_Y3_merged.fits"
 
-IAN_PHOT_Z_FILE = BGS_IMAGES_FOLDER + "IAN_PHOTZ_MATCHES.fits"
+IAN_PHOT_Z_FILE = BGS_IMAGES_FOLDER + "IAN_PHOTZ_MATCHES.pkl"
 
 
 # MXXL DERIVED AUXILERY FILES

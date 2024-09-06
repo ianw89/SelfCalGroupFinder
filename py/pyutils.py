@@ -693,6 +693,7 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
                 print("Warning: in SimpleRedshiftGuesser, z_obs has NaNs")
 
         if use_saved_map:
+            print(f"Warning: using MXXL saved app mag -> z map")
             with open(IAN_MXXL_LOST_APP_TO_Z_FILE, 'rb') as f:
                 self.app_mag_bins, self.app_mag_map = pickle.load(f)
         else:

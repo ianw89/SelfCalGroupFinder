@@ -21,10 +21,14 @@ from dataloc import *
 
 # PHOTO-Z MERGING UTILS
 
-START = 800
+START = 0
 END = 1436
 FILE_COUNT_LIMIT = 25
-TASK_LIMIT = 10
+TASK_LIMIT = 12
+
+# TODO keep track of which bricks have been processed and which ones have no DESI target hits
+
+# TODO instead of waiting for a batch to finish, start downloading a new one every time one finishes?
 
 url_base_pz = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr10/south/sweep/10.1-photo-z/'
 url_base_main = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr10/south/sweep/10.1/'
@@ -61,17 +65,19 @@ async def download_file(session, url, filename, i):
 
     while not success:
         try:
-            response = await session.get(url)
+            response = await session.get(url, timeout=1200) 
             response.raise_for_status()
+            print(f"Connected #{i}: {filename}", flush=True)
             content = await response.read()
+            print(f"Read #{i}: {filename}", flush=True)
             # TODO write async
             with open(os.path.join(BGS_IMAGES_FOLDER, filename), 'wb') as file:
                 file.write(content)
-            print(f"Downloaded #{i}: {filename}", flush=True)
+            print(f"Saved #{i}: {filename}", flush=True)
             success = True
             response.close()
         except Exception as e:
-            print(f"Error downloading #{i} {filename}: {e}. Retry in 5s", flush=True)
+            print(f"Error downloading #{i} {filename}. Status: {response.status}. Exception {e}. Retry in 5s", flush=True)
             await asyncio.sleep(5)
     
     return success
@@ -107,7 +113,7 @@ async def download_photoz_files_async():
             f1 = Path(BGS_IMAGES_FOLDER + fits_pz_filename)
             file_done = os.path.isfile(f1) and f1.stat().st_size != 0
             if file_done:
-                print(f"File {fits_pz_filename} already exists and is not empty. Skipping download.", flush=True)
+                print(f"File #{i} {fits_pz_filename} already exists and is not empty. Skipping download.", flush=True)
             else:
                 print(f"Requesting #{i} {fits_pz_filename}", flush=True)
                 check_for_block = True
@@ -212,7 +218,7 @@ async def process_photoz_files():
             #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
 
             # Remove rows that are point sources (stars, generally)
-            df = df[df['TYPE'] != b'PSF']
+            df = df[df['TYPE'] != b'PSF'] # TODO BUG maybe this is an issue? Should we not filter?
 
             # Drop columns that are no longer needed
             df.drop(columns=['Z_PHOT_MEDIAN', 'Z_PHOT_MEDIAN_I', 'Z_SPEC'], inplace=True)
@@ -237,14 +243,25 @@ async def process_photoz_files():
             df['MATCH_DIST'] = ang_distances[matched]
 
             # For each DESI target with a match, we must determine the legacy source that is closest.
+            # TODO confirm this bug fix works
             results = df.groupby('TARGETID').apply(lambda x: x.loc[x['MATCH_DIST'].idxmin()])
             ids_to_set = results['TARGETID'].to_numpy()
+
+            # Ensure we don't overwrite a closer match from a previous brick
+            better = results['MATCH_DIST'] < desi_targets_table.loc[ids_to_set, 'MATCH_DIST']
+            ids_to_set = ids_to_set[better]
+            results = results.loc[better]
 
             # Finally update the DESI targets with these photo-z values (and remember which legacy source was used)
             desi_targets_table.loc[ids_to_set,'Z_LEGACY_BEST'] = results['Z_LEGACY_BEST'].to_numpy()
             desi_targets_table.loc[ids_to_set,'RELEASE'] = results['RELEASE'].to_numpy()
             desi_targets_table.loc[ids_to_set,'BRICKID'] = results['BRICKID'].to_numpy()
             desi_targets_table.loc[ids_to_set,'OBJID'] = results['OBJID'].to_numpy()
+            desi_targets_table.loc[ids_to_set,'REF_CAT'] = results['REF_CAT'].to_numpy()
+            desi_targets_table.loc[ids_to_set,'MATCH_DIST'] = results['MATCH_DIST'].to_numpy()
+
+            print(f"Writing progress to disk...", flush=True)
+            pickle.dump(desi_targets_table, open(IAN_PHOT_Z_FILE, 'wb'))
 
             # We made it through with no errors, so we can delete the files
             os.remove(BGS_IMAGES_FOLDER + fits_pz_filename)
@@ -255,11 +272,7 @@ async def process_photoz_files():
             print(f"Done with {i+1} bricks. {percent_complete*100:.4f}% of DESI targets have a photo-z.", flush=True)
     
         except Exception as e:
-            print(f"Error processing brick {i}: {e}")
-
-        finally:            
-            print(f"Writing progress to disk...", flush=True)
-            pickle.dump(desi_targets_table, open(IAN_PHOT_Z_FILE, 'wb'))
+            print(f"Error processing brick {i}: {e}")       
     
 
 async def main():
