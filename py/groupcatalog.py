@@ -696,7 +696,26 @@ def deserialize(gc: GroupCatalog):
         return o
 
 
+def drop_SV3_passes(drop_passes: int, tileid: np.ndarray, unobserved: np.ndarray):
+    # For SV3 Analysis: remove higher numbered (later observed) tiles from the list in each patch
+    # Note this increases the size of the catalog slightly as drop_passes goes up. 
+    # It is because some observations are stars or galaxies outside reshift range, which would have been removed.
+    # Now they will be in the catalog as unobserved galaxies.
+    if drop_passes > 0:
+        for patch_number in range(len(sv3_regions_sorted)):
+            tilelist = sv3_regions_sorted[patch_number]
+            
+            # Remove tiles in reverse TILEID order
+            for i in np.flip(np.arange(len(tilelist) - drop_passes, len(tilelist))):
+                if drop_passes > 0:
+                    active_tile = tilelist[i]
+                    # TODO We are unsure if this is actually right
+                    observed_by_this_tile = tileid == active_tile
 
+                    # Count this tile's observations as unobserved
+                    unobserved = np.logical_or(unobserved, observed_by_this_tile)
+    
+    return unobserved
 
 
 def add_halo_columns(catalog: GroupCatalog):
@@ -835,23 +854,8 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     else:
         dn4000 = table['DN4000'].data.data
 
-    # For SV3 Analysis: remove higher numbered (later observed) tiles from the list in each patch
-    # Note this increases the size of the catalog slightly as drop_passes goes up. 
-    # It is because some observations are stars or galaxies outside reshift range, which would have been removed.
-    # Now they will be in the catalog as unobserved galaxies.
-    if drop_passes > 0:
-        for patch_number in range(len(sv3_regions_sorted)):
-            tilelist = sv3_regions_sorted[patch_number]
-            
-            # Remove tiles in reverse TILEID order
-            for i in np.flip(np.arange(len(tilelist) - drop_passes, len(tilelist))):
-                if drop_passes > 0:
-                    active_tile = tilelist[i]
-                    # TODO We are unsure if this is actually right
-                    observed_by_this_tile = tileid == active_tile
-
-                    # Count this tile's observations as unobserved
-                    unobserved = np.logical_or(unobserved, observed_by_this_tile)
+    # For SV3 Analysis we can pretend to not have observed some galaxies
+    unobserved = drop_SV3_passes(drop_passes, tileid, unobserved)
 
     orig_count = len(dec)
     print(orig_count, "objects in FITS file")
@@ -875,9 +879,6 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, np.invert(deltachi2_filter)], axis=0)
     #print(f"We have {np.count_nonzero(treat_as_unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
     unobserved = np.all([app_mag_filter, np.logical_or(unobserved, treat_as_unobserved)], axis=0)
-
-    if mode == Mode.ALL.value: # ALL is misnomer here it means 1pass or more
-        keep = np.all([observed_requirements], axis=0)
 
     if mode == Mode.FIBER_ASSIGNED_ONLY.value: # means 3pass 
         keep = np.all([multi_pass_filter, observed_requirements], axis=0)

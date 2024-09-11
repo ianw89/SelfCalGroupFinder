@@ -10,7 +10,7 @@ from astropy.table import Table, join
 #sys.path.append(os.environ['HOME'])
 #sys.path.append(os.environ['CODE_ROOT'])
 
-from cosmo import cosmo, distmod, volcom
+from SelfCalGroupFinder.py.k_corr_new.cosmo2 import cosmo, distmod, volcom
 import kcorr_generator as kg
 import catalogue_analysis as ca
 from smith_kcorr   import DESI_KCorrection 

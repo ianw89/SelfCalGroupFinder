@@ -12,12 +12,8 @@ from   scipy.interpolate import interp1d
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from dataloc import *
-
-if './SelfCalGroupFinder/py/k_corr_new/' not in sys.path:
-    sys.path.append('./SelfCalGroupFinder/py/k_corr_new/')
-from   pkg_resources     import resource_filename
-from   cosmo             import cosmo, distmod, volcom
-from   tmr_kcorr         import tmr_kcorr
+from   k_corr_new.cosmo2             import cosmo, distmod, volcom
+from   k_corr_new.tmr_kcorr         import tmr_kcorr
 
 
 

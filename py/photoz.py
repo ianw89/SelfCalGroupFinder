@@ -28,11 +28,9 @@ from dataloc import *
 
 # PHOTO-Z MERGING UTILS
 START = 0
-END = 283 #1436 for South, 283 for North
+END = 1436 #1436 for South, 283 for North
 FILE_COUNT_LIMIT = 40
 TASK_LIMIT = 14
-
-# TODO keep track of which bricks have been processed and which ones have no DESI target hits
 
 # TODO instead of waiting for a batch to finish, start downloading a new one every time one finishes?
 
@@ -118,7 +116,7 @@ async def download_photoz_files_async(url_base_pz, url_base_main, pz_links_file,
             fits_main_url = urljoin(url_base_main, link_main)
             fits_main_filename = os.path.basename(fits_main_url)
             # Ensure Bricks are matched
-            assert fits_pz_filename[6:20] == fits_main_filename[6:20] 
+            assert fits_pz_filename[6:20] == fits_main_filename[6:20], f"Brick mismatch: {fits_pz_filename} {fits_main_filename}"
 
             check_for_block = False
 
@@ -228,14 +226,17 @@ async def process_photoz_files(url_base_pz, url_base_main, pz_links_file, main_l
             del(df_main)
             df = df_merged
 
-            # use Z_SPEC if available, otherwise use Z_PHOT_MEDIAN_I, otherwise use Z_PHOT_MEDIAN
-            df['Z_LEGACY_BEST'] = df['Z_SPEC']
+            # Could use Z_SPEC if available, but messed up SV3 analysis.
+            #df['Z_LEGACY_BEST'] = df['Z_SPEC']
             #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
+            df['Z_LEGACY_BEST'] = -99.0
 
+            # otherwise use Z_PHOT_MEDIAN_I, otherwise use Z_PHOT_MEDIAN
             if 'Z_PHOT_MEDIAN_I' in df.columns:
-                no_z = np.isclose(df['Z_LEGACY_BEST'], -99.0)
-                df.loc[no_z, 'Z_LEGACY_BEST'] = df.loc[no_z, 'Z_PHOT_MEDIAN_I']
+                #no_z = np.isclose(df['Z_LEGACY_BEST'], -99.0)
+                #df.loc[no_z, 'Z_LEGACY_BEST'] = df.loc[no_z, 'Z_PHOT_MEDIAN_I']
                 #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
+                df['Z_LEGACY_BEST'] = df['Z_PHOT_MEDIAN_I']
 
             no_z = np.isclose(df['Z_LEGACY_BEST'], -99.0)
             df.loc[no_z, 'Z_LEGACY_BEST'] = df.loc[no_z, 'Z_PHOT_MEDIAN']
@@ -246,7 +247,7 @@ async def process_photoz_files(url_base_pz, url_base_main, pz_links_file, main_l
             #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
 
             # Remove rows that are point sources (stars, generally)
-            #df = df[df['TYPE'] != b'PSF'] # TODO BUG maybe this is an issue? Should we not filter?
+            #df = df[df['TYPE'] != b'PSF'] 
 
             # Drop columns that are no longer needed
             if 'Z_PHOT_MEDIAN_I' in df.columns:
@@ -309,7 +310,6 @@ async def process_photoz_files(url_base_pz, url_base_main, pz_links_file, main_l
             os.remove(BGS_IMAGES_FOLDER + fits_pz_filename)
             os.remove(BGS_IMAGES_FOLDER + fits_main_filename)
 
-            #if i % 10 == 0:
             percent_complete = (desi_targets_table['Z_LEGACY_BEST'] != -99.0).sum() / len(desi_targets_table)
             print(f"Done with {i+1} bricks. {percent_complete*100:.4f}% of DESI targets have a photo-z.", flush=True)
     
@@ -339,8 +339,8 @@ async def main():
     elif sys.argv[2] == 'S':
         url_base_pz = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr10/south/sweep/10.1-photo-z/'
         url_base_main = 'https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr10/south/sweep/10.1/'
-        pz_links_file = 'fits_links_pz.pkl'
-        main_links_file = 'fits_links_main.pkl'
+        pz_links_file = 'fits_links_pz_s.pkl'
+        main_links_file = 'fits_links_main_s.pkl'
         bricks_to_skip_file = BRICKS_TO_SKIP_S_FILE
     else:
         print("Usage: python photoz.py <1 or 2> <N or S>")

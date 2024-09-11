@@ -13,7 +13,7 @@ from scipy.ndimage import gaussian_filter
 
 cosmo = FlatLambdaCDM(H0=100, Om0=0.313, Tcmb0=2.725)   #Standard Planck Cosmology in Mpc/h units
 import kcorr_generator as kg
-from   cosmo              import volcom, distmod
+from   cosmo2              import volcom, distmod
 from schechter import schechter, named_schechter
 
 

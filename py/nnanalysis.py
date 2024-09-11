@@ -98,14 +98,16 @@ class NNAnalyzer():
         
         if LOST_GALAXIES_ONLY:
             catalog = coord.SkyCoord(ra=df.loc[df.observed, 'ra'].to_numpy()*u.degree, dec=df.loc[df.observed, 'dec'].to_numpy()*u.degree, frame='icrs')
-            mxxl_halo_id_catalog = df.loc[df.observed, 'halo_id'].to_numpy()
+            if self.has_true_halo_id:
+                mxxl_halo_id_catalog = df.loc[df.observed, 'halo_id'].to_numpy()
             z_obs_catalog = df.loc[df.observed, 'z_obs'].to_numpy()
             color_catalog = df.loc[df.observed, 'quiescent'].to_numpy()
             abs_mag_catalog = df.abs_mag.to_numpy()
 
         else:
             catalog = coord.SkyCoord(ra=df.ra.to_numpy()*u.degree, dec=df.dec.to_numpy()*u.degree, frame='icrs')
-            mxxl_halo_id_catalog = df.halo_id.to_numpy()
+            if self.has_true_halo_id:
+                mxxl_halo_id_catalog = df.halo_id.to_numpy()
             z_obs_catalog = df.z_obs.to_numpy()
             color_catalog = df.quiescent.to_numpy()
             abs_mag_catalog = df.abs_mag.to_numpy()
@@ -133,25 +135,25 @@ class NNAnalyzer():
             same_halo = np.where(df.loc[row_locator,'halo_id'] == 0, sim_z > 0.8, df.loc[row_locator,'halo_id'] == mxxl_halo_id_catalog[idx])
 
         # Properties of the nearest neighbor galaxy we are binning
-        nn_z_bin_ind =  np.digitize(z_obs_catalog[idx], Z_BINS)
+        nn1_z_bin_ind =  np.digitize(z_obs_catalog[idx], Z_BINS)
         angdist_bin_ind = np.digitize(ang_dist, ANGULAR_BINS)
-        nn_abs_mag_bin_in = np.digitize(abs_mag_catalog[idx], ABS_MAG_BINS)
+        nn1_abs_mag_bin_in = np.digitize(abs_mag_catalog[idx], ABS_MAG_BINS)
 
-        df['nn_z_bin'] = np.nan
-        df.loc[row_locator,'nn_z_bin'] = nn_z_bin_ind
-        df['nn_ang_dist'] = np.nan
-        df.loc[row_locator,'nn_ang_dist'] = ang_dist
-        df['nn_ang_dist_bin'] = np.nan
-        df.loc[row_locator,'nn_ang_dist_bin'] = angdist_bin_ind
-        df['nn_quiescent'] = np.nan
-        df.loc[row_locator, 'nn_quiescent'] = color_catalog[idx].astype(bool)
-        df['nn_sim_z'] = np.nan
-        df.loc[row_locator, 'nn_sim_z'] = sim_z
-        df['nn_same_halo'] = np.nan
+        df['nn1_z_bin'] = np.nan
+        df.loc[row_locator,'nn1_z_bin'] = nn1_z_bin_ind
+        df['nn1_ang_dist'] = np.nan
+        df.loc[row_locator,'nn1_ang_dist'] = ang_dist
+        df['nn1_ang_dist_bin'] = np.nan
+        df.loc[row_locator,'nn1_ang_dist_bin'] = angdist_bin_ind
+        df['nn1_quiescent'] = np.nan
+        df.loc[row_locator, 'nn1_quiescent'] = color_catalog[idx].astype(bool)
+        df['nn1_sim_z'] = np.nan
+        df.loc[row_locator, 'nn1_sim_z'] = sim_z
+        df['nn1_same_halo'] = np.nan
         if self.has_true_halo_id:
-            df.loc[row_locator, 'nn_same_halo'] = same_halo.astype(np.int8)
-        df['nn_abs_mag_bin'] = np.nan
-        df.loc[row_locator, 'nn_abs_mag_bin'] = nn_abs_mag_bin_in
+            df.loc[row_locator, 'nn1_same_halo'] = same_halo.astype(np.int8)
+        df['nn1_abs_mag_bin'] = np.nan
+        df.loc[row_locator, 'nn1_abs_mag_bin'] = nn1_abs_mag_bin_in
         
         print("Nearest Neighbor properties set")
 
@@ -163,43 +165,46 @@ class NNAnalyzer():
         ang_dist_bin_type = CategoricalDtype(categories=range(len(ANGULAR_BINS)), ordered=True)
 
         df['pobs_bin'] = df['pobs_bin'].astype("category")
-        df['nn_quiescent'] = df['nn_quiescent'].astype("category")
+        df['nn1_quiescent'] = df['nn1_quiescent'].astype("category")
         df['quiescent'] = df['quiescent'].astype("category")
-        df['nn_z_bin'] = df['nn_z_bin'].astype("category")
+        df['nn1_z_bin'] = df['nn1_z_bin'].astype("category")
         df['app_mag_bin'] = df['app_mag_bin'].astype("category")
-        df['nn_ang_dist_bin'] = df['nn_ang_dist_bin'].astype(ang_dist_bin_type)
-        df['nn_abs_mag_bin'] = df['nn_abs_mag_bin'].astype("category")
+        df['nn1_ang_dist_bin'] = df['nn1_ang_dist_bin'].astype(ang_dist_bin_type)
+        df['nn1_abs_mag_bin'] = df['nn1_abs_mag_bin'].astype("category")
 
         df_for_agg = df.loc[row_locator]
 
-        all_counts = (df_for_agg.groupby(by=['pobs_bin', 'nn_quiescent', 'quiescent', 'nn_z_bin', 'app_mag_bin', 'nn_ang_dist_bin', 'nn_abs_mag_bin'], observed=False).dec.count()
+        all_counts = (df_for_agg.groupby(by=['pobs_bin', 'nn1_quiescent', 'quiescent', 'nn1_z_bin', 'app_mag_bin', 'nn1_ang_dist_bin', 'nn1_abs_mag_bin'], observed=False).dec.count()
                         .unstack(fill_value=0)
                         .stack()
                         .reset_index(name='count'))
-        same_halo_counts = (df_for_agg.groupby(by=['pobs_bin', 'nn_quiescent', 'quiescent', 'nn_z_bin', 'app_mag_bin', 'nn_ang_dist_bin', 'nn_abs_mag_bin'], observed=False).nn_same_halo.sum()
-                        .unstack(fill_value=0)
-                        .stack()
-                        .reset_index(name='count'))
-        sim_z_count = (df_for_agg.groupby(by=['pobs_bin', 'nn_quiescent', 'quiescent', 'nn_z_bin', 'app_mag_bin', 'nn_ang_dist_bin', 'nn_abs_mag_bin'], observed=False).nn_sim_z.sum()
+        if self.has_true_halo_id:
+            same_halo_counts = (df_for_agg.groupby(by=['pobs_bin', 'nn1_quiescent', 'quiescent', 'nn1_z_bin', 'app_mag_bin', 'nn1_ang_dist_bin', 'nn1_abs_mag_bin'], observed=False).nn1_same_halo.sum()
+                            .unstack(fill_value=0)
+                            .stack()
+                            .reset_index(name='count'))
+        sim_z_count = (df_for_agg.groupby(by=['pobs_bin', 'nn1_quiescent', 'quiescent', 'nn1_z_bin', 'app_mag_bin', 'nn1_ang_dist_bin', 'nn1_abs_mag_bin'], observed=False).nn1_sim_z.sum()
                         .unstack(fill_value=0)
                         .stack()
                         .reset_index(name='count'))
         
         # Default agg func is mean
-        self.pt = df_for_agg.pivot_table(columns=['pobs_bin', 'nn_quiescent', 'quiescent', 'nn_z_bin', 'app_mag_bin', 'nn_ang_dist_bin', 'nn_abs_mag_bin'], values=['nn_sim_z', 'nn_same_halo'], observed=False, margins=True, fill_value=0)
+        self.pt = df_for_agg.pivot_table(columns=['pobs_bin', 'nn1_quiescent', 'quiescent', 'nn1_z_bin', 'app_mag_bin', 'nn1_ang_dist_bin', 'nn1_abs_mag_bin'], values=['nn1_sim_z', 'nn1_same_halo'], observed=False, margins=True, fill_value=0)
         
         # TODO add some assertions to check manually that this does what we expect
 
         self.all_counts = all_counts
-        self.same_halo_counts = same_halo_counts
+        if self.has_true_halo_id:
+            self.same_halo_counts = same_halo_counts
+            assert len(all_counts) == len(same_halo_counts)
         self.sim_z_count = sim_z_count
 
-        assert len(all_counts) == len(same_halo_counts)
         assert len(all_counts) == len(sim_z_count)
 
-        self.all_ang_bincounts = all_counts['count'].to_numpy(dtype=np.int64).reshape(len(np.unique(all_counts.pobs_bin)), 2, 2, len(np.unique(all_counts.nn_z_bin)), len(np.unique(all_counts.app_mag_bin)), len(np.unique(all_counts.nn_ang_dist_bin)), len(np.unique(all_counts.nn_abs_mag_bin)))
-        self.all_same_halo_bincounts = same_halo_counts['count'].to_numpy(dtype=np.int64).reshape(len(np.unique(all_counts.pobs_bin)), 2, 2, len(np.unique(all_counts.nn_z_bin)), len(np.unique(all_counts.app_mag_bin)), len(np.unique(all_counts.nn_ang_dist_bin)), len(np.unique(all_counts.nn_abs_mag_bin)))
-        self.all_sim_z_bincounts = sim_z_count['count'].to_numpy(dtype=np.int64).reshape(len(np.unique(all_counts.pobs_bin)), 2, 2, len(np.unique(all_counts.nn_z_bin)), len(np.unique(all_counts.app_mag_bin)), len(np.unique(all_counts.nn_ang_dist_bin)), len(np.unique(all_counts.nn_abs_mag_bin)))
+        self.all_ang_bincounts = all_counts['count'].to_numpy(dtype=np.int64).reshape(len(np.unique(all_counts.pobs_bin)), 2, 2, len(np.unique(all_counts.nn1_z_bin)), len(np.unique(all_counts.app_mag_bin)), len(np.unique(all_counts.nn1_ang_dist_bin)), len(np.unique(all_counts.nn1_abs_mag_bin)))
+        if self.has_true_halo_id:
+            self.all_same_halo_bincounts = same_halo_counts['count'].to_numpy(dtype=np.int64).reshape(len(np.unique(all_counts.pobs_bin)), 2, 2, len(np.unique(all_counts.nn1_z_bin)), len(np.unique(all_counts.app_mag_bin)), len(np.unique(all_counts.nn1_ang_dist_bin)), len(np.unique(all_counts.nn1_abs_mag_bin)))
+        self.all_sim_z_bincounts = sim_z_count['count'].to_numpy(dtype=np.int64).reshape(len(np.unique(all_counts.pobs_bin)), 2, 2, len(np.unique(all_counts.nn1_z_bin)), len(np.unique(all_counts.app_mag_bin)), len(np.unique(all_counts.nn1_ang_dist_bin)), len(np.unique(all_counts.nn1_abs_mag_bin)))
         
         # Calculate fractions
         # empty bins we call 0% TODO

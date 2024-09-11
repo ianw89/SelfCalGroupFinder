@@ -36,11 +36,11 @@ POBS_BIN_COUNT = 15
 POBS_BINS = np.linspace(0.01, 1.01, POBS_BIN_COUNT) # upper bound is higher than any data, lower bound is not
 POBS_BINS_MIDPOINTS = np.append([0.0], 0.5*(POBS_BINS[1:] + POBS_BINS[:-1]))
 
-APP_MAG_BIN_COUNT = 15
-APP_MAG_BINS = np.linspace(15.5, 20.01, APP_MAG_BIN_COUNT) # upper bound is higher than any data, lower bound is not
+APP_MAG_BIN_COUNT = 12
+APP_MAG_BINS = np.linspace(15.5, 20.176, APP_MAG_BIN_COUNT) # upper bound is higher than any data, lower bound is not
 APP_MAG_BINS_MIDPOINTS = np.append([15.0], 0.5*(APP_MAG_BINS[1:] + APP_MAG_BINS[:-1]))
 
-ANG_DIST_BIN_COUNT = 20
+ANG_DIST_BIN_COUNT = 15
 ANGULAR_BINS = np.append(np.logspace(np.log10(3), np.log10(900), ANG_DIST_BIN_COUNT - 1), 3600) # upper bound is higher than any data, lower bound is not
 ANGULAR_BINS_MIDPOINTS = np.append([2], 0.5*(ANGULAR_BINS[1:] + ANGULAR_BINS[:-1]))
 
