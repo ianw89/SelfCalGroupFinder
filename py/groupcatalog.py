@@ -773,6 +773,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         FOORPRINT_FRAC_2pass = 0.286837 # 11832 degrees
         FOOTPRINT_FRAC_3pass = 0.233920 # 9649 degrees
         FOOTPRINT_FRAC_4pass = 0.115183 # 4751 degrees
+    elif data_cut == "Y3-Kibo":
+        # For Y3-Kibo
+        FOOTPRINT_FRAC_1pass = 0.3112278 # 12839 degrees
+        FOORPRINT_FRAC_2pass = 0.2870291 # 11840 degrees
+        FOOTPRINT_FRAC_3pass = 0.2338243 # 9645 degrees
+        FOOTPRINT_FRAC_4pass = 0.1150345 # 4745 degrees
     elif data_cut == "sv3":
         FOOTPRINT_FRAC_1pass = 173.87 / DEGREES_ON_SPHERE 
         FOOTPRINT_FRAC_10pass = 138.192 / DEGREES_ON_SPHERE 
@@ -855,7 +861,8 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         dn4000 = table['DN4000'].data.data
 
     # For SV3 Analysis we can pretend to not have observed some galaxies
-    unobserved = drop_SV3_passes(drop_passes, tileid, unobserved)
+    if data_cut == "sv3":
+        unobserved = drop_SV3_passes(drop_passes, tileid, unobserved)
 
     orig_count = len(dec)
     print(orig_count, "objects in FITS file")

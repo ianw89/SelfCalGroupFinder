@@ -19,7 +19,8 @@ SDSS_FOLDER = DATA_FOLDER + 'SDSS/'
 BGS_IMAGES_FOLDER = DATA_FOLDER + 'BGS_IMAGES/'
 BGS_FOLDER = DATA_FOLDER + 'BGS_IRON/'
 BGS_FUJI_FOLDER = DATA_FOLDER + 'BGS_FUJI/'
-BGS_Y3_FOLDER = DATA_FOLDER + 'BGS_JURA/'
+BGS_Y3_FOLDER_OLD = DATA_FOLDER + 'BGS_JURA/'
+BGS_Y3_FOLDER = DATA_FOLDER + 'BGS_KIBO/'
 #MXXL_DATA_DIR="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
 MXXL_DATA_DIR=DATA_FOLDER + "MXXL/"
 UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
@@ -100,20 +101,26 @@ IAN_BGS_MERGED_FILE_OLD = BGS_FOLDER + "ian_BGS_merged.fits~"
 
 # BGS Y3 DATA FILES
 ###################
-# TODO Jura is unofficial Y3, replace later
-# TODO this is noveto version, want BGS_ANY_full.dat.fits instead
-# TODO need PROB_OBS for Y3...
-# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/jura-v1/LSScats/test/BGS_ANY_full_noveto.dat.fits    
-BGS_Y3_ANY_FULL_FILE = BGS_Y3_FOLDER + "BGS_ANY_full_noveto.dat.fits"
-# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/jura-v1/LSScats/test/BGS_BRIGHT_0_full.ran.fits
-BGS_Y3_RAND_FILE = BGS_Y3_FOLDER + "BGS_BRIGHT_0_full.ran.fits"
-# File was acquired from https://data.desi.lbl.gov/desi/spectro/redux/jura/tiles-jura.csv
-BGS_Y3_TILES_FILE = BGS_Y3_FOLDER + "tiles-jura.csv"
+# TODO get fastspecfit when available
+# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/kibo-v1/LSScats/v0.1/BGS_ANY_full.dat.fits
+# Old File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/jura-v1/LSScats/test/BGS_ANY_full_noveto.dat.fits    
+BGS_Y3_ANY_FULL_FILE = BGS_Y3_FOLDER + "BGS_ANY_full.dat.fits"
+# File was acquried from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/kibo-v1/LSScats/v0.1/BGS_ANY_0_full.ran.fits
+# Old file was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/jura-v1/LSScats/test/BGS_BRIGHT_0_full.ran.fits
+BGS_Y3_RAND_FILE = BGS_Y3_FOLDER + "BGS_ANY_0_full.ran.fits"
+# File was acquired from https://data.desi.lbl.gov/desi/spectro/redux/kibo/tiles-kibo.csv
+# Old file was acquired from https://data.desi.lbl.gov/desi/spectro/redux/jura/tiles-jura.csv
+BGS_Y3_TILES_FILE = BGS_Y3_FOLDER + "tiles-kibo.csv"
 # This file is BUILT by running code in the BGS_study.ipynb notebook
 # It is a joined BGS file, with a filtered down set of rows and columns
 IAN_BGS_Y3_MERGED_FILE = BGS_Y3_FOLDER + "ian_BGS_Y3_merged.fits"
 
+# DESI LEGACY IMAGING SURVEY FILES
+##################################
+# These are constructed from the sweeps because the sweeps are big.
 IAN_PHOT_Z_FILE = BGS_IMAGES_FOLDER + "IAN_PHOTZ_MATCHES.pkl"
+IAN_PHOT_Z_FILE_NOSPEC = BGS_IMAGES_FOLDER + "IAN_PHOTZ_MATCHES_NS_NOSPEC.pkl"
+IAN_PHOT_Z_FILE_WSPEC = BGS_IMAGES_FOLDER + "IAN_PHOTZ_MATCHES_NS_WSPEC.pkl"
 BRICKS_TO_SKIP_S_FILE = BGS_IMAGES_FOLDER + "BRICKS_TO_SKIP.pkl"
 BRICKS_TO_SKIP_N_FILE = BGS_IMAGES_FOLDER + "BRICKS_TO_SKIP_N.pkl"
 

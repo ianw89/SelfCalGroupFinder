@@ -242,30 +242,30 @@ _cat.marker = '-'
 _cat.color = 'k'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_y3_simple_4 = BGSGroupCatalog("Simple v4 BGS Y3 <19.5", Mode.SIMPLE_v4, 19.5, 21.0, data_cut='Y3-Jura')
+bgs_y3_simple_4 = BGSGroupCatalog("Simple v4 BGS Y3 <19.5", Mode.SIMPLE_v4, 19.5, 21.0, data_cut='Y3-Kibo')
 _cat = bgs_y3_simple_4
 _cat.color = 'darkorange'
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_y3_simple_5 = BGSGroupCatalog("Simple v5 BGS Y3 <19.5", Mode.SIMPLE_v5, 19.5, 21.0, data_cut='Y3-Jura')
+bgs_y3_simple_5 = BGSGroupCatalog("Simple v5 BGS Y3 <19.5", Mode.SIMPLE_v5, 19.5, 21.0, data_cut='Y3-Kibo')
 _cat = bgs_y3_simple_5
 _cat.color = 'darkorange'
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_y3_simple_4_4p = BGSGroupCatalog("Simple v4 BGS Y3 <19.5 4pass", Mode.SIMPLE_v4, 19.5, 21.0, num_passes=4, data_cut='Y3-Jura')
+bgs_y3_simple_4_4p = BGSGroupCatalog("Simple v4 BGS Y3 <19.5 4pass", Mode.SIMPLE_v4, 19.5, 21.0, num_passes=4, data_cut='Y3-Kibo')
 _cat = bgs_y3_simple_4_4p
 _cat.marker = '.'
 _cat.color = 'darkorange'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_y3_fiberonly = BGSGroupCatalog("Observed BGS Y3 <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, data_cut='Y3-Jura')
+bgs_y3_fiberonly = BGSGroupCatalog("Observed BGS Y3 <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, data_cut='Y3-Kibo')
 _cat = bgs_y3_fiberonly
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_y3_fiberonly_1pass = BGSGroupCatalog("Observed BGS Y3 <19.5 1pass", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=1, data_cut='Y3-Jura')
+bgs_y3_fiberonly_1pass = BGSGroupCatalog("Observed BGS Y3 <19.5 1pass", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=1, data_cut='Y3-Kibo')
 _cat = bgs_y3_fiberonly_1pass
 _cat.marker = '.'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
