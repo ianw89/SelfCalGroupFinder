@@ -975,8 +975,6 @@ def assigned_halo_analysis(*sets):
         #plt.ylabel('Fraction Assigned Halo = True Host Halo')
         
 
-
-# TODO could use angular size / redshift relation as part of this :-)
 def _getsize(z):
     if z < 0.05:
         return 300

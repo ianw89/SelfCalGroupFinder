@@ -481,8 +481,6 @@ class RedshiftGuesser():
     def __exit__(self, exc_type, exc_value, exc_tb):
         np.set_printoptions(precision=8, suppress=False)
 
-    def choose_winner(self, neighbors_z, neighbors_ang_dist, target_prob_obs, target_app_mag, target_z_true):
-        pass
 
 # TODO photo-z instead of (or in addition to) app mag. But cannot do for MXXL, so need a SV3 version of this analysis first.
 
@@ -782,6 +780,33 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         
         return_z = np.where(use_nn, neighbor_z, random_z)
         return return_z, use_nn
+
+
+
+class PhotometricRedshiftGuesser(RedshiftGuesser):
+
+    def __init__(self, debug=False):
+        print("Initializing v1 of PhotometricRedshiftGuesser")
+        self.debug = debug
+    
+    def choose_redshift(
+            self, 
+            neighbor_z, 
+            neighbor_ang_dist, 
+            target_prob_obs, 
+            target_app_mag, 
+            target_quiescent, 
+            nn_quiescent, 
+            target_z_true=False) -> tuple[np.ndarray[np.float64], np.ndarray[np.int64]]: 
+        """
+        Returns a 1D array of the redshifts guessed for the target galaxies and a 1D of ints that are the
+        index of the neighbor used for the redshift, or nan if not.
+        """
+        
+        N = neighbor_z.shape[1]
+        print(N)
+
+        return neighbor_z, np.repeat(0, len(neighbor_z))
 
 
 
