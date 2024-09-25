@@ -45,7 +45,7 @@ ANGULAR_BINS = np.append(np.logspace(np.log10(3), np.log10(900), ANG_DIST_BIN_CO
 ANGULAR_BINS_MIDPOINTS = np.append([2], 0.5*(ANGULAR_BINS[1:] + ANGULAR_BINS[:-1]))
 
 Z_BIN_COUNT = 8
-Z_BINS = [0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.36, 1.0]  # upper bound is higher than any data, lower bound is not
+Z_BINS = np.array([0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.36, 1.0])  # upper bound is higher than any data, lower bound is not
 Z_BINS_MIDPOINTS = [0.04, 0.10, 0.14, 0.18, 0.22, 0.26, 0.33, 0.4]
 
 ABS_MAG_BIN_COUNT = 15

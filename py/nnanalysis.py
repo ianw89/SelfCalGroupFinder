@@ -42,24 +42,47 @@ def get_color_label(nn_q, target_q):
 
     return title
 
-def cic_binning(data, bin_edges):
+def cic_binning(data, bin_edges, weights=None):
+
     """
-    Perform Cloud-In-Cell (CIC) binning for N-dimensional data.
-
+    Perform Cloud-in-Cell (CIC) binning on the given data.
     Parameters:
-    data (numpy.ndarray): N-dimensional array of data points, shape (num_points, num_dimensions).
-    num_bins (list or tuple): Number of bins for each dimension.
-
+    -----------
+    data : numpy.ndarray
+        A 2D array of shape (num_data_points, num_dimensions) containing the data points to be binned.
+    bin_edges : list of numpy.ndarray
+        A list of 1D arrays where each array contains the bin edges for the corresponding dimension.\
+    weights : numpy.ndarray or list, optional
+        An array or list of weights for each data point. If provided, must have the same length as the number of data points.
     Returns:
-    numpy.ndarray: N-dimensional array of bin counts.
+    --------
+    numpy.ndarray
+        A multi-dimensional array containing the binned counts. The shape of the array is determined by the lengths of the bin_edges arrays.
+    Notes:
+    ------
+    - The function clips data points to be within the range of the bin edges.
+    - It calculates the bin indices and weights for each dimension and accumulates the weights into the bin counts.
+    - The sum of all bin counts should be exactly the number of data points.
+    Raises:
+    -------
+    AssertionError
+        If the length of bin_edges does not match the number of dimensions in the data.
+        If the sum of the weights for left and right bins is not close to 1.0 for any dimension.
+        If the sum of all bin counts is not close to the number of data points.
     """
     num_data_points = data.shape[0]
     num_dimensions = data.shape[1]
-    print(f"Num dimensions: {num_dimensions}, Num data points: {num_data_points}")
+
+    if weights is not None:
+        assert len(weights) == num_data_points
+        if isinstance(weights, list):
+            weights = np.array(weights)
+
+    #print(f"Num dimensions: {num_dimensions}, Num data points: {num_data_points}")
     assert len(bin_edges) == num_dimensions
 
     shape = [len(edges) for edges in bin_edges]
-    print(shape)
+    #print(f"Shape: {shape}")
 
     # Calculate the bin indices and weights for each dimension
     bin_indices = np.zeros(np.shape(data), dtype='int32') # array of left bin edge indicies for each data point in each dimension
@@ -68,98 +91,77 @@ def cic_binning(data, bin_edges):
 
     all_bincounts = np.zeros(shape, dtype='float64')
 
+    # Force data values lower than the lowest bin edge to be the first bin value and similar for high bin values for each dimension
+    data_clipped = np.copy(data)
     for dim in range(num_dimensions):
-        print(f"Dimension: {dim}")
+        data_clipped[:, dim] = np.clip(data_clipped[:, dim], bin_edges[dim][0], bin_edges[dim][-1])
+    #print(f"Data clipped: \n{data_clipped}")  
 
+    for dim in range(num_dimensions):
+        #print(f"Dimension: {dim}")
         # Calculate the bin index for the current dimension - left
-        bin_index = np.digitize(data[:, dim], bin_edges[dim]) - 1
-        #print("Digitized: ", bin_index)
-        bin_index = np.clip(bin_index, 0, len(bin_edges[dim]) - 1)
-        #print("Clipped: ", bin_index)
+        bin_index = np.digitize(data_clipped[:, dim], bin_edges[dim]) - 1
+        bin_index = np.clip(bin_index, 0, len(bin_edges[dim]) - 1) # I think this is redudant now
         bin_indices[:, dim] = bin_index
         
         # Calculate the distance to the left and right bin edges
         left_edge = bin_edges[dim][bin_index]
-        right_edge = bin_edges[dim][bin_index + 1]
-        dist_left = (data[:, dim] - left_edge)
-        dist_right = (right_edge - data[:, dim])
+        right_edge = bin_edges[dim][np.minimum(bin_index + 1, len(bin_edges[dim]) - 1)]
+        dist_left = (data_clipped[:, dim] - left_edge)
+        dist_right = (right_edge - data_clipped[:, dim])
         width = dist_left + dist_right
+        
+        # Handle the case where data is exactly on the right edge
+        on_right_edge = (data_clipped[:, dim] == right_edge)
+        dist_left[on_right_edge] = 0.0
+        dist_right[on_right_edge] = 1.0
+        width[on_right_edge] = 1.0
+        
         weights_left[:, dim] = dist_right / width
         weights_right[:, dim] = dist_left / width
-        
-        assert np.isclose(dist_left + dist_right, 1.0).all()
 
-        #print(f"Values         :\n {data}")
-        #print(f"Bin Index      :\n {bin_index}")
-        #print(f"Bin Value      :\n {bin_edges[dim][bin_index]}")
-        #print(f"Left Distance  :\n {dist_left}")
-        #print(f"Right Distance :\n {dist_right}\n")
+        #assert np.isclose(weights_left[:, dim] + weights_right[:, dim], 1.0).all()
 
+        #print(f"Values        :\n {data_clipped[:, dim]}")
+        #print(f"Bin Index     :\n {bin_index}")
+        #print(f"Bin Value     :\n {bin_edges[dim][bin_index]}")
+        #print(f"Left Weights  :\n {weights_left[:, dim]}")
+        #print(f"Right Weights :\n {weights_right[:, dim]}\n")
 
-    # Calculate the bin counts without loops
-    for i in range(num_data_points):
-        print(tuple(bin_indices[i]))
+    # Generate all combinations of bin_indices and bin_indices + 1
+    x = [0, 1]
+    cloud_idx = np.array(np.meshgrid(*[x]*num_dimensions)).T.reshape(-1, num_dimensions)
+    # Calculate the weights for all combinations
+    subtotal_weights = np.prod(np.where(cloud_idx == 0, weights_left[:, np.newaxis, :], weights_right[:, np.newaxis, :]), axis=2)
+    #print(f"Subtotal Weights: \n{subtotal_weights}")
+    #print(f"Shape of subtotal weights: {np.shape(subtotal_weights)}")
 
-        if num_dimensions == 1:
-            all_bincounts[tuple(bin_indices[i])] += weights_left[i]
-            all_bincounts[tuple(bin_indices[i] + 1)] += weights_right[i]
+    # If user weights are provided, multiply them with the subtotal weights
+    if weights is not None:
+        #user_weights = np.broadcast_to(weights[:, np.newaxis], (num_data_points, 2**num_dimensions))
+        subtotal_weights *= weights[:, np.newaxis]
 
-        else:
-            # I need every combination bin_indices[i] and bin_indices[i] + 1 via meshgrid
-            # I need to multiply the weights for each dimension
-            # I need to add the product to the bincount
-            # I need to do this for every data point
-            x = [0, 1]
-            lst = []
-            for i in range(num_dimensions):
-                lst.append(x)
+    # Calculate the indices for all combinations
+    indices = bin_indices[:, np.newaxis, :] + cloud_idx
 
-            combinations = np.meshgrid(*lst)
-
-
-    #grid[i, j] += (1 - wx) * (1 - wy)
-    #grid[i + 1, j] += wx * (1 - wy)
-    #grid[i, j + 1] += (1 - wx) * wy
-    #grid[i + 1, j + 1] += wx * wy
+    # Flatten the weights and indices for easy accumulation
+    flat_weights = subtotal_weights.flatten()
+    flat_indices = indices.reshape(-1, num_dimensions)
     
+    # Remove any indices that are outside the bin range on right
+    outside_range = np.any(flat_indices >= shape, axis=1)
+    flat_indices = flat_indices[~outside_range]
+    flat_weights = flat_weights[~outside_range]
+    #print(f"Flat Indices: \n{flat_indices}")
+    #print(f"Flat Weights: \n{flat_weights}")
+
+    # Accumulate the weights into the bin counts
+    np.add.at(all_bincounts, tuple(flat_indices.T), flat_weights)
+
+    assert np.isclose(np.sum(all_bincounts), num_data_points * (np.average(weights) if weights is not None else 1.0)), f"Sum of bin counts: {np.sum(all_bincounts)}, Num data points: {num_data_points}"
 
     return all_bincounts
 
-
-def cic_binning_2d(particle_positions, grid_size):
-    """
-    Performs Cloud-in-Cell (CIC) binning of particle data onto a grid.
-
-    Parameters:
-    - particle_positions: A 2D numpy array of particle positions (x, y).
-    - grid_size: A tuple representing the dimensions of the output grid (nx, ny).
-
-    Returns:
-    - A 2D numpy array representing the binned values on the grid.
-    """
-
-    grid = np.zeros(grid_size)
-    nx, ny = grid_size
-
-    for pos in particle_positions:
-        x, y = pos
-
-        # Calculate indices of the grid cells surrounding the particle
-        i = int(np.floor(x))
-        j = int(np.floor(y))
-
-        # Calculate weights for the surrounding grid cells
-        wx = x - i
-        wy = y - j
-
-        # Assign weighted values to the surrounding cells
-        if 0 <= i < nx - 1 and 0 <= j < ny - 1:
-            grid[i, j] += (1 - wx) * (1 - wy)
-            grid[i + 1, j] += wx * (1 - wy)
-            grid[i, j + 1] += (1 - wx) * wy
-            grid[i + 1, j + 1] += wx * wy
-
-    return grid
 
 class NNAnalyzer():
 
@@ -196,20 +198,20 @@ class NNAnalyzer():
         assert not np.any(np.isnan(abs_mag)), "Some abs_mag are nan; need to update code to handle data where some z are unknown"
 
         # Now bin so that things with ang distances higher than the max we care about are thrown out
-        print("Angular Distance Bin Markers", ANGULAR_BINS)
+        #print("Angular Distance Bin Markers", ANGULAR_BINS)
         # Must determine NN and distance to them before binning this
 
-        print("Redshift Bin Markers", Z_BINS)
+        #print("Redshift Bin Markers", Z_BINS)
         # Must determine NN and distance to them before binning this
 
-        print("Abs mag Bin Markers", ABS_MAG_BINS)
+        #print("Abs mag Bin Markers", ABS_MAG_BINS)
         # Must determine NN and distance to them before binning this
 
-        print("Pobs Bin Markers", POBS_BINS)
+        #print("Pobs Bin Markers", POBS_BINS)
         self.df['pobs_bin'] = np.digitize(self.df['prob_obs'], POBS_BINS)
         #pd.cut(x=self.df['prob_obs'], bins=POBS_BINS, include_lowest=True)
 
-        print("App mag bin markers", APP_MAG_BINS)
+        #print("App mag bin markers", APP_MAG_BINS)
         self.df['app_mag_bin'] = np.digitize(self.df['app_mag'], APP_MAG_BINS)
         #pd.cut(x=self.df['app_mag'], bins=APP_MAG_BINS, include_lowest=True)
 
@@ -528,10 +530,6 @@ class NNAnalyzer():
                 fig.tight_layout() 
 
 
-
-
-# TODO finish refactor using classmethdos to create this including from pickled data.
-
 class NNAnalyzer_cic():
 
     def __init__(self):
@@ -540,11 +538,11 @@ class NNAnalyzer_cic():
         self.df = None
         
         # Now bin so that things with ang distances higher than the max we care about are thrown out
-        print("Angular Distance Bin Markers", ANGULAR_BINS)
-        print("Redshift Bin Markers", Z_BINS)
-        print("Abs mag Bin Markers", ABS_MAG_BINS)
-        print("Pobs Bin Markers", POBS_BINS)
-        print("App mag bin markers", APP_MAG_BINS)
+        #print("Angular Distance Bin Markers", ANGULAR_BINS)
+        #print("Redshift Bin Markers", Z_BINS)
+        #print("Abs mag Bin Markers", ABS_MAG_BINS)
+        #print("Pobs Bin Markers", POBS_BINS)
+        #print("App mag bin markers", APP_MAG_BINS)
 
         # T_POBS N_Q T_Q N_Z T_APPMAG N_ANG_DIST N_ABSMAG
         # TODO have neighbor number be one of these and then I can integrate over it to 
@@ -578,7 +576,7 @@ class NNAnalyzer_cic():
             'app_mag': app_mag,
             'abs_mag': abs_mag,
             'g_r': g_r,
-            'quiescent': quiescent,
+            'quiescent': quiescent.astype(float),
             'observed': observed,
             'prob_obs': prob_obs
         })
@@ -601,8 +599,7 @@ class NNAnalyzer_cic():
         obj.all_sim_z_bincounts = simz_counts
 
         return obj
-
-        
+ 
     def set_row_locator(self, row_locator):
         assert len(row_locator) == len(self.df)
         self.row_locator = row_locator
@@ -648,11 +645,13 @@ class NNAnalyzer_cic():
         df['nn1_abs_mag'] = np.nan
         df.loc[rl, 'nn1_abs_mag'] = abs_mag_catalog[idx]
         df['nn1_z'] = np.nan
-        df.loc[rl, 'nn1_sim_z'] = z_obs_catalog[idx]
+        df.loc[rl, 'nn1_z'] = z_obs_catalog[idx]
         df['nn1_quiescent'] = np.nan
-        df.loc[rl, 'nn1_quiescent'] = color_catalog[idx].astype(bool)
+        df.loc[rl, 'nn1_quiescent'] = color_catalog[idx].astype(float)
         df['nn1_sim_z'] = np.nan
         df.loc[rl, 'nn1_sim_z'] = sim_z
+
+        #print(df.dtypes)
         
         print("Nearest Neighbor properties set")
 
@@ -665,60 +664,26 @@ class NNAnalyzer_cic():
         row_locator = self.row_locator
         gal = df.loc[row_locator]
         gal.reset_index(drop=True, inplace=True)
-        print(f"Length of gal: {len(gal)}")
-        print(f"Length of df: {len(df)}")
+        #print(f"Length of df: {len(df)}")
+        #print(f"Length of gal: {len(gal)}")
 
         self.reset_bins()
 
-        with np.printoptions(precision=4, suppress=True):
+        # extract from the gal DataFrame the data we need as a numpy array
+        #np.zeros((len(POBS_BINS), 2, 2, len(Z_BINS), len(APP_MAG_BINS), len(ANGULAR_BINS), len(ABS_MAG_BINS)))
+        data = gal[['prob_obs', 'nn1_quiescent', 'quiescent', 'nn1_z', 'app_mag', 'nn1_ang_dist', 'nn1_abs_mag']].to_numpy()
+        assert not np.any(np.isnan(data)), "Some data is nan"
 
-
-            # T_POBS N_Q T_Q N_Z T_APPMAG N_ANG_DIST N_ABSMAG
-
-            # TODO set with CIC instead
-            pobs_bin = np.digitize(gal['prob_obs'], POBS_BINS)
-            nn1_quiescent = gal['nn1_quiescent']
-            quiescent = gal['quiescent']
-            nn1_z_bin = np.digitize(gal['nn1_sim_z'], Z_BINS)
-            app_mag_bin = np.digitize(gal['nn1_abs_mag'], APP_MAG_BINS)
-            nn1_ang_dist_bin = np.digitize(gal['nn1_ang_dist'], ANGULAR_BINS)
-            nn1_abs_mag_bin = np.digitize(gal['nn1_abs_mag'], ABS_MAG_BINS)
-            simz = gal['nn1_sim_z']
-
-            print(f"Length of pobs_bin: {len(pobs_bin)}")
-
-            #grid[i, j] += (1 - wx) * (1 - wy)
-            #grid[i + 1, j] += wx * (1 - wy)
-            #grid[i, j + 1] += (1 - wx) * wy
-            #grid[i + 1, j + 1] += wx * wy
-
-
-            # digitize is giving the index of the higher bin edge (right)
-            # get distance from the pobs_bin to left and right edges to use as weights
-            pobs_left_distance = gal['prob_obs'] - POBS_BINS[pobs_bin-1]
-            pobs_right_distance =  POBS_BINS[pobs_bin] - gal['prob_obs']
-            pobs_w_left = pobs_right_distance / (pobs_left_distance + pobs_right_distance)
-            pobs_w_right = 1 - pobs_w_left
-            
-            # for debugging, print off the first 5 pobs values, their bins, and distances to bin edges
-            print(f"Values         : {gal.loc[12:17, 'prob_obs'].to_numpy()}")
-            print(f"Pobs Bin Value : {POBS_BINS[pobs_bin[12:18]]}")
-            print(f"Pobs Bin Midpt : {POBS_BINS_MIDPOINTS[pobs_bin[12:18]]}")
-            print(f"Left Distance  : {pobs_left_distance[12:18].to_numpy()}")
-            print(f"Right Distance : {pobs_right_distance[12:18].to_numpy()}")
-
-
-        #weight = 1.0 # could so CIC style here
-
-        #self.all_ang_bincounts[pobs_bin, nn1_quiescent, quiescent, nn1_z_bin, app_mag_bin, nn1_ang_dist_bin, nn1_abs_mag_bin] += weight
-        #self.all_sim_z_bincounts[pobs_bin, nn1_quiescent, quiescent, nn1_z_bin, app_mag_bin, nn1_ang_dist_bin, nn1_abs_mag_bin] += simz*weight
-
-        # Calculate fractions
-        # empty bins we call 0% TODO
-        #self.frac_sim_z_full = np.nan_to_num(self.all_sim_z_bincounts / (self.all_ang_bincounts), copy=False)
+        #print(f"Data shape: {np.shape(data)}, Bin shape: {np.shape(self.all_ang_bincounts)}")
+        self.all_ang_bincounts = cic_binning(data, [POBS_BINS, np.array([0,1]), np.array([0,1]), Z_BINS, APP_MAG_BINS, ANGULAR_BINS, ABS_MAG_BINS])
+        print(f"All Bincounts complete. Overall shape: {np.shape(self.all_ang_bincounts)}")
         
-        # Resultant shape must be consistent
-        print(f"Bincounts complete. Overall shape: {np.shape(self.all_ang_bincounts)}")
+        self.all_sim_z_bincounts = cic_binning(data, [POBS_BINS, np.array([0,1]), np.array([0,1]), Z_BINS, APP_MAG_BINS, ANGULAR_BINS, ABS_MAG_BINS], weights=gal['nn1_sim_z'].to_numpy())
+        print(f"SimZ Bincounts complete. Overall shape: {np.shape(self.all_sim_z_bincounts)}")
+        
+        # empty bins we call 0% TODO
+        self.frac_sim_z_full = np.nan_to_num(self.all_sim_z_bincounts / (self.all_ang_bincounts))
+
 
     def binary_split(self, data):
          # Make rough bins of just over a threshold or not
@@ -731,7 +696,7 @@ class NNAnalyzer_cic():
 
         all_counts = np.sum(self.all_ang_bincounts, axis=axis)
         simz_counts = np.sum(self.all_sim_z_bincounts, axis=axis)
-        frac = np.nan_to_num(simz_counts / (all_counts), copy=False, nan=0.0)
+        frac = np.nan_to_num(simz_counts / (all_counts), nan=0.0)
 
         print(f"Integrated out dimension {axis}. New shape: {np.shape(all_counts)}")
         return frac, simz_counts, all_counts
@@ -793,8 +758,7 @@ class NNAnalyzer_cic():
                 fig.tight_layout() 
 
     def plot_angdist_appmag_per_zbin_cc(self):
-        if not hasattr(self, 'frac_aa'):
-            self.frac_aa, same_counts, self.all_counts = self.integrate_out_dimension((0,6)) # (2, 2, 8, 10, 20)
+        self.frac_aa, same_counts, self.all_counts = self.integrate_out_dimension((0,6)) # (2, 2, 8, 10, 20)
         print(self.frac_aa.shape)
         
         for nn_quiescent in [0,1]:
