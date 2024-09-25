@@ -7,7 +7,8 @@ import astropy.units as u
 import numpy.ma as ma
 from random import randint
 import pickle
-from astropy.table import Table
+import sys
+from scipy.interpolate import interpn
 import sys
 from pandas.api.types import CategoricalDtype
 
@@ -550,7 +551,7 @@ class NNAnalyzer_cic():
         # Then it also lets me analyze affect of increasing neighbor number
         self.reset_bins()
 
-        print(self.all_ang_bincounts.shape)
+        #print(self.all_ang_bincounts.shape)
 
     def reset_bins(self):
         self.all_ang_bincounts = np.zeros((len(POBS_BINS), 2, 2, len(Z_BINS), len(APP_MAG_BINS), len(ANGULAR_BINS), len(ABS_MAG_BINS)))
@@ -698,12 +699,64 @@ class NNAnalyzer_cic():
         simz_counts = np.sum(self.all_sim_z_bincounts, axis=axis)
         frac = np.nan_to_num(simz_counts / (all_counts), nan=0.0)
 
-        print(f"Integrated out dimension {axis}. New shape: {np.shape(all_counts)}")
+        #print(f"Integrated out dimension {axis}. New shape: {np.shape(all_counts)}")
         return frac, simz_counts, all_counts
 
     def save(self, filename):
         with open(filename, 'wb') as f:
-            pickle.dump((self.all_counts, self.simz_counts), f)
+            pickle.dump((self.all_ang_bincounts, self.all_sim_z_bincounts), f)
+
+    def get_score(self, target_prob_obs: float|np.ndarray|None, target_app_mag: float|np.ndarray, target_quiescent: float|np.ndarray, neighbor_z: float|np.ndarray, neighbor_ang_dist: float|np.ndarray, nn_quiescent: float|np.ndarray):
+        
+        # Ensure inputs are numpy arrays for consistency
+        if target_prob_obs is not None:
+            target_prob_obs = np.atleast_1d(target_prob_obs)
+            target_prob_obs = np.clip(target_prob_obs, POBS_BINS[0], POBS_BINS[-1])
+        target_app_mag = np.atleast_1d(target_app_mag)
+        target_app_mag = np.clip(target_app_mag, APP_MAG_BINS[0], APP_MAG_BINS[-1])
+        target_quiescent = np.atleast_1d(target_quiescent)
+        target_quiescent = np.clip(target_quiescent, QUIESCENT_BINS[0], QUIESCENT_BINS[-1])
+        neighbor_z = np.atleast_1d(neighbor_z)
+        neighbor_z = np.clip(neighbor_z, Z_BINS[0], Z_BINS[-1])
+        neighbor_ang_dist = np.atleast_1d(neighbor_ang_dist)
+        neighbor_ang_dist = np.clip(neighbor_ang_dist, ANGULAR_BINS[0], ANGULAR_BINS[-1])
+        nn_quiescent = np.atleast_1d(nn_quiescent)
+        nn_quiescent = np.clip(nn_quiescent, QUIESCENT_BINS[0], QUIESCENT_BINS[-1])
+
+        # Check that all input arrays have the same length
+        #assert len(target_prob_obs) == len(target_app_mag) == len(target_quiescent) == len(neighbor_z) == len(neighbor_ang_dist) == len(nn_quiescent), "All input arrays must have the same length"
+        
+        score = np.zeros_like(target_app_mag, dtype=float)
+
+        # Integrate out the dimensions we don't like 
+        if target_prob_obs is None:
+            frac_simz, simz_counts, all_counts = self.integrate_out_dimension((0, 6)) # PROB_OBS and N_ABS_MAG
+            
+            for i in range(len(target_app_mag)):
+                score[i] = interpn(
+                    points=(QUIESCENT_BINS, QUIESCENT_BINS, Z_BINS, APP_MAG_BINS, ANGULAR_BINS),
+                    values=frac_simz,
+                    xi=(target_quiescent[i], nn_quiescent[i], neighbor_z[i], target_app_mag[i], neighbor_ang_dist[i]),
+                    method='linear',
+                    bounds_error=True
+                )
+
+        else:
+            frac_simz, simz_counts, all_counts = self.integrate_out_dimension((6)) # N_ABS_MAG
+
+            for i in range(len(target_app_mag)):
+                score[i] = interpn(
+                    points=(POBS_BINS, QUIESCENT_BINS, QUIESCENT_BINS, Z_BINS, APP_MAG_BINS, ANGULAR_BINS),
+                    values=frac_simz,
+                    xi=(target_prob_obs[i], target_quiescent[i], nn_quiescent[i], neighbor_z[i], target_app_mag[i], neighbor_ang_dist[i]),
+                    method='linear',
+                    bounds_error=True
+                )
+
+        return score
+
+
+        
 
     def plot_angdist_absmag_per_zbin_cc(self):
         frac, same_counts, all_counts = self.integrate_out_dimension((0,4)) # (2, 2, 8, 20, 16)
@@ -727,7 +780,7 @@ class NNAnalyzer_cic():
                         axrow = axes[row]
                     phrase = 'Similar Z'
                     
-                    cplot = axrow[0].pcolor(ANGULAR_BINS_MIDPOINTS, ABS_MAG_MIDPOINTS, np.swapaxes(frac[nn_color_idx,target_color_idx,zb,:,:], 0, 1), shading='auto', cmap='RdYlGn', norm=c.Normalize(vmin=0, vmax=0.8))
+                    cplot = axrow[0].pcolor(ANGULAR_BINS, ABS_MAG_BINS, np.swapaxes(frac[nn_color_idx,target_color_idx,zb,:,:], 0, 1), shading='auto', cmap='RdYlGn', norm=c.Normalize(vmin=0, vmax=0.8))
                     fig.colorbar(cplot, ax=axrow[0])
                     axrow[0].set_title(f"NN {phrase} Fraction (NN z {getlabel(zb, Z_BINS)})")
                     axrow[0].set_ylabel("NN abs R-mag")
@@ -735,7 +788,7 @@ class NNAnalyzer_cic():
                     axrow[0].set_xscale('log')
                     axrow[0].set_xlim(2.0, 1000)
                     
-                    cplot = axrow[1].pcolor(ANGULAR_BINS_MIDPOINTS, ABS_MAG_MIDPOINTS, np.swapaxes(self.binary_split(frac)[nn_color_idx,target_color_idx,zb,:,:], 0, 1), shading='auto', cmap='RdYlGn')
+                    cplot = axrow[1].pcolor(ANGULAR_BINS, ABS_MAG_BINS, np.swapaxes(self.binary_split(frac)[nn_color_idx,target_color_idx,zb,:,:], 0, 1), shading='auto', cmap='RdYlGn')
                     fig.colorbar(cplot, ax=axrow[1])
                     axrow[1].set_title(f"NN {phrase} Over 40% (NN z {getlabel(zb, Z_BINS)})")
                     axrow[1].set_ylabel("NN abs R-mag")    
@@ -743,7 +796,7 @@ class NNAnalyzer_cic():
                     axrow[1].set_xscale('log')
                     axrow[1].set_xlim(2.0, 1000)
                     
-                    cplot = axrow[2].pcolor(ANGULAR_BINS_MIDPOINTS, ABS_MAG_MIDPOINTS, np.swapaxes(all_counts[nn_color_idx,target_color_idx,zb,:,:],0,1), shading='auto', cmap='YlGn', norm=c.LogNorm(vmin=1, vmax=5000))
+                    cplot = axrow[2].pcolor(ANGULAR_BINS, ABS_MAG_BINS, np.swapaxes(all_counts[nn_color_idx,target_color_idx,zb,:,:],0,1), shading='auto', cmap='YlGn', norm=c.LogNorm(vmin=1, vmax=5000))
                     fig.colorbar(cplot, ax=axrow[2])
                     axrow[2].set_title(f"Counts (NN z {getlabel(zb, Z_BINS)})")
                     axrow[2].set_ylabel("NN abs R-mag")    
@@ -758,12 +811,12 @@ class NNAnalyzer_cic():
                 fig.tight_layout() 
 
     def plot_angdist_appmag_per_zbin_cc(self):
-        self.frac_aa, same_counts, self.all_counts = self.integrate_out_dimension((0,6)) # (2, 2, 8, 10, 20)
+        self.frac_aa, same_counts, all_counts = self.integrate_out_dimension((0,6))
         print(self.frac_aa.shape)
         
-        for nn_quiescent in [0,1]:
-            for target_quiescent in [0,1]:
-                title = get_color_label(nn_quiescent, target_quiescent)
+        for nn_q in [0,1]:
+            for t_q in [0,1]:
+                title = get_color_label(nn_q, t_q)
                 print(title)
                 z_bin_numbers_to_plot = range(self.frac_aa.shape[2])
 
@@ -779,7 +832,7 @@ class NNAnalyzer_cic():
                         axrow = axes[row]
                     phrase = 'Similar Z'
                     
-                    cplot = axrow[0].pcolor(ANGULAR_BINS_MIDPOINTS, APP_MAG_BINS_MIDPOINTS, self.frac_aa[nn_quiescent,target_quiescent,zb,:,:], shading='auto', cmap='RdYlGn', norm=c.Normalize(vmin=0, vmax=0.8))
+                    cplot = axrow[0].pcolor(ANGULAR_BINS, APP_MAG_BINS, self.frac_aa[nn_q,t_q,zb,:,:], shading='auto', cmap='RdYlGn', norm=c.Normalize(vmin=0, vmax=0.8))
                     fig.colorbar(cplot, ax=axrow[0])
                     axrow[0].set_title(f"NN {phrase} Fraction (NN z {getlabel(zb, Z_BINS)})")
                     axrow[0].set_ylabel("Lost Galaxy app r-mag")
@@ -787,7 +840,7 @@ class NNAnalyzer_cic():
                     axrow[0].set_xscale('log')
                     axrow[0].set_xlim(2.0, 1000)
 
-                    cplot = axrow[1].pcolor(ANGULAR_BINS_MIDPOINTS, APP_MAG_BINS_MIDPOINTS, self.binary_split(self.frac_aa)[nn_quiescent,target_quiescent,zb,:,:], shading='auto', cmap='RdYlGn')
+                    cplot = axrow[1].pcolor(ANGULAR_BINS, APP_MAG_BINS, self.binary_split(self.frac_aa)[nn_q,t_q,zb,:,:], shading='auto', cmap='RdYlGn')
                     fig.colorbar(cplot, ax=axrow[1])
                     axrow[1].set_title(f"NN {phrase} Over 40% (NN z {getlabel(zb, Z_BINS)})")
                     axrow[1].set_ylabel("Lost Galaxy app r-mag")    
@@ -795,7 +848,7 @@ class NNAnalyzer_cic():
                     axrow[1].set_xscale('log')
                     axrow[1].set_xlim(2.0, 1000)
 
-                    cplot = axrow[2].pcolor(ANGULAR_BINS_MIDPOINTS, APP_MAG_BINS_MIDPOINTS, self.all_counts[nn_quiescent,target_quiescent,zb,:,:], shading='auto', cmap='YlGn', norm=c.LogNorm(vmin=1, vmax=5000))
+                    cplot = axrow[2].pcolor(ANGULAR_BINS, APP_MAG_BINS, all_counts[nn_q,t_q,zb,:,:], shading='auto', cmap='YlGn', norm=c.LogNorm(vmin=1, vmax=5000))
                     fig.colorbar(cplot, ax=axrow[2])
                     axrow[2].set_title(f"Counts (NN z {getlabel(zb, Z_BINS)})")
                     axrow[2].set_ylabel("Lost Galaxy app r-mag")    
@@ -804,8 +857,8 @@ class NNAnalyzer_cic():
                     axrow[2].set_xlim(2.0, 1000)
                     
                     for i in range(len(axrow)):
-                        mags = np.linspace(np.min(APP_MAG_BINS_MIDPOINTS), np.max(APP_MAG_BINS_MIDPOINTS), 40)
-                        axrow[i].scatter(get_NN_40_line_v5(np.repeat(Z_BINS_MIDPOINTS[zb], len(mags)), mags, target_quiescent, nn_quiescent), mags)
+                        mags = np.linspace(np.min(APP_MAG_BINS), np.max(APP_MAG_BINS), 40)
+                        axrow[i].scatter(get_NN_40_line_v5(np.repeat(Z_BINS_MIDPOINTS[zb], len(mags)), mags, t_q, nn_q), mags)
                         
                 fig.suptitle(title)
                 fig.tight_layout() 
@@ -835,7 +888,7 @@ class NNAnalyzer_cic():
 
                     phrase = 'Similar Z'
 
-                    cplot = ax.pcolor(ANGULAR_BINS_MIDPOINTS, POBS_BINS_MIDPOINTS, dataset[:,nn_quiescent,target_quiescent,zb,:], shading='auto', cmap='RdYlGn', norm=c.Normalize(vmin=0, vmax=0.8))
+                    cplot = ax.pcolor(ANGULAR_BINS, POBS_BINS, dataset[:,nn_quiescent,target_quiescent,zb,:], shading='auto', cmap='RdYlGn', norm=c.Normalize(vmin=0, vmax=0.8))
                     fig.colorbar(cplot, ax=ax)
                     ax.set_title(f"NN {phrase} Fraction (NN z {getlabel(zb, Z_BINS)})")
                     ax.set_ylabel("Lost Galaxy $P_{obs}$")
@@ -843,7 +896,7 @@ class NNAnalyzer_cic():
                     ax.set_xscale('log')
                     ax.set_xlim(2.0, 1000)
                     
-                    cplot = axrow[1].pcolor(ANGULAR_BINS_MIDPOINTS, POBS_BINS_MIDPOINTS, self.binary_split(dataset)[:,nn_quiescent,target_quiescent,zb,:], shading='auto', cmap='RdYlGn')
+                    cplot = axrow[1].pcolor(ANGULAR_BINS, POBS_BINS, self.binary_split(dataset)[:,nn_quiescent,target_quiescent,zb,:], shading='auto', cmap='RdYlGn')
                     fig.colorbar(cplot, ax=axrow[1])
                     axrow[1].set_title(f"NN {phrase} Over 40% (NN z {getlabel(zb, Z_BINS)})")
                     axrow[1].set_ylabel("Lost Galaxy $P_{obs}$")
@@ -851,7 +904,7 @@ class NNAnalyzer_cic():
                     axrow[1].set_xscale('log')
                     axrow[1].set_xlim(2.0, 1000)
                     
-                    cplot = axrow[2].pcolor(ANGULAR_BINS_MIDPOINTS, POBS_BINS_MIDPOINTS, all_counts[:,nn_quiescent,target_quiescent,zb,:], shading='auto', cmap='YlGn', norm=c.LogNorm(vmin=1, vmax=5000))
+                    cplot = axrow[2].pcolor(ANGULAR_BINS, POBS_BINS, all_counts[:,nn_quiescent,target_quiescent,zb,:], shading='auto', cmap='YlGn', norm=c.LogNorm(vmin=1, vmax=5000))
                     fig.colorbar(cplot, ax=axrow[2])
                     axrow[2].set_title(f"Counts (NN z {getlabel(zb, Z_BINS)})")
                     axrow[2].set_ylabel("Lost Galaxy $P_{obs}$")
@@ -860,7 +913,7 @@ class NNAnalyzer_cic():
                     axrow[2].set_xlim(2.0, 1000)
 
                     for i in range(len(axrow)):
-                        pobs = np.linspace(np.min(POBS_BINS_MIDPOINTS), np.max(POBS_BINS_MIDPOINTS), 40)
+                        pobs = np.linspace(np.min(POBS_BINS), np.max(POBS_BINS), 40)
                         axrow[i].scatter(get_NN_40_line_v4(np.repeat(Z_BINS_MIDPOINTS[zb], len(pobs)), pobs, target_quiescent, nn_quiescent), pobs)
                         
 

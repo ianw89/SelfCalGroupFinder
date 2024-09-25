@@ -10,13 +10,14 @@ from astropy.table import Table
 import astropy.io.fits as fits
 import copy
 import sys
+import wp as wp
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from pyutils import *
+from redshift_guesser import SimpleRedshiftGuesser, PhotometricRedshiftGuesser
 from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
-import wp as wp
 
 
 # Shared bins for various purposes
