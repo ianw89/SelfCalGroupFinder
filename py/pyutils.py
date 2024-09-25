@@ -68,6 +68,7 @@ class Mode(Enum):
     SIMPLE = 5
     SIMPLE_v4 = 6
     SIMPLE_v5 = 7
+    PHOTOZ_PLUS_v1 = 8
 
 # Common PLT helpers
 prop_cycle = plt.rcParams['axes.prop_cycle']
@@ -116,8 +117,9 @@ def sim_z_score(target_z, z_arr):
     TURNING = 0.0023
     return np.round(1.0 - erf((np.abs(z_arr-target_z) / (np.pi * TURNING))**TUNABLE), 3)
 
-def get_app_mag(FLUX_R):
-    return 22.5 - 2.5*np.log10(FLUX_R)
+def get_app_mag(FLUX):
+    """This converts nanomaggies into Pogson magnitudes"""
+    return 22.5 - 2.5*np.log10(FLUX)
 
 def z_to_ldist(zs):
     """
@@ -793,20 +795,49 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
             self, 
             neighbor_z, 
             neighbor_ang_dist, 
+            target_z_phot,
             target_prob_obs, 
             target_app_mag, 
             target_quiescent, 
-            nn_quiescent, 
-            target_z_true=False) -> tuple[np.ndarray[np.float64], np.ndarray[np.int64]]: 
+            nn_quiescent) -> tuple[np.ndarray[np.float64], np.ndarray[np.int64]]: 
         """
         Returns a 1D array of the redshifts guessed for the target galaxies and a 1D of ints that are the
         index of the neighbor used for the redshift, or nan if not.
         """
         
-        N = neighbor_z.shape[1]
-        print(N)
+        SCORE_THRESHOLD = 1.1 # TODO tune
+        ZMATCH_SIGMA = 0.004 # TODO tune
+        ZMATCH_POW = 4.0 # TODO maybe tune
 
-        return neighbor_z, np.repeat(0, len(neighbor_z))
+        with np.printoptions(precision=4, suppress=True):
+
+            N = neighbor_z.shape[0]
+            COUNT = neighbor_z.shape[1]
+            assert COUNT == len(target_prob_obs)
+            assert COUNT == len(target_app_mag)
+            assert COUNT == len(target_quiescent)
+
+            print(f"{N} neighbors will be considered.")
+
+            # PHOTO-Z scoring of neighbor
+            delta_z = np.abs(neighbor_z - target_z_phot)
+            dzp = np.power(delta_z, ZMATCH_POW)
+            score_a = np.exp(- dzp / (2*ZMATCH_SIGMA**2))
+            print(score_a)
+
+            # Other properties scoring of neighbor
+            score_b = 0.0 # TODO
+
+            score = score_a + score_b
+            max_neighbor_index = np.argmax(score, axis=0)
+            max_scores = np.max(score, axis=0)
+            print(max_neighbor_index)
+
+            z_chosen = np.where(max_scores > SCORE_THRESHOLD, neighbor_z[max_neighbor_index], np.nan)
+            neighbor_used = np.where(max_scores > SCORE_THRESHOLD, max_neighbor_index, np.nan)
+            print(neighbor_used)
+
+        return z_chosen, neighbor_used
 
 
 

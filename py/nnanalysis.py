@@ -42,7 +42,7 @@ def get_color_label(nn_q, target_q):
 
     return title
 
-def cic_binning(data, num_bins):
+def cic_binning(data, bin_edges):
     """
     Perform Cloud-In-Cell (CIC) binning for N-dimensional data.
 
@@ -53,54 +53,77 @@ def cic_binning(data, num_bins):
     Returns:
     numpy.ndarray: N-dimensional array of bin counts.
     """
+    num_data_points = data.shape[0]
     num_dimensions = data.shape[1]
-    print(f"Num dimensions: {num_dimensions}")
-    
-    # Initialize the bins
-    bins = np.zeros(num_bins)
-    
-    # Determine the bin edges for each dimension
-    bin_edges = [np.linspace(0, num_bins[dim], num_bins[dim] + 1) for dim in range(num_dimensions)]
-    bin_widths = [bin_edges[dim][1] - bin_edges[dim][0] for dim in range(num_dimensions)]
+    print(f"Num dimensions: {num_dimensions}, Num data points: {num_data_points}")
+    assert len(bin_edges) == num_dimensions
+
+    shape = [len(edges) for edges in bin_edges]
+    print(shape)
 
     # Calculate the bin indices and weights for each dimension
-    bin_indices = [] # array of left bin edge indicies for each data point in each dimension
-    weights = [] # array of arrays of 
+    bin_indices = np.zeros(np.shape(data), dtype='int32') # array of left bin edge indicies for each data point in each dimension
+    weights_left = np.zeros(np.shape(data), dtype='float64')
+    weights_right = np.zeros(np.shape(data), dtype='float64')
+
+    all_bincounts = np.zeros(shape, dtype='float64')
 
     for dim in range(num_dimensions):
-        # Calculate the bin index for the current dimension
+        print(f"Dimension: {dim}")
+
+        # Calculate the bin index for the current dimension - left
         bin_index = np.digitize(data[:, dim], bin_edges[dim]) - 1
         #print("Digitized: ", bin_index)
-        bin_index = np.clip(bin_index, 0, num_bins[dim] - 1)
+        bin_index = np.clip(bin_index, 0, len(bin_edges[dim]) - 1)
         #print("Clipped: ", bin_index)
-        bin_indices.append(bin_index)
+        bin_indices[:, dim] = bin_index
         
         # Calculate the distance to the left and right bin edges
         left_edge = bin_edges[dim][bin_index]
         right_edge = bin_edges[dim][bin_index + 1]
-        dist_left = (data[:, dim] - left_edge) / bin_widths[dim]
-        dist_right = (right_edge - data[:, dim]) / bin_widths[dim]
+        dist_left = (data[:, dim] - left_edge)
+        dist_right = (right_edge - data[:, dim])
+        width = dist_left + dist_right
+        weights_left[:, dim] = dist_right / width
+        weights_right[:, dim] = dist_left / width
+        
         assert np.isclose(dist_left + dist_right, 1.0).all()
-        #print((dist_right, dist_left))
-        weights.append((dist_right, dist_left))
+
+        #print(f"Values         :\n {data}")
+        #print(f"Bin Index      :\n {bin_index}")
+        #print(f"Bin Value      :\n {bin_edges[dim][bin_index]}")
+        #print(f"Left Distance  :\n {dist_left}")
+        #print(f"Right Distance :\n {dist_right}\n")
+
+
+    # Calculate the bin counts without loops
+    for i in range(num_data_points):
+        print(tuple(bin_indices[i]))
+
+        if num_dimensions == 1:
+            all_bincounts[tuple(bin_indices[i])] += weights_left[i]
+            all_bincounts[tuple(bin_indices[i] + 1)] += weights_right[i]
+
+        else:
+            # I need every combination bin_indices[i] and bin_indices[i] + 1 via meshgrid
+            # I need to multiply the weights for each dimension
+            # I need to add the product to the bincount
+            # I need to do this for every data point
+            x = [0, 1]
+            lst = []
+            for i in range(num_dimensions):
+                lst.append(x)
+
+            combinations = np.meshgrid(*lst)
+
+
+    #grid[i, j] += (1 - wx) * (1 - wy)
+    #grid[i + 1, j] += wx * (1 - wy)
+    #grid[i, j + 1] += (1 - wx) * wy
+    #grid[i + 1, j + 1] += wx * wy
     
-    # Convert lists to arrays for vectorized operations
-    bin_indices = np.array(bin_indices).T
-    weights = np.array(weights).T
 
-    print(bin_indices)
-    print(weights)
-
-    # Each data point should contribute a total of 1.0 to the bin counts,
-    # spread out over the surrounding bins based on the weights
-    for i in range(data.shape[0]):
-        # Calculate the multi-dimensional index of the bin containing the data point
-        index = tuple(bin_indices[i])
-        print(index)
-        # TODO figure this out...
-
-
-    return bins
+    return all_bincounts
 
 
 def cic_binning_2d(particle_positions, grid_size):
@@ -507,13 +530,37 @@ class NNAnalyzer():
 
 
 
-
+# TODO finish refactor using classmethdos to create this including from pickled data.
 
 class NNAnalyzer_cic():
 
-    def __init__(self, dec, ra, z_obs, app_mag, abs_mag, g_r, quiescent, observed, prob_obs):
+    def __init__(self):
 
         self.row_locator = None
+        self.df = None
+        
+        # Now bin so that things with ang distances higher than the max we care about are thrown out
+        print("Angular Distance Bin Markers", ANGULAR_BINS)
+        print("Redshift Bin Markers", Z_BINS)
+        print("Abs mag Bin Markers", ABS_MAG_BINS)
+        print("Pobs Bin Markers", POBS_BINS)
+        print("App mag bin markers", APP_MAG_BINS)
+
+        # T_POBS N_Q T_Q N_Z T_APPMAG N_ANG_DIST N_ABSMAG
+        # TODO have neighbor number be one of these and then I can integrate over it to 
+        # have more overall pairs to evaluate.
+        # Then it also lets me analyze affect of increasing neighbor number
+        self.reset_bins()
+
+        print(self.all_ang_bincounts.shape)
+
+    def reset_bins(self):
+        self.all_ang_bincounts = np.zeros((len(POBS_BINS), 2, 2, len(Z_BINS), len(APP_MAG_BINS), len(ANGULAR_BINS), len(ABS_MAG_BINS)))
+        self.all_sim_z_bincounts = np.zeros((len(POBS_BINS), 2, 2, len(Z_BINS), len(APP_MAG_BINS), len(ANGULAR_BINS), len(ABS_MAG_BINS)))
+        self.frac_sim_z_full = np.zeros((len(POBS_BINS), 2, 2, len(Z_BINS), len(APP_MAG_BINS), len(ANGULAR_BINS), len(ABS_MAG_BINS)))
+
+    @classmethod
+    def from_data(cls, dec, ra, z_obs, app_mag, abs_mag, g_r, quiescent, observed, prob_obs):
 
         assert len(dec) == len(ra)
         assert len(dec) == len(z_obs)
@@ -524,7 +571,7 @@ class NNAnalyzer_cic():
         assert len(dec) == len(observed)
         assert len(dec) == len(prob_obs)
 
-        self.df = pd.DataFrame(data={
+        df = pd.DataFrame(data={
             'dec': dec, 
             'ra': ra,
             'z_obs': z_obs,
@@ -539,24 +586,31 @@ class NNAnalyzer_cic():
         assert not np.any(np.isnan(z_obs)), "Some z_obs are nan; need to update code to handle data where some z are unknown"
         assert not np.any(np.isnan(abs_mag)), "Some abs_mag are nan; need to update code to handle data where some z are unknown"
 
-        # Now bin so that things with ang distances higher than the max we care about are thrown out
-        print("Angular Distance Bin Markers", ANGULAR_BINS)
-        print("Redshift Bin Markers", Z_BINS)
-        print("Abs mag Bin Markers", ABS_MAG_BINS)
-        print("Pobs Bin Markers", POBS_BINS)
-        print("App mag bin markers", APP_MAG_BINS)
+        obj = cls()
+        obj.df = df
 
-        self.all_ang_bincounts = np.zeros((len(POBS_BINS), 2, 2, len(Z_BINS), len(APP_MAG_BINS), len(ANGULAR_BINS), len(ABS_MAG_BINS)))
-        self.all_sim_z_bincounts = np.zeros((len(POBS_BINS), 2, 2, len(Z_BINS), len(APP_MAG_BINS), len(ANGULAR_BINS), len(ABS_MAG_BINS)))
+        return obj
+
+    @classmethod
+    def from_results_file(cls, filename):
+        with open(filename, 'rb') as f:
+            all_counts, simz_counts = pickle.load(f)
         
-        print(self.all_ang_bincounts.shape)
+        obj = cls()
+        obj.all_ang_bincounts = all_counts
+        obj.all_sim_z_bincounts = simz_counts
 
+        return obj
 
+        
     def set_row_locator(self, row_locator):
         assert len(row_locator) == len(self.df)
         self.row_locator = row_locator
 
     def find_nn_properties(self, LOST_GALAXIES_ONLY):
+        if self.df is None:
+            raise ValueError("Need to create using from_data() first.")
+
         df = self.df
         
         if LOST_GALAXIES_ONLY:
@@ -582,39 +636,86 @@ class NNAnalyzer_cic():
             if self.row_locator is None:
                 self.row_locator = np.repeat(True, len(df))
 
-        rows = self.row_locator
+        rl = self.row_locator
 
-        to_match = coord.SkyCoord(ra=df.loc[rows,'ra'].to_numpy()*u.degree, dec=df.loc[rows,'dec'].to_numpy()*u.degree, frame='icrs')
-        idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=nthneighbor, storekdtree=None)
+        to_match = coord.SkyCoord(ra=df.loc[rl,'ra'].to_numpy()*u.degree, dec=df.loc[rl,'dec'].to_numpy()*u.degree, frame='icrs')
+        idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=nthneighbor, storekdtree=False)
         ang_dist = d2d.to(u.arcsec).value
-
-        sim_z = sim_z_score(df.loc[rows,'z_obs'], z_obs_catalog[idx])
+        sim_z = sim_z_score(df.loc[rl,'z_obs'], z_obs_catalog[idx])
 
         df['nn1_ang_dist'] = np.nan
-        df.loc[rows,'nn1_ang_dist'] = ang_dist
-        df['nn1_abs_mag']
-        df.loc[rows, 'nn1_abs_mag'] = abs_mag_catalog[idx]
+        df.loc[rl,'nn1_ang_dist'] = ang_dist
+        df['nn1_abs_mag'] = np.nan
+        df.loc[rl, 'nn1_abs_mag'] = abs_mag_catalog[idx]
         df['nn1_z'] = np.nan
-        df.loc[rows, 'nn1_sim_z'] = z_obs_catalog[idx]
+        df.loc[rl, 'nn1_sim_z'] = z_obs_catalog[idx]
         df['nn1_quiescent'] = np.nan
-        df.loc[rows, 'nn1_quiescent'] = color_catalog[idx].astype(bool)
+        df.loc[rl, 'nn1_quiescent'] = color_catalog[idx].astype(bool)
         df['nn1_sim_z'] = np.nan
-        df.loc[rows, 'nn1_sim_z'] = sim_z
+        df.loc[rl, 'nn1_sim_z'] = sim_z
         
         print("Nearest Neighbor properties set")
 
 
     def make_bins(self):
+        if self.df is None:
+            raise ValueError("Need to create using from_data() first.")
+        
         df = self.df
         row_locator = self.row_locator
-        rows = df.loc[row_locator]
+        gal = df.loc[row_locator]
+        gal.reset_index(drop=True, inplace=True)
+        print(f"Length of gal: {len(gal)}")
+        print(f"Length of df: {len(df)}")
 
-        # TODO  set
-        
+        self.reset_bins()
+
+        with np.printoptions(precision=4, suppress=True):
+
+
+            # T_POBS N_Q T_Q N_Z T_APPMAG N_ANG_DIST N_ABSMAG
+
+            # TODO set with CIC instead
+            pobs_bin = np.digitize(gal['prob_obs'], POBS_BINS)
+            nn1_quiescent = gal['nn1_quiescent']
+            quiescent = gal['quiescent']
+            nn1_z_bin = np.digitize(gal['nn1_sim_z'], Z_BINS)
+            app_mag_bin = np.digitize(gal['nn1_abs_mag'], APP_MAG_BINS)
+            nn1_ang_dist_bin = np.digitize(gal['nn1_ang_dist'], ANGULAR_BINS)
+            nn1_abs_mag_bin = np.digitize(gal['nn1_abs_mag'], ABS_MAG_BINS)
+            simz = gal['nn1_sim_z']
+
+            print(f"Length of pobs_bin: {len(pobs_bin)}")
+
+            #grid[i, j] += (1 - wx) * (1 - wy)
+            #grid[i + 1, j] += wx * (1 - wy)
+            #grid[i, j + 1] += (1 - wx) * wy
+            #grid[i + 1, j + 1] += wx * wy
+
+
+            # digitize is giving the index of the higher bin edge (right)
+            # get distance from the pobs_bin to left and right edges to use as weights
+            pobs_left_distance = gal['prob_obs'] - POBS_BINS[pobs_bin-1]
+            pobs_right_distance =  POBS_BINS[pobs_bin] - gal['prob_obs']
+            pobs_w_left = pobs_right_distance / (pobs_left_distance + pobs_right_distance)
+            pobs_w_right = 1 - pobs_w_left
+            
+            # for debugging, print off the first 5 pobs values, their bins, and distances to bin edges
+            print(f"Values         : {gal.loc[12:17, 'prob_obs'].to_numpy()}")
+            print(f"Pobs Bin Value : {POBS_BINS[pobs_bin[12:18]]}")
+            print(f"Pobs Bin Midpt : {POBS_BINS_MIDPOINTS[pobs_bin[12:18]]}")
+            print(f"Left Distance  : {pobs_left_distance[12:18].to_numpy()}")
+            print(f"Right Distance : {pobs_right_distance[12:18].to_numpy()}")
+
+
+        #weight = 1.0 # could so CIC style here
+
+        #self.all_ang_bincounts[pobs_bin, nn1_quiescent, quiescent, nn1_z_bin, app_mag_bin, nn1_ang_dist_bin, nn1_abs_mag_bin] += weight
+        #self.all_sim_z_bincounts[pobs_bin, nn1_quiescent, quiescent, nn1_z_bin, app_mag_bin, nn1_ang_dist_bin, nn1_abs_mag_bin] += simz*weight
 
         # Calculate fractions
         # empty bins we call 0% TODO
-        self.frac_sim_z_full = np.nan_to_num(self.all_sim_z_bincounts / (self.all_ang_bincounts), copy=False)
+        #self.frac_sim_z_full = np.nan_to_num(self.all_sim_z_bincounts / (self.all_ang_bincounts), copy=False)
         
         # Resultant shape must be consistent
         print(f"Bincounts complete. Overall shape: {np.shape(self.all_ang_bincounts)}")
@@ -635,6 +736,9 @@ class NNAnalyzer_cic():
         print(f"Integrated out dimension {axis}. New shape: {np.shape(all_counts)}")
         return frac, simz_counts, all_counts
 
+    def save(self, filename):
+        with open(filename, 'wb') as f:
+            pickle.dump((self.all_counts, self.simz_counts), f)
 
     def plot_angdist_absmag_per_zbin_cc(self):
         frac, same_counts, all_counts = self.integrate_out_dimension((0,4)) # (2, 2, 8, 20, 16)

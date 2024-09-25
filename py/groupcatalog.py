@@ -750,6 +750,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     Z_MAX = 0.8
 
     # TODO BUG One galaxy is lost from this to group finder...
+    
+    # TODO conversion of fluxes to apparent and absolute mags can be done ahead of time
+    # so use that directly from the merged file.
 
 
     print("Reading FITS data from ", fname)
@@ -890,7 +893,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if mode == Mode.FIBER_ASSIGNED_ONLY.value: # means 3pass 
         keep = np.all([multi_pass_filter, observed_requirements], axis=0)
 
-    if mode == Mode.NEAREST_NEIGHBOR.value or mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value or mode == Mode.SIMPLE_v5.value:
+    if mode == Mode.NEAREST_NEIGHBOR.value or mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value or mode == Mode.SIMPLE_v5.value or mode == Mode.PHOTOZ_PLUS_v1.value:
         keep = np.all([multi_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
