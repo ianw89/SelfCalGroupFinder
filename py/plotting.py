@@ -77,7 +77,7 @@ def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHO
 
 
 def get_dataset_display_name(d: GroupCatalog, keep_mag_limit=False):
-    name = d.name.replace("Fiber Only", "Observed").replace("Simple v4", "Our Algorithm").replace(" Vanilla", "").replace("Nearest Neighbor", "NN")
+    name = d.name.replace("Fiber Only", "Observed").replace(" Vanilla", "").replace("Nearest Neighbor", "NN")
     if keep_mag_limit:
         return name
     else:

@@ -532,7 +532,7 @@ class BGSGroupCatalog(GroupCatalog):
             print("Skipping pre-processing")
         super().run_group_finder(popmock=popmock)
 
-    def add_bootstrapped_f_sat(self, N_ITERATIONS = 200):
+    def add_bootstrapped_f_sat(self, N_ITERATIONS = 100):
         df = self.all_data
 
         if self.data_cut == 'sv3':
@@ -540,7 +540,6 @@ class BGSGroupCatalog(GroupCatalog):
             df['region'] = tile_to_region(df['nearest_tile_id'])
 
             # Add bootstrapped error bars for fsat
-            N_ITERATIONS = 100
             f_sat_realizations = []
             f_sat_sf_realizations = []
             f_sat_q_realizations = []
@@ -601,7 +600,7 @@ class BGSGroupCatalog(GroupCatalog):
 
     def refresh_df_views(self):
         super().refresh_df_views()
-        self.add_bootstrapped_f_sat()
+        #self.add_bootstrapped_f_sat()
 
     def write_sharable_output_file(self):
         print("Writing a sharable output file")
@@ -1028,7 +1027,35 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             z_assigned_flag[unobserved] = np.where(isNN, 1, 2)
             print(f"Assigning missing redshifts complete.")   
 
+    if mode == Mode.PHOTOZ_PLUS_v1.value:
+        
+        with PhotometricRedshiftGuesser.from_files(IAN_MXXL_LOST_APP_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_FILE) as scorer:
+            NEIGHBORS = 5
+            print(f"Considering {NEIGHBORS} neighbors for redshift assignment")
+            print(f"Assigning missing redshifts... ")   
 
+            catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
+            to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
+           
+            quiescent_gmr = is_quiescent_lost_gal_guess(app_mag_g[unobserved] - app_mag_r[unobserved]).astype(int)
+
+            shape = (NEIGHBORS, len(to_match))
+            neighbor_indexes = np.zeros(shape, dtype=np.int64)
+            n_z = np.zeros(shape, dtype=np.float64)
+            ang_distances = np.zeros(shape, dtype=np.float64)
+            n_q = np.zeros(shape, dtype=np.float64)
+
+            for n in range(NEIGHBORS):
+                neighbor_indexes[n, :], d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=n+1, storekdtree='nn_kdtree')
+                ang_distances[n, :] = d2d.to(u.arcsec).value
+                n_z[n, :] = z_obs_catalog[neighbor_indexes[n, :]]
+                n_q[n, :] = catalog_quiescent[neighbor_indexes[n, :]]
+
+            chosen_z, neighbor_used = scorer.choose_redshift(n_z, ang_distances, z_phot[unobserved], p_obs[unobserved], app_mag_r[unobserved], quiescent_gmr, n_q)
+            z_eff[unobserved] = chosen_z
+            z_assigned_flag[unobserved] = np.where(np.isnan(neighbor_used), 2, 1) # TODO
+
+            print(f"Assigning missing redshifts complete.")   
 
     #print(f"z_eff, after assignment: {z_eff[0:20]}")   
     assert np.all(z_eff > 0.0)
@@ -1064,7 +1091,8 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         'g_r': G_R_k.astype("<f8"),
         'Dn4000': dn4000.astype("<f8"),
         'nearest_tile_id': ntid.astype("<i8"),
-        'z_phot': z_phot.astype("<f8")
+        'z_phot': z_phot.astype("<f8"),
+        'z_obs': z_obs.astype("<f8"),
     })
     galprops.to_pickle(outname_base + "_galprops.pkl")  
     t2 = time.time()
