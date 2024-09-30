@@ -157,6 +157,7 @@ def plots(*datasets, truth_on=False):
     plt.ylim(3E7,2E12)
     plt.draw()
 
+    """
     # SHMR
     plt.figure(dpi=DPI)
     for f in datasets:
@@ -202,6 +203,7 @@ def plots(*datasets, truth_on=False):
     ax2.set_ylabel('$N_{gal}$')
     ax2.set_yscale('log')
     plt.draw()
+    """
 
     # Wide fsat vs Lgal with Ngal
     fig,ax1=plt.subplots()

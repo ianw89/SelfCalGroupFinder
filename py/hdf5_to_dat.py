@@ -132,8 +132,9 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
     halo_mass_catalog = mxxl_halo_mass[catalog_keep]
     halo_id_catalog = mxxl_halo_id[catalog_keep]
     catalog_gmr = g_r[catalog_keep]
-    catalog_R_k = app_mag_to_abs_mag_k(app_mag[catalog_keep], z_obs_catalog, catalog_gmr, band='r')
-    catalog_quiescent = is_quiescent_BGS_gmr(abs_mag_r_to_log_solar_L(catalog_R_k), catalog_gmr)
+    #catalog_R_k = app_mag_to_abs_mag_k(app_mag[catalog_keep], z_obs_catalog, catalog_gmr, band='r')
+    #catalog_quiescent = is_quiescent_BGS_gmr(abs_mag_r_to_log_solar_L(catalog_R_k), catalog_gmr)
+    catalog_quiescent = is_quiescent_BGS_gmr(None, catalog_gmr)
 
     # Filter down inputs we want to actually process and keep
     bright_filter = app_mag < APP_MAG_CUT # makes a filter array (True/False values)
@@ -275,8 +276,7 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
         # We need to guess a color for the unobserved galaxies to help the redshift guesser
         # For MXXL we have 0.1^G-R even for lost galaxies so this isn't quite like real BGS situation
         # TODO change if needed
-        quiescent_gmr = np.zeros(count, dtype=int)
-        np.put(quiescent_gmr, indexes_not_assigned, is_quiescent_BGS_gmr(None, g_r[unobserved]).astype(int))
+        quiescent_gmr = is_quiescent_BGS_gmr(None, g_r[unobserved])
 
         with SimpleRedshiftGuesser(app_mag[observed], z_obs[observed], ver) as scorer:
 
@@ -290,8 +290,8 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
             chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes], ang_distances, prob_obs[unobserved], app_mag[unobserved], quiescent_gmr, catalog_quiescent[neighbor_indexes])
             z_eff[unobserved] = chosen_z
             z_assigned_flag[unobserved] = np.where(isNN, 1, 2)
-            assigned_halo_mass = np.where(isNN, halo_mass_catalog[neighbor_indexes], -1)
-            assigned_halo_id = np.where(isNN, halo_id_catalog[neighbor_indexes], -1)
+            assigned_halo_mass[unobserved] = np.where(isNN, halo_mass_catalog[neighbor_indexes], -1)
+            assigned_halo_id[unobserved] = np.where(isNN, halo_id_catalog[neighbor_indexes], -1)
             print(f"Assigning missing redshifts complete.")   
     
 
