@@ -110,10 +110,10 @@ def single_plots(d: GroupCatalog, truth_on=False):
 
 def z_assigned_fraction(*datasets: GroupCatalog):
     for d in datasets:
-        assigned_count = (d.all_data.z_assigned_flag != 0).sum()
-        completeness = (d.all_data.z_assigned_flag == 0).mean()
-        nn_fraction = (d.all_data.z_assigned_flag == 1).sum() / assigned_count
-        other_fraction = (d.all_data.z_assigned_flag == 2).sum() / assigned_count
+        assigned_count = (~z_flag_is_spectro_z(d.all_data.z_assigned_flag)).sum()
+        completeness = (z_flag_is_spectro_z(d.all_data.z_assigned_flag)).mean()
+        nn_fraction = (d.all_data.z_assigned_flag >= 1).sum() / assigned_count
+        other_fraction = (d.all_data.z_assigned_flag == AssignedRedshiftFlag.PSEUDO_RANDOM.value).sum() / assigned_count
 
         print(f"{d.name} - {completeness:.1%} completeness")
         print(f"  NN: {nn_fraction:.1%}, Other: {other_fraction:.1%}")
@@ -1058,8 +1058,8 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
 
     # check if nearby has column z_assigned_flag
     if 'z_assigned_flag' in nearby.columns:
-        nearby_obs = nearby.loc[nearby['z_assigned_flag'] == 0]
-        nearby_unobs = nearby.loc[nearby['z_assigned_flag'] == 1]
+        nearby_obs = nearby.loc[nearby['z_assigned_flag'] == AssignedRedshiftFlag.DESI_SPEC.value]
+        nearby_unobs = nearby.loc[nearby['z_assigned_flag'] != AssignedRedshiftFlag.DESI_SPEC.value]
     else:
         nearby_obs = nearby
         nearby_unobs = False

@@ -72,6 +72,18 @@ class Mode(Enum):
     SIMPLE_v5 = 7
     PHOTOZ_PLUS_v1 = 8
 
+class AssignedRedshiftFlag(Enum):
+    # TODO switch to using this enum
+    PSEUDO_RANDOM = -2 # pseudo-randomly assigned redshift using our methods; see paper
+    SDSS_SPEC = -1 # spectroscopic redshfit taken from SDSS
+    DESI_SPEC = 0 # spectroscopic redshift from DESI
+    NEIGHBOR_ONE = 1 # redshift assigned from nearest neighbor
+    NEIGHBOR_TWO = 2 # redshift assigned from second nearest neighbor
+    NEIGHBOR_THREE = 3
+    NEIGHBOR_FOUR = 4
+    NEIGHBOR_FIVE = 5
+
+
 # Common PLT helpers
 prop_cycle = plt.rcParams['axes.prop_cycle']
 colors = prop_cycle.by_key()['color']
@@ -812,8 +824,7 @@ class FancyRedshiftGuesser(RedshiftGuesser):
         return i
 
 
-
-def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, frac_area):
+def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base):
     """
     Use np.column_stack with dtype='str' to convert your galprops arrays into an all-string
     array before passing it in.
@@ -851,8 +862,36 @@ def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base,
     #pd.DataFrame(galprops).to_csv(outname_base + "_galprops.dat~", sep=' ', index=False, header=False)
     #t4 = time.time()
 
-    print(f"Time for file writing: {t2-t1}")
+    print(f"Time for file writing: {t2-t1:.2f}")
     #print(f"Time for pandas-based file writing: {t4-t3}")
+
+def write_dat_files_v2(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base):
+    """
+    Use np.column_stack with dtype='str' to convert your galprops arrays into an all-string
+    array before passing it in.
+    """
+
+    count = len(ra)
+    outname_1 = outname_base + ".dat"
+
+    print(f"Output file will be {outname_1}")
+
+    # Time the optimized approach
+    t1 = time.time()
+    print("Building output file string... ", end='\r')
+
+    # Use numpy to build the output strings more efficiently
+    data = np.column_stack((ra, dec, z_eff, log_L_gal, V_max, colors, chi))
+
+    print("Building output file string... done")
+
+    print("Writing output files... ", end='\r')
+    np.savetxt(outname_1, data, fmt=['%.14f', '%.14f', '%.14f', '%f', '%f', '%d', '%s'])
+    print("Writing output files... done")
+    t2 = time.time()
+
+    print(f"Time for file writing: {t2-t1:.2f}")
+
 
 
 

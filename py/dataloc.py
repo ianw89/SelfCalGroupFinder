@@ -114,6 +114,7 @@ BGS_Y3_TILES_FILE = BGS_Y3_FOLDER + "tiles-kibo.csv"
 # This file is BUILT by running code in the BGS_study.ipynb notebook
 # It is a joined BGS file, with a filtered down set of rows and columns
 IAN_BGS_Y3_MERGED_FILE = BGS_Y3_FOLDER + "ian_BGS_Y3_merged.fits"
+IAN_BGS_Y3_MERGED_FILE_JURA = BGS_Y3_FOLDER_OLD + "ian_BGS_Y3_merged.fits"
 
 # DESI LEGACY IMAGING SURVEY FILES
 ##################################

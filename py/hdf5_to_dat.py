@@ -80,7 +80,8 @@ def main():
     elif mode == Mode.NEAREST_NEIGHBOR.value:
         print("\nMode NEAREST_NEIGHBOR")
     elif mode == Mode.FANCY.value:
-        print("\nMode FANCY")
+        print("\nMode FANCY not supported")
+        exit(4)
     elif mode == Mode.SIMPLE.value:
         print("\nMode SIMPLE v2")
     elif mode == Mode.SIMPLE_v4.value:
@@ -145,7 +146,6 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
     app_mag = app_mag[keep]
     g_r = g_r[keep]
     #abs_mag = abs_mag[keep]
-    
     galaxy_type = galaxy_type[keep]
     mxxl_halo_mass = mxxl_halo_mass[keep]
     mxxl_halo_id = mxxl_halo_id[keep]
@@ -191,6 +191,7 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
         assigned_halo_id = assigned_halo_id[observed]
         z_eff = z_eff[observed]
         prob_obs = prob_obs[observed]
+        z_assigned_flag = z_assigned_flag[observed]
         observed = observed[observed]
         unobserved = np.invert(observed)
         assert np.all(observed)
@@ -220,58 +221,12 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
 
         z_assigned_flag[unobserved] = 1
 
-
-    elif mode == Mode.FANCY.value:
-
-        NUM_NEIGHBORS = 10
-        with FancyRedshiftGuesser(NUM_NEIGHBORS) as scorer:
-
-            catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
-            to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
-            
-            neighbor_indexes = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)), dtype=np.int32) # indexes point to CATALOG locations
-            ang_distances = np.zeros(shape=(NUM_NEIGHBORS, len(to_match)))
-
-            print(f"Finding nearest {NUM_NEIGHBORS} neighbors... ", end='\r')   
-            for n in range(0, NUM_NEIGHBORS):
-                idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=n+1, storekdtree='mxxl_fiber_assigned_tree')
-                neighbor_indexes[n] = idx
-                ang_distances[n] = d2d.to(u.arcsec).value
-            print(f"Finding nearest {NUM_NEIGHBORS} neighbors... done")   
-
-
-            print(f"Assinging missing redshifts... ")   
-            j = 0
-            for i in indexes_not_assigned:    
-                if j%10000==0:
-                    print(f"{j}/{len(to_match)} complete", end='\r')
-
-                neighbors = neighbor_indexes[:,j]
-                neighbors_z = z_obs_catalog[neighbors]
-                neighbors_ang_dist = ang_distances[:,j]
-                my_prob_obs = prob_obs[i]
-                my_app_mag = app_mag[i]
-
-                winning_num = scorer.choose_winner(neighbors_z, neighbors_ang_dist, my_prob_obs, my_app_mag, z_obs[i])
-                winner_index = neighbors[winning_num]
-
-                z_eff[i] = z_obs_catalog[winner_index] 
-                assigned_halo_mass[i] = halo_mass_catalog[winner_index]
-                assigned_halo_id[i] = halo_id_catalog[winner_index]
-                j = j + 1 
-
-                z_assigned_flag[i] = 1 # TODO
-
-
-            print(f"{j}/{len(to_match)} complete")
-
         
     elif mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
         if mode == Mode.SIMPLE.value:
             ver = '2.0'
         elif mode == Mode.SIMPLE_v4.value:
             ver = '4.0'
-
 
         # We need to guess a color for the unobserved galaxies to help the redshift guesser
         # For MXXL we have 0.1^G-R even for lost galaxies so this isn't quite like real BGS situation
@@ -289,7 +244,7 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
             print(f"Assigning missing redshifts... ")   
             chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes], ang_distances, prob_obs[unobserved], app_mag[unobserved], quiescent_gmr, catalog_quiescent[neighbor_indexes])
             z_eff[unobserved] = chosen_z
-            z_assigned_flag[unobserved] = np.where(isNN, 1, 2)
+            z_assigned_flag[unobserved] = np.where(isNN, AssignedRedshiftFlag.NEIGHBOR_ONE.value, AssignedRedshiftFlag.PSEUDO_RANDOM.value)
             assigned_halo_mass[unobserved] = np.where(isNN, halo_mass_catalog[neighbor_indexes], -1)
             assigned_halo_id[unobserved] = np.where(isNN, halo_id_catalog[neighbor_indexes], -1)
             print(f"Assigning missing redshifts complete.")   
@@ -315,12 +270,13 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
     
     # Output files
     t1 = time.time()
+    print(len(app_mag), len(g_r), len(galaxy_type), len(mxxl_halo_mass), len(z_assigned_flag), len(assigned_halo_mass), len(z_obs), len(mxxl_halo_id), len(assigned_halo_id))
     galprops= pd.DataFrame({
         'app_mag': app_mag, 
         'g_r': g_r, 
         'galaxy_type': galaxy_type, 
         'mxxl_halo_mass': mxxl_halo_mass,
-        'z_assigned_flag': z_assigned_flag,
+        'z_assigned_flag': z_assigned_flag.astype("<i1"),
         'assigned_halo_mass': assigned_halo_mass,
         'z_obs': z_obs,
         'mxxl_halo_id': mxxl_halo_id,
@@ -330,7 +286,7 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
     t2 = time.time()
     print(f"Galprops pickling took {t2-t1:.4f} seconds")
     
-    write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, FOOTPRINT_FRAC)
+    write_dat_files_v2(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base)
         
     return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': FOOTPRINT_FRAC }
 

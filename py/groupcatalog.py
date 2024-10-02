@@ -11,6 +11,7 @@ import astropy.io.fits as fits
 import copy
 import sys
 import wp as wp
+import asyncio
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -121,7 +122,21 @@ class GroupCatalog:
         self.f_sat = None # per Lgal bin 
         self.Lgal_counts = None # size of Lgal bins 
 
+    def get_completeness(self):
+        return np.sum(self.all_data.z_assigned_flag == 0) / len(self.all_data.z_assigned_flag)
+
+    def get_lostgal_neighbor_used(self):
+        arr = self.all_data.z_assigned_flag.to_numpy()
+        return np.sum(z_flag_is_neighbor(arr)) / (np.sum(z_flag_is_random(arr)) + np.sum(z_flag_is_neighbor(arr)))
+
+    def dump(self):
+        self.__class__ = eval(self.__class__.__name__) #reset __class__ attribute
+        with open(self.results_file, 'wb') as f:
+            pickle.dump(self, f)
+
     def run_group_finder(self, popmock=False, silent=False):
+        t1 = time.time()
+        print("Running Group Finder for " + self.name)
 
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
@@ -180,6 +195,8 @@ class GroupCatalog:
             if os.path.exists(f'{self.output_folder}lsat_groups2.out'):
                 self.lsat_groups2 = np.loadtxt(f'{self.output_folder}lsat_groups2.out', skiprows=0, dtype='float')
 
+        t2 = time.time()
+        print(f"run_group_finder() took {t2-t1:.2} seconds.")
 
 
     def run_corrfunc(self):
@@ -235,7 +252,8 @@ class GroupCatalog:
         truth_df = truth_df[['target_id', 'z', 'z_assigned_flag', 'L_gal', 'logLgal', 'g_r', 'Lgal_bin']].copy()
         truth_df.index = truth_df.target_id
         self.all_data = self.all_data.join(truth_df, on='target_id', how='left', rsuffix='_T')
-        rows_to_nan = self.all_data['z_assigned_flag_T'] != 0
+        rows_to_nan = self.all_data['z_assigned_flag_T'] != AssignedRedshiftFlag.DESI_SPEC.value
+        rows_to_nan = rows_to_nan & self.all_data['z_assigned_flag_T'] != AssignedRedshiftFlag.SDSS_SPEC.value
         self.all_data.loc[rows_to_nan, 'z_T'] = -99.99
         self.all_data.drop(columns=['target_id_T', 'z_assigned_flag_T'], inplace=True)
         self.has_truth = True
@@ -513,8 +531,10 @@ class BGSGroupCatalog(GroupCatalog):
             infile = IAN_BGS_MERGED_FILE
         elif self.data_cut == "Y1-Iron-v1.2":
             infile = IAN_BGS_MERGED_FILE_OLD
-        elif self.data_cut == "Y3-Jura":
+        elif self.data_cut == "Y3-Kibo":
             infile = IAN_BGS_Y3_MERGED_FILE
+        elif self.data_cut == "Y3-Jura":
+            infile = IAN_BGS_Y3_MERGED_FILE_JURA
         elif self.data_cut == "sv3":
             infile = IAN_BGS_SV3_MERGED_FILE
         else:
@@ -741,6 +761,25 @@ def add_halo_columns(catalog: GroupCatalog):
     # Luminosity distance to z_obs
     #df.loc[:, 'ldist_true'] = z_to_ldist(df.z_obs.to_numpy())
 
+def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, log_L_gal, quiescent):
+    np.put(abs_mag_R, idx, app_mag_to_abs_mag(app_mag_r[idx], z_eff[idx]))
+    np.put(abs_mag_R_k, idx, k_correct(abs_mag_R[idx], z_eff[idx], g_r_apparent[idx], band='r'))
+    np.put(abs_mag_G, idx, app_mag_to_abs_mag(app_mag_g[idx], z_eff[idx]))
+    np.put(abs_mag_G_k, idx, k_correct(abs_mag_G[idx], z_eff[idx], g_r_apparent[idx], band='g'))
+    np.put(log_L_gal, idx, abs_mag_r_to_log_solar_L(abs_mag_R_k[idx]))
+    G_R_k = abs_mag_G_k - abs_mag_R_k
+    np.put(quiescent, idx, is_quiescent_BGS_gmr(None, G_R_k[idx]))
+    return G_R_k
+
+def get_tbl_column(tbl, colname, required=False):
+    if colname in tbl.columns:
+        if np.ma.is_masked(tbl[colname]):
+            return tbl[colname].data.data
+        return tbl[colname]
+    else:
+        if required:
+            raise ValueError(f"Required column {colname} not found in table.")
+        return None
 
 def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, sdss_fill, num_passes_required, drop_passes, data_cut):
     """
@@ -824,46 +863,46 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # Some versions of the LSS Catalogs use astropy's Table used masked arrays for unobserved spectral targets    
     if np.ma.is_masked(table['Z']):
         z_obs = table['Z'].data.data
-        obj_type = table['SPECTYPE'].data.data
         unobserved = table['Z'].mask # the masked values are what is unobserved
-        deltachi2 = table['DELTACHI2'].data.data  
     else:
         # SV3 version didn't do this
         z_obs = table['Z']
-        obj_type = table['SPECTYPE']
         unobserved = table['Z'].astype("<i8") == 999999
-        deltachi2 = table['DELTACHI2']
-        
-    dec = table['DEC']
-    ra = table['RA']
-    if table.columns.get('TILEID') is not None:
-        # TODO
-        tileid = table['TILEID']
-    target_id = table['TARGETID']
-    ntid = table['NEAREST_TILEIDS'][:,0] # just need to nearest tile for our purposes
-    app_mag_r = get_app_mag(table['FLUX_R'])
-    app_mag_g = get_app_mag(table['FLUX_G'])
-    g_r = app_mag_g - app_mag_r
 
-    if table.columns.get('PROB_OBS') is None:
+    obj_type = get_tbl_column(table, 'SPECTYPE')
+    deltachi2 = get_tbl_column(table, 'DELTACHI2')
+    dec = get_tbl_column(table, 'DEC', required=True)
+    ra = get_tbl_column(table, 'RA', required=True)
+    maskbits = get_tbl_column(table, 'MASKBITS')
+    ref_cat = get_tbl_column(table, 'REF_CAT')
+    tileid = get_tbl_column(table, 'TILEID')
+    target_id = get_tbl_column(table, 'TARGETID')
+    ntid = get_tbl_column(table, 'NEAREST_TILEIDS')[:,0] # just need to nearest tile for our purposes
+    app_mag_r = get_tbl_column(table, 'APP_MAG_R', required=True)
+    app_mag_g = get_tbl_column(table, 'APP_MAG_G', required=True)
+    g_r_apparent = app_mag_g - app_mag_r
+    abs_mag_R = get_tbl_column(table, 'ABS_MAG_R', required=True)
+    abs_mag_R_k = get_tbl_column(table, 'ABS_MAG_R_K', required=True)
+    abs_mag_G = get_tbl_column(table, 'ABS_MAG_G', required=True)
+    abs_mag_G_k = get_tbl_column(table, 'ABS_MAG_G_K', required=True)
+    log_L_gal = get_tbl_column(table, 'LOG_L_GAL', required=True)
+    quiescent = get_tbl_column(table, 'QUIESCENT', required=True)
+    p_obs = get_tbl_column(table, 'PROB_OBS')
+    if p_obs is None:
         print("WARNING: PROB_OBS column not found in FITS file. Using 0.5 for all unobserved galaxies.")
-        p_obs = np.ones(len(z_obs)) * 0.5 # TODO BUG this is a hack to get around missing PROB_OBS in some versions of the LSS Catalogs
-    else:
-        p_obs = table['PROB_OBS']
-
-    if table.columns.get('Z_PHOT') is None:
+        p_obs = np.ones(len(z_obs)) * 0.5
+    z_phot = get_tbl_column(table, 'Z_PHOT')
+    have_z_phot = True
+    if z_phot is None:
         print("WARNING: Z_PHOT column not found in FITS file. Will be set to nan for all.")
         z_phot = np.ones(len(z_obs)) * np.nan
-    else:
-        z_phot = table['Z_PHOT']
-
-    # TODO inconsistent here...
-    if table.columns.get('DN4000') is None:
+        have_z_phot = False
+    dn4000 = get_tbl_column(table, 'DN4000')
+    if dn4000 is None:
         dn4000 = np.zeros(len(z_obs))
-    else:
-        dn4000 = table['DN4000'].data.data
 
     # For SV3 Analysis we can pretend to not have observed some galaxies
+    # TODO BUG this procedure is not right accordin to Ashley Ross
     if data_cut == "sv3":
         unobserved = drop_SV3_passes(drop_passes, tileid, unobserved)
 
@@ -883,10 +922,22 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     redshift_filter = z_obs > Z_MIN
     redshift_hi_filter = z_obs < Z_MAX
     deltachi2_filter = deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
-    observed_requirements = np.all([galaxy_observed_filter, app_mag_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
     
+    # Roughly remove HII regions of low z, high angular size galaxies (SGA catalog)
+    if maskbits is not None and ref_cat is not None:
+        BITMASK_SGA = 0x1000 
+        sga_collision = (maskbits & BITMASK_SGA) != 0
+        sga_central = ref_cat == b'L3'
+        to_remove_blue = sga_collision & ~sga_central & (g_r_apparent < 0.5)
+        print(f"{np.sum(to_remove_blue):,} galaxies ({np.sum(to_remove_blue) / len(dec) * 100:.2f}%) have a SGA collision, are not SGA centrals, and are blue enough to remove.")
+        no_SGA_Issues = np.invert(to_remove_blue)
+    else:
+        no_SGA_Issues = np.ones(len(dec), dtype=bool)
+
+    observed_requirements = np.all([galaxy_observed_filter, app_mag_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, no_SGA_Issues], axis=0)
+
     # treat low deltachi2 as unobserved
-    treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, np.invert(deltachi2_filter)], axis=0)
+    treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, no_SGA_Issues, np.invert(deltachi2_filter)], axis=0)
     #print(f"We have {np.count_nonzero(treat_as_unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
     unobserved = np.all([app_mag_filter, np.logical_or(unobserved, treat_as_unobserved)], axis=0)
 
@@ -900,17 +951,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         # TODO why bother with this for the real data? Use all we got, right? 
         # I upped the cut to 21 so it doesn't do anything
         catalog_bright_filter = app_mag_r < CATALOG_APP_MAG_CUT 
-        catalog_keep = np.all([galaxy_observed_filter, catalog_bright_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, np.invert(unobserved)], axis=0)
+        catalog_keep = np.all([galaxy_observed_filter, catalog_bright_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, no_SGA_Issues, ~unobserved], axis=0)
         catalog_ra = ra[catalog_keep]
         catalog_dec = dec[catalog_keep]
         z_obs_catalog = z_obs[catalog_keep]
-        catalog_gmr = app_mag_g[catalog_keep] - app_mag_r[catalog_keep]
-        catalog_G_k = app_mag_to_abs_mag_k(app_mag_g[catalog_keep], z_obs_catalog, catalog_gmr, band='g')
-        catalog_R_k = app_mag_to_abs_mag_k(app_mag_r[catalog_keep], z_obs_catalog, catalog_gmr, band='r')
-        catalog_G_R_k = catalog_G_k - catalog_R_k
-        catalog_quiescent = is_quiescent_BGS_gmr(abs_mag_r_to_log_solar_L(catalog_R_k), catalog_G_R_k)
-
-        print(len(z_obs_catalog), "galaxies in the NN catalog.")
+        catalog_quiescent = quiescent[catalog_keep]
+        print(f"{len(z_obs_catalog):,} galaxies in the neighbor catalog.")
 
     # Apply filters
     obj_type = obj_type[keep]
@@ -921,27 +967,29 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     app_mag_r = app_mag_r[keep]
     app_mag_g = app_mag_g[keep]
     p_obs = p_obs[keep]
-    unobserved = unobserved[keep]
-    observed = np.invert(unobserved)
     deltachi2 = deltachi2[keep]
-    g_r = g_r[keep]
+    g_r_apparent = g_r_apparent[keep]
+    abs_mag_R = abs_mag_R[keep]
+    abs_mag_R_k = abs_mag_R_k[keep]
+    abs_mag_G = abs_mag_G[keep]
+    abs_mag_G_k = abs_mag_G_k[keep]
+    log_L_gal = log_L_gal[keep]
+    quiescent = quiescent[keep]
     dn4000 = dn4000[keep]
     ntid = ntid[keep]
     z_phot = z_phot[keep]
+    unobserved = unobserved[keep]
 
-    # Want 0 for observed (DESI OR SDSS fill in), 1 for NN-assigned, 2 for other assigned
+    observed = np.invert(unobserved)
+    idx_unobserved = np.flatnonzero(unobserved)
     z_assigned_flag = np.zeros(len(z_obs), dtype=np.int8)
 
-
     count = len(dec)
-    print(count, "galaxies left after filters.")
+    print(count, "galaxies left for main catalog after filters.")
     first_need_redshift_count = unobserved.sum()
-    print(f'{first_need_redshift_count} remaining galaxies that need redshifts')
-    print(f'{100*first_need_redshift_count / len(unobserved) :.1f}% of remaining galaxies need redshifts')
-    #print(f'Min z: {min(z_obs):f}, Max z: {max(z_obs):f}')
+    print(f'{first_need_redshift_count} ({100*first_need_redshift_count / len(unobserved) :.1f})% need redshifts')
 
     z_eff = np.copy(z_obs)
-    #print(f"z_eff, first copy: {z_eff[0:20]}")
 
     # If a lost galaxy matches the SDSS catalog, grab it's redshift and use that
     if unobserved.sum() > 0 and sdss_fill:
@@ -949,11 +997,10 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         #sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla", SDSS_v1_DAT_FILE, SDSS_v1_GALPROPS_FILE))
         if sdss_vanilla.all_data is not None:
             observed_sdss = sdss_vanilla.all_data.loc[sdss_vanilla.all_data.z_assigned_flag == 0]
-            #observed_sdss = sdss_vanilla.all_data 
 
             sdss_catalog = coord.SkyCoord(ra=observed_sdss.RA.to_numpy()*u.degree, dec=observed_sdss.Dec.to_numpy()*u.degree, frame='icrs')
-            to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
-            print(f"Matching {len(to_match)} lost galaxies to {len(sdss_catalog)} SDSS galaxies")
+            to_match = coord.SkyCoord(ra=ra[idx_unobserved]*u.degree, dec=dec[idx_unobserved]*u.degree, frame='icrs')
+            print(f"Matching {len(to_match):,} lost galaxies to {len(sdss_catalog):,} SDSS galaxies")
             idx, d2d, d3d = coord.match_coordinates_sky(to_match, sdss_catalog, nthneighbor=1, storekdtree=False)
             ang_distances = d2d.to(u.arcsec).value
             sdss_z = sdss_vanilla.all_data.iloc[idx]['z'].to_numpy()
@@ -961,29 +1008,34 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             # if angular distance is < 3", then we consider it a match to SDSS catalog and copy over it's z
             ANGULAR_DISTANCE_MATCH = 3
             matched = ang_distances < ANGULAR_DISTANCE_MATCH
+            idx_from_sloan = idx_unobserved[matched]
             
-            z_eff[unobserved] = np.where(matched, sdss_z, np.nan)    
-            unobserved[unobserved] = np.where(matched, False, unobserved[unobserved])
+            z_eff[idx_unobserved] = np.where(matched, sdss_z, np.nan)    
+            z_assigned_flag[idx_unobserved] = np.where(matched, AssignedRedshiftFlag.SDSS_SPEC.value, z_assigned_flag[idx_unobserved])
+            
+            update_properties_for_indices(idx_from_sloan, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, log_L_gal, quiescent)
+            unobserved[idx_unobserved] = np.where(matched, False, unobserved[idx_unobserved])
             observed = np.invert(unobserved)
+            idx_unobserved = np.flatnonzero(unobserved)
      
-            print(f"{matched.sum()} of {first_need_redshift_count} redshifts taken from SDSS.")
-            print(f"{unobserved.sum()} remaining galaxies need redshifts.")
+            print(f"{matched.sum():,} of {first_need_redshift_count:,} redshifts taken from SDSS.")
+            print(f"{unobserved.sum():,} remaining galaxies need redshifts.")
             #print(f"z_eff, after SDSS match: {z_eff[0:20]}")   
         else:
             print("No SDSS catalog to match to. Skipping.")
 
-    if mode == Mode.NEAREST_NEIGHBOR.value:
 
+    # Now, depending on the mode chosen, we will assign redshifts to the remaining unobserved galaxies
+    ##################################################################################################
+
+    if mode == Mode.NEAREST_NEIGHBOR.value:
         print("Getting nearest neighbor redshifts...")
         catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
-        to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
-
+        to_match = coord.SkyCoord(ra=ra[idx_unobserved]*u.degree, dec=dec[idx_unobserved]*u.degree, frame='icrs')
         idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
-
-        z_eff[unobserved] = z_obs_catalog[idx]
-        z_assigned_flag[unobserved] = 1
+        z_eff[idx_unobserved] = z_obs_catalog[idx]
+        z_assigned_flag[idx_unobserved] = 1
         print("Copying over nearest neighbor properties complete.")
-
 
     if mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value or mode == Mode.SIMPLE_v5.value:
         if mode == Mode.SIMPLE.value:
@@ -993,10 +1045,10 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         elif mode == Mode.SIMPLE_v5.value:
             ver = '5.0'
         
-        with SimpleRedshiftGuesser(app_mag_r[observed], z_eff[observed], ver) as scorer:
-
+        with SimpleRedshiftGuesser(app_mag_r[observed], z_eff[observed], ver) as scorer: 
+            print(f"Assigning missing redshifts... ")   
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
-            to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
+            to_match = coord.SkyCoord(ra=ra[idx_unobserved]*u.degree, dec=dec[idx_unobserved]*u.degree, frame='icrs')
 
             # neighbor_indexes is the index of the nearest galaxy in the catalog arrays
             neighbor_indexes, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
@@ -1004,40 +1056,37 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
             # We need to guess a color for the unobserved galaxies to help the redshift guesser
             # Multiple possible ideas
-
-            # 1) Use the NN's redshift to k-correct the lost galaxies
-            #abs_mag_R = app_mag_to_abs_mag(app_mag_r[unobserved], z_obs_catalog[neighbor_indexes])
-            #abs_mag_R_k = k_correct(abs_mag_R, z_obs_catalog[neighbor_indexes], app_mag_g[unobserved] - app_mag_r[unobserved])
-            #abs_mag_G = app_mag_to_abs_mag(app_mag_g[unobserved], z_obs_catalog[neighbor_indexes])
-            #abs_mag_G_k = k_correct(abs_mag_G, z_obs_catalog[neighbor_indexes], app_mag_g[unobserved] - app_mag_r[unobserved], band='g')
-            #log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k)
-            #G_R_k = abs_mag_G_k - abs_mag_R_k
-            #quiescent_gmr = is_quiescent_BGS_gmr(log_L_gal, G_R_k)
-
-            # 2) Use an uncorrected apparent g-r color cut to guess if the galaxy is quiescent or not
-
-            # TODO k-correct with the photo-z! Will be much better
-            quiescent_gmr = is_quiescent_lost_gal_guess(app_mag_g[unobserved] - app_mag_r[unobserved]).astype(int)
+            # 1) Could use the NN's redshift to k-correct but I don't like it
+            # 2) Use the lost galaxies' photometric redshift to k-correct
+            if have_z_phot:
+                lost_abs_mag_R = app_mag_to_abs_mag(app_mag_r[idx_unobserved], z_phot[idx_unobserved])
+                lost_abs_mag_R_k = k_correct(lost_abs_mag_R, z_phot[idx_unobserved], g_r_apparent[idx_unobserved])
+                lost_abs_mag_G = app_mag_to_abs_mag(app_mag_g[idx_unobserved], z_phot[idx_unobserved])
+                lost_abs_mag_G_k = k_correct(lost_abs_mag_G, z_phot[idx_unobserved], g_r_apparent[idx_unobserved], band='g')
+                #lost_log_L_gal = abs_mag_r_to_log_solar_L(lost_abs_mag_R_k)
+                lost_G_R_k = lost_abs_mag_G_k - lost_abs_mag_R_k
+                target_quiescent = is_quiescent_BGS_gmr(None, lost_G_R_k)
+            else:
+            # 3) Use an uncorrected apparent g-r color cut to guess if the galaxy is quiescent or not
+                target_quiescent = is_quiescent_lost_gal_guess(app_mag_g[idx_unobserved] - app_mag_r[idx_unobserved]).astype(int)
             
-            assert len(quiescent_gmr) == len(ang_distances)
+            assert len(target_quiescent) == len(ang_distances)
 
-            print(f"Assigning missing redshifts... ")   
-            chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes], ang_distances, p_obs[unobserved], app_mag_r[unobserved], quiescent_gmr, catalog_quiescent[neighbor_indexes])
-            z_eff[unobserved] = chosen_z
-            z_assigned_flag[unobserved] = np.where(isNN, 1, 2)
+            chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes], ang_distances, p_obs[idx_unobserved], app_mag_r[idx_unobserved], target_quiescent, catalog_quiescent[neighbor_indexes])
+            z_eff[idx_unobserved] = chosen_z
+            z_assigned_flag[idx_unobserved] = np.where(isNN, AssignedRedshiftFlag.NEIGHBOR_ONE.value, AssignedRedshiftFlag.PSEUDO_RANDOM.value)
             print(f"Assigning missing redshifts complete.")   
 
     if mode == Mode.PHOTOZ_PLUS_v1.value:
-        
         with PhotometricRedshiftGuesser.from_files(IAN_MXXL_LOST_APP_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_FILE) as scorer:
             NEIGHBORS = 5
             print(f"Considering {NEIGHBORS} neighbors for redshift assignment")
             print(f"Assigning missing redshifts... ")   
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
-            to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
+            to_match = coord.SkyCoord(ra=ra[idx_unobserved]*u.degree, dec=dec[idx_unobserved]*u.degree, frame='icrs')
            
-            quiescent_gmr = is_quiescent_lost_gal_guess(app_mag_g[unobserved] - app_mag_r[unobserved]).astype(int)
+            target_quiescent = is_quiescent_lost_gal_guess(app_mag_g[idx_unobserved] - app_mag_r[idx_unobserved]).astype(int)
 
             shape = (NEIGHBORS, len(to_match))
             neighbor_indexes = np.zeros(shape, dtype=np.int64)
@@ -1051,26 +1100,24 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
                 n_z[n, :] = z_obs_catalog[neighbor_indexes[n, :]]
                 n_q[n, :] = catalog_quiescent[neighbor_indexes[n, :]]
 
-            chosen_z, neighbor_used = scorer.choose_redshift(n_z, ang_distances, z_phot[unobserved], p_obs[unobserved], app_mag_r[unobserved], quiescent_gmr, n_q)
-            z_eff[unobserved] = chosen_z
-            z_assigned_flag[unobserved] = np.where(np.isnan(neighbor_used), 2, 1) # TODO
+            chosen_z, neighbor_used = scorer.choose_redshift(n_z, ang_distances, z_phot[idx_unobserved], p_obs[idx_unobserved], app_mag_r[idx_unobserved], target_quiescent, n_q)
+            z_eff[idx_unobserved] = chosen_z
+            z_assigned_flag[idx_unobserved] = np.where(np.isnan(neighbor_used), AssignedRedshiftFlag.PSEUDO_RANDOM.value, neighbor_used)
 
             print(f"Assigning missing redshifts complete.")   
 
     #print(f"z_eff, after assignment: {z_eff[0:20]}")   
     assert np.all(z_eff > 0.0)
 
-    # Some of this is redudant with catalog calculations but oh well
-    abs_mag_R = app_mag_to_abs_mag(app_mag_r, z_eff)
-    abs_mag_R_k = k_correct(abs_mag_R, z_eff, g_r, band='r')
-    abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_eff)
-    abs_mag_G_k = k_correct(abs_mag_G, z_eff, g_r, band='g')
-    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k) 
-    G_R_k = abs_mag_G_k - abs_mag_R_k
-    quiescent = is_quiescent_BGS_gmr(log_L_gal, G_R_k)
-    print(f"{quiescent.sum()} quiescent galaxies, {len(quiescent) - quiescent.sum()} star-forming galaxies")
-     #print(f"Quiescent agreement between g-r and Dn4000 for observed galaxies: {np.sum(quiescent_gmr[observed] == quiescent[observed]) / np.sum(observed)}")
+    # Now that we have redshifts for lost galaxies, we can calculate the rest of the properties
+    idx_unobserved = np.flatnonzero(unobserved)
+    if len(idx_unobserved) > 0:
+        G_R_k = update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, log_L_gal, quiescent)
+    else:
+        G_R_k = abs_mag_G_k - abs_mag_R_k
 
+    print(f"Catalogs contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
+     #print(f"Quiescent agreement between g-r and Dn4000 for observed galaxies: {np.sum(quiescent_gmr[observed] == quiescent[observed]) / np.sum(observed)}")
 
     # the vmax should be calculated from un-k-corrected magnitudes
     V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
@@ -1078,17 +1125,13 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # TODO get galaxy concentration from somewhere
     chi = np.zeros(count, dtype=np.int8) 
 
-    # TODO What value should z_assigned_flag be for SDSS-assigned?
-    # Should update it from binary to an enum I think
-
-
     # Output files
     t1 = time.time()
     galprops= pd.DataFrame({
         'app_mag': app_mag_r.astype("<f8"),
         'target_id': target_id.astype("<i8"),
         'z_assigned_flag': z_assigned_flag.astype("<i1"),
-        'g_r': G_R_k.astype("<f8"),
+        'g_r': G_R_k.astype("<f8"), # TODO name this G_R_k ?
         'Dn4000': dn4000.astype("<f8"),
         'nearest_tile_id': ntid.astype("<i8"),
         'z_phot': z_phot.astype("<f8"),
@@ -1098,7 +1141,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     t2 = time.time()
     print(f"Galprops pickling took {t2-t1:.4f} seconds")
 
-    write_dat_files(ra, dec, z_eff, log_L_gal, V_max, quiescent, chi, outname_base, frac_area)
+    write_dat_files_v2(ra, dec, z_eff, log_L_gal, V_max, quiescent, chi, outname_base)
 
     return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': frac_area }
 
@@ -1177,6 +1220,15 @@ def Lgal_std_vmax_weighted(series):
         return 0
     else:
         return np.power(10, np.sqrt(np.average((np.log(series.L_gal) - np.log(Lgal_vmax_weighted(series)))**2, weights=1/series.V_max)))
+
+def z_flag_is_spectro_z(arr):
+    return np.logical_or(arr == AssignedRedshiftFlag.SDSS_SPEC.value, arr == AssignedRedshiftFlag.DESI_SPEC.value)
+
+def z_flag_is_neighbor(arr):
+    return arr >= AssignedRedshiftFlag.NEIGHBOR_ONE.value
+
+def z_flag_is_random(arr):
+    return arr == AssignedRedshiftFlag.PSEUDO_RANDOM.value
 
 def mstar_vmax_weighted(series):
     if len(series) == 0:
