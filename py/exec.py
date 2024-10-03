@@ -25,6 +25,7 @@ sdss_list : list[GroupCatalog] = [
     cat.sdss_vanilla_v2,
     cat.sdss_colors_v2,
     cat.sdss_colors_chi_v2,
+    cat.sdss_bgscut,
 ]
 uchuu_list : list[GroupCatalog] = [
     cat.uchuu_all,
@@ -70,13 +71,13 @@ bgs_sv3_list : list[GroupCatalog] = [
 ]
 bgs_y1_list : list[GroupCatalog] = [
     #cat.bgs_simple_4_old,
-    #cat.bgs_simple_4,
-    #cat.bgs_simple_4_1pass,
+    cat.bgs_simple_4,
+    cat.bgs_simple_4_1pass,
     #cat.bgs_simple_4_no_sdss,
-    #cat.bgs_simple_4_4p,
+    cat.bgs_simple_4_4p,
     #cat.bgs_simple_4_c,
-    #cat.bgs_fiberonly,
-    #cat.bgs_fiberonly_1pass,
+    cat.bgs_fiberonly,
+    cat.bgs_fiberonly_1pass,
     cat.bgs_nn,
     cat.bgs_nn_sdsslike,
     cat.bgs_simple_2,
@@ -92,18 +93,13 @@ bgs_y3_list : list[GroupCatalog] = [
 ]
 
 datasets_to_run: list[GroupCatalog] = []
-#datasets_to_run.extend(sdss_list)
+datasets_to_run.extend(sdss_list)
 #datasets_to_run.extend(uchuu_list)
 #datasets_to_run.extend(mxxl_list)
 #datasets_to_run.extend(bgs_sv3_list)  
-datasets_to_run.extend(bgs_y1_list)
-datasets_to_run.extend(bgs_y3_list)
+#datasets_to_run.extend(bgs_y1_list)
+#datasets_to_run.extend(bgs_y3_list)
 
-#datasets_to_run.extend([
-#    cat.bgs_sv3_simple_5_10p,
-#    cat.bgs_sv3_simple_5_9p,
-#    cat.bgs_sv3_simple_5_8p,
-#])
 
 def process_gc(gc: GroupCatalog):
     name = gc.name

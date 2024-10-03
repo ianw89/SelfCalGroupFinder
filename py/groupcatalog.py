@@ -229,8 +229,8 @@ class GroupCatalog:
             # TODO make these lazilly evaluated properties on the GroupCatalog object
             # Can put more of them into this pattern from elsewhere in plotting code then
             self.f_sat = self.all_data.groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
-            self.f_sat_sf = self.all_data[self.all_data.quiescent == False].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
-            self.f_sat_q = self.all_data[self.all_data.quiescent == True].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
+            self.f_sat_sf = self.all_data.loc[~self.all_data.quiescent].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
+            self.f_sat_q = self.all_data.loc[self.all_data.quiescent].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
             self.Lgal_counts = self.all_data.groupby('Lgal_bin', observed=False).RA.count()
 
             # Setup some convenience subsets of the DataFrame
@@ -304,11 +304,13 @@ class SDSSGroupCatalog(GroupCatalog):
         self.efac = 0.1 # let's just add a constant fractional error bar
 
     def postprocess(self):
+        origprops = pd.read_csv(self.preprocess_file, delimiter=' ', names=('ra', 'dec', 'z', 'logLgal', 'Vmax', 'quiescent', 'chi'))
         galprops = pd.read_csv(self.galprops_file, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star', 'z_assigned_flag'))
         galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
+        galprops['quiescent'] = origprops.quiescent.astype(bool)
         galprops.rename(columns={'Mag_r': "app_mag"}, inplace=True)
         self.all_data = read_and_combine_gf_output(self, galprops)
-        self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
+        #self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
         self.all_data['mstar'] = np.power(10, self.all_data.log_M_star)
         self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['mstar'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
         super().postprocess()
@@ -344,13 +346,13 @@ class SDSSPublishedGroupCatalog(GroupCatalog):
         }
 
     def postprocess(self):
-        galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
+        origprops = pd.read_csv(SDSS_v1_DAT_FILE, delimiter=' ', names=('ra', 'dec', 'z', 'logLgal', 'Vmax', 'quiescent', 'chi'))
+        galprops = pd.read_csv(SDSS_v1_1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star', 'z_assigned_flag'))
         galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
+        galprops['quiescent'] = origprops.quiescent.astype(bool)
         galprops.rename(columns={'Mag_r': "app_mag"}, inplace=True)
-        print(len(galprops))
         
         main_df = pd.read_csv(self.GF_outfile, delimiter=' ', names=('RA', 'Dec', 'z', 'L_gal', 'V_max', 'P_sat', 'M_halo', 'N_sat', 'L_tot', 'igrp', 'weight'))
-        print(len(main_df))
         
         df = pd.merge(main_df, galprops, left_index=True, right_index=True)
 
@@ -363,7 +365,7 @@ class SDSSPublishedGroupCatalog(GroupCatalog):
         df['Lgal_bin'] = pd.cut(x = df['L_gal'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
 
         self.all_data = df
-        self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
+        #self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
         self.all_data['mstar'] = np.power(10, self.all_data.log_M_star)
         self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['mstar'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
         super().postprocess()
@@ -392,7 +394,7 @@ class TestGroupCatalog(GroupCatalog):
 
     def create_test_dat_files(self):
         gals = pd.read_csv(SDSS_v1_DAT_FILE, delimiter=' ', names=('ra', 'dec', 'z', 'logLgal', 'Vmax', 'quiescent', 'chi'))
-        galprops = pd.read_csv(SDSS_v1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
+        galprops = pd.read_csv(SDSS_v1_1_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star', 'z_assigned_flag'))
 
         cut_gals = gals[np.logical_and(gals.ra > 149.119, gals.ra < 151.119)]
         cut_gals = cut_gals[np.logical_and(cut_gals.dec > 1.205, cut_gals.dec < 3.205)]
@@ -405,11 +407,13 @@ class TestGroupCatalog(GroupCatalog):
         cut_galprops.to_csv(TEST_GALPROPS_FILE, sep=' ', header=False, index=False)
 
     def postprocess(self):
-        galprops = pd.read_csv(TEST_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star'))
+        origprops = pd.read_csv(TEST_DAT_FILE, delimiter=' ', names=('ra', 'dec', 'z', 'logLgal', 'Vmax', 'quiescent', 'chi'))
+        galprops = pd.read_csv(TEST_GALPROPS_FILE, delimiter=' ', names=('Mag_g', 'Mag_r', 'sigma_v', 'Dn4000', 'concentration', 'log_M_star', 'z_assigned_flag'))
         galprops['g_r'] = galprops.Mag_g - galprops.Mag_r 
+        galprops['quiescent'] = origprops.quiescent.astype(bool)
         galprops.rename(columns={'Mag_r': "app_mag"}, inplace=True)
         self.all_data = read_and_combine_gf_output(self, galprops)
-        self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
+        #self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
         add_halo_columns(self)
         return super().postprocess()
 
@@ -994,7 +998,6 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # If a lost galaxy matches the SDSS catalog, grab it's redshift and use that
     if unobserved.sum() > 0 and sdss_fill:
         sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla v2", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE))
-        #sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla", SDSS_v1_DAT_FILE, SDSS_v1_GALPROPS_FILE))
         if sdss_vanilla.all_data is not None:
             observed_sdss = sdss_vanilla.all_data.loc[sdss_vanilla.all_data.z_assigned_flag == 0]
 

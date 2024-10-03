@@ -5,7 +5,7 @@ from groupcatalog import GroupCatalog, MXXLGroupCatalog, SDSSGroupCatalog, Uchuu
 from pyutils import Mode, get_color
 from dataloc import *
 
-sdss_vanilla = SDSSGroupCatalog("SDSS Vanilla", SDSS_v1_DAT_FILE, SDSS_v1_GALPROPS_FILE)
+sdss_vanilla = SDSSGroupCatalog("SDSS Vanilla", SDSS_v1_DAT_FILE, SDSS_v1_1_GALPROPS_FILE)
 _cat = sdss_vanilla
 _cat.color = get_color(4)
 _cat.marker = '-'
@@ -17,7 +17,7 @@ _cat.GF_props = {
     'color':1,
 }
 
-sdss_colors = SDSSGroupCatalog("SDSS Colors", SDSS_v1_DAT_FILE, SDSS_v1_GALPROPS_FILE)
+sdss_colors = SDSSGroupCatalog("SDSS Colors", SDSS_v1_DAT_FILE, SDSS_v1_1_GALPROPS_FILE)
 _cat = sdss_colors
 _cat.color = get_color(4)
 _cat.marker = '--'
@@ -39,7 +39,7 @@ _cat.GF_props = {
     'betaLsf':-8.04,
 }
 
-sdss_colors_chi = SDSSGroupCatalog("SDSS Colors Chi", SDSS_v1_DAT_FILE, SDSS_v1_GALPROPS_FILE)
+sdss_colors_chi = SDSSGroupCatalog("SDSS Colors Chi", SDSS_v1_DAT_FILE, SDSS_v1_1_GALPROPS_FILE)
 _cat = sdss_colors_chi
 _cat.color = get_color(4)
 _cat.marker = '.'
@@ -73,6 +73,18 @@ _cat.GF_props = {
     'zmin':0,
     'zmax':1.0, # BUG ?
     'frac_area':0.179,
+    'fluxlim':1,
+    'color':1,
+}
+
+sdss_bgscut = SDSSGroupCatalog("SDSS BGS Cut", SDSS_BGSCUT_DAT_FILE, SDSS_BGSCUT_GALPROPS_FILE)
+_cat = sdss_bgscut
+_cat.color = get_color(4)
+_cat.marker = '--'
+_cat.GF_props = {
+    'zmin':0,
+    'zmax':1.0, # BUG ?
+    'frac_area':0.125,
     'fluxlim':1,
     'color':1,
 }

@@ -83,6 +83,9 @@ class AssignedRedshiftFlag(Enum):
     NEIGHBOR_FOUR = 4
     NEIGHBOR_FIVE = 5
 
+def spectroscopic_complete_percent(flags):
+    return np.logical_or(flags == AssignedRedshiftFlag.SDSS_SPEC.value, flags == AssignedRedshiftFlag.DESI_SPEC.value).sum() / len(flags)
+
 
 # Common PLT helpers
 prop_cycle = plt.rcParams['axes.prop_cycle']
@@ -309,7 +312,7 @@ def estimate_frac_area(ra, dec):
     # We can use these to make a 2D histogram of the points
     # But the projection makes some of the bins impossible to fill; ignore those bins
     # Also we may need to tune fineness
-    fineness=1 # fineness^2 is how many bins per square degree
+    fineness=4 # fineness^2 is how many bins per square degree
     accessible_bins = DEGREES_ON_SPHERE*fineness**2 # 41253 square degrees in the sky, this must be the max bins
 
     xbins = np.linspace(-180,180,360*fineness +1)
@@ -398,7 +401,7 @@ def build_app_mag_to_z_map(app_mag, z_obs):
 # that is the size we want to draw for each galaxy
 #so s=0.01 is what we want
 
-def make_map(ra, dec, alpha=0.1, dpi=640, fig=None):
+def make_map(ra, dec, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
     """
     Give numpy array of ra and dec.
     """
@@ -407,23 +410,26 @@ def make_map(ra, dec, alpha=0.1, dpi=640, fig=None):
         assert np.all(ra > -0.1)
         ra = ra - 180
     if np.any(dec > 90.0): # if data is 0 to 180
+        print(f"WARNING: Dec values are 0 to 180. Subtracting 90 to get -90 to 90.")
         assert np.all(dec > -0.1)
         dec = dec - 90
 
     # Build a map of the galaxies
     ra_angles = coord.Angle(ra*u.degree)
     ra_angles = ra_angles.wrap_at(180*u.degree)
+    #ra_angles = ra_angles.wrap_at(360*u.degree)
     dec_angles = coord.Angle(dec*u.degree)
 
     if fig == None:
-        fig = plt.figure(figsize=(36,36))
+        fig = plt.figure(figsize=(12,12))
         fig.dpi=dpi
         ax = fig.add_subplot(111, projection="mollweide")
+        plt.grid(visible=True, which='both')
+        ax.set_xticklabels(['30°', '60°', '90°', '120°', '150°', '180°', '210°', '240°', '270°', '300°', '330°'])
     else:
         ax=fig.get_axes()[0]
 
-    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=0.01)
-    plt.grid(visible=True, which='both')
+    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=dotsize)
     return fig
 
 def plot_positions(*dataframes, tiles_df: pd.DataFrame = None, DEG_LONG=1, split=True, ra_min=30, dec_min = -5):
