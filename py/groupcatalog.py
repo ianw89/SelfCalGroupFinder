@@ -12,6 +12,7 @@ import copy
 import sys
 import wp as wp
 import asyncio
+from multiprocessing import Pool
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -56,6 +57,8 @@ sv3_regions = [
     [421, 424, 427, 419, 425, 422, 417, 423, 418, 420, 426],
     [95,  101, 103, 98,  97,  93,  100, 99,  94,  96,  102],
 ]
+sv3_poor_y3overlap = [0,1] # the first two regions from above have poor overlap wth Y3 footprint
+
 sv3_regions_sorted = []
 for region in sv3_regions:
     a = region.copy()
@@ -123,7 +126,7 @@ class GroupCatalog:
         self.Lgal_counts = None # size of Lgal bins 
 
     def get_completeness(self):
-        return np.sum(self.all_data.z_assigned_flag == 0) / len(self.all_data.z_assigned_flag)
+        return spectroscopic_complete_percent(self.all_data.z_assigned_flag.to_numpy())
 
     def get_lostgal_neighbor_used(self):
         arr = self.all_data.z_assigned_flag.to_numpy()
@@ -794,10 +797,6 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     # TODO BUG One galaxy is lost from this to group finder...
     
-    # TODO conversion of fluxes to apparent and absolute mags can be done ahead of time
-    # so use that directly from the merged file.
-
-
     print("Reading FITS data from ", fname)
     # Unobserved galaxies have masked rows in appropriate columns of the table
     table = Table.read(fname, format='fits')
@@ -893,8 +892,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     quiescent = get_tbl_column(table, 'QUIESCENT', required=True)
     p_obs = get_tbl_column(table, 'PROB_OBS')
     if p_obs is None:
-        print("WARNING: PROB_OBS column not found in FITS file. Using 0.5 for all unobserved galaxies.")
-        p_obs = np.ones(len(z_obs)) * 0.5
+        print("WARNING: PROB_OBS column not found in FITS file. Using 0.689 for all unobserved galaxies.")
+        p_obs = np.ones(len(z_obs)) * 0.689
+    nan_pobs = np.isnan(p_obs)
+    if np.any(nan_pobs):
+        print(f"WARNING: {np.sum(nan_pobs)} galaxies have nan p_obs. Setting those to 0.689, the mean of Y3.")
+        p_obs[nan_pobs] = 0.689
     z_phot = get_tbl_column(table, 'Z_PHOT')
     have_z_phot = True
     if z_phot is None:
@@ -1040,6 +1043,23 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         z_assigned_flag[idx_unobserved] = 1
         print("Copying over nearest neighbor properties complete.")
 
+    # We need to guess a color (target_quiescent) for the unobserved galaxies to help the redshift guesser
+    if mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value or mode == Mode.SIMPLE_v5.value or mode == Mode.PHOTOZ_PLUS_v1.value:
+        # Multiple possible ideas
+        # 1) Could use the NN's redshift to k-correct but I don't like it
+        # 2) Use the lost galaxies' photometric redshift to k-correct
+        if have_z_phot:
+            lost_abs_mag_R = app_mag_to_abs_mag(app_mag_r[idx_unobserved], z_phot[idx_unobserved])
+            lost_abs_mag_R_k = k_correct(lost_abs_mag_R, z_phot[idx_unobserved], g_r_apparent[idx_unobserved])
+            lost_abs_mag_G = app_mag_to_abs_mag(app_mag_g[idx_unobserved], z_phot[idx_unobserved])
+            lost_abs_mag_G_k = k_correct(lost_abs_mag_G, z_phot[idx_unobserved], g_r_apparent[idx_unobserved], band='g')
+            #lost_log_L_gal = abs_mag_r_to_log_solar_L(lost_abs_mag_R_k)
+            lost_G_R_k = lost_abs_mag_G_k - lost_abs_mag_R_k
+            target_quiescent = is_quiescent_BGS_gmr(None, lost_G_R_k)
+        else:
+        # 3) Use an uncorrected apparent g-r color cut to guess if the galaxy is quiescent or not
+            target_quiescent = is_quiescent_lost_gal_guess(app_mag_g[idx_unobserved] - app_mag_r[idx_unobserved]).astype(int)
+        
     if mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value or mode == Mode.SIMPLE_v5.value:
         if mode == Mode.SIMPLE.value:
             ver = '2.0'
@@ -1057,22 +1077,6 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             neighbor_indexes, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
             ang_distances = d2d.to(u.arcsec).value
 
-            # We need to guess a color for the unobserved galaxies to help the redshift guesser
-            # Multiple possible ideas
-            # 1) Could use the NN's redshift to k-correct but I don't like it
-            # 2) Use the lost galaxies' photometric redshift to k-correct
-            if have_z_phot:
-                lost_abs_mag_R = app_mag_to_abs_mag(app_mag_r[idx_unobserved], z_phot[idx_unobserved])
-                lost_abs_mag_R_k = k_correct(lost_abs_mag_R, z_phot[idx_unobserved], g_r_apparent[idx_unobserved])
-                lost_abs_mag_G = app_mag_to_abs_mag(app_mag_g[idx_unobserved], z_phot[idx_unobserved])
-                lost_abs_mag_G_k = k_correct(lost_abs_mag_G, z_phot[idx_unobserved], g_r_apparent[idx_unobserved], band='g')
-                #lost_log_L_gal = abs_mag_r_to_log_solar_L(lost_abs_mag_R_k)
-                lost_G_R_k = lost_abs_mag_G_k - lost_abs_mag_R_k
-                target_quiescent = is_quiescent_BGS_gmr(None, lost_G_R_k)
-            else:
-            # 3) Use an uncorrected apparent g-r color cut to guess if the galaxy is quiescent or not
-                target_quiescent = is_quiescent_lost_gal_guess(app_mag_g[idx_unobserved] - app_mag_r[idx_unobserved]).astype(int)
-            
             assert len(target_quiescent) == len(ang_distances)
 
             chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes], ang_distances, p_obs[idx_unobserved], app_mag_r[idx_unobserved], target_quiescent, catalog_quiescent[neighbor_indexes])
@@ -1082,15 +1086,13 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     if mode == Mode.PHOTOZ_PLUS_v1.value:
         with PhotometricRedshiftGuesser.from_files(IAN_MXXL_LOST_APP_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_FILE) as scorer:
-            NEIGHBORS = 5
+            NEIGHBORS = 10
             print(f"Considering {NEIGHBORS} neighbors for redshift assignment")
             print(f"Assigning missing redshifts... ")   
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[idx_unobserved]*u.degree, dec=dec[idx_unobserved]*u.degree, frame='icrs')
            
-            target_quiescent = is_quiescent_lost_gal_guess(app_mag_g[idx_unobserved] - app_mag_r[idx_unobserved]).astype(int)
-
             shape = (NEIGHBORS, len(to_match))
             neighbor_indexes = np.zeros(shape, dtype=np.int64)
             n_z = np.zeros(shape, dtype=np.float64)
@@ -1103,9 +1105,36 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
                 n_z[n, :] = z_obs_catalog[neighbor_indexes[n, :]]
                 n_q[n, :] = catalog_quiescent[neighbor_indexes[n, :]]
 
+            # TODO Get optimal parameters for the redshift guesser
+            """
+            nwalkers = 32
+            ndim = 2 # TODO
+            # dimensiosn are: photoz_weight, other_weight
+            p0 = np.random.uniform(low=[0.0, 0.0], high=[1.0, 3.0], size=(nwalkers, ndim))           
+            nburnin = 500
+            niter = 5000
+            with Pool() as pool: # default Pool() gest CPU_count processes. Good!
+                sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, pool=pool, args=[means, cov])
+                state = sampler.run_mcmc(p0, nburnin)
+                sampler.reset()
+
+                start = time.time()
+                sampler.run_mcmc(p0, niter, progress=True)
+                end = time.time()
+                mcmc_time = end - start
+                print("MCMC took {0:.1f} seconds".format(mcmc_time))
+
+            scorer.photoz_weight = 0.8
+            scorer.other_weight = 1.0 
+            #scorer.neighbors_considered = 10
+"""
             chosen_z, neighbor_used = scorer.choose_redshift(n_z, ang_distances, z_phot[idx_unobserved], p_obs[idx_unobserved], app_mag_r[idx_unobserved], target_quiescent, n_q)
             z_eff[idx_unobserved] = chosen_z
             z_assigned_flag[idx_unobserved] = np.where(np.isnan(neighbor_used), AssignedRedshiftFlag.PSEUDO_RANDOM.value, neighbor_used)
+
+            # Use lowest chi squared (highest log prob) parameter set
+            #idx = np.argmax(sampler.get_log_prob(flat=True))
+            #best_values = sampler.get_chain(flat=True)[idx]
 
             print(f"Assigning missing redshifts complete.")   
 
@@ -1113,13 +1142,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     assert np.all(z_eff > 0.0)
 
     # Now that we have redshifts for lost galaxies, we can calculate the rest of the properties
-    idx_unobserved = np.flatnonzero(unobserved)
     if len(idx_unobserved) > 0:
         G_R_k = update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, log_L_gal, quiescent)
     else:
         G_R_k = abs_mag_G_k - abs_mag_R_k
 
-    print(f"Catalogs contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
+    print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
      #print(f"Quiescent agreement between g-r and Dn4000 for observed galaxies: {np.sum(quiescent_gmr[observed] == quiescent[observed]) / np.sum(observed)}")
 
     # the vmax should be calculated from un-k-corrected magnitudes
@@ -1148,11 +1176,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': frac_area }
 
-
-
-
-
-
+def log_prob(theta, means, cov):
+    # TODO
+    return 0
 
 ##########################
 # Processing Group Finder Output File

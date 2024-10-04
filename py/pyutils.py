@@ -56,10 +56,6 @@ QUIESCENT_BINS = np.array([0.0, 1.0])
 
 ################################
 
-def get_color(i):
-    co = colors[i%len(colors)]
-    return co
-
 DEGREES_ON_SPHERE = 41253
 
 class Mode(Enum):
@@ -83,9 +79,14 @@ class AssignedRedshiftFlag(Enum):
     NEIGHBOR_FOUR = 4
     NEIGHBOR_FIVE = 5
 
-def spectroscopic_complete_percent(flags):
+def spectroscopic_complete_percent(flags: np.ndarray):
     return np.logical_or(flags == AssignedRedshiftFlag.SDSS_SPEC.value, flags == AssignedRedshiftFlag.DESI_SPEC.value).sum() / len(flags)
 
+def neighbor_redshift_used(flags: np.ndarray):
+    return (flags >= AssignedRedshiftFlag.NEIGHBOR_ONE.value).sum() / len(flags)
+
+def pseudo_random_redshift_used(flags: np.ndarray):
+    return (flags == AssignedRedshiftFlag.PSEUDO_RANDOM.value).sum() / len(flags)
 
 # Common PLT helpers
 prop_cycle = plt.rcParams['axes.prop_cycle']

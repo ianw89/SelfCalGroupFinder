@@ -8,7 +8,7 @@ This ongoing fork contains various Python notebooks and a GroupCatalog class tha
 conda create -n "my-env"
 conda activate my-env
 conda install python=3.11 jupyter astropy scipy aiohttp pandas matplotlib h5py
-pip install emcee
+pip install emcee corner tqdm torch gpytorch
 ```
 
 The dataloc.py file is for updating the paths to both the code and data files.

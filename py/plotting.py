@@ -150,7 +150,7 @@ def plots(*datasets, truth_on=False):
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('$M_{halo}$')
-    plt.ylabel('$L_{cen}$')
+    plt.ylabel('$L_{cen}~[L_\odot / h^2$')
     #plt.title("Central Luminosity vs. Halo Mass")
     legend(datasets)
     plt.xlim(1E10,1E15)

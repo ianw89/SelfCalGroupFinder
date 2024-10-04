@@ -60,12 +60,6 @@ bgs_sv3_list : list[GroupCatalog] = [
     cat.bgs_sv3_simple_5_9p,
     cat.bgs_sv3_simple_5_8p,
     cat.bgs_sv3_simple_5_7p,
-    cat.bgs_sv3_simple_5_6p,
-    cat.bgs_sv3_simple_5_5p,
-    cat.bgs_sv3_simple_5_4p,
-    cat.bgs_sv3_simple_5_3p,
-    cat.bgs_sv3_simple_5_2p,
-    cat.bgs_sv3_simple_5_1p,
     cat.bgs_sv3_pz_1_10p,
     cat.bgs_sv3_pz_1_7p
 ]
@@ -80,7 +74,7 @@ bgs_y1_list : list[GroupCatalog] = [
     cat.bgs_fiberonly_1pass,
     cat.bgs_nn,
     cat.bgs_nn_sdsslike,
-    cat.bgs_simple_2,
+    #cat.bgs_simple_2,
     #cat.bgs_simple_2_c,
     cat.bgs_simple_5,
 ]
@@ -93,10 +87,10 @@ bgs_y3_list : list[GroupCatalog] = [
 ]
 
 datasets_to_run: list[GroupCatalog] = []
-datasets_to_run.extend(sdss_list)
+#datasets_to_run.extend(sdss_list)
 #datasets_to_run.extend(uchuu_list)
 #datasets_to_run.extend(mxxl_list)
-#datasets_to_run.extend(bgs_sv3_list)  
+datasets_to_run.extend(bgs_sv3_list)  
 #datasets_to_run.extend(bgs_y1_list)
 #datasets_to_run.extend(bgs_y3_list)
 

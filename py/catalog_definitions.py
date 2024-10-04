@@ -84,7 +84,7 @@ _cat.marker = '--'
 _cat.GF_props = {
     'zmin':0,
     'zmax':1.0, # BUG ?
-    'frac_area':0.125,
+    'frac_area':0.128,
     'fluxlim':1,
     'color':1,
 }
@@ -252,6 +252,12 @@ bgs_simple_5 = BGSGroupCatalog("Simple v5 BGS <19.5", Mode.SIMPLE_v5, 19.5, 21.0
 _cat = bgs_simple_5
 _cat.marker = '-'
 _cat.color = 'k'
+_cat.GF_props = GF_PROPS_VANILLA.copy()
+
+bgs_y3_pzp_1 = BGSGroupCatalog("Photo-z Plus v1 BGS Y3 <19.5", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, data_cut='Y3-Kibo')
+_cat = bgs_y3_pzp_1
+_cat.color = 'darkorange'
+_cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
 bgs_y3_simple_4 = BGSGroupCatalog("Simple v4 BGS Y3 <19.5", Mode.SIMPLE_v4, 19.5, 21.0, data_cut='Y3-Kibo')

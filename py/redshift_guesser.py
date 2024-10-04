@@ -134,10 +134,13 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
         self.nna = None
         self.app_mag_bins = None
         self.app_mag_map = None
-        self.score_threshold = 0.9 # TODO tune these
-        self.photoz_weight = 0.8
-        self.zmatch_sigma = 0.004
-        self.zmatch_pow = 4.0
+        #self.score_threshold = 0.9 
+        self.photoz_weight = 0.8 # TODO tune these
+        self.other_weight = 1.0 # TODO tune these
+        self.neighbors_considered = 10 # TODO tune these
+        self.zmatch_sigma = 0.004 # TODO tune these
+        self.zmatch_pow = 4.0 # TODO tune these
+
     
     @classmethod
     def from_files(cls, app_mag_to_z_file, nna_file):
@@ -187,12 +190,15 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
         """
         with np.printoptions(precision=4, suppress=True):
 
-            N = neighbor_z.shape[0]
-            COUNT = neighbor_z.shape[1]
-            assert COUNT == len(target_prob_obs)
-            assert COUNT == len(target_app_mag)
-            assert COUNT == len(target_quiescent)
-            assert COUNT == len(target_z_phot)
+            num_neighbors = neighbor_z.shape[0]
+            if self.neighbors_considered > num_neighbors:
+                print(f"Warning: only {num_neighbors} neighbors available, but {self.neighbors_considered} requested.")
+                self.neighbors_considered = num_neighbors
+            gal_count = neighbor_z.shape[1]
+            assert gal_count == len(target_prob_obs)
+            assert gal_count == len(target_app_mag)
+            assert gal_count == len(target_quiescent)
+            assert gal_count == len(target_z_phot)
 
             if target_quiescent.dtype == bool:
                 target_quiescent = target_quiescent.astype(float)
@@ -208,8 +214,8 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
             #print(f"Photo-z Scores {score_a}; shape {score_a.shape}")
 
             # Other properties scoring of neighbor
-            score_b = np.zeros((N, COUNT))
-            for i in range(N):
+            score_b = np.zeros((self.neighbors_considered, gal_count))
+            for i in range(self.neighbors_considered):
                 # TODO right now our results file has crap for P_obs, so always ignore it
                 s = self.nna.get_score(None, target_app_mag, target_quiescent, neighbor_z[i], neighbor_ang_dist[i], nn_quiescent[i])
                 #print(f"Other Scores {s}; shape {s.shape}")
@@ -217,16 +223,17 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
 
             #print(f"Other Scores {score_a}; shape {score_a.shape}")
 
-            score = self.photoz_weight*score_a + score_b
+            score = self.photoz_weight*score_a + self.other_weight*score_b
             #print(f"Total score: \n{score}")
 
+            THRESH = 1.0 # redundant with other scores params so no need to tune
             max_neighbor_index = np.argmax(score, axis=0)
             max_scores = np.max(score, axis=0)
             #print(max_neighbor_index)
 
             # If the max score is over the threshold, use that neighbor's redshift
-            z_chosen = np.where(max_scores > self.score_threshold, neighbor_z[max_neighbor_index, np.arange(COUNT)], np.nan)
-            neighbor_used = np.where(max_scores > self.score_threshold, max_neighbor_index, np.nan)
+            z_chosen = np.where(max_scores > THRESH, neighbor_z[max_neighbor_index, np.arange(gal_count)], np.nan)
+            neighbor_used = np.where(max_scores > THRESH, max_neighbor_index, np.nan) + 1
 
             # Otherwise draw a random redshift from the apparent mag bin similar to the target
             use_nn = ~np.isnan(z_chosen)
