@@ -153,7 +153,7 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
     assigned_halo_id = np.copy(mxxl_halo_id)
     observed = observed[keep]
     unobserved = np.invert(observed)
-    indexes_not_assigned = np.argwhere(unobserved)
+    idx_unassigned = np.flatnonzero(unobserved)
 
     # Want 0 for observed (DESI OR SDSS fill in), 1 for NN-assigned, 2 for other assigned
     z_assigned_flag = np.zeros(len(z_obs), dtype=np.int8)
@@ -199,27 +199,20 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
 
     
     elif mode == Mode.NEAREST_NEIGHBOR.value:
+        print(f"Assigning missing redshifts... ")   
 
         catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
         to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
 
         idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
 
-        # i is the index of the full sized array that needed a NN z value
-        # j is the index along the to_match list corresponding to that
-        # idx are the indexes of the NN from the catalog
-        assert len(indexes_not_assigned) == len(idx)
+        assert len(idx_unassigned) == len(idx)
 
-        print("Copying over NN properties... ", end='\r')
-        j = 0
-        for i in indexes_not_assigned:  
-            z_eff[i] = z_obs_catalog[idx[j]]
-            assigned_halo_mass[i] = halo_mass_catalog[idx[j]]
-            assigned_halo_id[i] = halo_id_catalog[idx[j]]
-            j = j + 1 
-        print("Copying over NN properties... done")
-
-        z_assigned_flag[unobserved] = 1
+        z_eff[idx_unassigned] = z_obs_catalog[idx]
+        assigned_halo_mass[idx_unassigned] = halo_mass_catalog[idx]
+        assigned_halo_id[idx_unassigned] = halo_id_catalog[idx]
+        z_assigned_flag[idx_unassigned] = 1
+        print(f"Assigning missing redshifts complete.")   
 
         
     elif mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value:
@@ -231,25 +224,24 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
         # We need to guess a color for the unobserved galaxies to help the redshift guesser
         # For MXXL we have 0.1^G-R even for lost galaxies so this isn't quite like real BGS situation
         # TODO change if needed
-        quiescent_gmr = is_quiescent_BGS_gmr(None, g_r[unobserved])
+        quiescent_gmr = is_quiescent_BGS_gmr(None, g_r[idx_unassigned])
 
         with SimpleRedshiftGuesser(app_mag[observed], z_obs[observed], ver) as scorer:
 
+            print(f"Assigning missing redshifts... ")   
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
-            to_match = coord.SkyCoord(ra=ra[unobserved]*u.degree, dec=dec[unobserved]*u.degree, frame='icrs')
+            to_match = coord.SkyCoord(ra=ra[idx_unassigned]*u.degree, dec=dec[idx_unassigned]*u.degree, frame='icrs')
             
             neighbor_indexes, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
             ang_distances = d2d.to(u.arcsec).value
 
-            print(f"Assigning missing redshifts... ")   
-            chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes], ang_distances, prob_obs[unobserved], app_mag[unobserved], quiescent_gmr, catalog_quiescent[neighbor_indexes])
-            z_eff[unobserved] = chosen_z
-            z_assigned_flag[unobserved] = np.where(isNN, AssignedRedshiftFlag.NEIGHBOR_ONE.value, AssignedRedshiftFlag.PSEUDO_RANDOM.value)
-            assigned_halo_mass[unobserved] = np.where(isNN, halo_mass_catalog[neighbor_indexes], -1)
-            assigned_halo_id[unobserved] = np.where(isNN, halo_id_catalog[neighbor_indexes], -1)
+            chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes], ang_distances, prob_obs[idx_unassigned], app_mag[idx_unassigned], quiescent_gmr, catalog_quiescent[neighbor_indexes])
+            z_eff[idx_unassigned] = chosen_z
+            z_assigned_flag[idx_unassigned] = np.where(isNN, AssignedRedshiftFlag.NEIGHBOR_ONE.value, AssignedRedshiftFlag.PSEUDO_RANDOM.value)
+            assigned_halo_mass[idx_unassigned] = np.where(isNN, halo_mass_catalog[neighbor_indexes], -1)
+            assigned_halo_id[idx_unassigned] = np.where(isNN, halo_id_catalog[neighbor_indexes], -1)
             print(f"Assigning missing redshifts complete.")   
     
-
     abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
     abs_mag_k = k_correct(abs_mag, z_eff, g_r)
 

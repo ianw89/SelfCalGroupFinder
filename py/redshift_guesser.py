@@ -82,7 +82,7 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
 
         close_enough = neighbor_ang_dist < angular_threshold
         close_candidiates = np.sum(close_enough)
-        close_idx = np.argwhere(close_enough)
+        close_idx = np.flatnonzero(close_enough)
         
         if len(close_idx) > 0:
             implied_abs_mag = app_mag_to_abs_mag(target_app_mag[close_idx], neighbor_z[close_idx])
@@ -115,7 +115,7 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
         #    print(f"Trouble with app mag {target_app_mag}, which goes in bin {bin_i}")
 
         random_z = np.copy(neighbor_z)
-        idx_for_random = np.argwhere(~use_nn)
+        idx_for_random = np.flatnonzero(~use_nn)
 
         #z_chosen = self.rng.choice(self.app_mag_map[bin_i[0]])
         for i in np.arange(len(bin_i)):
@@ -131,36 +131,30 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
     def __init__(self, debug=False):
         print("Initializing v1 of PhotometricRedshiftGuesser")
         self.debug = debug
-        self.nna = None
+        self.nna: NNAnalyzer_cic = None
         self.app_mag_bins = None
         self.app_mag_map = None
-        #self.score_threshold = 0.9 
-        self.photoz_weight = 0.8 # TODO tune these
-        self.other_weight = 1.0 # TODO tune these
-        self.neighbors_considered = 10 # TODO tune these
-        self.zmatch_sigma = 0.004 # TODO tune these
-        self.zmatch_pow = 4.0 # TODO tune these
-
+        self.mode: Mode = None
     
     @classmethod
-    def from_files(cls, app_mag_to_z_file, nna_file):
+    def from_files(cls, app_mag_to_z_file, nna_file, mode: Mode):
         obj = cls()
+        obj.mode = mode
         print(f"Warning: using saved app mag -> z map")
         with open(app_mag_to_z_file, 'rb') as f:
             obj.app_mag_bins, obj.app_mag_map = pickle.load(f)
-        with open(nna_file, 'rb') as f:
-            obj.nna = NNAnalyzer_cic.from_results_file(NEIGHBOR_ANALYSIS_SV3_BINS_FILE)
+        obj.nna = NNAnalyzer_cic.from_results_file(nna_file)
         return obj
     
     @classmethod
-    def from_data(cls, app_mags, z_obs, nna_file):        
+    def from_data(cls, app_mags, z_obs, nna_file, mode: Mode):        
         obj = cls()
+        obj.mode = mode
         obj.app_mag_bins, obj.app_mag_map = build_app_mag_to_z_map(app_mags, z_obs)
-        with open(nna_file, 'rb') as f:
-            obj.nna = NNAnalyzer_cic.from_results_file(NEIGHBOR_ANALYSIS_SV3_BINS_FILE)
+        obj.nna = NNAnalyzer_cic.from_results_file(nna_file)
         return obj
 
-    def choose_redshift(self, neighbor_z, neighbor_ang_dist, target_z_phot, target_prob_obs, target_app_mag, target_quiescent, nn_quiescent) -> tuple[np.ndarray[np.float64], np.ndarray[np.int64]]:
+    def choose_redshift(self, neighbor_z, neighbor_ang_dist, target_z_phot, target_prob_obs, target_app_mag, target_quiescent, nn_quiescent, a, b, zmatch_sigma, zmatch_pow) -> tuple[np.ndarray[np.float64], np.ndarray[np.int64]]:
         """
         Choose a redshift for targets based on its own photometric and its neighbors' properties.
 
@@ -186,63 +180,80 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
         tuple[np.ndarray[np.float64], np.ndarray[np.int64]]
             A tuple containing two arrays:
             - z_chosen: Array of shape (COUNT,) containing the chosen redshifts for the targets.
-            - neighbor_used: Array of shape (COUNT,) containing the indices of the neighbors used for the chosen redshifts.
-        """
-        with np.printoptions(precision=4, suppress=True):
+            - flag_value: Array of shape (COUNT,) containing the AssignedRedshiftFlag values. This is indices of the neighbors used for the chosen redshifts or other values for different choices.
+        """            
 
-            num_neighbors = neighbor_z.shape[0]
-            if self.neighbors_considered > num_neighbors:
-                print(f"Warning: only {num_neighbors} neighbors available, but {self.neighbors_considered} requested.")
-                self.neighbors_considered = num_neighbors
-            gal_count = neighbor_z.shape[1]
-            assert gal_count == len(target_prob_obs)
-            assert gal_count == len(target_app_mag)
-            assert gal_count == len(target_quiescent)
-            assert gal_count == len(target_z_phot)
+        num_neighbors = neighbor_z.shape[0]
+        gal_count = neighbor_z.shape[1]
+        assert gal_count == len(target_prob_obs)
+        assert gal_count == len(target_app_mag)
+        assert gal_count == len(target_quiescent)
+        assert gal_count == len(target_z_phot)
 
-            if target_quiescent.dtype == bool:
-                target_quiescent = target_quiescent.astype(float)
-            if nn_quiescent.dtype == bool:
-                nn_quiescent = nn_quiescent.astype(float)
+        if target_quiescent.dtype == bool:
+            target_quiescent = target_quiescent.astype(float)
+        if nn_quiescent.dtype == bool:
+            nn_quiescent = nn_quiescent.astype(float)
 
-            #print(f"{N} neighbors will be considered.")
+        #print(f"{N} neighbors will be considered.")
 
-            # PHOTO-Z scoring of neighbor
-            delta_z = np.abs(neighbor_z - target_z_phot)
-            dzp = np.power(delta_z, self.zmatch_pow)
-            score_a = np.exp(- dzp / (2*self.zmatch_sigma**2))
-            #print(f"Photo-z Scores {score_a}; shape {score_a.shape}")
+        # PHOTO-Z scoring of neighbor
+        delta_z = np.abs(neighbor_z - target_z_phot)
+        dzp = np.power(delta_z, zmatch_pow)
+        score_a = np.exp(- dzp / (2*zmatch_sigma**2))
+        #print(f"Photo-z Scores {score_a}; shape {score_a.shape}")
 
-            # Other properties scoring of neighbor
-            score_b = np.zeros((self.neighbors_considered, gal_count))
-            for i in range(self.neighbors_considered):
-                # TODO right now our results file has crap for P_obs, so always ignore it
-                s = self.nna.get_score(None, target_app_mag, target_quiescent, neighbor_z[i], neighbor_ang_dist[i], nn_quiescent[i])
-                #print(f"Other Scores {s}; shape {s.shape}")
-                score_b[i, :] = s
+        # Other properties scoring of neighbor
+        score_b = np.zeros((num_neighbors, gal_count))
+        for i in range(num_neighbors):
+            # TODO right now our results file has crap for P_obs, so always ignore it
+            #s = self.nna.get_score(target_prob_obs, target_app_mag, target_quiescent, neighbor_z[i], neighbor_ang_dist[i], nn_quiescent[i])
+            s = self.nna.get_score(None, target_app_mag, target_quiescent, neighbor_z[i], neighbor_ang_dist[i], nn_quiescent[i])
+            #print(f"Other Scores {s}; shape {s.shape}")
+            score_b[i, :] = s
 
-            #print(f"Other Scores {score_a}; shape {score_a.shape}")
+        #print(f"Other Scores {score_a}; shape {score_a.shape}")
 
-            score = self.photoz_weight*score_a + self.other_weight*score_b
-            #print(f"Total score: \n{score}")
+        score = a*score_a + b*score_b
+        #print(f"Total score: \n{score}")
 
-            THRESH = 1.0 # redundant with other scores params so no need to tune
-            max_neighbor_index = np.argmax(score, axis=0)
-            max_scores = np.max(score, axis=0)
-            #print(max_neighbor_index)
+        THRESH = 1.0 # redundant with other scores params so no need to tune
+        max_neighbor_index = np.argmax(score, axis=0)
+        max_scores = np.max(score, axis=0)
+        #print(max_neighbor_index)
 
-            # If the max score is over the threshold, use that neighbor's redshift
-            z_chosen = np.where(max_scores > THRESH, neighbor_z[max_neighbor_index, np.arange(gal_count)], np.nan)
-            neighbor_used = np.where(max_scores > THRESH, max_neighbor_index, np.nan) + 1
+        # If the max score is over the threshold, use that neighbor's redshift
+        z_chosen = np.where(max_scores > THRESH, neighbor_z[max_neighbor_index, np.arange(gal_count)], np.nan)
+        flag_value = np.where(max_scores > THRESH, max_neighbor_index + 1, AssignedRedshiftFlag.PSEUDO_RANDOM.value)
+        used_neighbors = ~(flag_value == AssignedRedshiftFlag.PSEUDO_RANDOM.value)
+        idx_remaining = np.flatnonzero(~used_neighbors)
+
+        # For the other ones, what we do is different for each mode
+        if self.mode == Mode.PHOTOZ_PLUS_v1:
+            # Otherwise draw a random redshift from the apparent mag bin similar to the target
+            bin_i = np.digitize(target_app_mag[~used_neighbors], self.app_mag_bins)
+
+            for i in np.arange(len(bin_i)):
+                z_chosen[idx_remaining[i]] = np.random.choice(self.app_mag_map[bin_i[i]])
+                
+        elif self.mode == Mode.PHOTOZ_PLUS_v2:
+            # Just use the photo-z directly
+            z_chosen[idx_remaining] = target_z_phot[idx_remaining]
+            flag_value[idx_remaining] = AssignedRedshiftFlag.PHOTO_Z.value
+
+            idx_bad = np.flatnonzero(target_z_phot < 0.0)
 
             # Otherwise draw a random redshift from the apparent mag bin similar to the target
-            use_nn = ~np.isnan(z_chosen)
-            idx = np.argwhere(~use_nn)
-            bin_i = np.digitize(target_app_mag[~use_nn], self.app_mag_bins)
+            bin_i = np.digitize(target_app_mag[idx_bad], self.app_mag_bins)
 
-            #z_chosen = self.rng.choice(self.app_mag_map[bin_i[0]])
             for i in np.arange(len(bin_i)):
-                z_chosen[idx[i]] = np.random.choice(self.app_mag_map[bin_i[i]])
-            
+                z_chosen[idx_bad[i]] = np.random.choice(self.app_mag_map[bin_i[i]])
 
-        return z_chosen, neighbor_used
+        elif self.mode == Mode.PHOTOZ_PLUS_v3:
+
+            # use the bins of photo-z and app-mag as keys
+            raise ValueError("Not implemented yet")
+
+        assert np.isnan(z_chosen).sum() == 0, f"Some redshifts were not chosen. {z_chosen}"
+
+        return z_chosen, flag_value

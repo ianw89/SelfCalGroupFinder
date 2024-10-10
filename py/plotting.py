@@ -137,13 +137,17 @@ def completeness_comparison(*datasets):
     ax1.set_ylim(0.0,0.6)
     fig.tight_layout()
 
-def plots(*datasets, truth_on=False):
-    
+def plots(*catalogs, show_err=None, truth_on=False):
+    catalogs = list(catalogs)
+    if isinstance(show_err, GroupCatalog) and show_err not in catalogs:
+        print("Test")
+        catalogs.append(show_err)
+
     # TODO: I believe that Mh and Mstar don't have any h factors, but should double check.
     # Probably depends on what was given to the group finder?
     # LHMR
     plt.figure(dpi=DPI)
-    for f in datasets:
+    for f in catalogs:
         lcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
         lcen_scatter = f.centrals.groupby('Mh_bin', observed=False).L_gal.std() # TODO not right?
         plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
@@ -152,7 +156,7 @@ def plots(*datasets, truth_on=False):
     plt.xlabel('$M_{halo}$')
     plt.ylabel('$L_{cen}~[L_\odot / h^2$')
     #plt.title("Central Luminosity vs. Halo Mass")
-    legend(datasets)
+    legend(catalogs)
     plt.xlim(1E10,1E15)
     plt.ylim(3E7,2E12)
     plt.draw()
@@ -208,10 +212,10 @@ def plots(*datasets, truth_on=False):
     # Wide fsat vs Lgal with Ngal
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
-    for f in datasets:
+    for f in catalogs:
         plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=get_dataset_display_name(f), color=f.color)
     if truth_on:
-        for f in datasets:
+        for f in catalogs:
             if f.has_truth:
                 plt.plot(f.L_gal_labels, f.truth_f_sat, 'v', label=f"{get_dataset_display_name(f)} Truth", color=f.color)
     ax1.set_xscale('log')
@@ -220,13 +224,13 @@ def plots(*datasets, truth_on=False):
     #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.set_xlim(2E7,3E11)
     ax1.set_ylim(0.0,0.6)
-    legend_ax(ax1, datasets)
+    legend_ax(ax1, catalogs)
     ax2 = ax1.twinx()
     idx = 0
-    for f in datasets:
+    for f in catalogs:
         widths = np.zeros(len(f.L_gal_bins)-1)
         for i in range(0,len(f.L_gal_bins)-1):
-            widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(datasets)
+            widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(catalogs)
         # This version 1/vmax weights the counts
         #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin', observed=False).apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
         ax2.bar(f.L_gal_labels+(widths*idx), f.all_data.groupby('Lgal_bin', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
@@ -237,27 +241,27 @@ def plots(*datasets, truth_on=False):
 
     X_MAX = 1E11
 
-    # fsat vs Lgal 
+    # ALL fsat vs Lgal 
     for xmin in LGAL_XMINS:
         fig,ax1=plt.subplots()
         fig.set_dpi(DPI)
-        for f in datasets:
-            if f.name == "SDSS Vanilla":
-                plt.plot(f.L_gal_labels[15:], f.f_sat[15:], f.marker, label=get_dataset_display_name(f), color=f.color)
+        for f in catalogs:
+            if f is show_err:
+                plt.errorbar(f.L_gal_labels, f.f_sat, yerr=f.f_sat_err, label=get_dataset_display_name(f), color=f.color)
             else:
                 plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=get_dataset_display_name(f), color=f.color)
         if truth_on:
-            for f in datasets:
+            for f in catalogs:
                 if 'is_sat_truth' in f.all_data.columns:
                     plt.plot(f.L_gal_labels, f.truth_f_sat, 'v', label=f"{f.name} Truth", color=f.color)
         ax1.set_xscale('log')
         ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
         ax1.set_ylabel("$f_{\\mathrm{sat}}$")
-        legend_ax(ax1, datasets)
+        legend_ax(ax1, catalogs)
         ax1.set_xlim(xmin,X_MAX)
         ax1.set_ylim(0.0,0.6)
         ax2=ax1.twiny()
-        ax2.plot(Mr_gal_labels, datasets[0].f_sat, ls="")
+        ax2.plot(Mr_gal_labels, catalogs[0].f_sat, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
         ax2.set_xlabel("$M_r$ - 5log(h)")
         fig.tight_layout()
@@ -266,19 +270,20 @@ def plots(*datasets, truth_on=False):
     for xmin in LGAL_XMINS:
         fig,ax1=plt.subplots()
         fig.set_dpi(DPI)
-        for f in datasets:
-            #if not hasattr(f, 'f_sat_sf'):
-            #    f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
-            plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, color=f.color, label=get_dataset_display_name(f))
+        for f in catalogs:
+            if f is show_err:
+                plt.errorbar(f.L_gal_labels, f.f_sat_sf, yerr=f.f_sat_sf_err, label=get_dataset_display_name(f), color=f.color)
+            else:
+                plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, color=f.color, label=get_dataset_display_name(f))
 
         ax1.set_xscale('log')
         ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
         ax1.set_ylabel("Star-forming $f_{\\mathrm{sat}}$ ")
-        legend_ax(ax1, datasets)
+        legend_ax(ax1, catalogs)
         ax1.set_xlim(xmin,X_MAX)
         ax1.set_ylim(0.0,1.0)
         ax2=ax1.twiny()
-        ax2.plot(Mr_gal_labels, datasets[0].f_sat_sf, ls="")
+        ax2.plot(Mr_gal_labels, catalogs[0].f_sat_sf, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
         ax2.set_xlabel("$M_r$ - 5log(h)")
         fig.tight_layout()
@@ -287,19 +292,20 @@ def plots(*datasets, truth_on=False):
     for xmin in LGAL_XMINS:
         fig,ax1=plt.subplots()
         fig.set_dpi(DPI)
-        for f in datasets:
-            #if not hasattr(f, 'f_sat_q'):
-            #    f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
-            plt.plot(f.L_gal_labels, f.f_sat_q, f.marker, color=f.color, label=get_dataset_display_name(f))
+        for f in catalogs:
+            if f is show_err:
+                plt.errorbar(f.L_gal_labels, f.f_sat_q, yerr=f.f_sat_q_err, label=get_dataset_display_name(f), color=f.color)
+            else:
+                plt.plot(f.L_gal_labels, f.f_sat_q, f.marker, color=f.color, label=get_dataset_display_name(f))
 
         ax1.set_xscale('log')
         ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
         ax1.set_ylabel("Quiescent $f_{\\mathrm{sat}}$ ")
-        legend_ax(ax1, datasets)
+        legend_ax(ax1, catalogs)
         ax1.set_xlim(xmin,X_MAX)
         ax1.set_ylim(0.0,1.0)
         ax2=ax1.twiny()
-        ax2.plot(Mr_gal_labels, datasets[0].f_sat_q, ls="")
+        ax2.plot(Mr_gal_labels, catalogs[0].f_sat_q, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
         ax2.set_xlabel("$M_r$ - 5log(h)")
         fig.tight_layout()
@@ -315,11 +321,11 @@ def plots(*datasets, truth_on=False):
     #ax2.set_ylabel('$N_{sat}$')
     fig.tight_layout()
 
-    if len(datasets) == 1:
-        plots_color_split(*datasets, total_on=True)
+    if len(catalogs) == 1:
+        plots_color_split(*catalogs, total_on=True)
 
     print("Summary Statistics: ")
-    for f in datasets:
+    for f in catalogs:
         print(f.name)
         total_f_sat(f)
 
@@ -810,29 +816,35 @@ def build_interior_bin_labels(bin_edges):
         labels.append(f"{bin_edges[i]:.2e} - {bin_edges[i+1]:.2e}")
     return labels
 
-def test_purity_and_completeness(*sets):
+def test_purity_and_completeness(*catalogs: GroupCatalog, lost_only=False):
 
-    for s in sets:
-        print(get_dataset_display_name(s))
-        data = s.all_data
+    for s in catalogs:
+        good_rows = s.all_data['z_T'] != -99.0 # TODO filter out low L gals too due to high noise?
+        if lost_only:
+            good_rows = np.logical_and(good_rows, z_flag_is_not_spectro_z(s.all_data['z_assigned_flag']))
 
-        if not s.has_truth:
-            data['is_sat_truth'] = np.logical_or(data.galaxy_type == 1, data.galaxy_type == 3)
+        data = s.all_data.loc[good_rows]
+        print(get_dataset_display_name(s), f"({len(data)})")
+
+        #if not s.has_truth:
+        #    data['is_sat_truth'] = np.logical_or(data.galaxy_type == 1, data.galaxy_type == 3)
 
         # No 1/vmax weightings for these sums as we're just trying to calculate the purity/completeness
         # of our sample
 
-        assigned_sats = data[data.is_sat == True]
+        assigned_sats = data[data.is_sat.astype(bool)]
         print(f"Purity of sats: {np.sum(assigned_sats.is_sat_truth) / len(assigned_sats.index):.3f}")
 
-        true_sats = data[data.is_sat_truth == True]
+        true_sats = data[data.is_sat_truth.astype(bool)]
         print(f"Completeness of sats: {np.sum(true_sats.is_sat) / len(true_sats.index):.3f}")
 
-        assigned_centrals = data[data.is_sat == False]
+        assigned_centrals = data[~data.is_sat.astype(bool)]
         print(f"Purity of centrals: {1 - (np.sum(assigned_centrals.is_sat_truth) / len(assigned_centrals.index)):.3f}")
 
-        true_centrals = data[data.is_sat_truth == False]
+        true_centrals = data[~data.is_sat_truth.astype(bool)]
         print(f"Completeness of centrals: {1 - (np.sum(true_centrals.is_sat) / len(true_centrals.index)):.3f}")
+
+        # TODO proofread below
 
         assigned_true_sats = assigned_sats[assigned_sats.is_sat_truth == True]
         assigned_sats_g = assigned_sats.groupby('Lgal_bin', observed=False).size().to_numpy()
@@ -866,31 +878,31 @@ def purity_complete_plots(*sets):
     fig.set_dpi(DPI/2)
 
     XMIN = 6E7
-    XMAX = 5E10
+    XMAX = 1E11
 
     axes[1][0].set_title('Satellite Purity')
     axes[1][0].set_xscale('log')
     axes[1][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[1][0].set_xlim(XMIN,XMAX)
-    axes[1][0].set_ylim(0.4,1.0)
+    axes[1][0].set_ylim(0.0,1.0)
 
     axes[1][1].set_title('Satellite Completeness')
     axes[1][1].set_xscale('log')
     axes[1][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[1][1].set_xlim(XMIN,XMAX)
-    axes[1][1].set_ylim(0.4,1.0)
+    axes[1][1].set_ylim(0.0,1.0)
 
     axes[0][0].set_title('Central Purity')
     axes[0][0].set_xscale('log')
     axes[0][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[0][0].set_xlim(XMIN,XMAX)
-    axes[0][0].set_ylim(0.4,1.0)
+    axes[0][0].set_ylim(0.0,1.0)
 
     axes[0][1].set_title('Central Completeness')
     axes[0][1].set_xscale('log')
     axes[0][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[0][1].set_xlim(XMIN,XMAX)
-    axes[0][1].set_ylim(0.4,1.0)
+    axes[0][1].set_ylim(0.0,1.0)
 
     for s in sets:
         axes[1][0].plot(s.L_gal_bins[s.keep], s.purity_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
@@ -898,6 +910,21 @@ def purity_complete_plots(*sets):
         axes[0][0].plot(s.L_gal_bins[s.keep3], s.purity_c_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
         axes[0][1].plot(s.L_gal_bins[s.keep4], s.completeness_c_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
 
+    """
+    for a in axes:
+        at = a.twinx()
+        idx = 0
+        for f in sets:
+            widths = np.zeros(len(f.L_gal_bins)-1)
+            for i in range(0,len(f.L_gal_bins)-1):
+                widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(sets)
+            # This version 1/vmax weights the counts
+            #at.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin', observed=False).apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
+            at.bar(f.L_gal_labels+(widths*idx), f.all_data.groupby('Lgal_bin', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
+            idx+=1
+        at.set_ylabel('$N_{gal}$')
+        at.set_yscale('log')
+"""
     
     axes[0][0].legend()
     fig.tight_layout()

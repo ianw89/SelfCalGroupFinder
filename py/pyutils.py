@@ -44,9 +44,16 @@ ANG_DIST_BIN_COUNT = 15
 ANGULAR_BINS = np.append(np.logspace(np.log10(3), np.log10(900), ANG_DIST_BIN_COUNT - 1), 3600) # upper bound is higher than any data, lower bound is not
 ANGULAR_BINS_MIDPOINTS = np.append([2], 0.5*(ANGULAR_BINS[1:] + ANGULAR_BINS[:-1]))
 
-Z_BINS = np.array([0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.36, 1.0])  # upper bound is higher than any data, lower bound is not
-Z_BIN_COUNT = len(Z_BINS)
-Z_BINS_MIDPOINTS = [0.04, 0.10, 0.14, 0.18, 0.22, 0.26, 0.33, 0.4]
+Z_BIN_COUNT = 16
+Z_BINS = np.linspace(0.05, 0.5, Z_BIN_COUNT) # upper bound is higher than any data, lower bound is not
+
+#Z_BINS = np.array([0.094, 0.135, 0.169, 0.199, 0.231, 0.261, 0.291, 0.331, 0.39, 1.0]) # equal gals per bin over 10 bins
+
+Z_BINS_FOR_SIMPLE = np.array([0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.36, 1.0]) 
+Z_BINS_FOR_SIMPLE_MIDPOINTS = [0.04, 0.10, 0.14, 0.18, 0.22, 0.26, 0.33, 0.4]
+#Z_BINS = Z_BINS_FOR_SIMPLE
+#Z_BIN_COUNT = len(Z_BINS) 
+#Z_BINS_MIDPOINTS = np.append([0.025], 0.5*(Z_BINS[1:] + Z_BINS[:-1]))
 
 ABS_MAG_BIN_COUNT = 15
 ABS_MAG_BINS = np.append(np.linspace(-22.5, -15, ABS_MAG_BIN_COUNT - 1), -5) # upper bound is higher than any data, lower bound is not
@@ -67,9 +74,41 @@ class Mode(Enum):
     SIMPLE_v4 = 6
     SIMPLE_v5 = 7
     PHOTOZ_PLUS_v1 = 8
+    PHOTOZ_PLUS_v2 = 9
+    PHOTOZ_PLUS_v3 = 10
+
+    @classmethod
+    def is_simple(cls, mode):
+        if isinstance(mode, Mode):
+            value = mode.value   
+        value = mode
+        return value == Mode.SIMPLE.value or value == Mode.SIMPLE_v4.value or value == Mode.SIMPLE_v5.value
+    
+    @classmethod
+    def is_photoz_plus(cls, mode):
+        if isinstance(mode, Mode):
+            value = mode.value   
+        value = mode
+        return value == Mode.PHOTOZ_PLUS_v1.value or value == Mode.PHOTOZ_PLUS_v2.value or value == Mode.PHOTOZ_PLUS_v3.value
+        
+    @classmethod
+    def is_all(cls, mode):
+        if isinstance(mode, Mode):
+            value = mode.value   
+        value = mode
+        return value == Mode.ALL.value
+
+    @classmethod
+    def is_fiber_assigned_only(cls, mode):
+        if isinstance(mode, Mode):
+            value = mode.value   
+        value = mode
+        return value == Mode.FIBER_ASSIGNED_ONLY.value
+    
 
 class AssignedRedshiftFlag(Enum):
     # TODO switch to using this enum
+    PHOTO_Z = -3 # pseudo-randomly assigned redshift using our methods; see paper
     PSEUDO_RANDOM = -2 # pseudo-randomly assigned redshift using our methods; see paper
     SDSS_SPEC = -1 # spectroscopic redshfit taken from SDSS
     DESI_SPEC = 0 # spectroscopic redshift from DESI
@@ -81,9 +120,6 @@ class AssignedRedshiftFlag(Enum):
 
 def spectroscopic_complete_percent(flags: np.ndarray):
     return np.logical_or(flags == AssignedRedshiftFlag.SDSS_SPEC.value, flags == AssignedRedshiftFlag.DESI_SPEC.value).sum() / len(flags)
-
-def neighbor_redshift_used(flags: np.ndarray):
-    return (flags >= AssignedRedshiftFlag.NEIGHBOR_ONE.value).sum() / len(flags)
 
 def pseudo_random_redshift_used(flags: np.ndarray):
     return (flags == AssignedRedshiftFlag.PSEUDO_RANDOM.value).sum() / len(flags)
@@ -123,17 +159,79 @@ def get_vir_radius_mine(halo_mass):
 
 SIM_Z_THRESH = 0.005
 def close_enough(target_z, z_arr, threshold=SIM_Z_THRESH):
+    """
+    Determine if elements in an array are within a specified threshold of a target value.
+
+    Parameters:
+    target_z (float): The target value to compare against.
+    z_arr (numpy.ndarray): Array of values to compare to the target value.
+    threshold (float, optional): The threshold within which values are considered "close enough". Defaults to SIM_Z_THRESH.
+
+    Returns:
+    numpy.ndarray: A boolean array where True indicates the corresponding element in z_arr is within the threshold of target_z.
+    """
     return np.abs(z_arr - target_z) < threshold
+
+def close_enough_smooth(target_z, z_arr):
+    """
+    Compares two arrays of redshifts and returns a smooth transition from 1.0 to 0.0 around a 0.005 difference.
+    This is used by the nnanalysis object to evaluat the similar-z fraction that goes into the bins.
+
+    Parameters:
+    target_z (float): The target redshift value.
+    z_arr (numpy.ndarray): An array of redshift values to compare against the target.
+
+    Returns:
+    numpy.ndarray: An array of values smoothly transitioning from 1.0 to 0.0 based on the difference between target_z and z_arr.
+    """
+    TUNABLE=6
+    TURNING=0.0023
+    return np.round(1.0 - erf((np.abs(z_arr-target_z) / (np.pi * TURNING))**TUNABLE), 3)
 
 def sim_z_score(target_z, z_arr):
     """
     Compares two arrays of redshifts. Instead of binary close enough evaluations like close_enough,
     this will give a 1.0 for close enough values and smoothly go to 0.0 for definintely far away targets.
-
     """
-    TUNABLE = 6
-    TURNING = 0.0023
-    return np.round(1.0 - erf((np.abs(z_arr-target_z) / (np.pi * TURNING))**TUNABLE), 3)
+    #G_POW = 3
+    #SIGMA = 0.0039 
+    # try a gaussian instead, normalized so the peak is 1.0
+    #gauss = np.exp(-((np.abs(z_arr-target_z) / SIGMA)**G_POW))
+
+    # try a negative power law to get fatter tails
+    POW = 3
+    FAT = 0.023 #0.0039 # 0.0023
+    power =  1.0 / (1 + (np.abs(z_arr-target_z) / FAT)**POW)
+
+    return power
+
+def photoz_plus_metric_1(z_guessed: np.ndarray[float], z_truth: np.ndarray[float], guess_type: np.ndarray[int]):
+    assert guess_type.shape == z_guessed.shape
+    assert guess_type.shape == z_truth.shape
+    score = sim_z_score(z_guessed, z_truth)
+
+    # pseudorandom guesses help preserve luminosity func so give them a little credit
+    score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.3, 0.0) 
+
+    # in case pseduo-random guesses were spot on it can be > 1.0, so cap the score at 1.0
+    score = np.where(score > 1.0, 1.0, score)
+    
+    # The mean of them all is a sufficient statistic
+    return - np.mean(score)
+
+def photoz_plus_metric_2(z_guessed: np.ndarray[float], z_truth: np.ndarray[float], guess_type: np.ndarray[int]):
+    assert guess_type.shape == z_guessed.shape
+    assert guess_type.shape == z_truth.shape
+    score = sim_z_score(z_guessed, z_truth)
+
+    # pseudorandom guesses help preserve luminosity func so give them a little credit
+    score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.4, 0.0) 
+
+    # in case pseduo-random guesses were spot on it can be > 1.0, so cap the score at 1.0
+    score = np.where(score > 1.0, 1.0, score)
+    
+    # The mean of them all is a sufficient statistic
+    return - np.mean(score)
 
 def get_app_mag(FLUX):
     """This converts nanomaggies into Pogson magnitudes"""
@@ -518,7 +616,7 @@ def get_NN_40_line_v5(z, t_appmag, target_quiescent, nn_quiescent):
     target_quiescent = target_quiescent.astype(bool)
     nn_quiescent = nn_quiescent.astype(bool)
 
-    #zb = np.digitize(z, Z_BINS)
+    #zb = np.digitize(z, Z_BINS_FOR_SIMPLE)
     #t_appmag_b = np.digitize(t_appmag, APP_MAG_BINS)
     
     # Treat mags lower than 15.0 as 15.0
@@ -593,7 +691,7 @@ def get_NN_30_line(z, t_Pobs):
     FIT_SHIFT_UP = np.array([0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5])
     FIT_SQUEEZE = np.array([1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5])
     base = np.array([1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04])
-    zb = np.digitize(z, Z_BINS)
+    zb = np.digitize(z, Z_BINS_FOR_SIMPLE)
 
     erf_in = FIT_SQUEEZE[zb]*(t_Pobs - FIT_SHIFT_UP[zb])
 
@@ -611,7 +709,7 @@ def get_NN_40_line_v2(z, t_Pobs):
     FIT_SHIFT_UP = np.array([0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5])
     FIT_SQUEEZE = np.array([1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5])
     base = np.array([1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04])
-    zb = np.digitize(z, Z_BINS)
+    zb = np.digitize(z, Z_BINS_FOR_SIMPLE)
 
     erf_in = FIT_SQUEEZE[zb]*(t_Pobs - FIT_SHIFT_UP[zb])
 
@@ -640,7 +738,7 @@ def get_NN_40_line_v4(z, t_Pobs, target_quiescent, nn_quiescent):
     FIT_SHIFT_UP = np.array([0.7,0.7,0.7,0.7,0.7,0.7,0.6,0.5])
     FIT_SQUEEZE = np.array([1.4,1.3,1.3,1.3,1.4,1.4,1.5,1.5])
     base = np.array([1.10,1.14,1.14,1.14,1.10,1.10,1.06,1.04])
-    zb = np.digitize(z, Z_BINS)
+    zb = np.digitize(z, Z_BINS_FOR_SIMPLE)
 
     erf_in = FIT_SQUEEZE[zb]*(t_Pobs - FIT_SHIFT_UP[zb])
 
@@ -672,7 +770,7 @@ def get_NN_50_line(z, t_Pobs):
     FIT_SHIFT_UP = np.array([0.8,0.8,0.8,0.8,0.8,0.8,0.6,0.5])
     FIT_SQUEEZE = np.array([1.3,1.3,1.3,1.3,1.4,1.4,1.5,1.5])
     base = np.array([1.16,1.16,1.16,1.16,1.12,1.12,1.08,1.08])
-    zb = np.digitize(z, Z_BINS)
+    zb = np.digitize(z, Z_BINS_FOR_SIMPLE)
 
     # for higher and lower z bit just use simple cut
     if zb in [0,6,7]:
@@ -845,7 +943,6 @@ def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base)
 
     # Time the two approaches
     t1 = time.time()
-    print("Building output file string... ", end='\r')
     lines_1 = []
     #lines_2 = []
 
@@ -855,12 +952,9 @@ def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base)
 
     outstr_1 = "\n".join(lines_1)
     #outstr_2 = "\n".join(lines_2)    
-    print("Building output file string... done")
 
-    print("Writing output files... ",end='\r')
     open(outname_1, 'w').write(outstr_1)
     #open(outname_2, 'w').write(outstr_2)
-    print("Writing output files... done")
     t2 = time.time()
 
     # Experiment

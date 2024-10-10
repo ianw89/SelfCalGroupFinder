@@ -13,6 +13,8 @@ import sys
 import wp as wp
 import asyncio
 from multiprocessing import Pool
+from scipy.optimize import minimize
+from tqdm.notebook import tqdm
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -20,7 +22,10 @@ from pyutils import *
 from redshift_guesser import SimpleRedshiftGuesser, PhotometricRedshiftGuesser
 from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
+from joblib import Parallel, delayed
 
+# Sentinal value for no truth redshift
+NO_TRUTH_Z = -99.99
 
 # Shared bins for various purposes
 Mhalo_bins = np.logspace(10, 15.5, 40)
@@ -86,10 +91,12 @@ class GroupCatalog:
         self.marker = '-'
         self.preprocess_file = None
         self.GF_props = {} # Properties that are sent as command-line arguments to the group finder executable
+        self.extra_params = None # Tuple of parameters values
 
         self.has_truth = False
         self.Mhalo_bins = Mhalo_bins
         self.labels = Mhalo_labels
+        self.Mhalo_labels = Mhalo_labels
         self.all_data: pd.DataFrame = None
         self.centrals: pd.DataFrame = None
         self.sats: pd.DataFrame = None
@@ -130,7 +137,7 @@ class GroupCatalog:
 
     def get_lostgal_neighbor_used(self):
         arr = self.all_data.z_assigned_flag.to_numpy()
-        return np.sum(z_flag_is_neighbor(arr)) / (np.sum(z_flag_is_random(arr)) + np.sum(z_flag_is_neighbor(arr)))
+        return np.sum(z_flag_is_neighbor(arr)) / np.sum(z_flag_is_not_spectro_z(arr))
 
     def dump(self):
         self.__class__ = eval(self.__class__.__name__) #reset __class__ attribute
@@ -252,13 +259,17 @@ class GroupCatalog:
         Adds a column to the catalog's all_data DataFrame with the true redshifts from the truth_df DataFrame 
         for rows with z_assigned_flag != 0.
         """
-        truth_df = truth_df[['target_id', 'z', 'z_assigned_flag', 'L_gal', 'logLgal', 'g_r', 'Lgal_bin']].copy()
+        if self.has_truth:
+            print("Warning: get_true_z_from() called but catalog already has truth data. Skipping.")
+            return
+        
+        truth_df = truth_df[['target_id', 'z', 'z_assigned_flag', 'L_gal', 'logLgal', 'g_r', 'Lgal_bin', 'is_sat']].copy()
         truth_df.index = truth_df.target_id
         self.all_data = self.all_data.join(truth_df, on='target_id', how='left', rsuffix='_T')
-        rows_to_nan = self.all_data['z_assigned_flag_T'] != AssignedRedshiftFlag.DESI_SPEC.value
-        rows_to_nan = rows_to_nan & self.all_data['z_assigned_flag_T'] != AssignedRedshiftFlag.SDSS_SPEC.value
-        self.all_data.loc[rows_to_nan, 'z_T'] = -99.99
+        rows_to_nan = z_flag_is_not_spectro_z(self.all_data['z_assigned_flag_T'])
+        self.all_data.loc[rows_to_nan, 'z_T'] = NO_TRUTH_Z
         self.all_data.drop(columns=['target_id_T', 'z_assigned_flag_T'], inplace=True)
+        self.all_data.rename(columns={'is_sat_T': 'is_sat_truth'}, inplace=True)
         self.has_truth = True
 
 class SDSSGroupCatalog(GroupCatalog):
@@ -301,6 +312,8 @@ class SDSSGroupCatalog(GroupCatalog):
         super().__init__(name)
         self.preprocess_file = preprocessed_file
         self.galprops_file = galprops_file
+        self.L_gal_bins = self.L_gal_bins[15:]
+        self.L_gal_labels = self.L_gal_labels[15:]
 
         self.volume = np.array([1.721e+06, 6.385e+06, 2.291e+07, 7.852e+07]) # Copied from Jeremy's groupfind_mcmc.py
         self.vfac = (self.volume/250.0**3)**.5 # factor by which to multiply errors
@@ -364,8 +377,8 @@ class SDSSPublishedGroupCatalog(GroupCatalog):
         df['logLgal'] = np.log10(df.L_gal)
 
         # add column for halo mass bins and Lgal bins
-        df['Mh_bin'] = pd.cut(x = df['M_halo'], bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
-        df['Lgal_bin'] = pd.cut(x = df['L_gal'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
+        df['Mh_bin'] = pd.cut(x = df['M_halo'], bins = self.Mhalo_bins, labels = self.Mhalo_labels, include_lowest = True)
+        df['Lgal_bin'] = pd.cut(x = df['L_gal'], bins = self.L_gal_bins, labels = self.L_gal_labels, include_lowest = True)
 
         self.all_data = df
         #self.all_data['quiescent'] = is_quiescent_SDSS_Dn4000(self.all_data.logLgal, self.all_data.Dn4000)
@@ -459,7 +472,7 @@ class MXXLGroupCatalog(GroupCatalog):
         if self.has_truth:
             df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
             df['L_gal_T'] = np.power(10, abs_mag_r_to_log_solar_L(app_mag_to_abs_mag_k(df.app_mag.to_numpy(), df.z_obs.to_numpy(), df.g_r.to_numpy())))
-            df['Lgal_bin_T'] = pd.cut(x = df['L_gal_T'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
+            df['Lgal_bin_T'] = pd.cut(x = df['L_gal_T'], bins = self.L_gal_bins, labels = self.L_gal_labels, include_lowest = True)
             self.truth_f_sat = df.groupby('Lgal_bin_T').apply(fsat_truth_vmax_weighted)
             self.centrals_T = df[np.invert(df.is_sat_truth)]
             self.sats_T = df[df.is_sat_truth]
@@ -519,7 +532,7 @@ class BGSGroupCatalog(GroupCatalog):
     
     extra_prop_df: pd.DataFrame = None
 
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, drop_passes: int = 0, data_cut: str = "Y1-Iron"):
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, drop_passes: int = 0, data_cut: str = "Y1-Iron", extra_params = None):
         super().__init__(name)
         self.mode = mode
         self.mag_cut = mag_cut
@@ -531,6 +544,7 @@ class BGSGroupCatalog(GroupCatalog):
         self.data_cut = data_cut
         self.is_centered_version = False
         self.centered = None # SV3 Centered version shortcut.
+        self.extra_params = extra_params
 
     def preprocess(self):
         print("Pre-processing...")
@@ -547,7 +561,7 @@ class BGSGroupCatalog(GroupCatalog):
         else:
             raise ValueError("Unknown data_cut value")
         
-        fname, props = pre_process_BGS(infile, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.sdss_fill, self.num_passes, self.drop_passes, self.data_cut)
+        fname, props = pre_process_BGS(infile, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.sdss_fill, self.num_passes, self.drop_passes, self.data_cut, self.extra_params)
         self.preprocess_file = fname
         for p in props:
             self.GF_props[p] = props[p]
@@ -571,16 +585,24 @@ class BGSGroupCatalog(GroupCatalog):
             f_sat_sf_realizations = []
             f_sat_q_realizations = []
 
-            for i in range(N_ITERATIONS):
-                region_indices = np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)
-                alt_df = pd.DataFrame(columns=df.columns)
+            def bootstrap_iteration(region_indices):
+                relevent_columns = ['Lgal_bin', 'is_sat', 'V_max', 'quiescent']
+                alt_df = pd.DataFrame(columns=relevent_columns)
                 for idx in region_indices:
-                    rows_to_add = df.loc[df.region == idx].copy()
-                    if len(rows_to_add) > 0:
-                        alt_df = alt_df._append(rows_to_add, ignore_index=True)
-                f_sat_realizations.append(alt_df.groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted))
-                f_sat_sf_realizations.append(alt_df[alt_df.quiescent == False].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted))
-                f_sat_q_realizations.append(alt_df[alt_df.quiescent == True].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted))
+                    rows_to_add = df.loc[df.region == idx, relevent_columns]
+                    if len(alt_df) > 0:
+                        alt_df = pd.concat([alt_df, rows_to_add])
+                    else:
+                        alt_df = rows_to_add
+
+                f_sat = alt_df.groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
+                f_sat_sf = alt_df[alt_df.quiescent == False].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
+                f_sat_q = alt_df[alt_df.quiescent == True].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
+                return f_sat, f_sat_sf, f_sat_q
+
+            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
+
+            f_sat_realizations, f_sat_sf_realizations, f_sat_q_realizations = zip(*results)
 
             self.f_sat_err = np.std(f_sat_realizations, axis=0)
             self.f_sat_sf_err = np.std(f_sat_sf_realizations, axis=0)
@@ -627,7 +649,7 @@ class BGSGroupCatalog(GroupCatalog):
 
     def refresh_df_views(self):
         super().refresh_df_views()
-        #self.add_bootstrapped_f_sat()
+        self.add_bootstrapped_f_sat()
 
     def write_sharable_output_file(self):
         print("Writing a sharable output file")
@@ -788,40 +810,25 @@ def get_tbl_column(tbl, colname, required=False):
             raise ValueError(f"Required column {colname} not found in table.")
         return None
 
-def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, sdss_fill, num_passes_required, drop_passes, data_cut):
-    """
-    Pre-processes the BGS data for use with the group finder.
-    """
-    Z_MIN = 0.001 # BUG The Group Finder blows up if you lower this
-    Z_MAX = 0.8
-
-    # TODO BUG One galaxy is lost from this to group finder...
-    
-    print("Reading FITS data from ", fname)
-    # Unobserved galaxies have masked rows in appropriate columns of the table
-    table = Table.read(fname, format='fits')
-
-    if drop_passes > 0 and data_cut != "sv3":
-        raise ValueError("Dropping passes is only for the sv3 study")
-    
+def get_footprint_fraction(data_cut, mode, num_passes_required):
     # These are calculated from randoms in BGS_study.ipynb
     if data_cut == "Y1-Iron" or data_cut == "Y1-Iron-v1.2":
         # For Y1-Iron  
         FOOTPRINT_FRAC_1pass = 0.1876002 # 7739 degrees
-        FOORPRINT_FRAC_2pass = 0.1153344 # 4758 degrees
+        FOOTPRINT_FRAC_2pass = 0.1153344 # 4758 degrees
         FOOTPRINT_FRAC_3pass = 0.0649677 # 2680 degrees
         FOOTPRINT_FRAC_4pass = 0.0228093 # 940 degrees
         # 0% 5pass coverage
     elif data_cut == "Y3-Jura":
         # For Y3-Jura
         FOOTPRINT_FRAC_1pass = 0.310691 # 12816 degrees
-        FOORPRINT_FRAC_2pass = 0.286837 # 11832 degrees
+        FOOTPRINT_FRAC_2pass = 0.286837 # 11832 degrees
         FOOTPRINT_FRAC_3pass = 0.233920 # 9649 degrees
         FOOTPRINT_FRAC_4pass = 0.115183 # 4751 degrees
     elif data_cut == "Y3-Kibo":
         # For Y3-Kibo
         FOOTPRINT_FRAC_1pass = 0.3112278 # 12839 degrees
-        FOORPRINT_FRAC_2pass = 0.2870291 # 11840 degrees
+        FOOTPRINT_FRAC_2pass = 0.2870291 # 11840 degrees
         FOOTPRINT_FRAC_3pass = 0.2338243 # 9645 degrees
         FOOTPRINT_FRAC_4pass = 0.1150345 # 4745 degrees
     elif data_cut == "sv3":
@@ -833,18 +840,39 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     # TODO update footprint with new calculation from ANY. It shouldn't change.
     if mode == Mode.ALL.value or num_passes_required == 1:
-        frac_area = FOOTPRINT_FRAC_1pass
+        return FOOTPRINT_FRAC_1pass
     elif num_passes_required == 2:
-        frac_area = FOORPRINT_FRAC_2pass
+        return FOOTPRINT_FRAC_2pass
     elif num_passes_required == 3:
-        frac_area = FOOTPRINT_FRAC_3pass
+        return FOOTPRINT_FRAC_3pass
     elif num_passes_required == 4:
-        frac_area = FOOTPRINT_FRAC_4pass
+        return FOOTPRINT_FRAC_4pass
     elif num_passes_required == 10:
-        frac_area = FOOTPRINT_FRAC_10pass
+        return FOOTPRINT_FRAC_10pass
     else:
         print(f"Need footprint calculation for num_passes_required = {num_passes_required}. Exiting")
-        exit(2)
+        exit(2)        
+        
+
+def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, sdss_fill, num_passes_required, drop_passes, data_cut, extra_params):
+    """
+    Pre-processes the BGS data for use with the group finder.
+    """
+    Z_MIN = 0.001 # BUG The Group Finder blows up if you lower this
+    Z_MAX = 0.5
+
+    # TODO BUG One galaxy is lost from this to group finder...
+    
+    print("Reading data from ", fname)
+    # Unobserved galaxies have masked rows in appropriate columns of the table
+    table = Table.read(fname, format='fits')
+
+    if drop_passes > 0 and data_cut != "sv3":
+        raise ValueError("Dropping passes is only for the sv3 study")
+    if extra_params is not None and Mode.is_photoz_plus(mode) == False:
+        raise ValueError("Extra parameters are only for the PHOTOZ_PLUS_v1 mode.")
+
+    frac_area = get_footprint_fraction(data_cut, mode, num_passes_required)
 
     if mode == Mode.ALL.value:
         print("\nMode ALL NOT SUPPORTED DUE TO FIBER INCOMPLETENESS")
@@ -862,15 +890,31 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         print("\nMode SIMPLE v4")
     elif mode == Mode.SIMPLE_v5.value:
         print("\nMode SIMPLE v5")
+    elif Mode.is_photoz_plus(mode):
+        print("\nMode PHOTOZ PLUS")
+        if extra_params is not None:
+            if len(extra_params) != 5:
+                raise ValueError("Extra parameters must be a tuple of length 3.")
+            A_WEIGHT, B_WEIGHT, NEIGHBORS, SIGMA_MATCH, POW_MATCH = extra_params
+            NEIGHBORS = int(NEIGHBORS)
+        else:
+            print("Using default parameters for PHOTOZ PLUS")
+            A_WEIGHT = 0.8
+            B_WEIGHT = 1.0
+            NEIGHBORS = 10
+            SIGMA_MATCH = 0.004
+            POW_MATCH = 4.0
 
     # Some versions of the LSS Catalogs use astropy's Table used masked arrays for unobserved spectral targets    
     if np.ma.is_masked(table['Z']):
         z_obs = table['Z'].data.data
         unobserved = table['Z'].mask # the masked values are what is unobserved
+        unobserved_orginal = unobserved.copy()
     else:
         # SV3 version didn't do this
         z_obs = table['Z']
         unobserved = table['Z'].astype("<i8") == 999999
+        unobserved_orginal = unobserved.copy()
 
     obj_type = get_tbl_column(table, 'SPECTYPE')
     deltachi2 = get_tbl_column(table, 'DELTACHI2')
@@ -914,7 +958,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         unobserved = drop_SV3_passes(drop_passes, tileid, unobserved)
 
     orig_count = len(dec)
-    print(orig_count, "objects in FITS file")
+    print(f"{orig_count:,} objects in file")
 
     # If an observation was made, some automated system will evaluate the spectra and auto classify the SPECTYPE
     # as GALAXY, QSO, STAR. It is null (and masked) for non-observed targets.
@@ -951,7 +995,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if mode == Mode.FIBER_ASSIGNED_ONLY.value: # means 3pass 
         keep = np.all([multi_pass_filter, observed_requirements], axis=0)
 
-    if mode == Mode.NEAREST_NEIGHBOR.value or mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value or mode == Mode.SIMPLE_v5.value or mode == Mode.PHOTOZ_PLUS_v1.value:
+    if mode == Mode.NEAREST_NEIGHBOR.value or Mode.is_simple(mode) or Mode.is_photoz_plus(mode):
         keep = np.all([multi_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
@@ -986,13 +1030,14 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     ntid = ntid[keep]
     z_phot = z_phot[keep]
     unobserved = unobserved[keep]
+    unobserved_orginal = unobserved_orginal[keep]
 
     observed = np.invert(unobserved)
     idx_unobserved = np.flatnonzero(unobserved)
     z_assigned_flag = np.zeros(len(z_obs), dtype=np.int8)
 
     count = len(dec)
-    print(count, "galaxies left for main catalog after filters.")
+    print(f"{count:,} galaxies left for main catalog after filters.")
     first_need_redshift_count = unobserved.sum()
     print(f'{first_need_redshift_count} ({100*first_need_redshift_count / len(unobserved) :.1f})% need redshifts')
 
@@ -1002,18 +1047,19 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if unobserved.sum() > 0 and sdss_fill:
         sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla v2", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE))
         if sdss_vanilla.all_data is not None:
-            observed_sdss = sdss_vanilla.all_data.loc[sdss_vanilla.all_data.z_assigned_flag == 0]
+            sdss_has_specz = z_flag_is_spectro_z(sdss_vanilla.all_data.z_assigned_flag)
+            observed_sdss = sdss_vanilla.all_data.loc[sdss_has_specz]
 
             sdss_catalog = coord.SkyCoord(ra=observed_sdss.RA.to_numpy()*u.degree, dec=observed_sdss.Dec.to_numpy()*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[idx_unobserved]*u.degree, dec=dec[idx_unobserved]*u.degree, frame='icrs')
             print(f"Matching {len(to_match):,} lost galaxies to {len(sdss_catalog):,} SDSS galaxies")
             idx, d2d, d3d = coord.match_coordinates_sky(to_match, sdss_catalog, nthneighbor=1, storekdtree=False)
-            ang_distances = d2d.to(u.arcsec).value
+            ang_dist = d2d.to(u.arcsec).value
             sdss_z = sdss_vanilla.all_data.iloc[idx]['z'].to_numpy()
 
             # if angular distance is < 3", then we consider it a match to SDSS catalog and copy over it's z
             ANGULAR_DISTANCE_MATCH = 3
-            matched = ang_distances < ANGULAR_DISTANCE_MATCH
+            matched = ang_dist < ANGULAR_DISTANCE_MATCH
             idx_from_sloan = idx_unobserved[matched]
             
             z_eff[idx_unobserved] = np.where(matched, sdss_z, np.nan)    
@@ -1044,7 +1090,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         print("Copying over nearest neighbor properties complete.")
 
     # We need to guess a color (target_quiescent) for the unobserved galaxies to help the redshift guesser
-    if mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value or mode == Mode.SIMPLE_v5.value or mode == Mode.PHOTOZ_PLUS_v1.value:
+    if Mode.is_simple(mode) or Mode.is_photoz_plus(mode):
         # Multiple possible ideas
         # 1) Could use the NN's redshift to k-correct but I don't like it
         # 2) Use the lost galaxies' photometric redshift to k-correct
@@ -1060,7 +1106,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         # 3) Use an uncorrected apparent g-r color cut to guess if the galaxy is quiescent or not
             target_quiescent = is_quiescent_lost_gal_guess(app_mag_g[idx_unobserved] - app_mag_r[idx_unobserved]).astype(int)
         
-    if mode == Mode.SIMPLE.value or mode == Mode.SIMPLE_v4.value or mode == Mode.SIMPLE_v5.value:
+    if Mode.is_simple(mode):
         if mode == Mode.SIMPLE.value:
             ver = '2.0'
         elif mode == Mode.SIMPLE_v4.value:
@@ -1075,20 +1121,21 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
             # neighbor_indexes is the index of the nearest galaxy in the catalog arrays
             neighbor_indexes, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, storekdtree=False)
-            ang_distances = d2d.to(u.arcsec).value
+            ang_dist = d2d.to(u.arcsec).value
 
-            assert len(target_quiescent) == len(ang_distances)
+            assert len(target_quiescent) == len(ang_dist)
 
-            chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes], ang_distances, p_obs[idx_unobserved], app_mag_r[idx_unobserved], target_quiescent, catalog_quiescent[neighbor_indexes])
+            chosen_z, isNN = scorer.choose_redshift(z_obs_catalog[neighbor_indexes], ang_dist, p_obs[idx_unobserved], app_mag_r[idx_unobserved], target_quiescent, catalog_quiescent[neighbor_indexes])
             z_eff[idx_unobserved] = chosen_z
             z_assigned_flag[idx_unobserved] = np.where(isNN, AssignedRedshiftFlag.NEIGHBOR_ONE.value, AssignedRedshiftFlag.PSEUDO_RANDOM.value)
             print(f"Assigning missing redshifts complete.")   
 
-    if mode == Mode.PHOTOZ_PLUS_v1.value:
-        with PhotometricRedshiftGuesser.from_files(IAN_MXXL_LOST_APP_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_FILE) as scorer:
-            NEIGHBORS = 10
-            print(f"Considering {NEIGHBORS} neighbors for redshift assignment")
+    if Mode.is_photoz_plus(mode):
+        with PhotometricRedshiftGuesser.from_files(IAN_MXXL_LOST_APP_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_SMOOTHED_FILE, Mode(mode)) as scorer:
             print(f"Assigning missing redshifts... ")   
+            wants_MCMC = (np.isnan(A_WEIGHT) or np.isnan(B_WEIGHT) or np.isnan(NEIGHBORS) or np.isnan(SIGMA_MATCH) or np.isnan(POW_MATCH))
+            if wants_MCMC:
+               NEIGHBORS = 10
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[idx_unobserved]*u.degree, dec=dec[idx_unobserved]*u.degree, frame='icrs')
@@ -1096,50 +1143,42 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             shape = (NEIGHBORS, len(to_match))
             neighbor_indexes = np.zeros(shape, dtype=np.int64)
             n_z = np.zeros(shape, dtype=np.float64)
-            ang_distances = np.zeros(shape, dtype=np.float64)
+            ang_dist = np.zeros(shape, dtype=np.float64)
             n_q = np.zeros(shape, dtype=np.float64)
 
             for n in range(NEIGHBORS):
                 neighbor_indexes[n, :], d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=n+1, storekdtree='nn_kdtree')
-                ang_distances[n, :] = d2d.to(u.arcsec).value
+                ang_dist[n, :] = d2d.to(u.arcsec).value
                 n_z[n, :] = z_obs_catalog[neighbor_indexes[n, :]]
                 n_q[n, :] = catalog_quiescent[neighbor_indexes[n, :]]
 
-            # TODO Get optimal parameters for the redshift guesser
-            """
-            nwalkers = 32
-            ndim = 2 # TODO
-            # dimensiosn are: photoz_weight, other_weight
-            p0 = np.random.uniform(low=[0.0, 0.0], high=[1.0, 3.0], size=(nwalkers, ndim))           
-            nburnin = 500
-            niter = 5000
-            with Pool() as pool: # default Pool() gest CPU_count processes. Good!
-                sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, pool=pool, args=[means, cov])
-                state = sampler.run_mcmc(p0, nburnin)
-                sampler.reset()
+            if wants_MCMC:
+                if data_cut != "sv3" or drop_passes == 0:
+                    raise ValueError("MCMC optimization of parameters is only possible with SV3 and dropped passes.")
+                
+                print("Performing MCMC optimization of PhotometricRedshiftGuesser parameters")
+                # Can only use the galaxies that were observed but we're pretending are unobserved 
+                idx =  np.flatnonzero(np.logical_and(~unobserved_orginal, unobserved))
+                # from the neighbor arrays, need to discard the ones that are not in the idx
+                n_selector = (~unobserved_orginal)[unobserved] # True/False array of the ones that were observed but we're pretending are unobserved of length idx_unobserved
+                
+                A_WEIGHT, B_WEIGHT, SIGMA_MATCH, POW_MATCH = find_optimal_parameters_mcmc(scorer, app_mag_r[idx], p_obs[idx], z_phot[idx], target_quiescent[n_selector], ang_dist[:, n_selector], n_z[:, n_selector], n_q[:, n_selector], z_obs[idx])
+                #a, b = find_optimal_parameters(scorer, app_mag_r[idx], p_obs[idx], z_phot[idx], target_quiescent[n_selector], ang_dist[:, n_selector], n_z[:, n_selector], n_q[:, n_selector], z_obs[idx])
+                print(f"Optimal parameters found: A_WEIGHT={A_WEIGHT}, B_WEIGHT={B_WEIGHT}, SIGMA_MATCH={SIGMA_MATCH}, POW_MATCH={POW_MATCH}, N={NEIGHBORS}, . Saving to disk.")
+                pickle.dump((A_WEIGHT, B_WEIGHT, SIGMA_MATCH, POW_MATCH, NEIGHBORS), open(OUTPUT_FOLDER + "photoz_plus_params_v1_4.pkl", "wb"))
+            else :
+                #A_WEIGHT, B_WEIGHT = pickle.load(open(OUTPUT_FOLDER + "photoz_plus_params.pkl", "rb"))
+                print(f"Using given parameters A_WEIGHT={A_WEIGHT}, B_WEIGHT={B_WEIGHT}, N={NEIGHBORS}, SIGMA_MATCH={SIGMA_MATCH}, POW_MATCH={POW_MATCH}")
 
-                start = time.time()
-                sampler.run_mcmc(p0, niter, progress=True)
-                end = time.time()
-                mcmc_time = end - start
-                print("MCMC took {0:.1f} seconds".format(mcmc_time))
-
-            scorer.photoz_weight = 0.8
-            scorer.other_weight = 1.0 
-            #scorer.neighbors_considered = 10
-"""
-            chosen_z, neighbor_used = scorer.choose_redshift(n_z, ang_distances, z_phot[idx_unobserved], p_obs[idx_unobserved], app_mag_r[idx_unobserved], target_quiescent, n_q)
+            chosen_z, flag_value = scorer.choose_redshift(n_z, ang_dist, z_phot[idx_unobserved], p_obs[idx_unobserved], app_mag_r[idx_unobserved], target_quiescent, n_q, A_WEIGHT, B_WEIGHT, SIGMA_MATCH, POW_MATCH)
             z_eff[idx_unobserved] = chosen_z
-            z_assigned_flag[idx_unobserved] = np.where(np.isnan(neighbor_used), AssignedRedshiftFlag.PSEUDO_RANDOM.value, neighbor_used)
-
-            # Use lowest chi squared (highest log prob) parameter set
-            #idx = np.argmax(sampler.get_log_prob(flat=True))
-            #best_values = sampler.get_chain(flat=True)[idx]
+            z_assigned_flag[idx_unobserved] = flag_value
 
             print(f"Assigning missing redshifts complete.")   
 
     #print(f"z_eff, after assignment: {z_eff[0:20]}")   
-    assert np.all(z_eff > 0.0)
+    assert np.isnan(z_eff).sum() == 0
+    assert np.all(z_eff > 0.0), f"z_eff has {np.sum(z_eff <= 0.0)} <= 0.0 values. Min: {np.min(z_eff)}"
 
     # Now that we have redshifts for lost galaxies, we can calculate the rest of the properties
     if len(idx_unobserved) > 0:
@@ -1176,9 +1215,110 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': frac_area }
 
-def log_prob(theta, means, cov):
-    # TODO
-    return 0
+def find_optimal_parameters(scorer: PhotometricRedshiftGuesser, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
+    # assert all the arrays are the same length
+    assert len(app_mag_r) == len(p_obs) == len(z_phot) == len(t_q) == len(ang_dist[0]) == len(n_z[0]) == len(n_q[0]) == len(z_truth)
+
+    def objective(params):
+        a, b = params
+        chosen_z, assignment_type = scorer.choose_redshift(n_z, ang_dist, z_phot, p_obs, app_mag_r, t_q, n_q, a, b)
+        score = photoz_plus_metric_2(chosen_z, z_truth, assignment_type)
+        return score
+
+    callback = lambda params: print(f"Trying a={params[0]:.2f}, b={params[1]:.2f}")
+
+    initial_guess = [0.8, 1.0] 
+    bounds = [(0.0, 1.0), (0.0, 5.0)]  # (min, max) pairs for each parameter
+    result = minimize(objective, initial_guess, method='Nelder-Mead', bounds=bounds, tol=0.02, callback=callback)
+    a_opt, b_opt = result.x 
+
+    return a_opt, b_opt
+
+a_range = [0.0, 3.0]
+b_range = [0.0, 5.0]
+s_range = [0.00001, 0.1]
+p_range = [1.0, 8.0]
+
+def log_prior(params):
+    a, b, s, p = params
+    if a_range[0] <= a <= a_range[1] and b_range[0] <= b <= b_range[1] and s_range[0] <= s <= s_range[1] and p_range[0] <= p <= p_range[1]:
+        return 0.0  # log(1) throw away this possibility
+    return -np.inf  # log(0)
+
+def log_likelihood(params, scorer: PhotometricRedshiftGuesser, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
+    a, b, s, p = params
+    chosen_z, assignment_type = scorer.choose_redshift(n_z, ang_dist, z_phot, p_obs, app_mag_r, t_q, n_q, a, b, s, p)
+    score = photoz_plus_metric_1(chosen_z, z_truth, assignment_type)
+    return -score  # Negative because we want to maximize the likelihood
+
+def log_probability(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
+    lp = log_prior(params)
+    if not np.isfinite(lp):
+        return -np.inf # throw away this possibility
+    return lp + log_likelihood(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth)
+
+    # Run with respect to Metric 1
+    #100%|██████████| 20/20 [1:32:41<00:00, 278.09s/it]
+    #Optimal parameters found: a=0.9976401265765041, b=1.3493965745450867. Saving to disk.
+
+    # Run with respect to Metric 2
+    #100%|██████████| 100/100 [04:11<00:00,  2.51s/it]
+    #Optimal parameters found: A_WEIGHT=0.9767466032383199, B_WEIGHT=0.6497742999258755, N=10. Saving to disk.
+
+    # Run with respect to Metric 2 with 4 parmeters instead of 2
+    # 0.9056840065992776 1.3240318060391651 0.0029924473856234317 3.5953347233216078
+    # Later on, this run was:
+    # 0.989904213017003 1.0946124190362552 0.02165470173509737 2.3181501405368574
+    
+    # Run with respect to Metric 2 with 4 parmeters and smarter ICs
+    #100%|██████████| 2000/2000 [3:01:48<00:00,  5.45s/it]  
+    #Optimal parameters found: A_WEIGHT=1.3473070377576153, B_WEIGHT=1.1613821440381007, SIGMA_MATCH=0.008512348094778134, POW_MATCH=2.76651481569123, N=10, . Saving to disk.
+    #100%|██████████| 2000/2000 [3:02:42<00:00,  5.48s/it]  
+    #Optimal parameters found: A_WEIGHT=1.5484203962922283, B_WEIGHT=1.2898133269743397, SIGMA_MATCH=0.05254540681003412, POW_MATCH=1.6668682370959251, N=10, . Saving to disk.
+
+    # v2
+    #100%|██████████| 3000/3000 [4:35:30<00:00,  5.51s/it]  
+    #Optimal parameters found: A_WEIGHT=1.330906594609919, B_WEIGHT=1.0878920005929098, SIGMA_MATCH=0.04830439312768729, POW_MATCH=1.7885256917020547, N=10, . Saving to disk.    
+
+def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
+    assert len(app_mag_r) == len(p_obs) == len(z_phot) == len(t_q) == len(ang_dist[0]) == len(n_z[0]) == len(n_q[0]) == len(z_truth)
+
+    cpu = os.cpu_count()
+    ndim = 4 
+    n_walkers=cpu*2
+    n_steps=3000
+    pos = np.array([np.random.uniform(low=[a_range[0], b_range[0], 10**(s_range[0]), p_range[0]], 
+                                      high=[a_range[1], b_range[1], 10**(s_range[1]), p_range[1]]) for i in range(n_walkers)])
+    pos[:, 2] = np.log10(pos[:, 2])  # Convert back from log scale
+
+    # Insert some manual favorites as ICs; these came from past MCMC runs
+    pos[0] = [0.9, 1.35, 0.004, 4.0]
+    pos[1] = [0.9056840065992776, 1.3240318060391651, 0.0029924473856234317, 3.5953347233216078]
+    pos[2] = [0.989904213017003, 1.0946124190362552, 0.02165470173509737, 2.3181501405368574]
+    pos[3] = [1.3473070377576153, 1.1613821440381007, 0.008512348094778134, 2.76651481569123]
+    pos[4] = [1.5484203962922283, 1.2898133269743397, 0.05254540681003412, 1.6668682370959251]
+
+    if os.path.exists("mcmc_sampler_1_4.h5"):
+        new = False
+        print("Loaded existing MCMC sampler")
+        backend = emcee.backends.HDFBackend("mcmc_sampler_1_4.h5")
+        n_walkers = backend.shape[0]
+    else:
+        new = True
+        backend = emcee.backends.HDFBackend("mcmc_sampler_1_4.h5")
+        backend.reset(n_walkers, ndim)
+
+    print(f"CPUs: {cpu}")
+    sampler = emcee.EnsembleSampler(n_walkers, ndim, log_probability, args=(scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth), backend=backend, pool=Pool())
+
+    print("Running MCMC...")
+    if not new:
+        pos = None
+    sampler.run_mcmc(pos, n_steps, progress=True)
+
+    samples = sampler.get_chain(flat=True)
+    a_opt, b_opt, s_opt, p_opt = samples[np.argmax(sampler.get_log_prob())]
+    return a_opt, b_opt, s_opt, p_opt
 
 ##########################
 # Processing Group Finder Output File
@@ -1201,8 +1341,8 @@ def read_and_combine_gf_output(gc: GroupCatalog, galprops_df):
     df['logLgal'] = np.log10(df.L_gal)
 
     # add column for halo mass bins and Lgal bins
-    df['Mh_bin'] = pd.cut(x = df['M_halo'], bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
-    df['Lgal_bin'] = pd.cut(x = df['L_gal'], bins = L_gal_bins, labels = L_gal_labels, include_lowest = True)
+    df['Mh_bin'] = pd.cut(x = df['M_halo'], bins = gc.Mhalo_bins, labels = gc.Mhalo_labels, include_lowest = True)
+    df['Lgal_bin'] = pd.cut(x = df['L_gal'], bins = gc.L_gal_bins, labels = gc.L_gal_labels, include_lowest = True)
 
     return df # TODO update callers
 
@@ -1258,6 +1398,9 @@ def z_flag_is_neighbor(arr):
 
 def z_flag_is_random(arr):
     return arr == AssignedRedshiftFlag.PSEUDO_RANDOM.value
+
+def z_flag_is_not_spectro_z(arr):
+    return ~z_flag_is_spectro_z(arr)
 
 def mstar_vmax_weighted(series):
     if len(series) == 0:
