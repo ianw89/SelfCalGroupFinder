@@ -212,6 +212,7 @@ def photoz_plus_metric_1(z_guessed: np.ndarray[float], z_truth: np.ndarray[float
 
     # pseudorandom guesses help preserve luminosity func so give them a little credit
     score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.3, 0.0) 
+    score = score + np.where(guess_type == AssignedRedshiftFlag.PHOTO_Z.value, 0.3, 0.0) 
 
     # in case pseduo-random guesses were spot on it can be > 1.0, so cap the score at 1.0
     score = np.where(score > 1.0, 1.0, score)
@@ -226,6 +227,22 @@ def photoz_plus_metric_2(z_guessed: np.ndarray[float], z_truth: np.ndarray[float
 
     # pseudorandom guesses help preserve luminosity func so give them a little credit
     score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.4, 0.0) 
+    score = score + np.where(guess_type == AssignedRedshiftFlag.PHOTO_Z.value, 0.4, 0.0) 
+
+    # in case pseduo-random guesses were spot on it can be > 1.0, so cap the score at 1.0
+    score = np.where(score > 1.0, 1.0, score)
+    
+    # The mean of them all is a sufficient statistic
+    return - np.mean(score)
+
+def photoz_plus_metric_3(z_guessed: np.ndarray[float], z_truth: np.ndarray[float], guess_type: np.ndarray[int]):
+    assert guess_type.shape == z_guessed.shape
+    assert guess_type.shape == z_truth.shape
+    score = sim_z_score(z_guessed, z_truth)
+
+    # pseudorandom guesses help preserve luminosity func so give them a little credit
+    score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.5, 0.0) 
+    score = score + np.where(guess_type == AssignedRedshiftFlag.PHOTO_Z.value, 0.5, 0.0) 
 
     # in case pseduo-random guesses were spot on it can be > 1.0, so cap the score at 1.0
     score = np.where(score > 1.0, 1.0, score)

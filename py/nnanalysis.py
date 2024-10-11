@@ -171,6 +171,7 @@ class NNAnalyzer_cic():
 
         self.row_locator = None
         self.df = None
+        self.data_cache = {}
         
         # Now bin so that things with ang distances higher than the max we care about are thrown out
         #print("Angular Distance Bin Markers", ANGULAR_BINS)
@@ -330,11 +331,16 @@ class NNAnalyzer_cic():
     def integrate_out_dimension(self, axis):
         # pivot table could make this easier
 
+        if axis in self.data_cache:
+            return self.data_cache[axis]
+
         all_counts = np.sum(self.all_ang_bincounts, axis=axis)
         simz_counts = np.sum(self.all_sim_z_bincounts, axis=axis)
         #assert simz_counts < all_counts, "SimZ counts should be less than all counts in each bin!"
         all_div = np.where(all_counts == 0.0, 1.0, all_counts)
         frac = simz_counts / all_div # empty bins become 0 TODO
+
+        self.data_cache[axis] = frac, simz_counts, all_counts
 
         #print(f"Integrated out dimension {axis}. New shape: {np.shape(all_counts)}")
         return frac, simz_counts, all_counts
@@ -367,11 +373,12 @@ class NNAnalyzer_cic():
 
         # Integrate out the dimensions we don't like 
         if target_prob_obs is None:
+            # TODO store in a map of (dims integrated out) => frac array to avoid repitition
             frac_simz, simz_counts, all_counts = self.integrate_out_dimension((0, 6)) # PROB_OBS and N_ABS_MAG
             score = interpn(
                 points=(QUIESCENT_BINS, QUIESCENT_BINS, Z_BINS, APP_MAG_BINS, ANGULAR_BINS),
                 values=frac_simz,
-                xi=np.array([target_quiescent, nn_quiescent, neighbor_z, target_app_mag, neighbor_ang_dist]).T,
+                xi=np.array([nn_quiescent, target_quiescent, neighbor_z, target_app_mag, neighbor_ang_dist]).T,
                 method='linear',
                 bounds_error=True
             )
@@ -380,7 +387,7 @@ class NNAnalyzer_cic():
             score = interpn(
                 points=(POBS_BINS, QUIESCENT_BINS, QUIESCENT_BINS, Z_BINS, APP_MAG_BINS, ANGULAR_BINS),
                 values=frac_simz,
-                xi=np.array([target_prob_obs, target_quiescent, nn_quiescent, neighbor_z, target_app_mag, neighbor_ang_dist]).T,
+                xi=np.array([target_prob_obs, nn_quiescent, target_quiescent, neighbor_z, target_app_mag, neighbor_ang_dist]).T,
                 method='linear',
                 bounds_error=True
             )
@@ -389,7 +396,7 @@ class NNAnalyzer_cic():
  
 
     def plot_angdist_absmag_per_zbin_cc(self):
-        frac, same_counts, all_counts = self.integrate_out_dimension((0,4)) # (2, 2, 8, 20, 16)
+        frac, same_counts, all_counts = self.integrate_out_dimension((0,4))
         print(np.min(self.frac), np.max(self.frac))
         
         for nn_color_idx in [0,1]:

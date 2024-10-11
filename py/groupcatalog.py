@@ -11,6 +11,7 @@ import astropy.io.fits as fits
 import copy
 import sys
 import wp as wp
+import math
 import asyncio
 from multiprocessing import Pool
 from scipy.optimize import minimize
@@ -893,17 +894,21 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     elif Mode.is_photoz_plus(mode):
         print("\nMode PHOTOZ PLUS")
         if extra_params is not None:
-            if len(extra_params) != 5:
-                raise ValueError("Extra parameters must be a tuple of length 3.")
-            A_WEIGHT, B_WEIGHT, NEIGHBORS, SIGMA_MATCH, POW_MATCH = extra_params
+            if len(extra_params) == 2:
+                NEIGHBORS, BB_PARAMS = extra_params
+                print("Using one set of extra parameter values for all color combinations.")
+                RR_PARAMS = BR_PARAMS = RB_PARAMS = BB_PARAMS
+            elif len(extra_params) == 5:
+                NEIGHBORS, BB_PARAMS, RB_PARAMS, BR_PARAMS, RR_PARAMS = extra_params
+            else:
+                raise ValueError("Extra parameters must be a tuple of length 2 or 5")
             NEIGHBORS = int(NEIGHBORS)
+            assert len(BB_PARAMS) == 4 and len(RB_PARAMS) == 4 and len(BR_PARAMS) == 4 and len(RR_PARAMS) == 4
         else:
-            print("Using default parameters for PHOTOZ PLUS")
-            A_WEIGHT = 0.8
-            B_WEIGHT = 1.0
+            print("Extra parameters not provided for PHOTOZ_PLUS mode; will MCMC them.")
             NEIGHBORS = 10
-            SIGMA_MATCH = 0.004
-            POW_MATCH = 4.0
+            wants_MCMC = True
+
 
     # Some versions of the LSS Catalogs use astropy's Table used masked arrays for unobserved spectral targets    
     if np.ma.is_masked(table['Z']):
@@ -974,7 +979,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     redshift_hi_filter = z_obs < Z_MAX
     deltachi2_filter = deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
     
+    ##############################################################################
     # Roughly remove HII regions of low z, high angular size galaxies (SGA catalog)
+    ##############################################################################
     if maskbits is not None and ref_cat is not None:
         BITMASK_SGA = 0x1000 
         sga_collision = (maskbits & BITMASK_SGA) != 0
@@ -1043,7 +1050,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     z_eff = np.copy(z_obs)
 
+    ############################################################################
     # If a lost galaxy matches the SDSS catalog, grab it's redshift and use that
+    ############################################################################
     if unobserved.sum() > 0 and sdss_fill:
         sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla v2", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE))
         if sdss_vanilla.all_data is not None:
@@ -1076,7 +1085,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         else:
             print("No SDSS catalog to match to. Skipping.")
 
-
+    ##################################################################################################
     # Now, depending on the mode chosen, we will assign redshifts to the remaining unobserved galaxies
     ##################################################################################################
 
@@ -1133,20 +1142,23 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if Mode.is_photoz_plus(mode):
         with PhotometricRedshiftGuesser.from_files(IAN_MXXL_LOST_APP_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_SMOOTHED_FILE, Mode(mode)) as scorer:
             print(f"Assigning missing redshifts... ")   
-            wants_MCMC = (np.isnan(A_WEIGHT) or np.isnan(B_WEIGHT) or np.isnan(NEIGHBORS) or np.isnan(SIGMA_MATCH) or np.isnan(POW_MATCH))
+
             if wants_MCMC:
-               NEIGHBORS = 10
+               MAX_NEIGHBORS = 20
+            else:
+                MAX_NEIGHBORS = NEIGHBORS
+                params = (BB_PARAMS, RB_PARAMS, BR_PARAMS, RR_PARAMS)
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[idx_unobserved]*u.degree, dec=dec[idx_unobserved]*u.degree, frame='icrs')
            
-            shape = (NEIGHBORS, len(to_match))
+            shape = (MAX_NEIGHBORS, len(to_match))
             neighbor_indexes = np.zeros(shape, dtype=np.int64)
             n_z = np.zeros(shape, dtype=np.float64)
             ang_dist = np.zeros(shape, dtype=np.float64)
             n_q = np.zeros(shape, dtype=np.float64)
 
-            for n in range(NEIGHBORS):
+            for n in range(MAX_NEIGHBORS):
                 neighbor_indexes[n, :], d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=n+1, storekdtree='nn_kdtree')
                 ang_dist[n, :] = d2d.to(u.arcsec).value
                 n_z[n, :] = z_obs_catalog[neighbor_indexes[n, :]]
@@ -1162,24 +1174,26 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
                 # from the neighbor arrays, need to discard the ones that are not in the idx
                 n_selector = (~unobserved_orginal)[unobserved] # True/False array of the ones that were observed but we're pretending are unobserved of length idx_unobserved
                 
-                A_WEIGHT, B_WEIGHT, SIGMA_MATCH, POW_MATCH = find_optimal_parameters_mcmc(scorer, app_mag_r[idx], p_obs[idx], z_phot[idx], target_quiescent[n_selector], ang_dist[:, n_selector], n_z[:, n_selector], n_q[:, n_selector], z_obs[idx])
+                NEIGHBORS, params = find_optimal_parameters_mcmc(scorer, app_mag_r[idx], p_obs[idx], z_phot[idx], target_quiescent[n_selector], ang_dist[:, n_selector], n_z[:, n_selector], n_q[:, n_selector], z_obs[idx])
+                print(f"Best params found: N={NEIGHBORS}, p={params}")
                 #a, b = find_optimal_parameters(scorer, app_mag_r[idx], p_obs[idx], z_phot[idx], target_quiescent[n_selector], ang_dist[:, n_selector], n_z[:, n_selector], n_q[:, n_selector], z_obs[idx])
-                print(f"Optimal parameters found: A_WEIGHT={A_WEIGHT}, B_WEIGHT={B_WEIGHT}, SIGMA_MATCH={SIGMA_MATCH}, POW_MATCH={POW_MATCH}, N={NEIGHBORS}, . Saving to disk.")
-                pickle.dump((A_WEIGHT, B_WEIGHT, SIGMA_MATCH, POW_MATCH, NEIGHBORS), open(OUTPUT_FOLDER + "photoz_plus_params_v1_4.pkl", "wb"))
+                #pickle.dump(params, open(OUTPUT_FOLDER + "photoz_plus_params_v1_4.pkl", "wb"))
             else :
                 #A_WEIGHT, B_WEIGHT = pickle.load(open(OUTPUT_FOLDER + "photoz_plus_params.pkl", "rb"))
-                print(f"Using given parameters A_WEIGHT={A_WEIGHT}, B_WEIGHT={B_WEIGHT}, N={NEIGHBORS}, SIGMA_MATCH={SIGMA_MATCH}, POW_MATCH={POW_MATCH}")
+                print(f"Using given parameters: N={NEIGHBORS}, p={params}")
 
-            chosen_z, flag_value = scorer.choose_redshift(n_z, ang_dist, z_phot[idx_unobserved], p_obs[idx_unobserved], app_mag_r[idx_unobserved], target_quiescent, n_q, A_WEIGHT, B_WEIGHT, SIGMA_MATCH, POW_MATCH)
+            chosen_z, flag_value = scorer.choose_redshift(n_z[:NEIGHBORS, :], ang_dist[:NEIGHBORS, :], z_phot[idx_unobserved], p_obs[idx_unobserved], app_mag_r[idx_unobserved], target_quiescent, n_q[:NEIGHBORS, :], params)
             z_eff[idx_unobserved] = chosen_z
             z_assigned_flag[idx_unobserved] = flag_value
 
             print(f"Assigning missing redshifts complete.")   
-
-    #print(f"z_eff, after assignment: {z_eff[0:20]}")   
+    
     assert np.isnan(z_eff).sum() == 0
-    assert np.all(z_eff > 0.0), f"z_eff has {np.sum(z_eff <= 0.0)} <= 0.0 values. Min: {np.min(z_eff)}"
 
+    # Redshift assignments could have placed lost galaxies outside the range of the catalog. Remove them.
+    final_selection = ~np.logical_or(z_eff < Z_MIN, z_eff > Z_MAX)
+    print(f"{np.sum(~final_selection):,} galaxies have redshifts outside the range of the catalog and will be removed.")
+    
     # Now that we have redshifts for lost galaxies, we can calculate the rest of the properties
     if len(idx_unobserved) > 0:
         G_R_k = update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, log_L_gal, quiescent)
@@ -1195,60 +1209,51 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # TODO get galaxy concentration from somewhere
     chi = np.zeros(count, dtype=np.int8) 
 
-    # Output files
+    ####################################################################################
+    # Write the completed preprocess files for the group finder / post-processing to use
+    ####################################################################################
     t1 = time.time()
     galprops= pd.DataFrame({
-        'app_mag': app_mag_r.astype("<f8"),
-        'target_id': target_id.astype("<i8"),
-        'z_assigned_flag': z_assigned_flag.astype("<i1"),
-        'g_r': G_R_k.astype("<f8"), # TODO name this G_R_k ?
-        'Dn4000': dn4000.astype("<f8"),
-        'nearest_tile_id': ntid.astype("<i8"),
-        'z_phot': z_phot.astype("<f8"),
-        'z_obs': z_obs.astype("<f8"),
+        'app_mag': app_mag_r[final_selection].astype("<f8"),
+        'target_id': target_id[final_selection].astype("<i8"),
+        'z_assigned_flag': z_assigned_flag[final_selection].astype("<i1"),
+        'g_r': G_R_k[final_selection].astype("<f8"), # TODO name this G_R_k ?
+        'Dn4000': dn4000[final_selection].astype("<f8"),
+        'nearest_tile_id': ntid[final_selection].astype("<i8"),
+        'z_phot': z_phot[final_selection].astype("<f8"),
+        'z_obs': z_obs[final_selection].astype("<f8"),
     })
     galprops.to_pickle(outname_base + "_galprops.pkl")  
     t2 = time.time()
     print(f"Galprops pickling took {t2-t1:.4f} seconds")
 
-    write_dat_files_v2(ra, dec, z_eff, log_L_gal, V_max, quiescent, chi, outname_base)
+    write_dat_files_v2(ra[final_selection], dec[final_selection], z_eff[final_selection], log_L_gal[final_selection], V_max[final_selection], quiescent[final_selection], chi[final_selection], outname_base)
 
     return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': frac_area }
 
-def find_optimal_parameters(scorer: PhotometricRedshiftGuesser, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
-    # assert all the arrays are the same length
-    assert len(app_mag_r) == len(p_obs) == len(z_phot) == len(t_q) == len(ang_dist[0]) == len(n_z[0]) == len(n_q[0]) == len(z_truth)
 
-    def objective(params):
-        a, b = params
-        chosen_z, assignment_type = scorer.choose_redshift(n_z, ang_dist, z_phot, p_obs, app_mag_r, t_q, n_q, a, b)
-        score = photoz_plus_metric_2(chosen_z, z_truth, assignment_type)
-        return score
-
-    callback = lambda params: print(f"Trying a={params[0]:.2f}, b={params[1]:.2f}")
-
-    initial_guess = [0.8, 1.0] 
-    bounds = [(0.0, 1.0), (0.0, 5.0)]  # (min, max) pairs for each parameter
-    result = minimize(objective, initial_guess, method='Nelder-Mead', bounds=bounds, tol=0.02, callback=callback)
-    a_opt, b_opt = result.x 
-
-    return a_opt, b_opt
-
+n_range = [1, 20.99999] # we floor this value for the num neighbors to use
 a_range = [0.0, 3.0]
 b_range = [0.0, 5.0]
 s_range = [0.00001, 0.1]
 p_range = [1.0, 8.0]
 
 def log_prior(params):
-    a, b, s, p = params
-    if a_range[0] <= a <= a_range[1] and b_range[0] <= b <= b_range[1] and s_range[0] <= s <= s_range[1] and p_range[0] <= p <= p_range[1]:
-        return 0.0  # log(1) throw away this possibility
-    return -np.inf  # log(0)
+    n = params[0]
+    if not n_range[0] <= n <= n_range[1]:
+        return -np.inf
+    bb, rb, br, rr = np.reshape(params[1:], (4,4))
+    ranges = [a_range, b_range, s_range, p_range]
+    for param_set in [bb, rb, br, rr]:
+        if not all(low <= param <= high for param, (low, high) in zip(param_set, ranges)):
+            return -np.inf  # log(0)
+    return 0.0  # log(1), all good
 
 def log_likelihood(params, scorer: PhotometricRedshiftGuesser, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
-    a, b, s, p = params
-    chosen_z, assignment_type = scorer.choose_redshift(n_z, ang_dist, z_phot, p_obs, app_mag_r, t_q, n_q, a, b, s, p)
-    score = photoz_plus_metric_1(chosen_z, z_truth, assignment_type)
+    n = math.floor(params[0])
+    bb, rb, br, rr = np.reshape(params[1:], (4,4))    
+    chosen_z, assignment_type = scorer.choose_redshift(n_z[:n, :], ang_dist[:n, :], z_phot, p_obs, app_mag_r, t_q, n_q[:n, :], (bb, rb, br, rr))
+    score = photoz_plus_metric_2(chosen_z, z_truth, assignment_type)
     return -score  # Negative because we want to maximize the likelihood
 
 def log_probability(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
@@ -1280,35 +1285,43 @@ def log_probability(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z
     #100%|██████████| 3000/3000 [4:35:30<00:00,  5.51s/it]  
     #Optimal parameters found: A_WEIGHT=1.330906594609919, B_WEIGHT=1.0878920005929098, SIGMA_MATCH=0.04830439312768729, POW_MATCH=1.7885256917020547, N=10, . Saving to disk.    
 
+
 def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
     assert len(app_mag_r) == len(p_obs) == len(z_phot) == len(t_q) == len(ang_dist[0]) == len(n_z[0]) == len(n_q[0]) == len(z_truth)
+    
 
-    cpu = os.cpu_count()
-    ndim = 4 
-    n_walkers=cpu*2
-    n_steps=3000
+    ndim = 17
+    n_walkers=ndim*2
+    n_steps=1000
     pos = np.array([np.random.uniform(low=[a_range[0], b_range[0], 10**(s_range[0]), p_range[0]], 
-                                      high=[a_range[1], b_range[1], 10**(s_range[1]), p_range[1]]) for i in range(n_walkers)])
+                                        high=[a_range[1], b_range[1], 10**(s_range[1]), p_range[1]]) for i in range(n_walkers*4)])
     pos[:, 2] = np.log10(pos[:, 2])  # Convert back from log scale
+    pos = pos.reshape(n_walkers, 16)
+    pos = np.insert(pos, 0, np.arange(n_walkers)%20 +1, axis=1)
+
+    # Get score_b values cached and ready for fast access
+    scorer.use_score_cache_for_mcmc(len(app_mag_r))
+    _ = scorer.choose_redshift(n_z, ang_dist, z_phot, p_obs, app_mag_r, t_q, n_q, np.reshape(pos[0, 1:], (4,4)))
+
 
     # Insert some manual favorites as ICs; these came from past MCMC runs
-    pos[0] = [0.9, 1.35, 0.004, 4.0]
-    pos[1] = [0.9056840065992776, 1.3240318060391651, 0.0029924473856234317, 3.5953347233216078]
-    pos[2] = [0.989904213017003, 1.0946124190362552, 0.02165470173509737, 2.3181501405368574]
-    pos[3] = [1.3473070377576153, 1.1613821440381007, 0.008512348094778134, 2.76651481569123]
-    pos[4] = [1.5484203962922283, 1.2898133269743397, 0.05254540681003412, 1.6668682370959251]
+    #pos[0] = [0.9, 1.35, 0.004, 4.0]
+    #pos[1] = [0.9056840065992776, 1.3240318060391651, 0.0029924473856234317, 3.5953347233216078]
+    #pos[2] = [0.989904213017003, 1.0946124190362552, 0.02165470173509737, 2.3181501405368574]
+    #pos[3] = [1.3473070377576153, 1.1613821440381007, 0.008512348094778134, 2.76651481569123]
+    #pos[4] = [1.5484203962922283, 1.2898133269743397, 0.05254540681003412, 1.6668682370959251]
 
-    if os.path.exists("mcmc_sampler_1_4.h5"):
+    backfile = "mcmc17_1_4.h5"
+    if os.path.exists(backfile):
         new = False
         print("Loaded existing MCMC sampler")
-        backend = emcee.backends.HDFBackend("mcmc_sampler_1_4.h5")
+        backend = emcee.backends.HDFBackend(backfile)
         n_walkers = backend.shape[0]
     else:
         new = True
-        backend = emcee.backends.HDFBackend("mcmc_sampler_1_4.h5")
+        backend = emcee.backends.HDFBackend(backfile)
         backend.reset(n_walkers, ndim)
 
-    print(f"CPUs: {cpu}")
     sampler = emcee.EnsembleSampler(n_walkers, ndim, log_probability, args=(scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth), backend=backend, pool=Pool())
 
     print("Running MCMC...")
@@ -1317,8 +1330,9 @@ def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, app_mag_r, 
     sampler.run_mcmc(pos, n_steps, progress=True)
 
     samples = sampler.get_chain(flat=True)
-    a_opt, b_opt, s_opt, p_opt = samples[np.argmax(sampler.get_log_prob())]
-    return a_opt, b_opt, s_opt, p_opt
+    params = samples[np.argmax(sampler.get_log_prob())]
+    bb, rb, br, rr = np.reshape(params[1:], (4,4))
+    return params[0], (bb, rb, br, rr)
 
 ##########################
 # Processing Group Finder Output File
