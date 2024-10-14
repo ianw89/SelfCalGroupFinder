@@ -100,13 +100,28 @@ datasets_to_run: list[GroupCatalog] = []
 #datasets_to_run.extend(bgs_y3_list)
 #datasets_to_run.extend([cat.bgs_sv3_pz_2_1_7p])
 
-#mcmc = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False)
-#mcmc.GF_props = cat.GF_PROPS_VANILLA.copy()
-#datasets_to_run.extend([mcmc])
+
+
+mcmc = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False)
+mcmc.GF_props = cat.GF_PROPS_VANILLA.copy()
 
 mcmc2 = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False)
 mcmc2.GF_props = cat.GF_PROPS_VANILLA.copy()
-datasets_to_run.extend([mcmc2])
+
+mcmc3 = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v3, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False)
+mcmc3.GF_props = cat.GF_PROPS_VANILLA.copy()
+
+callable_list = [
+    [mcmc], #0
+    [mcmc2], #1
+    [mcmc3], #2
+    sdss_list, #3
+    uchuu_list, #4
+    mxxl_list, #5
+    bgs_sv3_list, #6
+    bgs_y1_list, #7
+    bgs_y3_list, #8
+]
 
 def process_gc(gc: GroupCatalog):
     name = gc.name
@@ -193,6 +208,10 @@ def perf_test():
 
 if __name__ == "__main__":
     #perf_test()
+
+    if len(sys.argv[1]) > 0:
+        to_add = int(sys.argv[1])
+        datasets_to_run.extend(callable_list[to_add])
 
     # Winner
     asyncio.run(main_threaded_parallel())

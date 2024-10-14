@@ -132,28 +132,33 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
         self.debug = debug
         self.nna: NNAnalyzer_cic = None
         self.app_mag_bins = None
-        self.app_mag_map = None
+        self.map_v1 = None
         self.mode: Mode = None
         self.score_b_cache = None
         self.expected_galcount = None
+        self.app_mag_bins_v3 = None
+        self.zphot_bins_v3 = None
+        self.map_v3 = None
     
     @classmethod
-    def from_files(cls, app_mag_to_z_file, nna_file, mode: Mode):
+    def from_files(cls, app_mag_to_z_file, app_mag_zphot_to_z_file, nna_file, mode: Mode):
         obj = cls()
         obj.mode = mode
         print(f"Initializing PhotometricRedshiftGuesser for {mode}")
-        print(f"Warning: using saved app mag -> z map")
         with open(app_mag_to_z_file, 'rb') as f:
-            obj.app_mag_bins, obj.app_mag_map = pickle.load(f)
+            obj.app_mag_bins, obj.map_v1 = pickle.load(f)
+        with open(app_mag_zphot_to_z_file, 'rb') as f:
+            obj.app_mag_bins_v3, obj.zphot_bins_v3, obj.map_v3 = pickle.load(f)
         obj.nna = NNAnalyzer_cic.from_results_file(nna_file)
         return obj
     
     @classmethod
-    def from_data(cls, app_mags, z_obs, nna_file, mode: Mode):        
+    def from_data(cls, app_mags, z_phot, z_obs, nna_file, mode: Mode):        
         obj = cls()
         obj.mode = mode
         print(f"Initializing PhotometricRedshiftGuesser for {mode}")
-        obj.app_mag_bins, obj.app_mag_map = build_app_mag_to_z_map(app_mags, z_obs)
+        obj.app_mag_bins, obj.map_v1 = build_app_mag_to_z_map_2(app_mags, z_obs)
+        obj.app_mag_bins_v3, obj.zphot_bins_v3, obj.map_v3 = build_app_mag_to_z_map_3(app_mags, z_phot, z_obs)
         obj.nna = NNAnalyzer_cic.from_results_file(nna_file)
         return obj
     
@@ -272,13 +277,14 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
 
         # For the other ones, what we do is different for each mode
         if self.mode == Mode.PHOTOZ_PLUS_v1:
+            #print("Using v1 of Photo-z Plus")
             # Otherwise draw a random redshift from the apparent mag bin similar to the target
             bin_i = np.digitize(target_app_mag[~used_neighbors], self.app_mag_bins)
             #otherway = z_chosen.copy()
 
             #t1 = time.time()
             for i in np.arange(len(bin_i)):
-                z_chosen[idx_remaining[i]] = np.random.choice(self.app_mag_map[bin_i[i]])
+                z_chosen[idx_remaining[i]] = np.random.choice(self.map_v1[bin_i[i]])
             #t2 = time.time()
 
             # TODO dictionary isn't a vectorized object... this doesn't work at all
@@ -291,6 +297,7 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
             #print(f"Time for loop: {t2-t1:.3f}. Time for vectorized: {t4-t3:.3f}")
                 
         elif self.mode == Mode.PHOTOZ_PLUS_v2:
+            #print("Using v2 of Photo-z Plus")
             # Just use the photo-z directly
             z_chosen[idx_remaining] = target_z_phot[idx_remaining]
             flag_value[idx_remaining] = AssignedRedshiftFlag.PHOTO_Z.value
@@ -300,13 +307,17 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
 
             bin_i = np.digitize(target_app_mag[idx_bad], self.app_mag_bins)
             for i in np.arange(len(bin_i)):
-                z_chosen[idx_bad[i]] = np.random.choice(self.app_mag_map[bin_i[i]])
+                z_chosen[idx_bad[i]] = np.random.choice(self.map_v1[bin_i[i]])
                 flag_value[idx_bad] = AssignedRedshiftFlag.PSEUDO_RANDOM.value
 
         elif self.mode == Mode.PHOTOZ_PLUS_v3:
+            #print("Using v3 of Photo-z Plus")
+            # Pull random z's from the map of (app_mag, zphot) => z
+            a_bin_i = np.digitize(target_app_mag[~used_neighbors], self.app_mag_bins_v3)
+            z_bin_i = np.digitize(target_z_phot[~used_neighbors], self.zphot_bins_v3)
 
-            # use the bins of photo-z and app-mag as keys
-            raise ValueError("Not implemented yet")
+            for i in np.arange(len(a_bin_i)):
+                z_chosen[idx_remaining[i]] = np.random.choice(self.map_v3[(a_bin_i[i], z_bin_i[i])])
 
         assert np.isnan(z_chosen).sum() == 0, f"Some redshifts were not chosen. {z_chosen}"
 

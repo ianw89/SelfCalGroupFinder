@@ -338,6 +338,12 @@ bgs_sv3_pz_2_2_7p = BGSGroupCatalog("Photo-z Plus v2.2 BGS sv3 7pass ", Mode.PHO
 bgs_sv3_pz_2_2_7p.GF_props = GF_PROPS_VANILLA.copy()
 bgs_sv3_pz_2_2_7p.color = [0.8, 0.45, 0.0]
 
+bgs_sv3_pz_2_3_7p = BGSGroupCatalog("Photo-z Plus v2.2 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=
+ (1, [1.2515, 2.559,  6.6055], [0.5069, 0.8889, 6.9069], [0.8576, 1.1947, 6.4954], [1.7467, 1.0091, 3.2467]))
+bgs_sv3_pz_2_3_7p.GF_props = GF_PROPS_VANILLA.copy()
+bgs_sv3_pz_2_3_7p.color = [0.8, 0.55, 0.0]
+
+
 bgs_sv3_pz_3_0_7p = BGSGroupCatalog("Photo-z Plus v3.0 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v3, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=())
 bgs_sv3_pz_3_0_7p.GF_props = GF_PROPS_VANILLA.copy()
 bgs_sv3_pz_3_0_7p.color = [0.45, 0.40, 0.0]

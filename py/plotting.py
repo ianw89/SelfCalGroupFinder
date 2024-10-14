@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import astropy.coordinates as coord
 import astropy.units as u
 from matplotlib.patches import Circle
+import nnanalysis as nn
 import sys
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -810,6 +811,77 @@ def group_finder_centrals_halo_masses_plots(all_df, comparisons):
         perfect_match = np.isclose(d2d.to(u.arcsec).value, 0, rtol=0.0, atol=0.0001) 
         # 0.0001 arcsec precision on matching doesn't hit floating point noise. You get same with 0.001
         print(f"What fraction of centrals in \'{comparison.name}\' are centrals in \'all\'? {np.sum(perfect_match) / len(d2d)}")
+
+
+
+##################################
+# Luminosity Funcions
+##################################
+
+def luminosity_function_plots(catalog: GroupCatalog):
+
+    data = catalog.all_data
+
+    lostrows = z_flag_is_not_spectro_z(data.z_assigned_flag)
+    lost_and_havetruth_rows = np.logical_and(z_flag_is_not_spectro_z(data.z_assigned_flag), data.z_T > 0)
+    lost_withT_galaxies = data.loc[lost_and_havetruth_rows]
+    obs_galaxies = data.loc[~lostrows]
+
+    assert np.isclose(obs_galaxies.z, obs_galaxies.z_T).all()
+    assert np.isclose(obs_galaxies.L_gal, obs_galaxies.L_gal_T).all()
+
+    boost = len(obs_galaxies) / len(lost_withT_galaxies)
+
+    # Non CIC way looks quite different...
+    #x = catalog.L_gal_labels
+    #obs_counts = obs_galaxies.groupby('Lgal_bin_T', observed=False).size()
+    #lost_truth_counts = lost_withT_galaxies.groupby('Lgal_bin_T', observed=False).size()
+    #lost_assumed_counts = lost_withT_galaxies.groupby('Lgal_bin', observed=False).size()
+
+    x = catalog.L_gal_bins
+    obs_counts = nn.cic_binning(obs_galaxies['Lgal_bin_T'].to_numpy(), [L_gal_bins])
+    lost_truth_counts = nn.cic_binning(lost_withT_galaxies['L_gal_T'].to_numpy(), [L_gal_bins])
+    lost_assumed_counts = nn.cic_binning(lost_withT_galaxies['L_gal'].to_numpy(), [L_gal_bins])
+
+    obs_vs_losttruth = ((lost_truth_counts*boost - obs_counts) / obs_counts) * 100
+    assumed_vs_truth =  ((lost_assumed_counts - lost_truth_counts) / lost_truth_counts) * 100
+
+    plt.figure()
+    plt.plot(x, obs_counts, color='b', label='Obs galaxies')
+    plt.plot(x, lost_truth_counts*boost, color='g', label='Lost gals (True L)')
+    plt.plot(x, lost_assumed_counts*boost, color='orange', label='Lost gals (Assumed L)')
+    plt.legend()
+    plt.title("Luminosity Functions")
+    plt.yscale('log')
+    plt.xscale('log')
+    plt.xlabel('$L_{gal}$')
+    plt.draw()
+
+    plt.figure()
+    plt.plot(x, obs_vs_losttruth, label="Observed => Lost (True L)")
+    plt.title("Do Obs and Lost Gals Have Different Luminosity Funcs?")
+    plt.xlabel('$L_{gal}$')
+    plt.ylabel("% Change in counts")
+    plt.xscale('log')
+    plt.xlim(6E7, 2E11)
+    plt.ylim(-35, 35)
+    plt.legend()
+    plt.axhline(0, color='black', lw=1)
+    plt.draw()
+
+    plt.figure()
+    plt.plot(x , assumed_vs_truth, color='orange', label=f"{catalog.name}")
+    plt.title("Effect of processing on L Func of Lost Gals")
+    plt.xlabel('$L_{gal}$')
+    plt.ylabel("% Change in counts")
+    plt.xscale('log')
+    plt.xlim(6E7, 2E11)
+    plt.ylim(-60, 60)
+    plt.legend()
+    plt.axhline(0, color='black', lw=1)
+    plt.draw()
+
+
 
 
 

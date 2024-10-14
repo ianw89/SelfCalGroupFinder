@@ -257,6 +257,21 @@ def photoz_plus_metric_3(z_guessed: np.ndarray[float], z_truth: np.ndarray[float
     # The mean of them all is a sufficient statistic
     return - np.mean(score)
 
+def photoz_plus_metric_4(z_guessed: np.ndarray[float], z_truth: np.ndarray[float], guess_type: np.ndarray[int]):
+    assert guess_type.shape == z_guessed.shape
+    assert guess_type.shape == z_truth.shape
+    score = powerlaw_score_2(z_guessed, z_truth)
+
+    # pseudorandom guesses help preserve luminosity func so give them a little credit
+    score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.4, 0.0) 
+    #score = score + np.where(guess_type == AssignedRedshiftFlag.PHOTO_Z.value, 0.1, 0.0) 
+
+    # in case pseduo-random guesses were spot on it can be > 1.0, so cap the score at 1.0
+    score = np.where(score > 1.0, 1.0, score)
+    
+    # The mean of them all is a sufficient statistic
+    return - np.mean(score)
+
 def get_app_mag(FLUX):
     """This converts nanomaggies into Pogson magnitudes"""
     return 22.5 - 2.5*np.log10(FLUX)
@@ -529,12 +544,13 @@ def build_app_mag_to_z_map_2(app_mag, z_obs):
     return app_mag_bins, the_map
 
 def build_app_mag_to_z_map_3(app_mag, z_phot, z_obs):
-    nbins = len(app_mag) // 100000
+    nbins = len(app_mag) // 250000
+    _MIN_GALAXIES_PER_BIN = 100
     app_mag_bins = np.quantile(np.array(app_mag), np.linspace(0, 1, nbins + 1)) 
-    app_mag_bins_low = np.linspace(min(app_mag), app_mag_bins[3], 15)
+    app_mag_bins_low = np.linspace(min(app_mag), app_mag_bins[3], 12)
     app_mag_bins = np.concatenate((app_mag_bins_low, app_mag_bins[4:]))
 
-    z_phot_bins = np.linspace(0.0, 0.6, 31)
+    z_phot_bins = np.linspace(0.0, 0.6, 21)
 
     app_mag_indices = np.digitize(app_mag, app_mag_bins)
     z_phot_indices = np.digitize(z_phot, z_phot_bins)
@@ -546,6 +562,26 @@ def build_app_mag_to_z_map_3(app_mag, z_phot, z_obs):
             this_bin_redshifts = z_obs[(app_mag_indices == app_bin) & (z_phot_indices == z_bin)]
             the_map[bin_key] = this_bin_redshifts
 
+    fixing = True
+    bin_jump = 1
+    while(fixing):
+        print(f"Padding with bin_jump {bin_jump}")  
+        fixing = False
+        for bin_key in list(the_map.keys()):
+            app_bin, z_bin = bin_key
+            if len(the_map[bin_key]) < _MIN_GALAXIES_PER_BIN and app_bin+bin_jump < len(app_mag_bins):
+                the_map[bin_key] = np.concatenate((the_map[bin_key], the_map[(app_bin+bin_jump, z_bin)]))
+                fixing = True
+            elif len(the_map[bin_key]) < _MIN_GALAXIES_PER_BIN and app_bin-bin_jump > 0:
+                print("edge case")
+                the_map[bin_key] = np.concatenate((the_map[bin_key], the_map[(app_bin-bin_jump, z_bin)]))
+        bin_jump += 1
+
+    # Add values for edge in case we see anything to left of bins
+    for z_bin in range(1, len(z_phot_bins) + 1):
+        the_map[0, z_bin] = the_map[1, z_bin]
+    for app_bin in range(1, len(app_mag_bins) + 1):
+        the_map[app_bin, 0] = the_map[app_bin, 1]
 
     return app_mag_bins, z_phot_bins, the_map
 

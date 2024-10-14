@@ -51,7 +51,7 @@ def cic_binning(data, bin_edges, weights=None):
     Parameters:
     -----------
     data : numpy.ndarray
-        A 2D array of shape (num_data_points, num_dimensions) containing the data points to be binned.
+        An array of shape (num_data_points, num_dimensions) containing the data points to be binned.
     bin_edges : list of numpy.ndarray
         A list of 1D arrays where each array contains the bin edges for the corresponding dimension.\
     weights : numpy.ndarray or list, optional
@@ -73,6 +73,9 @@ def cic_binning(data, bin_edges, weights=None):
         If the sum of all bin counts is not close to the number of data points.
     """
     num_data_points = data.shape[0]
+
+    if len(data.shape) == 1:
+        data = data[:, np.newaxis]
     num_dimensions = data.shape[1]
 
     if weights is not None:

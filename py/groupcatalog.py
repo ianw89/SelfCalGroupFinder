@@ -468,8 +468,9 @@ class MXXLGroupCatalog(GroupCatalog):
         
         self.all_data = read_and_combine_gf_output(self, galprops)
         df = self.all_data
-        self.has_truth = self.mode.value == Mode.ALL.value
+        self.has_truth = True#self.mode.value == Mode.ALL.value
         df['is_sat_truth'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3)
+        df['z_T'] = df['z_obs'] # MXXL truth values are always there
         if self.has_truth:
             df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
             df['L_gal_T'] = np.power(10, abs_mag_r_to_log_solar_L(app_mag_to_abs_mag_k(df.app_mag.to_numpy(), df.z_obs.to_numpy(), df.g_r.to_numpy())))
@@ -1140,7 +1141,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             print(f"Assigning missing redshifts complete.")   
 
     if Mode.is_photoz_plus(mode):
-        with PhotometricRedshiftGuesser.from_files(BGS_Y3_LOST_APP_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_SMOOTHED_FILE, Mode(mode)) as scorer:
+        with PhotometricRedshiftGuesser.from_files(BGS_Y3_LOST_APP_TO_Z_FILE, BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_SMOOTHED_FILE, Mode(mode)) as scorer:
             print(f"Assigning missing redshifts... ")   
 
             if wants_MCMC:
@@ -1254,7 +1255,7 @@ def log_likelihood(params, scorer: PhotometricRedshiftGuesser, app_mag_r, p_obs,
     n = math.floor(params[0])
     bb, rb, br, rr = np.reshape(params[1:], (4,3))    
     chosen_z, assignment_type = scorer.choose_redshift(n_z[:n, :], ang_dist[:n, :], z_phot, p_obs, app_mag_r, t_q, n_q[:n, :], (bb, rb, br, rr))
-    score = photoz_plus_metric_3(chosen_z, z_truth, assignment_type)
+    score = photoz_plus_metric_4(chosen_z, z_truth, assignment_type)
     return -score  # Negative because we want to maximize the likelihood
 
 def log_probability(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
@@ -1322,11 +1323,11 @@ def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_m
     #pos[4] = [1.5484203962922283, 1.2898133269743397, 0.05254540681003412, 1.6668682370959251]
 
     if mode == Mode.PHOTOZ_PLUS_v1.value:
-        backfile = "mcmc13_1_6.h5"
+        backfile = "mcmc13_m4_1_7.h5"
     elif mode == Mode.PHOTOZ_PLUS_v2.value:
-        backfile = "mcmc13_2_3.h5"
+        backfile = "mcmc13_m4_2_4.h5"
     elif mode == Mode.PHOTOZ_PLUS_v3.value:
-        backfile = "mcmc13_3_0.h5"
+        backfile = "mcmc13_m4_3_0.h5"
     if os.path.exists(backfile):
         new = False
         print("Loaded existing MCMC sampler")
