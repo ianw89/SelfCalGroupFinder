@@ -894,6 +894,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     elif Mode.is_photoz_plus(mode):
         print("\nMode PHOTOZ PLUS")
         if extra_params is not None:
+            wants_MCMC = False
             if len(extra_params) == 2:
                 NEIGHBORS, BB_PARAMS = extra_params
                 print("Using one set of extra parameter values for all color combinations.")
@@ -903,7 +904,6 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             else:
                 raise ValueError("Extra parameters must be a tuple of length 2 or 5")
             NEIGHBORS = int(NEIGHBORS)
-            assert len(BB_PARAMS) == 4 and len(RB_PARAMS) == 4 and len(BR_PARAMS) == 4 and len(RR_PARAMS) == 4
         else:
             print("Extra parameters not provided for PHOTOZ_PLUS mode; will MCMC them.")
             NEIGHBORS = 10
@@ -1140,7 +1140,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             print(f"Assigning missing redshifts complete.")   
 
     if Mode.is_photoz_plus(mode):
-        with PhotometricRedshiftGuesser.from_files(IAN_MXXL_LOST_APP_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_SMOOTHED_FILE, Mode(mode)) as scorer:
+        with PhotometricRedshiftGuesser.from_files(BGS_Y3_LOST_APP_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_SMOOTHED_FILE, Mode(mode)) as scorer:
             print(f"Assigning missing redshifts... ")   
 
             if wants_MCMC:
@@ -1174,7 +1174,8 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
                 # from the neighbor arrays, need to discard the ones that are not in the idx
                 n_selector = (~unobserved_orginal)[unobserved] # True/False array of the ones that were observed but we're pretending are unobserved of length idx_unobserved
                 
-                NEIGHBORS, params = find_optimal_parameters_mcmc(scorer, app_mag_r[idx], p_obs[idx], z_phot[idx], target_quiescent[n_selector], ang_dist[:, n_selector], n_z[:, n_selector], n_q[:, n_selector], z_obs[idx])
+                NEIGHBORS, params = find_optimal_parameters_mcmc(scorer, mode, app_mag_r[idx], p_obs[idx], z_phot[idx], target_quiescent[n_selector], ang_dist[:, n_selector], n_z[:, n_selector], n_q[:, n_selector], z_obs[idx])
+                NEIGHBORS = int(NEIGHBORS)
                 print(f"Best params found: N={NEIGHBORS}, p={params}")
                 #a, b = find_optimal_parameters(scorer, app_mag_r[idx], p_obs[idx], z_phot[idx], target_quiescent[n_selector], ang_dist[:, n_selector], n_z[:, n_selector], n_q[:, n_selector], z_obs[idx])
                 #pickle.dump(params, open(OUTPUT_FOLDER + "photoz_plus_params_v1_4.pkl", "wb"))
@@ -1233,17 +1234,17 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
 
 n_range = [1, 20.99999] # we floor this value for the num neighbors to use
-a_range = [0.0, 3.0]
-b_range = [0.0, 5.0]
-s_range = [0.00001, 0.1]
-p_range = [1.0, 8.0]
+a_range = [0.0, 2.5]
+b_range = [0.0, 4.0]
+s_range = [1.5, 7.0]
+#p_range = [1.0, 8.0]
 
 def log_prior(params):
     n = params[0]
     if not n_range[0] <= n <= n_range[1]:
         return -np.inf
-    bb, rb, br, rr = np.reshape(params[1:], (4,4))
-    ranges = [a_range, b_range, s_range, p_range]
+    bb, rb, br, rr = np.reshape(params[1:], (4,3))
+    ranges = [a_range, b_range, s_range]#, p_range]
     for param_set in [bb, rb, br, rr]:
         if not all(low <= param <= high for param, (low, high) in zip(param_set, ranges)):
             return -np.inf  # log(0)
@@ -1251,9 +1252,9 @@ def log_prior(params):
 
 def log_likelihood(params, scorer: PhotometricRedshiftGuesser, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
     n = math.floor(params[0])
-    bb, rb, br, rr = np.reshape(params[1:], (4,4))    
+    bb, rb, br, rr = np.reshape(params[1:], (4,3))    
     chosen_z, assignment_type = scorer.choose_redshift(n_z[:n, :], ang_dist[:n, :], z_phot, p_obs, app_mag_r, t_q, n_q[:n, :], (bb, rb, br, rr))
-    score = photoz_plus_metric_2(chosen_z, z_truth, assignment_type)
+    score = photoz_plus_metric_3(chosen_z, z_truth, assignment_type)
     return -score  # Negative because we want to maximize the likelihood
 
 def log_probability(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
@@ -1286,32 +1287,46 @@ def log_probability(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z
     #Optimal parameters found: A_WEIGHT=1.330906594609919, B_WEIGHT=1.0878920005929098, SIGMA_MATCH=0.04830439312768729, POW_MATCH=1.7885256917020547, N=10, . Saving to disk.    
 
 
-def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
+def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
     assert len(app_mag_r) == len(p_obs) == len(z_phot) == len(t_q) == len(ang_dist[0]) == len(n_z[0]) == len(n_q[0]) == len(z_truth)
     
-
-    ndim = 17
+    ndim = 13
     n_walkers=ndim*2
-    n_steps=1000
-    pos = np.array([np.random.uniform(low=[a_range[0], b_range[0], 10**(s_range[0]), p_range[0]], 
-                                        high=[a_range[1], b_range[1], 10**(s_range[1]), p_range[1]]) for i in range(n_walkers*4)])
-    pos[:, 2] = np.log10(pos[:, 2])  # Convert back from log scale
-    pos = pos.reshape(n_walkers, 16)
+    n_steps=20000
+    pos = np.array([np.random.uniform(low=[a_range[0], b_range[0], s_range[0]], 
+                                        high=[a_range[1], b_range[1], s_range[1]]) for i in range(n_walkers*4)])
+    pos = pos.reshape(n_walkers, 12)
     pos = np.insert(pos, 0, np.arange(n_walkers)%20 +1, axis=1)
 
     # Get score_b values cached and ready for fast access
     scorer.use_score_cache_for_mcmc(len(app_mag_r))
-    _ = scorer.choose_redshift(n_z, ang_dist, z_phot, p_obs, app_mag_r, t_q, n_q, np.reshape(pos[0, 1:], (4,4)))
-
+    _ = scorer.choose_redshift(n_z, ang_dist, z_phot, p_obs, app_mag_r, t_q, n_q, np.reshape(pos[0, 1:], (4,3)))
 
     # Insert some manual favorites as ICs; these came from past MCMC runs
+    pos[0] = [5, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4]
+    pos[1] = [10, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4]
+    pos[2] = [15, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4]
+    pos[3] = [5, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3]
+    pos[4] = [10, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3]
+    pos[5] = [15, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3]
+    
+    #pos[1] = [18, 2.33351118, 3.15764279, 0.05151109, 1.51392376, 2.33351118, 3.15764279, 0.05151109, 1.51392376, 2.33351118, 3.15764279, 0.05151109, 1.51392376, 2.33351118, 3.15764279, 0.05151109, 1.51392376]
+    #pos[2] = [18, 0.5658714, 1.28889203, 0.05925339, 1.02472837, 0.5658714, 1.28889203, 0.05925339, 1.02472837, 0.5658714, 1.28889203, 0.05925339, 1.02472837, 0.5658714, 1.28889203, 0.05925339, 1.02472837]
+    #pos[3] = [18, 1.99883106, 0.57370031, 0.06318122, 2.4052792, 1.99883106, 0.57370031, 0.06318122, 2.4052792, 1.99883106, 0.57370031, 0.06318122, 2.4052792, 1.99883106, 0.57370031, 0.06318122, 2.4052792]
+    #pos[4] = [18, 0.4071051,  0.67088151, 0.08159052, 2.4734777, 0.4071051,  0.67088151, 0.08159052, 2.4734777, 0.4071051,  0.67088151, 0.08159052, 2.4734777, 0.4071051,  0.67088151, 0.08159052, 2.4734777]
+    
     #pos[0] = [0.9, 1.35, 0.004, 4.0]
     #pos[1] = [0.9056840065992776, 1.3240318060391651, 0.0029924473856234317, 3.5953347233216078]
     #pos[2] = [0.989904213017003, 1.0946124190362552, 0.02165470173509737, 2.3181501405368574]
     #pos[3] = [1.3473070377576153, 1.1613821440381007, 0.008512348094778134, 2.76651481569123]
     #pos[4] = [1.5484203962922283, 1.2898133269743397, 0.05254540681003412, 1.6668682370959251]
 
-    backfile = "mcmc17_1_4.h5"
+    if mode == Mode.PHOTOZ_PLUS_v1.value:
+        backfile = "mcmc13_1_6.h5"
+    elif mode == Mode.PHOTOZ_PLUS_v2.value:
+        backfile = "mcmc13_2_3.h5"
+    elif mode == Mode.PHOTOZ_PLUS_v3.value:
+        backfile = "mcmc13_3_0.h5"
     if os.path.exists(backfile):
         new = False
         print("Loaded existing MCMC sampler")

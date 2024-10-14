@@ -205,6 +205,13 @@ def sim_z_score(target_z, z_arr):
 
     return power
 
+def powerlaw_score_2(target_z, z_arr):
+    POW = 3
+    FAT = 0.01 
+    power =  1.0 / (1 + (np.abs(z_arr-target_z) / FAT)**POW)
+
+    return power
+
 def photoz_plus_metric_1(z_guessed: np.ndarray[float], z_truth: np.ndarray[float], guess_type: np.ndarray[int]):
     assert guess_type.shape == z_guessed.shape
     assert guess_type.shape == z_truth.shape
@@ -241,8 +248,8 @@ def photoz_plus_metric_3(z_guessed: np.ndarray[float], z_truth: np.ndarray[float
     score = sim_z_score(z_guessed, z_truth)
 
     # pseudorandom guesses help preserve luminosity func so give them a little credit
-    score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.5, 0.0) 
-    score = score + np.where(guess_type == AssignedRedshiftFlag.PHOTO_Z.value, 0.5, 0.0) 
+    score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.4, 0.0) 
+    score = score + np.where(guess_type == AssignedRedshiftFlag.PHOTO_Z.value, 0.1, 0.0) 
 
     # in case pseduo-random guesses were spot on it can be > 1.0, so cap the score at 1.0
     score = np.where(score > 1.0, 1.0, score)
@@ -466,12 +473,14 @@ def build_app_mag_to_z_map_new(app_mag, z):
     return app_mag_bins, the_map
 
 
+
 # TODO consider making this color aware
 def build_app_mag_to_z_map(app_mag, z_obs):
     # TODO tune these two paremeters
     _NBINS = 100
-    _MIN_GALAXIES_PER_BIN = 20
+    _MIN_GALAXIES_PER_BIN = 100
     app_mag_bins = np.linspace(min(app_mag), max(app_mag), _NBINS)
+    #app_mag_bins = np.quantile(app_mag, np.linspace(0, 1, _NBINS + 1)) 
 
     app_mag_indices = np.digitize(app_mag, app_mag_bins)
 
@@ -493,17 +502,52 @@ def build_app_mag_to_z_map(app_mag, z_obs):
             the_map[k] = np.concatenate((the_map[k], the_map[k+1]))
             to_check.append(k) # recheck it to see if it's still too small
 
-    #print(app_mag_bins)
-
-    # print off the length of every value in the map
-    #for k in the_map:
-    #    print(f"App Mag Bin {k} has {len(the_map[k])} galaxies")
-
-
     assert len(app_mag_bins) == (len(the_map)-1)
     #print(f"App Mag Building Complete: {the_map}")
 
     return app_mag_bins, the_map
+
+def build_app_mag_to_z_map_2(app_mag, z_obs):
+    nbins = len(app_mag) // 30000
+    app_mag_bins = np.quantile(np.array(app_mag), np.linspace(0, 1, nbins + 1)) 
+    app_mag_bins_low = np.linspace(min(app_mag), app_mag_bins[3], 30)
+    app_mag_bins = np.concatenate((app_mag_bins_low, app_mag_bins[4:]))
+
+    app_mag_indices = np.digitize(app_mag, app_mag_bins)
+
+    the_map = {}
+    for bin_i in range(1,len(app_mag_bins)+1):
+        this_bin_redshifts = z_obs[app_mag_indices == bin_i]
+        the_map[bin_i] = this_bin_redshifts
+
+    # for app mags smaller than the smallest we have, use the z distribution of the one right above it
+    if 0 in the_map:
+        print("UNEXPECTED")
+    the_map[0] = the_map[1]
+    assert len(app_mag_bins) == (len(the_map)-1)
+
+    return app_mag_bins, the_map
+
+def build_app_mag_to_z_map_3(app_mag, z_phot, z_obs):
+    nbins = len(app_mag) // 100000
+    app_mag_bins = np.quantile(np.array(app_mag), np.linspace(0, 1, nbins + 1)) 
+    app_mag_bins_low = np.linspace(min(app_mag), app_mag_bins[3], 15)
+    app_mag_bins = np.concatenate((app_mag_bins_low, app_mag_bins[4:]))
+
+    z_phot_bins = np.linspace(0.0, 0.6, 31)
+
+    app_mag_indices = np.digitize(app_mag, app_mag_bins)
+    z_phot_indices = np.digitize(z_phot, z_phot_bins)
+
+    the_map = {}
+    for app_bin in range(1, len(app_mag_bins) + 1):
+        for z_bin in range(1, len(z_phot_bins) + 1):
+            bin_key = (app_bin, z_bin)
+            this_bin_redshifts = z_obs[(app_mag_indices == app_bin) & (z_phot_indices == z_bin)]
+            the_map[bin_key] = this_bin_redshifts
+
+
+    return app_mag_bins, z_phot_bins, the_map
 
 
 ###############################################

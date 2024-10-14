@@ -129,7 +129,6 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
 class PhotometricRedshiftGuesser(RedshiftGuesser):
 
     def __init__(self, debug=False):
-        print("Initializing v1 of PhotometricRedshiftGuesser")
         self.debug = debug
         self.nna: NNAnalyzer_cic = None
         self.app_mag_bins = None
@@ -142,6 +141,7 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
     def from_files(cls, app_mag_to_z_file, nna_file, mode: Mode):
         obj = cls()
         obj.mode = mode
+        print(f"Initializing PhotometricRedshiftGuesser for {mode}")
         print(f"Warning: using saved app mag -> z map")
         with open(app_mag_to_z_file, 'rb') as f:
             obj.app_mag_bins, obj.app_mag_map = pickle.load(f)
@@ -152,6 +152,7 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
     def from_data(cls, app_mags, z_obs, nna_file, mode: Mode):        
         obj = cls()
         obj.mode = mode
+        print(f"Initializing PhotometricRedshiftGuesser for {mode}")
         obj.app_mag_bins, obj.app_mag_map = build_app_mag_to_z_map(app_mags, z_obs)
         obj.nna = NNAnalyzer_cic.from_results_file(nna_file)
         return obj
@@ -181,7 +182,7 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
         nn_quiescent : np.ndarray
             Array of shape (N, COUNT) containing boolean values indicating if the neighbors are quiescent.
         params : tuple
-            A tuple containing four arrays (bb, rb, br, rr) each of length 4, representing parameters for scoring.
+            A tuple containing four arrays (bb, rb, br, rr) each of length 3, representing parameters for scoring.
 
         Returns:
         --------
@@ -212,7 +213,18 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
         # target color then neighbor color. So rb means red target, blue neighbor.   
         # 0,1,2,3 indxes are a,b,zmatch_sigma,zmatch_pow
         bb, rb, br, rr = params
-        assert len(bb) == 4 and len(rb) == 4 and len(br) == 4 and len(rr) == 4
+
+        if len(bb) == 3:
+            assert len(bb) == 3 and len(rb) == 3 and len(br) == 3 and len(rr) == 3
+            zmatch_pow = 2.0 # letting this float was too many freedoms
+        elif len(bb) == 4: 
+            assert len(bb) == 4 and len(rb) == 4 and len(br) == 4 and len(rr) == 4
+            zmatch_pow = np.where(target_quiescent,
+                    np.where(nn_quiescent, rr[3], rb[3]),
+                    np.where(nn_quiescent, br[3], bb[3]))
+        else:
+            raise ValueError("Invalid length of parameters")
+            
         a = np.where(target_quiescent,
                 np.where(nn_quiescent, rr[0], rb[0]),
                 np.where(nn_quiescent, br[0], bb[0]))
@@ -222,14 +234,11 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
         zmatch_sigma = np.where(target_quiescent,
                 np.where(nn_quiescent, rr[2], rb[2]),
                 np.where(nn_quiescent, br[2], bb[2]))
-        zmatch_pow = np.where(target_quiescent,
-                np.where(nn_quiescent, rr[3], rb[3]),
-                np.where(nn_quiescent, br[3], bb[3]))
 
         # PHOTO-Z scoring of neighbor
         delta_z = np.abs(neighbor_z - target_z_phot)
         dzp = np.power(delta_z, zmatch_pow)
-        score_a = np.exp(- dzp / (2*zmatch_sigma**2))
+        score_a = np.exp(- dzp / (np.power(10.0, -zmatch_sigma)))
 
         # Other properties scoring of neighbor
         score_b = np.zeros((num_neighbors, gal_count))
@@ -290,7 +299,6 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
             idx_bad = np.flatnonzero(np.logical_or(np.isnan(target_z_phot), target_z_phot < 0.0))
 
             bin_i = np.digitize(target_app_mag[idx_bad], self.app_mag_bins)
-            print(f"There are {len(idx_bad)} bad photo-zs.")
             for i in np.arange(len(bin_i)):
                 z_chosen[idx_bad[i]] = np.random.choice(self.app_mag_map[bin_i[i]])
                 flag_value[idx_bad] = AssignedRedshiftFlag.PSEUDO_RANDOM.value

@@ -9,13 +9,14 @@ import asyncio
 import concurrent.futures
 from multiprocessing import Pool, TimeoutError
 import tracemalloc
+import astropy.coordinates as coord
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from groupcatalog import GroupCatalog, BGSGroupCatalog, TestGroupCatalog, serialize, deserialize, SDSSGroupCatalog
 import catalog_definitions as cat
 from dataloc import *
-import pyutils as pyutils
+from pyutils import *
 import plotting as pp
 
 sdss_list : list[GroupCatalog] = [
@@ -97,8 +98,15 @@ datasets_to_run: list[GroupCatalog] = []
 #datasets_to_run.extend(bgs_sv3_list)  
 #datasets_to_run.extend(bgs_y1_list)
 #datasets_to_run.extend(bgs_y3_list)
-datasets_to_run.extend([cat.bgs_sv3_pz_2_0_7p])
+#datasets_to_run.extend([cat.bgs_sv3_pz_2_1_7p])
 
+#mcmc = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False)
+#mcmc.GF_props = cat.GF_PROPS_VANILLA.copy()
+#datasets_to_run.extend([mcmc])
+
+mcmc2 = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False)
+mcmc2.GF_props = cat.GF_PROPS_VANILLA.copy()
+datasets_to_run.extend([mcmc2])
 
 def process_gc(gc: GroupCatalog):
     name = gc.name

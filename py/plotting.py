@@ -23,8 +23,15 @@ plt.rcParams.update({'font.size': FONT_SIZE_DEFAULT})
 def font_restore():
     plt.rcParams.update({'font.size': FONT_SIZE_DEFAULT})
 
-
-
+def completeness_stats(cats: GroupCatalog|list[GroupCatalog]):
+    if isinstance(cats, GroupCatalog):
+        cats = [cats]
+    for d in cats:
+        name = d.name.replace("BGS sv3", "SV3")
+        print(f"{name}")
+        print(f"  Total galaxies: {len(d.all_data):,}")
+        print(f"  Completeness: {spectroscopic_complete_percent(d.all_data.z_assigned_flag.to_numpy()):.1%}")
+        print(f"  Lost gals - neighbor z used: {d.get_lostgal_neighbor_used():.1%}")
 
 
 ##########################
@@ -140,8 +147,9 @@ def completeness_comparison(*datasets):
 def plots(*catalogs, show_err=None, truth_on=False):
     catalogs = list(catalogs)
     if isinstance(show_err, GroupCatalog) and show_err not in catalogs:
-        print("Test")
         catalogs.append(show_err)
+
+    completeness_stats(catalogs)
 
     # TODO: I believe that Mh and Mstar don't have any h factors, but should double check.
     # Probably depends on what was given to the group finder?

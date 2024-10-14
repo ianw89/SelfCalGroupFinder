@@ -289,40 +289,58 @@ _cat = bgs_y3_fiberonly_1pass
 _cat.marker = '.'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_sv3_pz_1_10p = BGSGroupCatalog("Photo-z Plus v1 BGS sv3 10pass", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, data_cut='sv3', sdss_fill=False, extra_params=(5, (0.8, 1.0, 0.004, 4.0)))
+#0.004 = 4.5
+# To translate betwen old sigma and new one, use new = -log10(2*old^2)
+bgs_sv3_pz_1_10p = BGSGroupCatalog("Photo-z Plus v1 BGS sv3 10pass", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, data_cut='sv3', sdss_fill=False, extra_params=(5, (0.8, 1.0, 4.5, 4.0)))
 bgs_sv3_pz_1_10p.GF_props = GF_PROPS_VANILLA.copy()
 bgs_sv3_pz_1_10p.color = [0.0, 1.0, 1.0]
 
-bgs_sv3_pz_1_0_7p = BGSGroupCatalog("Photo-z Plus v1 BGS sv3 7pass", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(5, (0.8, 1.0, 0.004, 4.0)))
+bgs_sv3_pz_1_0_7p = BGSGroupCatalog("Photo-z Plus v1 BGS sv3 7pass", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(5, (0.8, 1.0, 4.5, 4.0)))
 bgs_sv3_pz_1_0_7p.GF_props = GF_PROPS_VANILLA.copy()
 bgs_sv3_pz_1_0_7p.color = 'g'
 
-bgs_sv3_pz_1_1_7p = BGSGroupCatalog("Photo-z Plus v1.1 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(10, (0.8, 1.0, 0.004, 4.0)))
+bgs_sv3_pz_1_1_7p = BGSGroupCatalog("Photo-z Plus v1.1 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(10, (0.8, 1.0, 4.5, 4.0)))
 bgs_sv3_pz_1_1_7p.GF_props = GF_PROPS_VANILLA.copy()
 bgs_sv3_pz_1_1_7p.color = [1.0, 0.0, 0.0]
 
-bgs_sv3_pz_1_2_7p = BGSGroupCatalog("Photo-z Plus v1.2 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(10, (0.997, 1.349, 0.004, 4.0)))
+bgs_sv3_pz_1_2_7p = BGSGroupCatalog("Photo-z Plus v1.2 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(10, (0.997, 1.349, 4.5, 4.0)))
 bgs_sv3_pz_1_2_7p.GF_props = GF_PROPS_VANILLA.copy()
 bgs_sv3_pz_1_2_7p.color = [0.7, 0.0, 0.0]
 
-bgs_sv3_pz_1_3_7p = BGSGroupCatalog("Photo-z Plus v1.3 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(10, (1.5484, 1.2898, 0.05254, 1.6668)))
+bgs_sv3_pz_1_3_7p = BGSGroupCatalog("Photo-z Plus v1.3 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(10, (1.5484, 1.2898, 2.2746, 1.6668)))
 bgs_sv3_pz_1_3_7p.GF_props = GF_PROPS_VANILLA.copy()
 bgs_sv3_pz_1_3_7p.color = [0.4, 0.0, 0.0]
 
-# TODO - new results with 17 parameter version
-bgs_sv3_pz_1_4_7p = BGSGroupCatalog("Photo-z Plus v1.4 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(10, (1.5484, 1.2898, 0.05254, 1.6668)))
-bgs_sv3_pz_1_4_7p.GF_props = GF_PROPS_VANILLA.copy()
-bgs_sv3_pz_1_4_7p.color = [0.2, 0.0, 0.0]
+bgs_sv3_pz_1_5_7p = BGSGroupCatalog("Photo-z Plus v1.5 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(18, [2.33351118, 3.15764279, 2.2579, 1.51392376]))
+bgs_sv3_pz_1_5_7p.GF_props = GF_PROPS_VANILLA.copy()
+bgs_sv3_pz_1_5_7p.color = [0.2, 0.0, 0.0]
 
-bgs_sv3_pz_2_0_7p = BGSGroupCatalog("Photo-z Plus v2.0 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(10, (1.3309, 1.0878, 0.0483, 1.7885)))
+bgs_sv3_pz_1_6_7p = BGSGroupCatalog("Photo-z Plus v1.6 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=
+ (17, [1.1528, 2.5795, 2.8277], [1.1408, 3.0129, 2.9726], [1.6243, 3.6578, 3.2446], [1.9327, 1.5995, 3.775 ]))
+bgs_sv3_pz_1_6_7p.GF_props = GF_PROPS_VANILLA.copy()
+bgs_sv3_pz_1_6_7p.color = [0.2, 0.0, 0.2]
+
+bgs_sv3_pz_2_0_7p = BGSGroupCatalog("Photo-z Plus v2.0 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=
+ (18, [2.33351118, 3.15764279, 2.15354, 1.51392376],
+ [0.5658714,  1.28889203, 0.05925339, 1.02472837,],
+ [1.99883106, 0.57370031, 2.0977, 2.4052792, ],
+ [0.4071051,  0.67088151, 1.8756, 2.4734777 ]))
 bgs_sv3_pz_2_0_7p.GF_props = GF_PROPS_VANILLA.copy()
 bgs_sv3_pz_2_0_7p.color = [0.7, 0.2, 0.0]
 
-bgs_sv3_pz_3_0_7p = BGSGroupCatalog("Photo-z Plus v3.0 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v3, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(10, (1.5484, 1.2898, 0.05254, 1.6668)))
+bgs_sv3_pz_2_1_7p = BGSGroupCatalog("Photo-z Plus v2.1 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=
+ (4, [0.3469, 1.2433, 3.1864], [0.0392, 0.375, 1.5278], [0.6808, 0.7361, 4.9456], [0.0429, 0.462, 6.7101]))
+bgs_sv3_pz_2_1_7p.GF_props = GF_PROPS_VANILLA.copy()
+bgs_sv3_pz_2_1_7p.color = [0.8, 0.35, 0.0]
+
+bgs_sv3_pz_2_2_7p = BGSGroupCatalog("Photo-z Plus v2.2 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=
+ (1, [0.3498, 1.4654, 6.5728], [0.2179, 0.0204, 2.9563], [0.6217, 0.1704, 3.7362], [0.4573, 0.9539, 3.8091]))
+bgs_sv3_pz_2_2_7p.GF_props = GF_PROPS_VANILLA.copy()
+bgs_sv3_pz_2_2_7p.color = [0.8, 0.45, 0.0]
+
+bgs_sv3_pz_3_0_7p = BGSGroupCatalog("Photo-z Plus v3.0 BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v3, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=())
 bgs_sv3_pz_3_0_7p.GF_props = GF_PROPS_VANILLA.copy()
 bgs_sv3_pz_3_0_7p.color = [0.45, 0.40, 0.0]
-
-#1.5484203962922283 1.2898133269743397 0.05254540681003412 1.6668682370959251
 
 bgs_sv3_fiberonly_10p = BGSGroupCatalog("Observed BGS sv3 10pass", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=10, data_cut='sv3')
 bgs_sv3_fiberonly_10p.GF_props = GF_PROPS_VANILLA.copy()
