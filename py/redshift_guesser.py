@@ -197,128 +197,143 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
             - flag_value: Array of shape (COUNT,) containing the AssignedRedshiftFlag values. This is indices of the neighbors used for the chosen redshifts or other values for different choices.
         """         
 
-        num_neighbors = neighbor_z.shape[0]
-        gal_count = neighbor_z.shape[1]
-        assert gal_count == len(target_prob_obs)
-        assert gal_count == len(target_app_mag)
-        assert gal_count == len(target_quiescent)
-        assert gal_count == len(target_z_phot)
-
-        # This is a cache of the scores; useful to speedup MCMC 
-        if self.score_b_cache is not None:
-            assert self.expected_galcount == gal_count
-
-        if target_quiescent.dtype == bool:
-            target_quiescent = target_quiescent.astype(float)
-        if nn_quiescent.dtype == bool:
-            nn_quiescent = nn_quiescent.astype(float)
-
-        #print(f"{N} neighbors will be considered.")
-
-        # target color then neighbor color. So rb means red target, blue neighbor.   
-        # 0,1,2,3 indxes are a,b,zmatch_sigma,zmatch_pow
-        bb, rb, br, rr = params
-
-        if len(bb) == 3:
-            assert len(bb) == 3 and len(rb) == 3 and len(br) == 3 and len(rr) == 3
-            zmatch_pow = 2.0 # letting this float was too many freedoms
-        elif len(bb) == 4: 
-            assert len(bb) == 4 and len(rb) == 4 and len(br) == 4 and len(rr) == 4
-            zmatch_pow = np.where(target_quiescent,
-                    np.where(nn_quiescent, rr[3], rb[3]),
-                    np.where(nn_quiescent, br[3], bb[3]))
-        else:
-            raise ValueError("Invalid length of parameters")
-            
-        a = np.where(target_quiescent,
-                np.where(nn_quiescent, rr[0], rb[0]),
-                np.where(nn_quiescent, br[0], bb[0]))
-        b = np.where(target_quiescent,
-                np.where(nn_quiescent, rr[1], rb[1]),
-                np.where(nn_quiescent, br[1], bb[1]))
-        zmatch_sigma = np.where(target_quiescent,
-                np.where(nn_quiescent, rr[2], rb[2]),
-                np.where(nn_quiescent, br[2], bb[2]))
-
-        # PHOTO-Z scoring of neighbor
-        delta_z = np.abs(neighbor_z - target_z_phot)
-        dzp = np.power(delta_z, zmatch_pow)
-        score_a = np.exp(- dzp / (np.power(10.0, -zmatch_sigma)))
-
-        # Other properties scoring of neighbor
-        score_b = np.zeros((num_neighbors, gal_count))
-        for i in range(num_neighbors):
-            # If we have a cache, use it
-            if self.score_b_cache is not None:
-                if i in self.score_b_cache:
-                    score_b[i, :] = self.score_b_cache[i]
-                    continue
-
-            # Compute the scores
-            score_b[i, :] = self.nna.get_score(None, target_app_mag, target_quiescent, neighbor_z[i], neighbor_ang_dist[i], nn_quiescent[i])
-                    
-            # If using cache, save the scores for future iterations
-            if self.score_b_cache is not None:
-                self.score_b_cache[i] = score_b[i, :]
-
-        score = a*score_a + b*score_b
-        #print(f"Total score: \n{score}")
-
-        THRESH = 1.0 # redundant with other scores params so no need to tune
-        max_neighbor_index = np.argmax(score, axis=0)
-        max_scores = np.max(score, axis=0)
-        #print(max_neighbor_index)
-
-        # If the max score is over the threshold, use that neighbor's redshift
-        z_chosen = np.where(max_scores > THRESH, neighbor_z[max_neighbor_index, np.arange(gal_count)], np.nan)
-        flag_value = np.where(max_scores > THRESH, max_neighbor_index + 1, AssignedRedshiftFlag.PSEUDO_RANDOM.value)
-        used_neighbors = ~(flag_value == AssignedRedshiftFlag.PSEUDO_RANDOM.value)
-        idx_remaining = np.flatnonzero(~used_neighbors)
-
-        # For the other ones, what we do is different for each mode
-        if self.mode == Mode.PHOTOZ_PLUS_v1:
-            #print("Using v1 of Photo-z Plus")
-            # Otherwise draw a random redshift from the apparent mag bin similar to the target
-            bin_i = np.digitize(target_app_mag[~used_neighbors], self.app_mag_bins)
-            #otherway = z_chosen.copy()
-
-            #t1 = time.time()
-            for i in np.arange(len(bin_i)):
-                z_chosen[idx_remaining[i]] = np.random.choice(self.map_v1[bin_i[i]])
-            #t2 = time.time()
-
-            # TODO dictionary isn't a vectorized object... this doesn't work at all
-            #t3= time.time()
-            #toset = np.random.choice(self.app_mag_map[bin_i])
-            #otherway[idx_remaining] = toset
-            #t4 = time.time()
-
-            #assert np.isclose(z_chosen, otherway, equal_nan=True).all()
-            #print(f"Time for loop: {t2-t1:.3f}. Time for vectorized: {t4-t3:.3f}")
+        with np.printoptions(precision=4, suppress=True):
                 
-        elif self.mode == Mode.PHOTOZ_PLUS_v2:
-            #print("Using v2 of Photo-z Plus")
-            # Just use the photo-z directly
-            z_chosen[idx_remaining] = target_z_phot[idx_remaining]
-            flag_value[idx_remaining] = AssignedRedshiftFlag.PHOTO_Z.value
+            num_neighbors = neighbor_z.shape[0]
+            gal_count = neighbor_z.shape[1]
+            assert gal_count == len(target_prob_obs)
+            assert gal_count == len(target_app_mag)
+            assert gal_count == len(target_quiescent)
+            assert gal_count == len(target_z_phot)
 
-            # For bad ones (no photo-z)
-            idx_bad = np.flatnonzero(np.logical_or(np.isnan(target_z_phot), target_z_phot < 0.0))
+            # This is a cache of the scores; useful to speedup MCMC 
+            if self.score_b_cache is not None:
+                assert self.expected_galcount == gal_count
 
-            bin_i = np.digitize(target_app_mag[idx_bad], self.app_mag_bins)
-            for i in np.arange(len(bin_i)):
-                z_chosen[idx_bad[i]] = np.random.choice(self.map_v1[bin_i[i]])
-                flag_value[idx_bad] = AssignedRedshiftFlag.PSEUDO_RANDOM.value
+            if target_quiescent.dtype == bool:
+                target_quiescent = target_quiescent.astype(float)
+            if nn_quiescent.dtype == bool:
+                nn_quiescent = nn_quiescent.astype(float)
 
-        elif self.mode == Mode.PHOTOZ_PLUS_v3:
-            #print("Using v3 of Photo-z Plus")
-            # Pull random z's from the map of (app_mag, zphot) => z
-            a_bin_i = np.digitize(target_app_mag[~used_neighbors], self.app_mag_bins_v3)
-            z_bin_i = np.digitize(target_z_phot[~used_neighbors], self.zphot_bins_v3)
+            if self.debug:
+                print(f"{num_neighbors} neighbors will be considered.")
 
-            for i in np.arange(len(a_bin_i)):
-                z_chosen[idx_remaining[i]] = np.random.choice(self.map_v3[(a_bin_i[i], z_bin_i[i])])
+            # target color then neighbor color. So rb means red target, blue neighbor.   
+            # 0,1,2,3 indxes are a,b,zmatch_sigma,zmatch_pow
+            bb, rb, br, rr = params
 
-        assert np.isnan(z_chosen).sum() == 0, f"Some redshifts were not chosen. {z_chosen}"
+            if len(bb) == 3:
+                assert len(bb) == 3 and len(rb) == 3 and len(br) == 3 and len(rr) == 3
+                zmatch_pow = 2.0 # letting this float was too many freedoms
+            elif len(bb) == 4: 
+                assert len(bb) == 4 and len(rb) == 4 and len(br) == 4 and len(rr) == 4
+                zmatch_pow = np.where(target_quiescent,
+                        np.where(nn_quiescent, rr[3], rb[3]),
+                        np.where(nn_quiescent, br[3], bb[3]))
+            else:
+                raise ValueError("Invalid length of parameters")
+                
+            a = np.where(target_quiescent,
+                    np.where(nn_quiescent, rr[0], rb[0]),
+                    np.where(nn_quiescent, br[0], bb[0]))
+            b = np.where(target_quiescent,
+                    np.where(nn_quiescent, rr[1], rb[1]),
+                    np.where(nn_quiescent, br[1], bb[1]))
+            zmatch_sigma = np.where(target_quiescent,
+                    np.where(nn_quiescent, rr[2], rb[2]),
+                    np.where(nn_quiescent, br[2], bb[2]))
+
+            # PHOTO-Z scoring of neighbor
+            delta_z = np.abs(neighbor_z - target_z_phot)
+            dzp = np.power(delta_z, zmatch_pow)
+            score_a = np.exp(- dzp / (np.power(10.0, -zmatch_sigma)))
+
+            # Other properties scoring of neighbor
+            score_b = np.zeros((num_neighbors, gal_count))
+            for i in range(num_neighbors):
+                # If we have a cache, use it
+                if self.score_b_cache is not None:
+                    if i in self.score_b_cache:
+                        score_b[i, :] = self.score_b_cache[i]
+                        continue
+
+                # Compute the scores
+                score_b[i, :] = self.nna.get_score(None, target_app_mag, target_quiescent, neighbor_z[i], neighbor_ang_dist[i], nn_quiescent[i])
+                        
+                # If using cache, save the scores for future iterations
+                if self.score_b_cache is not None:
+                    self.score_b_cache[i] = score_b[i, :]
+
+            score = a*score_a + b*score_b
+            
+            if self.debug:
+                # Print score_a, score_b, and score
+                for i in range(gal_count):
+                    print(f"Target {i}:")
+                    print(f"  score_a: {score_a[:, i]}")
+                    print(f"  score_b: {score_b[:, i]}")
+                    print(f"  score: {score[:, i]}")
+
+            neighbor_ratio = 0.0
+            threshold = 1.0 # redundant with other scores params so no need to tune
+            max_neighbor_index = np.argmax(score, axis=0)
+            max_scores = np.max(score, axis=0)
+            #print(max_neighbor_index)
+
+            #while neighbor_ratio < 0.4 or neighbor_ratio > 0.6:
+
+            # If the max score is over the threshold, use that neighbor's redshift
+            z_chosen = np.where(max_scores > threshold, neighbor_z[max_neighbor_index, np.arange(gal_count)], np.nan)
+            flag_value = np.where(max_scores > threshold, max_neighbor_index + 1, AssignedRedshiftFlag.PSEUDO_RANDOM.value)
+            used_neighbors = ~(flag_value == AssignedRedshiftFlag.PSEUDO_RANDOM.value)
+            idx_remaining = np.flatnonzero(~used_neighbors)
+
+            # For the other ones, what we do is different for each mode
+            if self.mode.value == Mode.PHOTOZ_PLUS_v1.value:
+                #print("Using v1 of Photo-z Plus")
+                # Otherwise draw a random redshift from the apparent mag bin similar to the target
+                bin_i = np.digitize(target_app_mag[~used_neighbors], self.app_mag_bins)
+
+                # TODO dictionary isn't a vectorized object; hard to avoid a loop with my design
+                for i in np.arange(len(bin_i)):
+                    z_chosen[idx_remaining[i]] = np.random.choice(self.map_v1[bin_i[i]])
+
+            elif self.mode.value == Mode.PHOTOZ_PLUS_v2.value:
+                #print("Using v2 of Photo-z Plus")
+                # Just use the photo-z directly
+                z_chosen[idx_remaining] = target_z_phot[idx_remaining]
+                flag_value[idx_remaining] = AssignedRedshiftFlag.PHOTO_Z.value
+
+                # For bad ones (no photo-z)
+                idx_bad = np.flatnonzero(np.logical_or(np.isnan(target_z_phot), target_z_phot < 0.0))
+
+                bin_i = np.digitize(target_app_mag[idx_bad], self.app_mag_bins)
+                for i in np.arange(len(bin_i)):
+                    z_chosen[idx_bad[i]] = np.random.choice(self.map_v1[bin_i[i]])
+                    flag_value[idx_bad] = AssignedRedshiftFlag.PSEUDO_RANDOM.value
+
+            elif self.mode.value == Mode.PHOTOZ_PLUS_v3.value:
+                #print("Using v3 of Photo-z Plus")
+
+                # Pull random z's from the map of (app_mag, zphot) => z
+                a_bin_i = np.digitize(target_app_mag[idx_remaining], self.app_mag_bins_v3)
+                z_bin_i = np.digitize(target_z_phot[idx_remaining], self.zphot_bins_v3)
+
+                for i in np.arange(len(idx_remaining)):
+                    options = self.map_v3.get((a_bin_i[i], z_bin_i[i]))
+                    if options is not None:
+                        z_chosen[idx_remaining[i]] = np.random.choice(options)
+                    else: # use photo-z if the map doesn't have values to choose from
+                        z_chosen[idx_remaining[i]] = target_z_phot[idx_remaining[i]]
+                        flag_value[idx_remaining[i]] = AssignedRedshiftFlag.PHOTO_Z.value
+
+                # For bad ones (no photo-z), use v1 style map of just (app mag) => z
+                idx_bad = np.flatnonzero(np.logical_or(np.isnan(target_z_phot), target_z_phot < 0.0))
+                for i in np.arange(len(idx_bad)):
+                    z_chosen[idx_bad[i]] = np.random.choice(self.map_v1[a_bin_i[i]])
+                    flag_value[idx_bad[i]] = AssignedRedshiftFlag.PSEUDO_RANDOM.value
+
+
+            assert np.isnan(z_chosen).sum() == 0, f"Some redshifts were not chosen. {z_chosen}"
 
         return z_chosen, flag_value

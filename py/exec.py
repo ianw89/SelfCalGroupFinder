@@ -214,4 +214,5 @@ if __name__ == "__main__":
         datasets_to_run.extend(callable_list[to_add])
 
     # Winner
-    asyncio.run(main_threaded_parallel())
+    asyncio.run(main_serial())
+    #asyncio.run(main_threaded_parallel())

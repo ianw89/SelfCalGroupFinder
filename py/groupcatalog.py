@@ -12,10 +12,7 @@ import copy
 import sys
 import wp as wp
 import math
-import asyncio
 from multiprocessing import Pool
-from scipy.optimize import minimize
-from tqdm.notebook import tqdm
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -79,6 +76,32 @@ for i, region in enumerate(sv3_regions):
 def tile_to_region_raw(key):
     return sv3_tile_to_region.get(key, None)  # Return None if key is not found
 tile_to_region = np.vectorize(tile_to_region_raw)
+
+
+GF_PROPS_VANILLA = {
+    'zmin':0, 
+    'zmax':0,
+    'frac_area':0, # should be filled in
+    'fluxlim':1,
+    'color':1,
+}
+GF_PROPS_COLORS = {
+    'zmin':0, 
+    'zmax':0,
+    'frac_area':0, # should be filled in
+    'fluxlim':1,
+    'color':1,
+    'omegaL_sf':13.1,
+    'sigma_sf':2.42,
+    'omegaL_q':12.9,
+    'sigma_q':4.84,
+    'omega0_sf':17.4,  
+    'omega0_q':2.67,    
+    'beta0q':-0.92,    
+    'betaLq':10.25,
+    'beta0sf':12.993,
+    'betaLsf':-8.04,
+}
 
 class GroupCatalog:
 
@@ -184,6 +207,7 @@ class GroupCatalog:
             if 'omega_chi_0_sf' in self.GF_props:
                 args.append(f"--chi1={self.GF_props['omega_chi_0_sf']},{self.GF_props['omega_chi_0_q']},{self.GF_props['omega_chi_L_sf']},{self.GF_props['omega_chi_L_q']}")            
 
+            print(args)
             # The galaxies are written to stdout, so send ot the GF_outfile file stream
             self.results = sp.run(args, cwd=self.output_folder, stdout=f)
             
@@ -548,6 +572,29 @@ class BGSGroupCatalog(GroupCatalog):
         self.centered = None # SV3 Centered version shortcut.
         self.extra_params = extra_params
 
+    @staticmethod
+    def from_MCMC(reader: emcee.backends.HDFBackend, mode: Mode):
+
+        idx = np.argmax(reader.get_log_prob(flat=True))
+        p = reader.get_chain(flat=True)[idx]
+        if len(p) != 13:
+            raise ValueError("reader has wrong number of parameters. Expected 13.")
+        
+        print(f"Using MCMC parameters: {p}")
+
+        gc = BGSGroupCatalog(f"BGS SV3 MCMC {mode_to_str(mode)}", mode, 19.5, 23.0, sdss_fill=False, num_passes=10, drop_passes=3, data_cut="sv3", extra_params=p)
+        gc.GF_props = GF_PROPS_VANILLA.copy()
+        if mode.value == Mode.PHOTOZ_PLUS_v1.value:
+            gc.color = 'g'
+        elif mode.value == Mode.PHOTOZ_PLUS_v2.value:
+            gc.color = 'darkorange'
+        elif mode.value == Mode.PHOTOZ_PLUS_v3.value:
+            gc.color = 'purple'
+        
+        gc.marker = '--'
+
+        return gc
+
     def preprocess(self):
         print("Pre-processing...")
         if self.data_cut == "Y1-Iron":
@@ -902,6 +949,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
                 RR_PARAMS = BR_PARAMS = RB_PARAMS = BB_PARAMS
             elif len(extra_params) == 5:
                 NEIGHBORS, BB_PARAMS, RB_PARAMS, BR_PARAMS, RR_PARAMS = extra_params
+            elif len(extra_params) == 13:
+                NEIGHBORS = extra_params[0]
+                BB_PARAMS, RB_PARAMS, BR_PARAMS, RR_PARAMS = extra_params[1:].reshape(4, 3)
             else:
                 raise ValueError("Extra parameters must be a tuple of length 2 or 5")
             NEIGHBORS = int(NEIGHBORS)
@@ -1193,9 +1243,11 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     assert np.isnan(z_eff).sum() == 0
 
     # Redshift assignments could have placed lost galaxies outside the range of the catalog. Remove them.
-    final_selection = ~np.logical_or(z_eff < Z_MIN, z_eff > Z_MAX)
+    final_selection = np.logical_and(z_eff > Z_MIN, z_eff < Z_MAX)
     print(f"{np.sum(~final_selection):,} galaxies have redshifts outside the range of the catalog and will be removed.")
     
+    print(f"Neighbor usage %: {z_flag_is_neighbor(z_assigned_flag).sum() / z_flag_is_not_spectro_z(z_assigned_flag).sum() * 100:.2f}")
+
     # Now that we have redshifts for lost galaxies, we can calculate the rest of the properties
     if len(idx_unobserved) > 0:
         G_R_k = update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, log_L_gal, quiescent)
@@ -1231,7 +1283,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     write_dat_files_v2(ra[final_selection], dec[final_selection], z_eff[final_selection], log_L_gal[final_selection], V_max[final_selection], quiescent[final_selection], chi[final_selection], outname_base)
 
-    return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': frac_area }
+    return outname_base + ".dat", {'zmin': np.min(z_eff[final_selection]), 'zmax': np.max(z_eff[final_selection]), 'frac_area': frac_area }
 
 
 n_range = [1, 20.99999] # we floor this value for the num neighbors to use
@@ -1264,30 +1316,6 @@ def log_probability(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z
         return -np.inf # throw away this possibility
     return lp + log_likelihood(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth)
 
-    # Run with respect to Metric 1
-    #100%|██████████| 20/20 [1:32:41<00:00, 278.09s/it]
-    #Optimal parameters found: a=0.9976401265765041, b=1.3493965745450867. Saving to disk.
-
-    # Run with respect to Metric 2
-    #100%|██████████| 100/100 [04:11<00:00,  2.51s/it]
-    #Optimal parameters found: A_WEIGHT=0.9767466032383199, B_WEIGHT=0.6497742999258755, N=10. Saving to disk.
-
-    # Run with respect to Metric 2 with 4 parmeters instead of 2
-    # 0.9056840065992776 1.3240318060391651 0.0029924473856234317 3.5953347233216078
-    # Later on, this run was:
-    # 0.989904213017003 1.0946124190362552 0.02165470173509737 2.3181501405368574
-    
-    # Run with respect to Metric 2 with 4 parmeters and smarter ICs
-    #100%|██████████| 2000/2000 [3:01:48<00:00,  5.45s/it]  
-    #Optimal parameters found: A_WEIGHT=1.3473070377576153, B_WEIGHT=1.1613821440381007, SIGMA_MATCH=0.008512348094778134, POW_MATCH=2.76651481569123, N=10, . Saving to disk.
-    #100%|██████████| 2000/2000 [3:02:42<00:00,  5.48s/it]  
-    #Optimal parameters found: A_WEIGHT=1.5484203962922283, B_WEIGHT=1.2898133269743397, SIGMA_MATCH=0.05254540681003412, POW_MATCH=1.6668682370959251, N=10, . Saving to disk.
-
-    # v2
-    #100%|██████████| 3000/3000 [4:35:30<00:00,  5.51s/it]  
-    #Optimal parameters found: A_WEIGHT=1.330906594609919, B_WEIGHT=1.0878920005929098, SIGMA_MATCH=0.04830439312768729, POW_MATCH=1.7885256917020547, N=10, . Saving to disk.    
-
-
 def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
     assert len(app_mag_r) == len(p_obs) == len(z_phot) == len(t_q) == len(ang_dist[0]) == len(n_z[0]) == len(n_q[0]) == len(z_truth)
     
@@ -1306,28 +1334,22 @@ def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_m
     # Insert some manual favorites as ICs; these came from past MCMC runs
     pos[0] = [5, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4]
     pos[1] = [10, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4]
-    pos[2] = [15, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4]
+    pos[2] = [2, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4]
     pos[3] = [5, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3]
     pos[4] = [10, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3]
-    pos[5] = [15, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3]
-    
-    #pos[1] = [18, 2.33351118, 3.15764279, 0.05151109, 1.51392376, 2.33351118, 3.15764279, 0.05151109, 1.51392376, 2.33351118, 3.15764279, 0.05151109, 1.51392376, 2.33351118, 3.15764279, 0.05151109, 1.51392376]
-    #pos[2] = [18, 0.5658714, 1.28889203, 0.05925339, 1.02472837, 0.5658714, 1.28889203, 0.05925339, 1.02472837, 0.5658714, 1.28889203, 0.05925339, 1.02472837, 0.5658714, 1.28889203, 0.05925339, 1.02472837]
-    #pos[3] = [18, 1.99883106, 0.57370031, 0.06318122, 2.4052792, 1.99883106, 0.57370031, 0.06318122, 2.4052792, 1.99883106, 0.57370031, 0.06318122, 2.4052792, 1.99883106, 0.57370031, 0.06318122, 2.4052792]
-    #pos[4] = [18, 0.4071051,  0.67088151, 0.08159052, 2.4734777, 0.4071051,  0.67088151, 0.08159052, 2.4734777, 0.4071051,  0.67088151, 0.08159052, 2.4734777, 0.4071051,  0.67088151, 0.08159052, 2.4734777]
-    
-    #pos[0] = [0.9, 1.35, 0.004, 4.0]
-    #pos[1] = [0.9056840065992776, 1.3240318060391651, 0.0029924473856234317, 3.5953347233216078]
-    #pos[2] = [0.989904213017003, 1.0946124190362552, 0.02165470173509737, 2.3181501405368574]
-    #pos[3] = [1.3473070377576153, 1.1613821440381007, 0.008512348094778134, 2.76651481569123]
-    #pos[4] = [1.5484203962922283, 1.2898133269743397, 0.05254540681003412, 1.6668682370959251]
+    pos[5] = [2, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3]
+    pos[6] = [4, 0.8104, 0.9215, 2.867, 0.9102, 0.7376, 3.0275, 0.8986, 1.0397, 2.6287, 0.7488, 0.9489, 2.9319]
+    pos[7] = [4, 0.643, 2.4643, 6.1657, 2.2802, 1.2061, 4.7895, 0.1339, 0.8915, 2.4472, 1.4522, 0.6526, 3.129] 
+    pos[8] = [11, 0.7806, 0.3506, 2.9554, 0.3013, 0.5782, 3.1883, 0.7796, 0.6391, 3.3379, 0.9324, 0.441, 2.6984]
+    pos[9] = [3, 0.22, 2.4558, 6.6299, 2.4968, 0.8627, 3.9119, 0.3373, 0.4583, 1.8957, 1.4875, 0.8083, 2.9626]
+    pos[10] = [11, 0.9234, 0.3283, 1.9708, 1.4472, 2.375, 6.0545, 0.7621, 2.6028, 6.6226, 0.8828, 0.7636, 2.9753]
 
     if mode == Mode.PHOTOZ_PLUS_v1.value:
         backfile = "mcmc13_m4_1_7.h5"
     elif mode == Mode.PHOTOZ_PLUS_v2.value:
         backfile = "mcmc13_m4_2_4.h5"
     elif mode == Mode.PHOTOZ_PLUS_v3.value:
-        backfile = "mcmc13_m4_3_0.h5"
+        backfile = "mcmc13_m4_3_1.h5"
     if os.path.exists(backfile):
         new = False
         print("Loaded existing MCMC sampler")
@@ -1349,6 +1371,7 @@ def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_m
     params = samples[np.argmax(sampler.get_log_prob())]
     bb, rb, br, rr = np.reshape(params[1:], (4,4))
     return params[0], (bb, rb, br, rr)
+
 
 ##########################
 # Processing Group Finder Output File

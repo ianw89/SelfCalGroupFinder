@@ -107,11 +107,11 @@ def single_plots(d: GroupCatalog, truth_on=False):
     plots_color_split(d, truth_on=truth_on, total_on=True)
 
     if 'z_assigned_flag' in d.all_data.columns:
-        plots_color_split_lost_split(d)
-    if d.has_truth:
+        plots_color_split_lost_split(d, 'Lgal_bin')
+    if d.has_truth and truth_on:
         q_gals = d.all_data[d.all_data.quiescent]
         sf_gals = d.all_data[np.invert(d.all_data.quiescent)]
-        plots_color_split_lost_split_inner(d.name + " Sim. Truth", d.L_gal_labels, d.L_gal_bins, q_gals, sf_gals, fsat_truth_vmax_weighted)
+        plots_color_split_lost_split_inner(d.name + " Truth", d.L_gal_labels, d.L_gal_bins, q_gals, sf_gals, fsat_truth_vmax_weighted,'Lgal_bin_T')
 
     print("TOTAL f_sat - entire sample: ")
     total_f_sat(d)
@@ -290,7 +290,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         ax1.set_ylabel("Star-forming $f_{\\mathrm{sat}}$ ")
         legend_ax(ax1, catalogs)
         ax1.set_xlim(xmin,X_MAX)
-        ax1.set_ylim(0.0,1.0)
+        ax1.set_ylim(0.0,0.5)
         ax2=ax1.twiny()
         ax2.plot(Mr_gal_labels, catalogs[0].f_sat_sf, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
@@ -339,22 +339,22 @@ def plots(*catalogs, show_err=None, truth_on=False):
         total_f_sat(f)
 
 
-def plots_color_split_lost_split(f):
+def plots_color_split_lost_split(f, grpby_col):
     q_gals = f.all_data[f.all_data.quiescent]
     sf_gals = f.all_data[np.invert(f.all_data.quiescent)]
-    plots_color_split_lost_split_inner(get_dataset_display_name(f), f.L_gal_labels, f.L_gal_bins, q_gals, sf_gals, fsat_vmax_weighted)
+    plots_color_split_lost_split_inner(get_dataset_display_name(f), f.L_gal_labels, f.L_gal_bins, q_gals, sf_gals, fsat_vmax_weighted, grpby_col)
 
-def plots_color_split_lost_split_inner(name, L_gal_labels, L_gal_bins, q_gals, sf_gals, aggregation_func, show_plot=True):
-    q_lost = q_gals[q_gals.z_assigned_flag != 0].groupby(['Lgal_bin'], observed=False)
-    q_obs = q_gals[q_gals.z_assigned_flag == 0].groupby(['Lgal_bin'], observed=False)
-    sf_lost = sf_gals[sf_gals.z_assigned_flag != 0].groupby(['Lgal_bin'], observed=False)
-    sf_obs = sf_gals[sf_gals.z_assigned_flag == 0].groupby(['Lgal_bin'], observed=False)
+def plots_color_split_lost_split_inner(name, L_gal_labels, L_gal_bins, q_gals, sf_gals, aggregation_func, grpby_col, show_plot=True):
+    q_lost = q_gals[z_flag_is_not_spectro_z(q_gals.z_assigned_flag)].groupby([grpby_col], observed=False)
+    q_obs = q_gals[z_flag_is_spectro_z(q_gals.z_assigned_flag)].groupby([grpby_col], observed=False)
+    sf_lost = sf_gals[z_flag_is_not_spectro_z(sf_gals.z_assigned_flag)].groupby([grpby_col], observed=False)
+    sf_obs = sf_gals[z_flag_is_spectro_z(sf_gals.z_assigned_flag)].groupby([grpby_col], observed=False)
     fsat_qlost = q_lost.apply(aggregation_func)
     fsat_qobs = q_obs.apply(aggregation_func)
     fsat_sflost = sf_lost.apply(aggregation_func)
     fsat_sfobs = sf_obs.apply(aggregation_func)
-    fsat_qtot = q_gals.groupby(['Lgal_bin'], observed=False).apply(aggregation_func)
-    fsat_sftot = sf_gals.groupby(['Lgal_bin'], observed=False).apply(aggregation_func)
+    fsat_qtot = q_gals.groupby([grpby_col], observed=False).apply(aggregation_func)
+    fsat_sftot = sf_gals.groupby([grpby_col], observed=False).apply(aggregation_func)
 
     if show_plot:
         fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(12,5))
@@ -636,7 +636,11 @@ def L_func_plot(datasets: list, values: list):
     ax2.plot(Mr_gal_labels, values[0], ls="")
     ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(L_MIN)), log_solar_L_to_abs_mag_r(np.log10(L_MAX)))
     ax2.set_xlabel("$M_r$ - 5log(h)")
-
+    
+def compare_L_funcs(one: pd.DataFrame, two: pd.DataFrame):
+    one_counts = one.groupby('Lgal_bin').RA.count()
+    two_counts = two.groupby('Lgal_bin').RA.count()
+    pp.L_func_plot([one, two], [one_counts, two_counts])
 
 def qf_cen_plot(*datasets):
     """
@@ -818,48 +822,58 @@ def group_finder_centrals_halo_masses_plots(all_df, comparisons):
 # Luminosity Funcions
 ##################################
 
-def luminosity_function_plots(catalog: GroupCatalog):
+def luminosity_function_plots(*catalogs):
+    
+    obs_counts = np.zeros((len(catalogs), len(L_gal_bins)))
+    lost_truth_counts = np.zeros((len(catalogs), len(L_gal_bins)))
+    lost_assumed_counts = np.zeros((len(catalogs), len(L_gal_bins)))
+    obs_vs_losttruth = np.zeros((len(catalogs), len(L_gal_bins)))
+    assumed_vs_truth = np.zeros((len(catalogs), len(L_gal_bins)))
+    boost = []
+    x = L_gal_bins
 
-    data = catalog.all_data
+    for i in range(len(catalogs)):
+        catalog = catalogs[i]
+        data = catalog.all_data
 
-    lostrows = z_flag_is_not_spectro_z(data.z_assigned_flag)
-    lost_and_havetruth_rows = np.logical_and(z_flag_is_not_spectro_z(data.z_assigned_flag), data.z_T > 0)
-    lost_withT_galaxies = data.loc[lost_and_havetruth_rows]
-    obs_galaxies = data.loc[~lostrows]
+        lostrows = z_flag_is_not_spectro_z(data.z_assigned_flag.to_numpy())
+        lost_and_havetruth_rows = np.logical_and(z_flag_is_not_spectro_z(data.z_assigned_flag.to_numpy()), data.z_T.to_numpy() > 0)
+        lost_withT_galaxies = data.loc[lost_and_havetruth_rows]
+        obs_galaxies = data.loc[~lostrows]
 
-    assert np.isclose(obs_galaxies.z, obs_galaxies.z_T).all()
-    assert np.isclose(obs_galaxies.L_gal, obs_galaxies.L_gal_T).all()
+        assert np.isclose(obs_galaxies.z, obs_galaxies.z_T).all()
+        assert np.isclose(obs_galaxies.L_gal, obs_galaxies.L_gal_T).all()
 
-    boost = len(obs_galaxies) / len(lost_withT_galaxies)
+        boost.append(len(obs_galaxies) / len(lost_withT_galaxies))
 
-    # Non CIC way looks quite different...
-    #x = catalog.L_gal_labels
-    #obs_counts = obs_galaxies.groupby('Lgal_bin_T', observed=False).size()
-    #lost_truth_counts = lost_withT_galaxies.groupby('Lgal_bin_T', observed=False).size()
-    #lost_assumed_counts = lost_withT_galaxies.groupby('Lgal_bin', observed=False).size()
+        # Non CIC way looks quite different...
+        #x = catalog.L_gal_labels
+        #obs_counts = obs_galaxies.groupby('Lgal_bin_T', observed=False).size()
+        #lost_truth_counts = lost_withT_galaxies.groupby('Lgal_bin_T', observed=False).size()
+        #lost_assumed_counts = lost_withT_galaxies.groupby('Lgal_bin', observed=False).size()
 
-    x = catalog.L_gal_bins
-    obs_counts = nn.cic_binning(obs_galaxies['Lgal_bin_T'].to_numpy(), [L_gal_bins])
-    lost_truth_counts = nn.cic_binning(lost_withT_galaxies['L_gal_T'].to_numpy(), [L_gal_bins])
-    lost_assumed_counts = nn.cic_binning(lost_withT_galaxies['L_gal'].to_numpy(), [L_gal_bins])
+        obs_counts[i] = nn.cic_binning(obs_galaxies['Lgal_bin_T'].to_numpy(), [L_gal_bins])
+        lost_truth_counts[i] = nn.cic_binning(lost_withT_galaxies['L_gal_T'].to_numpy(), [L_gal_bins])
+        lost_assumed_counts[i] = nn.cic_binning(lost_withT_galaxies['L_gal'].to_numpy(), [L_gal_bins])
 
-    obs_vs_losttruth = ((lost_truth_counts*boost - obs_counts) / obs_counts) * 100
-    assumed_vs_truth =  ((lost_assumed_counts - lost_truth_counts) / lost_truth_counts) * 100
+        obs_vs_losttruth[i] = ((lost_truth_counts[i]*boost[i] - obs_counts[i]) / obs_counts[i]) * 100
+        assumed_vs_truth[i] =  ((lost_assumed_counts[i] - lost_truth_counts[i]) / lost_truth_counts[i]) * 100
+
+        plt.figure()
+        plt.plot(x, obs_counts[i], color='b', label='Obs galaxies')
+        plt.plot(x, lost_truth_counts[i]*boost[i], color='g', label='Lost gals (True L)')
+        plt.plot(x, lost_assumed_counts[i]*boost[i], color='orange', label='Lost gals (Assumed L)')
+        plt.legend()
+        plt.title("Luminosity Functions - " + catalog.name)
+        plt.yscale('log')
+        plt.xscale('log')
+        plt.xlabel('$L_{gal}$')
+        plt.draw()
 
     plt.figure()
-    plt.plot(x, obs_counts, color='b', label='Obs galaxies')
-    plt.plot(x, lost_truth_counts*boost, color='g', label='Lost gals (True L)')
-    plt.plot(x, lost_assumed_counts*boost, color='orange', label='Lost gals (Assumed L)')
-    plt.legend()
-    plt.title("Luminosity Functions")
-    plt.yscale('log')
-    plt.xscale('log')
-    plt.xlabel('$L_{gal}$')
-    plt.draw()
-
-    plt.figure()
-    plt.plot(x, obs_vs_losttruth, label="Observed => Lost (True L)")
-    plt.title("Do Obs and Lost Gals Have Different Luminosity Funcs?")
+    for i in range(len(catalogs)):
+        plt.plot(x, obs_vs_losttruth[i], label=f"{catalogs[i].name}")
+    plt.title("Obs => Lost (Truth) Luminosity Function")
     plt.xlabel('$L_{gal}$')
     plt.ylabel("% Change in counts")
     plt.xscale('log')
@@ -870,8 +884,9 @@ def luminosity_function_plots(catalog: GroupCatalog):
     plt.draw()
 
     plt.figure()
-    plt.plot(x , assumed_vs_truth, color='orange', label=f"{catalog.name}")
-    plt.title("Effect of processing on L Func of Lost Gals")
+    for i in range(len(catalogs)):
+        plt.plot(x , assumed_vs_truth[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
+    plt.title("Lost (truth) => Lost (assumed) Luminosity Function")
     plt.xlabel('$L_{gal}$')
     plt.ylabel("% Change in counts")
     plt.xscale('log')
@@ -883,6 +898,76 @@ def luminosity_function_plots(catalog: GroupCatalog):
 
 
 
+#####################################
+# Correct Redshifts Assigned
+#####################################
+def correct_redshifts_assigned_plot(*sets: GroupCatalog):
+    scores_all_lost = []
+    scores_n_only = []
+    rounded_tophat = []
+    scores_metric1 = []
+    scores_metric2 = []
+    scores_metric3 = []
+    scores_metric4 = []
+
+    for s in sets:
+        print(f"*** Summarizing results for {s.name} ***")
+
+        print(f"All lost galaxies (with 'truth'):")
+        valid_idx = (s.all_data['z_obs'] != -99) & (~np.isnan(s.all_data['z_obs']))
+        idx = valid_idx & ~(z_flag_is_spectro_z(s.all_data['z_assigned_flag']))
+        assigned_z = s.all_data.loc[idx, 'z']
+        observed_z = s.all_data.loc[idx, 'z_obs']
+        assignment_type = s.all_data.loc[idx, 'z_assigned_flag']
+
+        score = sim_z_score(assigned_z, observed_z)
+        rtophat = close_enough_smooth(assigned_z, observed_z)
+        metric_score1 = photoz_plus_metric_1(assigned_z, observed_z, assignment_type)
+        metric_score2 = photoz_plus_metric_2(assigned_z, observed_z, assignment_type)
+        metric_score3 = photoz_plus_metric_3(assigned_z, observed_z, assignment_type)
+        metric_score4 = photoz_plus_metric_4(assigned_z, observed_z, assignment_type)
+        scores_all_lost.append(score.mean())
+        rounded_tophat.append(rtophat.mean())
+        scores_metric1.append(metric_score1 * -1)
+        scores_metric2.append(metric_score2 * -1)
+        scores_metric3.append(metric_score3 * -1)
+        scores_metric4.append(metric_score4 * -1)
+        #print(f" Galaxies to compare: {len(assigned_z)} ({len(assigned_z) / len(s.all_data):.1%})")
+        print(f" Neighbor z used {s.get_lostgal_neighbor_used():.1%}")
+        print(f" Score Mean: {rtophat.mean():.4f}")
+
+        #print("Neighbor-assigned Only:")
+        assigned_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['z_assigned_flag']), 'z']
+        observed_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['z_assigned_flag']), 'z_obs']
+        score2 = sim_z_score(assigned_z2, observed_z2)
+        scores_n_only.append(score2.mean())
+        #print(f" Galaxies to compare: {len(assigned_z2)} ({len(assigned_z2) / len(s.all_data):.1%})")
+        #print(f" Score Mean: {score2.mean():.4f}")
+
+    # Plotting the results
+    labels = [s.name for s in sets]
+    x = np.arange(len(labels))  # the label locations
+    width = 1/5  # the width of the bars
+
+    fig, ax = plt.subplots(figsize=(10, 9))
+    rects1 = ax.bar(x - 2*width, scores_all_lost, width, label='% Powerlaw Score (All Lost)')
+    rects3 = ax.bar(x - width  , scores_n_only, width, label='% Powerlaw Score (N-assigned Only)')
+    rects2 = ax.bar(x          , rounded_tophat, width, label='% exp Tophat (All Lost)')
+    #rects5 = ax.bar(x + width, scores_metric3, width, label='Metric 3')
+    rects5 = ax.bar(x + width, scores_metric4, width, label='Metric 4')
+
+    # Add some text for labels, title and custom x-axis tick labels, etc.
+    ax.set_xlabel('Catalogs')
+    ax.set_title('Various Metrics for Redshift Assignment')
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=45, ha='right')
+    ax.legend()
+    ax.set_ylim(0, 0.9)
+    ax.yaxis.grid(True)  # Add horizontal gridlines
+
+    fig.tight_layout()
+
+    plt.show()
 
 
 #####################################
@@ -899,7 +984,7 @@ def build_interior_bin_labels(bin_edges):
 def test_purity_and_completeness(*catalogs: GroupCatalog, lost_only=False):
 
     for s in catalogs:
-        good_rows = s.all_data['z_T'] != -99.0 # TODO filter out low L gals too due to high noise?
+        good_rows = s.all_data['z_T'] != -99.0 
         if lost_only:
             good_rows = np.logical_and(good_rows, z_flag_is_not_spectro_z(s.all_data['z_assigned_flag']))
 
@@ -1022,7 +1107,7 @@ def purity_complete_plots(*sets):
     plt.ylabel('Satellite Purity')
     plt.legend()
     plt.xlim(XMIN,XMAX)
-    plt.ylim(0.4,1.0)
+    plt.ylim(0.0,1.0)
     plt.tight_layout()
 
 

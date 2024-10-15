@@ -104,6 +104,30 @@ class Mode(Enum):
             value = mode.value   
         value = mode
         return value == Mode.FIBER_ASSIGNED_ONLY.value
+
+def mode_to_str(mode: Mode):
+    if mode.value == Mode.ALL.value:
+        return "All"
+    elif mode.value == Mode.FIBER_ASSIGNED_ONLY.value:
+        return "Observed"
+    elif mode.value == Mode.NEAREST_NEIGHBOR.value:
+        return "NN"
+    elif mode.value == Mode.FANCY.value:
+        return "Fancy"
+    elif mode.value == Mode.SIMPLE.value:
+        return "Simple v2"
+    elif mode.value == Mode.SIMPLE_v4.value:
+        return "Simple v4"
+    elif mode.value == Mode.SIMPLE_v5.value:
+        return "Simple v5"
+    elif mode.value == Mode.PHOTOZ_PLUS_v1.value:
+        return "PZP v1"
+    elif mode.value == Mode.PHOTOZ_PLUS_v2.value:
+        return "PZP v2"
+    elif mode.value == Mode.PHOTOZ_PLUS_v3.value:
+        return "PZP v3"
+    else:
+        return "Unknown"
     
 
 class AssignedRedshiftFlag(Enum):
@@ -212,6 +236,14 @@ def powerlaw_score_2(target_z, z_arr):
 
     return power
 
+def lorentzian(x, amp, mean, gamma, exp):
+    return amp * gamma**2 / (np.power(np.abs(x - mean), exp) + gamma**2)
+
+def zdelta_spectrum(target_z, z_arr):
+    # From fitting the distribution of zphot vs zspec
+    # amp=22.902018525656057, mean=8.151405674056218e-05, gamma=0.009227129158691942, exp=2.2857148452956757
+    return lorentzian(np.abs(z_arr - target_z), 1.0, 8.151405674056218e-05, 0.009227129158691942, 2.2857148452956757)
+
 def photoz_plus_metric_1(z_guessed: np.ndarray[float], z_truth: np.ndarray[float], guess_type: np.ndarray[int]):
     assert guess_type.shape == z_guessed.shape
     assert guess_type.shape == z_truth.shape
@@ -263,7 +295,7 @@ def photoz_plus_metric_4(z_guessed: np.ndarray[float], z_truth: np.ndarray[float
     score = powerlaw_score_2(z_guessed, z_truth)
 
     # pseudorandom guesses help preserve luminosity func so give them a little credit
-    score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.4, 0.0) 
+    score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.2, 0.0) 
     #score = score + np.where(guess_type == AssignedRedshiftFlag.PHOTO_Z.value, 0.1, 0.0) 
 
     # in case pseduo-random guesses were spot on it can be > 1.0, so cap the score at 1.0
@@ -585,6 +617,35 @@ def build_app_mag_to_z_map_3(app_mag, z_phot, z_obs):
 
     return app_mag_bins, z_phot_bins, the_map
 
+
+def build_app_mag_to_z_map_4(app_mag, z_phot, z_obs):
+    nbins = len(app_mag) // 250000
+    _MIN_GALAXIES_PER_BIN = 50
+    app_mag_bins = np.quantile(np.array(app_mag), np.linspace(0, 1, nbins + 1)) 
+    app_mag_bins_low = np.linspace(min(app_mag), app_mag_bins[3], 12)
+    app_mag_bins = np.concatenate((app_mag_bins_low, app_mag_bins[4:]))
+
+    z_phot_bins = np.linspace(0.0, 0.6, 21)
+
+    app_mag_indices = np.digitize(app_mag, app_mag_bins)
+    z_phot_indices = np.digitize(z_phot, z_phot_bins)
+
+    the_map = {}
+    for app_bin in range(1, len(app_mag_bins) + 1):
+        for z_bin in range(1, len(z_phot_bins) + 1):
+            bin_key = (app_bin, z_bin)
+            this_bin_redshifts = z_obs[(app_mag_indices == app_bin) & (z_phot_indices == z_bin)]
+            the_map[bin_key] = this_bin_redshifts
+
+    # Remove keys that lead tp < min
+    to_remove = []
+    for bin_key in list(the_map.keys()):
+        if len(the_map[bin_key]) < _MIN_GALAXIES_PER_BIN:
+            to_remove.append(bin_key)
+    for key in to_remove:
+        del the_map[key]
+
+    return app_mag_bins, z_phot_bins, the_map
 
 ###############################################
 # Routines for making RA DEC maps
@@ -1068,24 +1129,18 @@ def write_dat_files_v2(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_ba
     Use np.column_stack with dtype='str' to convert your galprops arrays into an all-string
     array before passing it in.
     """
-
-    count = len(ra)
     outname_1 = outname_base + ".dat"
 
     print(f"Output file will be {outname_1}")
 
     # Time the optimized approach
     t1 = time.time()
-    print("Building output file string... ", end='\r')
 
     # Use numpy to build the output strings more efficiently
     data = np.column_stack((ra, dec, z_eff, log_L_gal, V_max, colors, chi))
 
-    print("Building output file string... done")
-
-    print("Writing output files... ", end='\r')
     np.savetxt(outname_1, data, fmt=['%.14f', '%.14f', '%.14f', '%f', '%f', '%d', '%s'])
-    print("Writing output files... done")
+
     t2 = time.time()
 
     print(f"Time for file writing: {t2-t1:.2f}")
