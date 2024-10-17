@@ -20,7 +20,8 @@ from pyutils import *
 from redshift_guesser import SimpleRedshiftGuesser, PhotometricRedshiftGuesser
 from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
-from joblib import Parallel, delayed
+#from joblib import Parallel, delayed
+from nnanalysis import cic_binning
 
 # Sentinal value for no truth redshift
 NO_TRUTH_Z = -99.99
@@ -268,8 +269,12 @@ class GroupCatalog:
             self.f_sat_q = self.all_data.loc[self.all_data.quiescent].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
             self.Lgal_counts = self.all_data.groupby('Lgal_bin', observed=False).RA.count()
 
+            # TODO this is incomplete; just counting galaxies right now
+            #self.f_sat_cic = cic_binning(self.all_data['L_gal'].to_numpy(), [self.L_gal_bins])
+            #self.f_sat_sf_cic = cic_binning(self.all_data.loc[~self.all_data.quiescent, 'L_gal'].to_numpy(), [self.L_gal_bins])
+            #self.f_sat_q_cic = cic_binning(self.all_data.loc[self.all_data.quiescent, 'L_gal'].to_numpy(), [self.L_gal_bins])
+
             # Setup some convenience subsets of the DataFrame
-            # TODO check memory implications of this
             self.centrals = self.all_data.loc[self.all_data.index == self.all_data.igrp]
             self.sats = self.all_data.loc[self.all_data.index != self.all_data.igrp]
 
@@ -649,7 +654,8 @@ class BGSGroupCatalog(GroupCatalog):
                 f_sat_q = alt_df[alt_df.quiescent == True].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
                 return f_sat, f_sat_sf, f_sat_q
 
-            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
+            #results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
+            results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
 
             f_sat_realizations, f_sat_sf_realizations, f_sat_q_realizations = zip(*results)
 
@@ -1476,6 +1482,12 @@ def mstar_std_vmax_weighted(series):
         masked_mstar = np.ma.masked_array(series.mstar, should_mask)
         masked_vmax = np.ma.masked_array(series.V_max, should_mask)
         return np.sqrt(np.average((masked_mstar - mstar_vmax_weighted(series))**2, weights=1/masked_vmax))
+
+def qf_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return np.average(series.quiescent, weights=1/series.V_max)
 
 def qf_Dn4000_1_6_vmax_weighted(series):
     if len(series) == 0:

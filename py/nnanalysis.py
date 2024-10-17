@@ -44,39 +44,21 @@ def get_color_label(nn_q, target_q):
 
     return title
 
-def cic_binning(data, bin_edges, weights=None):
-
-    """
-    Perform Cloud-in-Cell (CIC) binning on the given data.
-    Parameters:
-    -----------
-    data : numpy.ndarray
-        An array of shape (num_data_points, num_dimensions) containing the data points to be binned.
-    bin_edges : list of numpy.ndarray
-        A list of 1D arrays where each array contains the bin edges for the corresponding dimension.\
-    weights : numpy.ndarray or list, optional
-        An array or list of weights for each data point. If provided, must have the same length as the number of data points.
-    Returns:
-    --------
-    numpy.ndarray
-        A multi-dimensional array containing the binned counts. The shape of the array is determined by the lengths of the bin_edges arrays.
-    Notes:
-    ------
-    - The function clips data points to be within the range of the bin edges.
-    - It calculates the bin indices and weights for each dimension and accumulates the weights into the bin counts.
-    - The sum of all bin counts should be exactly the number of data points.
-    Raises:
-    -------
-    AssertionError
-        If the length of bin_edges does not match the number of dimensions in the data.
-        If the sum of the weights for left and right bins is not close to 1.0 for any dimension.
-        If the sum of all bin counts is not close to the number of data points.
-    """
+def cic_binning(data, bin_edges, logscale=None, weights=None):
     num_data_points = data.shape[0]
+    data_c = data.copy()
 
-    if len(data.shape) == 1:
-        data = data[:, np.newaxis]
-    num_dimensions = data.shape[1]
+    if len(data_c.shape) == 1:
+        data_c = data_c[:, np.newaxis]
+    num_dimensions = data_c.shape[1]
+
+    # When logscale is provided, convert the data to linear scale so that binning can be done correctly
+    if logscale is not None:
+        assert len(logscale) == num_dimensions
+        for dim in range(num_dimensions):
+            if logscale[dim]:
+                data_c[:, dim] = np.power(logscale[dim], data_c[:, dim])
+                bin_edges[dim] = np.power(logscale[dim], bin_edges[dim])
 
     if weights is not None:
         assert len(weights) == num_data_points
@@ -90,34 +72,33 @@ def cic_binning(data, bin_edges, weights=None):
     #print(f"Shape: {shape}")
 
     # Calculate the bin indices and weights for each dimension
-    bin_indices = np.zeros(np.shape(data), dtype='int32') # array of left bin edge indicies for each data point in each dimension
-    weights_left = np.zeros(np.shape(data), dtype='float64')
-    weights_right = np.zeros(np.shape(data), dtype='float64')
+    bin_indices = np.zeros(np.shape(data_c), dtype='int32') # array of left bin edge indicies for each data point in each dimension
+    weights_left = np.zeros(np.shape(data_c), dtype='float64')
+    weights_right = np.zeros(np.shape(data_c), dtype='float64')
 
     all_bincounts = np.zeros(shape, dtype='float64')
 
     # Force data values lower than the lowest bin edge to be the first bin value and similar for high bin values for each dimension
-    data_clipped = np.copy(data)
     for dim in range(num_dimensions):
-        data_clipped[:, dim] = np.clip(data_clipped[:, dim], bin_edges[dim][0], bin_edges[dim][-1])
+        data_c[:, dim] = np.clip(data_c[:, dim], bin_edges[dim][0], bin_edges[dim][-1])
     #print(f"Data clipped: \n{data_clipped}")  
 
     for dim in range(num_dimensions):
         #print(f"Dimension: {dim}")
         # Calculate the bin index for the current dimension - left
-        bin_index = np.digitize(data_clipped[:, dim], bin_edges[dim]) - 1
+        bin_index = np.digitize(data_c[:, dim], bin_edges[dim]) - 1
         bin_index = np.clip(bin_index, 0, len(bin_edges[dim]) - 1) # I think this is redudant now
         bin_indices[:, dim] = bin_index
         
         # Calculate the distance to the left and right bin edges
         left_edge = bin_edges[dim][bin_index]
         right_edge = bin_edges[dim][np.minimum(bin_index + 1, len(bin_edges[dim]) - 1)]
-        dist_left = (data_clipped[:, dim] - left_edge)
-        dist_right = (right_edge - data_clipped[:, dim])
+        dist_left = (data_c[:, dim] - left_edge)
+        dist_right = (right_edge - data_c[:, dim])
         width = dist_left + dist_right
         
         # Handle the case where data is exactly on the right edge
-        on_right_edge = (data_clipped[:, dim] == right_edge)
+        on_right_edge = (data_c[:, dim] == right_edge)
         dist_left[on_right_edge] = 0.0
         dist_right[on_right_edge] = 1.0
         width[on_right_edge] = 1.0
@@ -318,10 +299,17 @@ class NNAnalyzer_cic():
         assert not np.any(np.isnan(data)), "Some data is nan"
 
         #print(f"Data shape: {np.shape(data)}, Bin shape: {np.shape(self.all_ang_bincounts)}")
-        self.all_ang_bincounts = cic_binning(data, [POBS_BINS, np.array([0,1]), np.array([0,1]), Z_BINS, APP_MAG_BINS, ANGULAR_BINS, ABS_MAG_BINS])
+        self.all_ang_bincounts = cic_binning(
+            data, 
+            [POBS_BINS, np.array([0,1]), np.array([0,1]), Z_BINS, APP_MAG_BINS, ANGULAR_BINS, ABS_MAG_BINS],
+            logscale=[False, False, False, False, 2.5, False, 2.5],)
         print(f"All Bincounts complete. Overall shape: {np.shape(self.all_ang_bincounts)}")
         
-        self.all_sim_z_bincounts = cic_binning(data, [POBS_BINS, np.array([0,1]), np.array([0,1]), Z_BINS, APP_MAG_BINS, ANGULAR_BINS, ABS_MAG_BINS], weights=gal['nn1_sim_z'].to_numpy())
+        self.all_sim_z_bincounts = cic_binning(
+            data, 
+            [POBS_BINS, np.array([0,1]), np.array([0,1]), Z_BINS, APP_MAG_BINS, ANGULAR_BINS, ABS_MAG_BINS], 
+            logscale=[False, False, False, False, 2.5, False, 2.5],
+            weights=gal['nn1_sim_z'].to_numpy())
         print(f"SimZ Bincounts complete. Overall shape: {np.shape(self.all_sim_z_bincounts)}")
         
 
@@ -497,9 +485,9 @@ class NNAnalyzer_cic():
                     axrow[2].set_xscale('log')
                     axrow[2].set_xlim(2.0, 1000)
                     
-                    for i in range(len(axrow)):
-                        mags = np.linspace(np.min(APP_MAG_BINS), np.max(APP_MAG_BINS), 40)
-                        axrow[i].scatter(get_NN_40_line_v5(np.repeat(Z_BINS_MIDPOINTS[zb], len(mags)), mags, t_q, nn_q), mags)
+                    #for i in range(len(axrow)):
+                    #    mags = np.linspace(np.min(APP_MAG_BINS), np.max(APP_MAG_BINS), 40)
+                    #    axrow[i].scatter(get_NN_40_line_v5(np.repeat(Z_BINS_FOR_SIMPLE_MIDPOINTS[zb], len(mags)), mags, t_q, nn_q), mags)
                         
                 fig.suptitle(title)
                 fig.tight_layout() 
@@ -558,7 +546,7 @@ class NNAnalyzer_cic():
 
                     for i in range(len(axrow)):
                         pobs = np.linspace(np.min(POBS_BINS), np.max(POBS_BINS), 40)
-                        axrow[i].scatter(get_NN_40_line_v4(np.repeat(Z_BINS_MIDPOINTS[zb], len(pobs)), pobs, target_quiescent, nn_quiescent), pobs)
+                        axrow[i].scatter(get_NN_40_line_v4(np.repeat(Z_BINS_FOR_SIMPLE_MIDPOINTS[zb], len(pobs)), pobs, target_quiescent, nn_quiescent), pobs)
                         
 
                 fig.suptitle(title)
