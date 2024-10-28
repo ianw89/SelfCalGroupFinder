@@ -339,7 +339,7 @@ void groupfind()
       GAL[i].grp_rank = j;
       i = itmp[j];
       galden += 1 / GAL[i].vmax;
-      if (FLUXLIM == 1)
+      if (FLUXLIM)
         GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
       else
         GAL[i].mass = density2host_halo(galden);

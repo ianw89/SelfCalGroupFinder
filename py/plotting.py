@@ -344,6 +344,143 @@ def plots(*catalogs, show_err=None, truth_on=False):
         print(f.name)
         total_f_sat(f)
 
+def wp_rp(catalog: GroupCatalog):
+    colors = ['k', 'r', 'b']
+    plt.figure(figsize=(6, 6))
+    plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[1], marker='o', linestyle='-', label='All', color=colors[0])
+    plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[2], marker='o', linestyle='-', label='Red', color=colors[1])
+    plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[3], marker='o', linestyle='-', label='Blue', color=colors[2])
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel(r'$r_p$ [Mpc/h]')
+    plt.ylabel(r'$w_p(r_p)$')
+    plt.legend()
+    plt.title('Full Sample $w_p(r_p)$ ')
+    plt.grid(True)
+    plt.show()
+
+    # Additional rows for each magnitude slice in wp_slices
+    fig, axes = plt.subplots(len(catalog.wp_slices) - 2, 3, figsize=(18, 6 * (len(catalog.wp_slices) - 2)))
+
+    for i, mag_slice in enumerate(catalog.wp_slices):
+        if i == 0:
+            continue
+        if i == len(catalog.wp_slices) - 1:
+            mag_range_label = f"{catalog.wp_slices[i][4]:.1f} > $M_r$-5log(h)"
+        else:
+            mag_range_label = f"{catalog.wp_slices[i][4]:.1f} > $M_r$-5log(h) > {catalog.wp_slices[i][5]:.1f}"
+
+        row = i - 1
+
+        for f in [catalog]:
+            axes[row, 0].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][1], marker='o', linestyle='-', label=f.name, color=colors[0])
+        axes[row, 0].set_xscale('log')
+        axes[row, 0].set_yscale('log')
+        axes[row, 0].set_xlabel(r'$r_p$ [Mpc/h]')
+        axes[row, 0].set_ylabel(r'$w_p(r_p)$')
+        axes[row, 0].set_title(f'Overall $w_p(r_p)$ - {mag_range_label}')
+        axes[row, 0].grid(True)
+        axes[row, 0].legend()
+
+        for f in [catalog]:
+            axes[row, 1].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][2], marker='o', linestyle='-', label=f.name, color=colors[1])
+        axes[row, 1].set_xscale('log')
+        axes[row, 1].set_yscale('log')
+        axes[row, 1].set_xlabel(r'$r_p$ [Mpc/h]')
+        axes[row, 1].set_ylabel(r'$w_p(r_p)$')
+        axes[row, 1].set_title(f'Red $w_p(r_p)$ - {mag_range_label}')
+        axes[row, 1].grid(True)
+
+        for f in [catalog]:
+            axes[row, 2].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][3], marker='o', linestyle='-', label=f.name, color=colors[2])
+        axes[row, 2].set_xscale('log')
+        axes[row, 2].set_yscale('log')
+        axes[row, 2].set_xlabel(r'$r_p$ [Mpc/h]')
+        axes[row, 2].set_ylabel(r'$w_p(r_p)$')
+        axes[row, 2].set_title(f'Blue $w_p(r_p)$ - {mag_range_label}')
+        axes[row, 2].grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def compare_wp_rp(*datasets):
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+    for f in datasets:
+        axes[0].plot(f.wp_all[0][:-1], f.wp_all[1], marker='o', linestyle='-', label=f.name, color=f.color)
+    axes[0].set_xscale('log')
+    axes[0].set_yscale('log')
+    axes[0].set_xlabel(r'$r_p$ [Mpc/h]')
+    axes[0].set_ylabel(r'$w_p(r_p)$')
+    axes[0].set_title('Projected Correlation Function $w_p(r_p)$')
+    axes[0].grid(True)
+    axes[0].legend()
+
+    for f in datasets:
+        axes[1].plot(f.wp_all[0][:-1], f.wp_all[2], marker='o', linestyle='-', label=f.name, color=f.color)
+    axes[1].set_xscale('log')
+    axes[1].set_yscale('log')
+    axes[1].set_xlabel(r'$r_p$ [Mpc/h]')
+    axes[1].set_ylabel(r'$w_p(r_p)$')
+    axes[1].set_title('Projected Correlation Function Red $w_p(r_p)$')
+    axes[1].grid(True)
+
+    for f in datasets:
+        axes[2].plot(f.wp_all[0][:-1], f.wp_all[3], marker='o', linestyle='-', label=f.name, color=f.color)
+    axes[2].set_xscale('log')
+    axes[2].set_yscale('log')
+    axes[2].set_xlabel(r'$r_p$ [Mpc/h]')
+    axes[2].set_ylabel(r'$w_p(r_p)$')
+    axes[2].set_title('Projected Correlation Function Blue $w_p(r_p)$')
+    axes[2].grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+    # Additional rows for each magnitude slice in wp_slices
+    fig, axes = plt.subplots(len(datasets[0].wp_slices) - 2, 3, figsize=(18, 6 * (len(datasets[0].wp_slices) - 2)))
+
+    for i, mag_slice in enumerate(datasets[0].wp_slices):
+        if i == 0:
+            continue
+
+        mag_range_label = f"{datasets[0].wp_slices[i][4]:.1f} > $M_r$-5log(h) > {datasets[0].wp_slices[i][5]:.1f}"
+
+        row = i - 1
+
+        for f in datasets:
+            axes[row, 0].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][1], marker='o', linestyle='-', label=f.name, color=f.color)
+        axes[row, 0].set_xscale('log')
+        axes[row, 0].set_yscale('log')
+        axes[row, 0].set_xlabel(r'$r_p$ [Mpc/h]')
+        axes[row, 0].set_ylabel(r'$w_p(r_p)$')
+        axes[row, 0].set_title(f'Overall $w_p(r_p)$\n{mag_range_label}')
+        axes[row, 0].grid(True)
+        axes[row, 0].legend()
+
+        for f in datasets:
+            axes[row, 1].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][2], marker='o', linestyle='-', label=f.name, color=f.color)
+        axes[row, 1].set_xscale('log')
+        axes[row, 1].set_yscale('log')
+        axes[row, 1].set_xlabel(r'$r_p$ [Mpc/h]')
+        axes[row, 1].set_ylabel(r'$w_p(r_p)$')
+        axes[row, 1].set_title(f'Red $w_p(r_p)$\n{mag_range_label}')
+        axes[row, 1].grid(True)
+
+        for f in datasets:
+            axes[row, 2].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][3], marker='o', linestyle='-', label=f.name, color=f.color)
+        axes[row, 2].set_xscale('log')
+        axes[row, 2].set_yscale('log')
+        axes[row, 2].set_xlabel(r'$r_p$ [Mpc/h]')
+        axes[row, 2].set_ylabel(r'$w_p(r_p)$')
+        axes[row, 2].set_title(f'Blue $w_p(r_p)$\n{mag_range_label}')
+        axes[row, 2].grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
 
 def plots_color_split_lost_split(f, grpby_col):
     q_gals = f.all_data[f.all_data.quiescent]

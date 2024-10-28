@@ -1,6 +1,7 @@
 import subprocess
 import os
 import sys
+import pandas as pd
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -10,8 +11,11 @@ from dataloc import *
 corrfunc_path = "/export/sirocco1/tinker/src/Corrfunc/bin/"
 if not os.path.exists(os.path.join(corrfunc_path, "wp")):
     corrfunc_path = "/mount/sirocco1/tinker/src/Corrfunc/bin/"
-
+    
 def run_corrfunc(cwd):
+    """
+    This is the code I got from Jeremy to use corrfunc for MCMCing the group finder.
+    """
 
     processes = []
     mass_range = range(17, 22)
@@ -20,7 +24,7 @@ def run_corrfunc(cwd):
     for m in mass_range:
         for col in ["red", "blue"]:
             cmd = f"{corrfunc_path}/wp 250 mock_{col}_M{m}.dat a {WP_RADIAL_BINS_FILE} 40 10 > wp_mock_{col}_M{m}.dat"
-            processes.append(subprocess.Popen(cmd, cwd=OUTPUT_FOLDER, shell=True))
+            processes.append(subprocess.Popen(cmd, cwd=cwd, shell=True))
 
     for p in processes:
         p.wait()

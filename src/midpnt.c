@@ -1,5 +1,19 @@
 #define FUNC(x) ((*func)(x))
 
+/**
+ * @brief Computes the midpoint approximation of the integral of a function.
+ *
+ * This function calculates the midpoint approximation of the integral of a 
+ * given function `func` over the interval [a, b] using `n` subintervals.
+ *
+ * @param func A pointer to the function to be integrated. The function should 
+ *             take a single float argument and return a float.
+ * @param a The lower bound of the interval.
+ * @param b The upper bound of the interval.
+ * @param n The number of subintervals to use for the approximation.
+ * @return The midpoint approximation of the integral of the function over the 
+ *         interval [a, b].
+ */
 float midpnt(float (*func)(float), float a, float b, int n)
 {
 	float x,tnm,sum,del,ddel;

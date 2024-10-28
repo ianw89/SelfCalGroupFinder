@@ -18,6 +18,7 @@ import aiohttp
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from dataloc import *
+from groupcatalog import NO_PHOTO_Z
 
 # Recommended usage:
 # nohup python photoz.py 1 N > outN.1 &
@@ -228,23 +229,23 @@ async def process_photoz_files(url_base_pz, url_base_main, pz_links_file, main_l
 
             # Could use Z_SPEC if available, but messed up SV3 analysis.
             #df['Z_LEGACY_BEST'] = df['Z_SPEC']
-            #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
-            df['Z_LEGACY_BEST'] = -99.0
+            #print(np.isclose(df['Z_LEGACY_BEST'], NO_PHOTO_Z).sum())
+            df['Z_LEGACY_BEST'] = NO_PHOTO_Z
 
             # otherwise use Z_PHOT_MEDIAN_I, otherwise use Z_PHOT_MEDIAN
             if 'Z_PHOT_MEDIAN_I' in df.columns:
-                #no_z = np.isclose(df['Z_LEGACY_BEST'], -99.0)
+                #no_z = np.isclose(df['Z_LEGACY_BEST'], NO_PHOTO_Z)
                 #df.loc[no_z, 'Z_LEGACY_BEST'] = df.loc[no_z, 'Z_PHOT_MEDIAN_I']
-                #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
+                #print(np.isclose(df['Z_LEGACY_BEST'], NO_PHOTO_Z).sum())
                 df['Z_LEGACY_BEST'] = df['Z_PHOT_MEDIAN_I']
 
-            no_z = np.isclose(df['Z_LEGACY_BEST'], -99.0)
+            no_z = np.isclose(df['Z_LEGACY_BEST'], NO_PHOTO_Z)
             df.loc[no_z, 'Z_LEGACY_BEST'] = df.loc[no_z, 'Z_PHOT_MEDIAN']
-            #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
+            #print(np.isclose(df['Z_LEGACY_BEST'], NO_PHOTO_Z).sum())
 
             # Remove rows that still have no redshift
-            df = df[np.invert(np.isclose(df['Z_LEGACY_BEST'], -99.0))].copy()
-            #print(np.isclose(df['Z_LEGACY_BEST'], -99.0).sum())
+            df = df[np.invert(np.isclose(df['Z_LEGACY_BEST'], NO_PHOTO_Z))].copy()
+            #print(np.isclose(df['Z_LEGACY_BEST'], NO_PHOTO_Z).sum())
 
             # Remove rows that are point sources (stars, generally)
             #df = df[df['TYPE'] != b'PSF'] 
@@ -310,7 +311,7 @@ async def process_photoz_files(url_base_pz, url_base_main, pz_links_file, main_l
             os.remove(BGS_IMAGES_FOLDER + fits_pz_filename)
             os.remove(BGS_IMAGES_FOLDER + fits_main_filename)
 
-            percent_complete = (desi_targets_table['Z_LEGACY_BEST'] != -99.0).sum() / len(desi_targets_table)
+            percent_complete = (desi_targets_table['Z_LEGACY_BEST'] != NO_PHOTO_Z).sum() / len(desi_targets_table)
             print(f"Done with {i+1} bricks. {percent_complete*100:.4f}% of DESI targets have a photo-z.", flush=True)
     
         except Exception as e:

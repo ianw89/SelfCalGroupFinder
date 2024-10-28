@@ -12,7 +12,7 @@
 #include "groups.h"
 
 // Definitions
-#define NBINS 5 // TNG has 6 bins
+#define NBINS 5 // This is the number of magnitude bins we use. // TNG has 6 bins
 #define NRANDOM 1000000
 
 /* Global for the random numbers
@@ -313,21 +313,17 @@ void tabulate_hods()
   int i, j, im, igrp, ibin;
   float mag;
   // these are for MXXL-BGS
-  // float magbins[NBINS] = { -17, -18, -19, -20, -21 };
   // float maxz[NBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158 };
   // these are for MXXL-SDSS
-  // float magbins[NBINS] = { -17, -18, -19, -20, -21 };
   // float maxz[NBINS] = { 0.0292367, 0.0458043, 0.0713047, 0.110097, 0.16823 };
   // these are for SHAM-SDSS (r=17.5)
-  float magbins[NBINS] = {-17, -18, -19, -20, -21};
-  float maxz[NBINS] = {0.02586, 0.0406, 0.06336, 0.0981, 0.1504};
-  float volume[NBINS];
+  float maxz[NBINS] = {0.02586, 0.0406, 0.06336, 0.0981, 0.1504}; // TODO check these...
+  float volume[NBINS]; // volume of the mag bin in [Mpc/h]^3
   // these are for TNG300
-  // float magbins[NBINS] = { -17, -18, -19, -20, -21, -22 };
   // float maxz[NBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158, 0.5 };
   float w0 = 1.0, w1 = w1 = 0.0;
 
-  if (FLUXLIM == 0)
+  if (!FLUXLIM)
   {
     maxz[0] = MAXREDSHIFT;
     maxz[1] = MAXREDSHIFT;
@@ -335,34 +331,31 @@ void tabulate_hods()
     maxz[3] = MAXREDSHIFT;
     maxz[4] = MAXREDSHIFT;
   }
-  if (STELLAR_MASS)
-  {
-    magbins[0] = 9.0;
-    magbins[1] = 9.5;
-    magbins[2] = 10.0;
-    magbins[3] = 10.5;
-    magbins[4] = 11.0;
-  }
 
+  if (!SILENT)
+    fprintf(stderr, "Tabulating HODs...\n");
+
+  // Initialize the arrays that hold the HODs to 0
   for (i = 0; i < 5; ++i)
   {
     volume[i] = 4. / 3. * PI * pow(distance_redshift(maxz[i]), 3.0) * FRAC_AREA;
+    fprintf(stderr, "Volume of bin %d is %f\n", i, volume[i]);
     for (j = 0; j < 200; ++j)
       ncenr[i][j] = nsatr[i][j] = nhalo[i][j] = ncenb[i][j] = nsatb[i][j] = 0;
   }
-  if (!SILENT)
-    fprintf(stderr, "Tabulating HODs...\n");
 
   for (i = 0; i < NGAL; ++i)
   {
     // what is host halo mass?
+    // im is the mass bin index
     if (GAL[i].psat > 0.5)
     {
       igrp = GAL[i].igrp;
-      im = log10(GAL[igrp].mass) / 0.1;
+      im = log10(GAL[igrp].mass) / 0.1; 
     }
     else
     {
+      // For centrals, count this halo in nhalo for the relevant redshift bins
       im = log10(GAL[i].mass) / 0.1;
       for (j = 0; j < NBINS; ++j)
         if (maxz[j] > GAL[i].redshift)
@@ -370,9 +363,20 @@ void tabulate_hods()
           w0 = 1 / volume[j];
           if (GAL[i].vmax < volume[j])
             w0 = 1 / GAL[i].vmax;
-          nhalo[j][im] += w0;
+          nhalo[j][im] += w0; // 1/vmax weight the halo count
         }
     }
+
+    /*if (!SILENT)
+    {  
+      for (j = 0; j < NBINS; ++j)
+      {
+        for (int k = 0; k < 200; ++k)
+        {
+          fprintf(stderr, "nhalo[%d][%d] = %f\n", j, k, nhalo[j][k]);
+        }
+      }
+    }*/
 
     // check the magnitude of the galaxy
     mag = -2.5 * log10(GAL[i].mstellar) + 4.65;
@@ -386,9 +390,9 @@ void tabulate_hods()
     }
 
     if (ibin < 0 || ibin >= NBINS)
-      continue;
+      continue; // skip if not in the magnitude range
     if (GAL[i].redshift > maxz[ibin])
-      continue;
+      continue; // skip if not in the redshift range; peculiar velocities can push galaxies out of the bin...
     if (im < 0 || im >= 200)
       fprintf(stderr, "err> %d %e\n", im, GAL[i].mass);
 
@@ -400,24 +404,16 @@ void tabulate_hods()
     if (GAL[i].color > 0.8) // red
     {
       if (GAL[i].psat > 0.5)
-      {
         nsatr[ibin][im] += w0;
-      }
       else
-      {
         ncenr[ibin][im] += w0;
-      }
     }
     else // blue
     {
       if (GAL[i].psat > 0.5)
-      {
         nsatb[ibin][im] += w0;
-      }
       else
-      {
         ncenb[ibin][im] += w0;
-      }
     }
   }
   // fprintf(stderr,"printing out\n");
@@ -425,7 +421,8 @@ void tabulate_hods()
   if (1)
   {
     fp = fopen("hod.out", "w");
-    for (i = 100; i < 155; ++i)
+    // 100, 155 wa previous
+    for (i = 90; i < 155; ++i)
     {
       fprintf(fp, "HOD %f ", i / 10.0);
       for (j = 0; j < NBINS; ++j)

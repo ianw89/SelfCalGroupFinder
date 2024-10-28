@@ -7,12 +7,14 @@ import time
 from enum import Enum
 from scipy import special
 import matplotlib.pyplot as plt
-import pickle
 import math
 from matplotlib.patches import Circle
 import pandas as pd
 import sys
+import multiprocessing as mp
 from scipy.special import erf
+from Corrfunc.utils import convert_rp_pi_counts_to_wp
+from Corrfunc.mocks import DDrppi_mocks
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -310,7 +312,7 @@ def get_app_mag(FLUX):
 
 def z_to_ldist(zs):
     """
-    Gets the luminosity distance of the provided redshifts in Mpc using MXXL cosmology.
+    Gets the luminosity distance of the provided redshifts in Mpc.
     """
     return _cosmo_h.luminosity_distance(zs).value
     
@@ -322,7 +324,6 @@ def app_mag_to_abs_mag(app_mag, zs):
     Converts apparent mags to absolute mags using h=1 cosmology and provided observed redshifts.
     """
     return app_mag - distmod(zs)
-
 
 def app_mag_to_abs_mag_k(app_mag, z_obs, gmr, band='r'):
     """
@@ -336,11 +337,11 @@ def k_correct_gama(abs_mag, z_obs, gmr, band='r'):
     return abs_mag - corrector.k(z_obs, gmr)
 
 def k_correct_bgs(abs_mag, z_obs, gmr, band='r'):
-    corrector  = desikc.DESI_KCorrection(band=band, file='jmext', photsys='S') # N vs S... why seperated?
+    corrector  = desikc.DESI_KCorrection(band=band, file='jmext', photsys='S')
     return abs_mag - corrector.k(z_obs, gmr)
 
 def k_correct_bgs_v2(abs_mag, z_obs, gmr, band='r'):
-    corrector  = desikc2.DESI_KCorrection(band=band, file='jmext', photsys='S') # N vs S... why seperated?
+    corrector  = desikc2.DESI_KCorrection(band=band, file='jmext', photsys='S')
     return abs_mag - corrector.k(z_obs, gmr)
 
 # TODO switch to new DESI version
@@ -360,6 +361,13 @@ def abs_mag_r_to_log_solar_L(arr):
 def log_solar_L_to_abs_mag_r(arr):
     return SOLAR_L_R_BAND - (arr / 0.39794)
 
+from astropy.cosmology import z_at_value
+
+def get_max_observable_z(abs_mags, m_cut):
+    # Use distance modulus
+    d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
+
+    return z_at_value(_cosmo_h.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
 
 def get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area):
     """
@@ -367,13 +375,13 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area):
     """
 
     # Use distance modulus
-    d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc/h
-    # chi = d_l * (1 + z_obs) # comoving distance in Mpc/h
-    d_cm = d_l * (1 + z_obs)
+    d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
+    d_cm = d_l / (1 + z_obs) # comoving distance in Mpc
 
-    v_max = (d_cm**3) * (4*np.pi/3) # in comoving Mpc^3 / h^3 
+    v_max = (d_cm**3) * (4*np.pi/3) # in comoving Mpc^3 
 
-    # TODO I'm not convinced that everywhere we use Vmax frac_area should be baked into it
+    # TODO BUG is this supposed to have / h in it?
+    # TODO BUG I'm not convinced that everywhere we use Vmax frac_area should be baked into it
     # Group finder seems to expect this but not 100% confident
     # My fsat calculations that have 1/Vmax weightings are not affected by this
     return v_max * frac_area
@@ -388,6 +396,32 @@ def get_max_observable_volume_est(abs_mags, z_obs, m_cut, ra, dec):
     print(f"Footprint not provided; estimated to be {frac_area:.3f} of the sky")
 
     return get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area)
+
+
+
+def calculate_wp(data_ra, data_dec, data_cz, rand_ra, rand_dec, rand_cz):
+
+    nthreads = 16
+
+    # Specify cosmology (1->LasDamas, 2->Planck)
+    cosmology = 1
+
+    # Create the bins array
+    rmin = 0.1
+    rmax = 40.0
+    nbins = 20
+    rbins = np.logspace(np.log10(rmin), np.log10(rmax), nbins + 1)
+
+    # Specify the distance to integrate along line of sight
+    pimax = 40.0 # TODO tune
+
+    DD_counts = DDrppi_mocks(1, cosmology, nthreads, pimax, rbins, data_ra, data_dec, data_cz)
+    DR_counts = DDrppi_mocks(0, cosmology, nthreads, pimax, rbins, data_ra, data_dec, data_cz, RA2=rand_ra, DEC2=rand_dec, CZ2=rand_cz)
+    RR_counts = DDrppi_mocks(1, cosmology, nthreads, pimax, rbins, rand_ra, rand_dec, rand_cz)
+
+    # Convert pair counts to wp 
+    wp = convert_rp_pi_counts_to_wp(len(data_ra), len(data_ra), len(rand_ra), len(rand_ra), DD_counts, DR_counts, DR_counts, RR_counts, nbins, pimax)
+    return rbins, wp
 
 
 def mollweide_transform(ra, dec):
@@ -498,32 +532,7 @@ def estimate_frac_area(ra, dec):
     return frac_area
 
 
-def build_app_mag_to_z_map_new(app_mag, z):
-    bincount = len(app_mag) // 1000 # TODO tune
-
-    df = pd.DataFrame({'app_mag': app_mag, 'z': z})
-    
-    # TODO BUG
-
-    # use pd.qcut to bin by apparent magnitude and make groupings of their z
-    df['app_mag_bin'], app_mag_bins = pd.qcut(df.app_mag, bincount, retbins=True)
-
-    #print(df.app_mag_bin.value_counts())
-
-    values = df.groupby('app_mag_bin', observed=False)['z'].apply(list).values
-
-    the_map = {i: values[i] for i in range(len(values))}
-
-    # debug dump the map
-    pickle.dump((app_mag_bins, the_map), open('SimpleRedshiftGuesserMap.pkl', 'wb'))
-
-    return app_mag_bins, the_map
-
-
-
-# TODO consider making this color aware
 def build_app_mag_to_z_map(app_mag, z_obs):
-    # TODO tune these two paremeters
     _NBINS = 100
     _MIN_GALAXIES_PER_BIN = 100
     app_mag_bins = np.linspace(min(app_mag), max(app_mag), _NBINS)

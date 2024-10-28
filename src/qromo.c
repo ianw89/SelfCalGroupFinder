@@ -4,6 +4,24 @@
 #define JMAXP (JMAX+1)
 #define K 5
 
+/**
+ * @file qromo.c
+ * @brief Numerical integration using Romberg's method.
+ *
+ * This file contains the implementation of the qromo function, which performs
+ * numerical integration of a given function over a specified interval using
+ * Romberg's method.
+ *
+ * @param func Pointer to the function to be integrated. The function should take
+ *             a single float argument and return a float.
+ * @param a    The lower limit of integration.
+ * @param b    The upper limit of integration.
+ * @param choose Pointer to a function that selects the appropriate integration
+ *               method. This function should take a pointer to the function to
+ *               be integrated, the lower and upper limits of integration, and
+ *               an integer parameter, and return a float.
+ * @return The result of the numerical integration.
+ */
 float qromo(float (*func)(float), float a, float b,
 	float (*choose)(float(*)(float), float, float, int))
 {

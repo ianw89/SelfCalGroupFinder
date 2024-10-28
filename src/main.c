@@ -215,6 +215,7 @@ int main(int argc, char **argv)
   if (!SILENT && USE_BSAT && !COLOR) 
     fprintf(stderr, "Using cutom Bsat but not using galaxy colors. All galaxies will use blue Bsat values.\n");
 
+  // The primary method for group finding
   groupfind();
 
   if (POPULATE_MOCK)
@@ -228,7 +229,6 @@ int main(int argc, char **argv)
     t0 = omp_get_wtime();
     for (i = 0; i < 10; i += 1)
     {
-      
       populate_simulation_omp(i / 2, i % 2, 1);
     }
 

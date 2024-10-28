@@ -8,11 +8,15 @@ import pickle
 import subprocess as sp
 from astropy.table import Table
 import astropy.io.fits as fits
+import astropy.constants as const
 import copy
 import sys
 import wp as wp
 import math
 from multiprocessing import Pool
+import Corrfunc
+from os.path import dirname, abspath, join as pjoin
+from Corrfunc.io import read_catalog
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -20,11 +24,14 @@ from pyutils import *
 from redshift_guesser import SimpleRedshiftGuesser, PhotometricRedshiftGuesser
 from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
-#from joblib import Parallel, delayed
+from joblib import Parallel, delayed
 from nnanalysis import cic_binning
 
 # Sentinal value for no truth redshift
 NO_TRUTH_Z = -99.99
+
+# Sentinal value from legacy survey for no photo-z
+NO_PHOTO_Z = -99.0
 
 # Shared bins for various purposes
 Mhalo_bins = np.logspace(10, 15.5, 40)
@@ -127,6 +134,8 @@ class GroupCatalog:
         self.sats: pd.DataFrame = None
         self.L_gal_bins = L_gal_bins
         self.L_gal_labels = L_gal_labels
+
+        self.wp_all = None
 
         # Geneated from popmock option in group finder
         self.mock_b_M17 = None
@@ -236,6 +245,11 @@ class GroupCatalog:
 
 
     def run_corrfunc(self):
+        """
+        Run corrfunc on the mock populated with an HOD built from this sample. 
+        This does NOT calculate the projected correlation functino of this sample directly!
+        TODO rename and refactor all this.
+        """
 
         if self.GF_outfile is None:
             print("Warning: run_corrfunc() called without GF_outfile set.")
@@ -628,9 +642,12 @@ class BGSGroupCatalog(GroupCatalog):
         super().run_group_finder(popmock=popmock)
 
     def add_bootstrapped_f_sat(self, N_ITERATIONS = 100):
+
         df = self.all_data
 
         if self.data_cut == 'sv3':
+            print("Bootstrapping for fsat error estimate...")
+            t1 = time.time()
             # label the SV3 region each galaxy is in
             df['region'] = tile_to_region(df['nearest_tile_id'])
 
@@ -654,14 +671,17 @@ class BGSGroupCatalog(GroupCatalog):
                 f_sat_q = alt_df[alt_df.quiescent == True].groupby('Lgal_bin', observed=False).apply(fsat_vmax_weighted)
                 return f_sat, f_sat_sf, f_sat_q
 
-            #results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
-            results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
+            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
+            #results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
 
             f_sat_realizations, f_sat_sf_realizations, f_sat_q_realizations = zip(*results)
 
             self.f_sat_err = np.std(f_sat_realizations, axis=0)
             self.f_sat_sf_err = np.std(f_sat_sf_realizations, axis=0)
             self.f_sat_q_err = np.std(f_sat_q_realizations, axis=0)
+
+            t2 = time.time()
+            print(f"Bootstrapping complete in {t2-t1:.2} seconds.")
         else:
             pass
 
@@ -700,6 +720,120 @@ class BGSGroupCatalog(GroupCatalog):
             self.centered = filter_SV3_to_avoid_edges(self)
 
         print("Post-processing done.")
+
+    def calculate_projected_clustering(self):
+        """
+        Create subsamples of this BGS catalog and calculate projected clustering for each.
+        """
+
+        if self.data_cut != 'sv3':
+            raise ValueError("calculate_projected_clustering() only works for SV3 right now")
+        print("Calculating projected clustering...")
+        # See how C code does volume limited sample
+
+        # TODO weights for fiber collisions corrections
+
+        # For each abs mag bin, calculate projected clustering
+
+        """
+        TODO these should have zmin as well, to be like SDSS versions.
+        Mag-5log(h) > -14:  zmax theory=0.01650  zmax obs=0.015029
+        Mag-5log(h) > -15:  zmax theory=0.02595  zmax obs=0.027139
+        Mag-5log(h) > -16:  zmax theory=0.04067  zmax obs=0.043211
+        Mag-5log(h) > -17:  zmax theory=0.06336  zmax obs=0.06597
+        Mag-5log(h) > -18:  zmax theory=0.09792  zmax obs=0.101448
+        Mag-5log(h) > -19:  zmax theory=0.14977  zmax obs=0.154458
+        Mag-5log(h) > -20:  zmax theory=0.22620  zmax obs=0.231856
+        Mag-5log(h) > -21:  zmax theory=0.33694  zmax obs=0.331995
+        Mag-5log(h) > -22:  zmax theory=0.49523  zmax obs=0.459593
+        Mag-5log(h) > -23:  zmax theory=0.72003  zmax obs=0.49971
+        """
+        mag_bin = [-16, -17, -18, -19, -20, -21, -22, -23]
+        zmax = [0.04067, 0.06336, 0.09792, 0.14977, 0.22620, 0.33694, 0.49523, 0.72003]
+
+        df = self.all_data
+        df['mag_R'] = log_solar_L_to_abs_mag_r(np.log10(df['L_gal']))
+        df['mag_bin'] = np.digitize(df.mag_R, mag_bin)
+        cz = df.z.to_numpy().copy() * const.c.to('km/s').value
+
+        randoms = pickle.load(open(MY_RANDOMS_SV3, "rb"))
+        # Pull random values from df.z since the randoms don't contain z
+        rand_cz = np.random.choice(df.loc[z_flag_is_spectro_z(df.z_assigned_flag), 'z'], size=len(randoms['RA']), replace=True) * const.c.to('km/s').value
+    
+        # Overall sample
+        rbins, wp_all = calculate_wp(
+            df.RA.to_numpy(), 
+            df.Dec.to_numpy(), 
+            cz, 
+            randoms['RA'],
+            randoms['Dec'], 
+            rand_cz)
+        rbins, wp_red = calculate_wp(
+            df.loc[df.quiescent].RA.to_numpy(),
+            df.loc[df.quiescent].Dec.to_numpy(),
+            cz[df.quiescent],
+            randoms['RA'],
+            randoms['Dec'],
+            rand_cz)
+        rbins, wp_blue = calculate_wp(
+            df.loc[~df.quiescent].RA.to_numpy(),
+            df.loc[~df.quiescent].Dec.to_numpy(),
+            cz[~df.quiescent],
+            randoms['RA'],
+            randoms['Dec'],
+            rand_cz)
+
+        self.wp_all = (rbins, wp_all, wp_red, wp_blue)
+        self.wp_slices = np.array(len(mag_bin) * [None]) # Tuple of (rbins, wp) at each index
+
+        # In mag bins (and red blue split), calculate wp
+        for i in range(len(mag_bin)):
+            in_z_range = df.z < zmax[i]
+            in_mag_bin = df.mag_bin == i
+            mag_min = mag_bin[i-1] if i > 0 else mag_bin[i]
+            mag_max = mag_bin[i]
+            red = df.quiescent
+            rows = in_z_range & in_mag_bin
+
+            rbins, wp_all = calculate_wp(
+                df.loc[rows].RA.to_numpy(), 
+                df.loc[rows].Dec.to_numpy(), 
+                cz[rows], 
+                randoms['RA'],
+                randoms['Dec'], 
+                rand_cz)
+
+            rows = in_z_range & in_mag_bin & red
+            print("RED")
+            if i == 0:
+                print(f"zmax={zmax[i]:.5f}, {mag_bin[i]} < mag, n={len(df.loc[rows])}")
+            else:
+                print(f"zmax={zmax[i]:.5f}, {mag_bin[i-1]} < mag < {mag_bin[i]}, n={len(df.loc[rows])}")
+
+            rbins, wp_red = calculate_wp(
+                df.loc[rows].RA.to_numpy(), 
+                df.loc[rows].Dec.to_numpy(), 
+                cz[rows], 
+                randoms['RA'],
+                randoms['Dec'], 
+                rand_cz)
+            
+            rows = in_z_range & in_mag_bin & ~red
+            print("BLUE")
+            if i == 0:
+                print(f"zmax={zmax[i]:.5f}, {mag_bin[i]} < mag, n={len(df.loc[rows])}")
+            else:
+                print(f"zmax={zmax[i]:.5f}, {mag_bin[i-1]} < mag < {mag_bin[i]}, n={len(df.loc[rows])}")
+
+            rbins, wp_blue = calculate_wp(
+                df.loc[rows].RA.to_numpy(), 
+                df.loc[rows].Dec.to_numpy(), 
+                cz[rows],
+                randoms['RA'],
+                randoms['Dec'], 
+                rand_cz)
+
+            self.wp_slices[i] = (rbins, wp_all, wp_red, wp_blue, mag_min, mag_max)
 
 
     def refresh_df_views(self):
@@ -762,6 +896,8 @@ def filter_SV3_to_avoid_edges(gc: GroupCatalog, INNER_RADIUS = 1.3):
     if gc.data_cut != "sv3":
         print("Warning: filter_SV3_to_avoid_edges called for non-SV3 data cut.")
         return
+
+    print("Creating centered variant of the SV3 catalog...")
     
     # Get distance to nearest SV3 region center point for each galaxy
     gals_coord = coord.SkyCoord(ra=df.RA.to_numpy()*u.degree, dec=df.Dec.to_numpy()*u.degree, frame='icrs')
@@ -1338,24 +1474,17 @@ def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_m
     _ = scorer.choose_redshift(n_z, ang_dist, z_phot, p_obs, app_mag_r, t_q, n_q, np.reshape(pos[0, 1:], (4,3)))
 
     # Insert some manual favorites as ICs; these came from past MCMC runs
-    pos[0] = [5, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4]
-    pos[1] = [10, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4]
-    pos[2] = [2, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4, 1.0, 1.0, 4]
-    pos[3] = [5, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3]
-    pos[4] = [10, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3]
-    pos[5] = [2, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3, 0.9, 1.0, 3]
-    pos[6] = [4, 0.8104, 0.9215, 2.867, 0.9102, 0.7376, 3.0275, 0.8986, 1.0397, 2.6287, 0.7488, 0.9489, 2.9319]
-    pos[7] = [4, 0.643, 2.4643, 6.1657, 2.2802, 1.2061, 4.7895, 0.1339, 0.8915, 2.4472, 1.4522, 0.6526, 3.129] 
-    pos[8] = [11, 0.7806, 0.3506, 2.9554, 0.3013, 0.5782, 3.1883, 0.7796, 0.6391, 3.3379, 0.9324, 0.441, 2.6984]
-    pos[9] = [3, 0.22, 2.4558, 6.6299, 2.4968, 0.8627, 3.9119, 0.3373, 0.4583, 1.8957, 1.4875, 0.8083, 2.9626]
-    pos[10] = [11, 0.9234, 0.3283, 1.9708, 1.4472, 2.375, 6.0545, 0.7621, 2.6028, 6.6226, 0.8828, 0.7636, 2.9753]
+    for i in range(20):
+        pos[i] = [i + 1, 1.2938, 1.5467, 3.0134, 1.2229, 0.8628, 2.5882, 0.8706, 0.6126, 2.4447, 1.1163, 1.2938, 3.1650]
+        pos[i] *= np.random.uniform(0.90, 0.999, size=13)
+
 
     if mode == Mode.PHOTOZ_PLUS_v1.value:
-        backfile = "mcmc13_m4_1_7.h5"
+        backfile = BASE_FOLDER + "mcmc13_m4_1_7.h5"
     elif mode == Mode.PHOTOZ_PLUS_v2.value:
-        backfile = "mcmc13_m4_2_4.h5"
+        backfile = BASE_FOLDER + "mcmc13_m4_2_4.h5"
     elif mode == Mode.PHOTOZ_PLUS_v3.value:
-        backfile = "mcmc13_m4_3_1.h5"
+        backfile = BASE_FOLDER + "mcmc13_m4_3_1.h5"
     if os.path.exists(backfile):
         new = False
         print("Loaded existing MCMC sampler")
@@ -1369,8 +1498,8 @@ def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_m
     sampler = emcee.EnsembleSampler(n_walkers, ndim, log_probability, args=(scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth), backend=backend, pool=Pool())
 
     print("Running MCMC...")
-    if not new:
-        pos = None
+    #if not new:
+    #    pos = None
     sampler.run_mcmc(pos, n_steps, progress=True)
 
     samples = sampler.get_chain(flat=True)
