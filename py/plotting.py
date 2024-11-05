@@ -336,6 +336,8 @@ def plots(*catalogs, show_err=None, truth_on=False):
     #ax2.set_ylabel('$N_{sat}$')
     fig.tight_layout()
 
+    qf_cen_plot(*catalogs)
+
     if len(catalogs) == 1:
         plots_color_split(*catalogs, total_on=True)
 
@@ -346,11 +348,18 @@ def plots(*catalogs, show_err=None, truth_on=False):
 
 def wp_rp(catalog: GroupCatalog):
     colors = ['k', 'r', 'b']
-    plt.figure(figsize=(6, 6))
-    plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[1], marker='o', linestyle='-', label='All', color=colors[0])
-    plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[2], marker='o', linestyle='-', label='Red', color=colors[1])
-    plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[3], marker='o', linestyle='-', label='Blue', color=colors[2])
+    f = catalog
+    plt.figure(figsize=(5, 5))
+    if hasattr(f, 'wp_err'):
+        plt.errorbar(f.wp_all[0][:-1], f.wp_all[1], yerr=f.wp_err, marker='o', linestyle='-', label='All', color=colors[0])
+        plt.errorbar(f.wp_all[0][:-1], f.wp_all[2], yerr=f.wp_r_err, marker='o', linestyle='-', label='Red', color=colors[1])
+        plt.errorbar(f.wp_all[0][:-1], f.wp_all[3], yerr=f.wp_b_err, marker='o', linestyle='-', label='Blue', color=colors[2])
+    else:
+        plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[1], marker='o', linestyle='-', label='All', color=colors[0])
+        plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[2], marker='o', linestyle='-', label='Red', color=colors[1])
+        plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[3], marker='o', linestyle='-', label='Blue', color=colors[2])
     plt.xscale('log')
+    plt.ylim(8, 2000)
     plt.yscale('log')
     plt.xlabel(r'$r_p$ [Mpc/h]')
     plt.ylabel(r'$w_p(r_p)$')
@@ -359,124 +368,84 @@ def wp_rp(catalog: GroupCatalog):
     plt.grid(True)
     plt.show()
 
+def wp_rp_magbins(catalog: GroupCatalog):
+    colors = ['k', 'r', 'b']
+    f = catalog
+
     # Additional rows for each magnitude slice in wp_slices
-    fig, axes = plt.subplots(len(catalog.wp_slices) - 2, 3, figsize=(18, 6 * (len(catalog.wp_slices) - 2)))
+    fig, axes = plt.subplots(2, 3, figsize=(12, 9))
 
     for i, mag_slice in enumerate(catalog.wp_slices):
-        if i == 0:
+        if i <= 1:
             continue
         if i == len(catalog.wp_slices) - 1:
-            mag_range_label = f"{catalog.wp_slices[i][4]:.1f} > $M_r$-5log(h)"
+            mag_range_label = f"{catalog.wp_slices[i][4]:.1f} > $M_r$ - 5log($h$)"
         else:
-            mag_range_label = f"{catalog.wp_slices[i][4]:.1f} > $M_r$-5log(h) > {catalog.wp_slices[i][5]:.1f}"
+            mag_range_label = f"{catalog.wp_slices[i][4]:.1f} > $M_r$ - 5log($h$) > {catalog.wp_slices[i][5]:.1f}"
 
-        row = i - 1
+        row = (i-2) // 3
+        col = (i-2) % 3
 
-        for f in [catalog]:
-            axes[row, 0].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][1], marker='o', linestyle='-', label=f.name, color=colors[0])
-        axes[row, 0].set_xscale('log')
-        axes[row, 0].set_yscale('log')
-        axes[row, 0].set_xlabel(r'$r_p$ [Mpc/h]')
-        axes[row, 0].set_ylabel(r'$w_p(r_p)$')
-        axes[row, 0].set_title(f'Overall $w_p(r_p)$ - {mag_range_label}')
-        axes[row, 0].grid(True)
-        axes[row, 0].legend()
+        axes[row, col].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][1], marker='o', linestyle='-', label=f.name, color=colors[0])
+        axes[row, col].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][2], marker='o', linestyle='-', label=f.name, color=colors[1])
+        axes[row, col].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][3], marker='o', linestyle='-', label=f.name, color=colors[2])
+        axes[row, col].set_xscale('log')
+        axes[row, col].set_ylim(8, 2000)
+        axes[row, col].set_yscale('log')
+        axes[row, col].set_xlabel(r'$r_p$ [Mpc/h]')
+        axes[row, col].set_ylabel(r'$w_p(r_p)$')
+        axes[row, col].set_title(f'{mag_range_label}')
+        axes[row, col].grid(True)
 
-        for f in [catalog]:
-            axes[row, 1].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][2], marker='o', linestyle='-', label=f.name, color=colors[1])
-        axes[row, 1].set_xscale('log')
-        axes[row, 1].set_yscale('log')
-        axes[row, 1].set_xlabel(r'$r_p$ [Mpc/h]')
-        axes[row, 1].set_ylabel(r'$w_p(r_p)$')
-        axes[row, 1].set_title(f'Red $w_p(r_p)$ - {mag_range_label}')
-        axes[row, 1].grid(True)
-
-        for f in [catalog]:
-            axes[row, 2].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][3], marker='o', linestyle='-', label=f.name, color=colors[2])
-        axes[row, 2].set_xscale('log')
-        axes[row, 2].set_yscale('log')
-        axes[row, 2].set_xlabel(r'$r_p$ [Mpc/h]')
-        axes[row, 2].set_ylabel(r'$w_p(r_p)$')
-        axes[row, 2].set_title(f'Blue $w_p(r_p)$ - {mag_range_label}')
-        axes[row, 2].grid(True)
 
     plt.tight_layout()
     plt.show()
 
 
+def compare_wp_rp(d1, d2_t):
+    def plot_fractional_difference(ax, wp1, wp2, wp1_red, wp2_red, wp1_blue, wp2_blue, label):
+        percent_diff = 100 * (wp1 - wp2) / wp2
+        percent_diff_r = 100 * (wp1_red - wp2_red) / wp2_red
+        percent_diff_b = 100 * (wp1_blue - wp2_blue) / wp2_blue
 
-def compare_wp_rp(*datasets):
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+        ax.plot(d1.wp_all[0][:-1], percent_diff, marker='o', linestyle='-', color='black', label=f'Overall {label}')
+        ax.plot(d1.wp_all[0][:-1], percent_diff_r, marker='o', linestyle='-', color='red', label=f'Red {label}')
+        ax.plot(d1.wp_all[0][:-1], percent_diff_b, marker='o', linestyle='-', color='blue', label=f'Blue {label}')
+        
+        ax.set_xscale('log')
+        ax.set_ylim(-15, 15)
+        ax.set_yscale('linear')
+        ax.set_xlabel(r'$r_p$ [Mpc/h]')
+        ax.set_ylabel(r'$w_p(r_p)$ Difference (%)')
+        ax.grid(True)
 
-    for f in datasets:
-        axes[0].plot(f.wp_all[0][:-1], f.wp_all[1], marker='o', linestyle='-', label=f.name, color=f.color)
-    axes[0].set_xscale('log')
-    axes[0].set_yscale('log')
-    axes[0].set_xlabel(r'$r_p$ [Mpc/h]')
-    axes[0].set_ylabel(r'$w_p(r_p)$')
-    axes[0].set_title('Projected Correlation Function $w_p(r_p)$')
-    axes[0].grid(True)
-    axes[0].legend()
-
-    for f in datasets:
-        axes[1].plot(f.wp_all[0][:-1], f.wp_all[2], marker='o', linestyle='-', label=f.name, color=f.color)
-    axes[1].set_xscale('log')
-    axes[1].set_yscale('log')
-    axes[1].set_xlabel(r'$r_p$ [Mpc/h]')
-    axes[1].set_ylabel(r'$w_p(r_p)$')
-    axes[1].set_title('Projected Correlation Function Red $w_p(r_p)$')
-    axes[1].grid(True)
-
-    for f in datasets:
-        axes[2].plot(f.wp_all[0][:-1], f.wp_all[3], marker='o', linestyle='-', label=f.name, color=f.color)
-    axes[2].set_xscale('log')
-    axes[2].set_yscale('log')
-    axes[2].set_xlabel(r'$r_p$ [Mpc/h]')
-    axes[2].set_ylabel(r'$w_p(r_p)$')
-    axes[2].set_title('Projected Correlation Function Blue $w_p(r_p)$')
-    axes[2].grid(True)
+    fig, ax = plt.subplots(figsize=(5, 5))
+    plot_fractional_difference(ax, d1.wp_all[1], d2_t.wp_all[1], d1.wp_all[2], d2_t.wp_all[2], d1.wp_all[3], d2_t.wp_all[3], 'Flux-limited')
+    
+    # Show a shaded region for the error in the d2 set. 
+    ax.fill_between(d2_t.wp_all[0][:-1], 100*d2_t.wp_err/d2_t.wp_all[1], -100*d2_t.wp_err/d2_t.wp_all[1], color='black', alpha=0.2)
+    ax.fill_between(d2_t.wp_all[0][:-1], 100*d2_t.wp_r_err/d2_t.wp_all[2], -100*d2_t.wp_r_err/d2_t.wp_all[2], color='red', alpha=0.25)
+    ax.fill_between(d2_t.wp_all[0][:-1], 100*d2_t.wp_b_err/d2_t.wp_all[3], -100*d2_t.wp_b_err/d2_t.wp_all[3], color='blue', alpha=0.25)
+    
+    ax.set_title('$w_p(r_p)$ Fractional Difference')
+    plt.legend()
 
     plt.tight_layout()
     plt.show()
 
     # Additional rows for each magnitude slice in wp_slices
-    fig, axes = plt.subplots(len(datasets[0].wp_slices) - 2, 3, figsize=(18, 6 * (len(datasets[0].wp_slices) - 2)))
+    fig, axes = plt.subplots(2, 3, figsize=(12, 9))
 
-    for i, mag_slice in enumerate(datasets[0].wp_slices):
-        if i == 0:
+    for i, mag_slice in enumerate(d1.wp_slices):
+        if i <= 1:
             continue
 
-        mag_range_label = f"{datasets[0].wp_slices[i][4]:.1f} > $M_r$-5log(h) > {datasets[0].wp_slices[i][5]:.1f}"
+        mag_range_label = f"{d1.wp_slices[i][4]:.1f} > $M_r$ - 5log($h$) > {d1.wp_slices[i][5]:.1f}"
+        row = (i - 2) // 3
+        col = (i - 2) % 3
 
-        row = i - 1
-
-        for f in datasets:
-            axes[row, 0].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][1], marker='o', linestyle='-', label=f.name, color=f.color)
-        axes[row, 0].set_xscale('log')
-        axes[row, 0].set_yscale('log')
-        axes[row, 0].set_xlabel(r'$r_p$ [Mpc/h]')
-        axes[row, 0].set_ylabel(r'$w_p(r_p)$')
-        axes[row, 0].set_title(f'Overall $w_p(r_p)$\n{mag_range_label}')
-        axes[row, 0].grid(True)
-        axes[row, 0].legend()
-
-        for f in datasets:
-            axes[row, 1].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][2], marker='o', linestyle='-', label=f.name, color=f.color)
-        axes[row, 1].set_xscale('log')
-        axes[row, 1].set_yscale('log')
-        axes[row, 1].set_xlabel(r'$r_p$ [Mpc/h]')
-        axes[row, 1].set_ylabel(r'$w_p(r_p)$')
-        axes[row, 1].set_title(f'Red $w_p(r_p)$\n{mag_range_label}')
-        axes[row, 1].grid(True)
-
-        for f in datasets:
-            axes[row, 2].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][3], marker='o', linestyle='-', label=f.name, color=f.color)
-        axes[row, 2].set_xscale('log')
-        axes[row, 2].set_yscale('log')
-        axes[row, 2].set_xlabel(r'$r_p$ [Mpc/h]')
-        axes[row, 2].set_ylabel(r'$w_p(r_p)$')
-        axes[row, 2].set_title(f'Blue $w_p(r_p)$\n{mag_range_label}')
-        axes[row, 2].grid(True)
+        plot_fractional_difference(axes[row, col], d1.wp_slices[i][1], d2_t.wp_slices[i][1], d1.wp_slices[i][2], d2_t.wp_slices[i][2], d1.wp_slices[i][3], d2_t.wp_slices[i][3], f'\n{mag_range_label}')
+        axes[row, col].set_title(f'{mag_range_label}')
 
     plt.tight_layout()
     plt.show()
@@ -1340,6 +1309,115 @@ def assigned_halo_analysis(*sets):
         #plt.xlabel('$z_{eff}$ (effective/assigned redshift)')
         #plt.ylabel('Fraction Assigned Halo = True Host Halo')
         
+
+
+
+
+
+###############################################
+# Routines for making RA DEC maps
+###############################################
+
+# 36*18*640 / 41253 = 10.05 dots per sq degree
+# so a dot size of 1 is 0.1 sq deg
+
+# 0.00191 sq deg is area of a fiber's region
+# that is the size we want to draw for each galaxy
+#so s=0.01 is what we want
+
+#def molleweide_map_for_catalog(catalog: GroupCatalog, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
+#    return make_map(catalog.all_data.RA.to_numpy(), catalog.all_data.Dec.to_numpy(), alpha, dpi, fig, dotsize)
+
+def make_map(ra, dec, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
+    """
+    Give numpy array of ra and dec.
+    """
+
+    if np.any(ra > 180.0): # if data given is 0 to 360
+        assert np.all(ra > -0.1)
+        ra = ra - 180
+    if np.any(dec > 90.0): # if data is 0 to 180
+        print(f"WARNING: Dec values are 0 to 180. Subtracting 90 to get -90 to 90.")
+        assert np.all(dec > -0.1)
+        dec = dec - 90
+
+    # Build a map of the galaxies
+    ra_angles = coord.Angle(ra*u.degree)
+    ra_angles = ra_angles.wrap_at(180*u.degree)
+    #ra_angles = ra_angles.wrap_at(360*u.degree)
+    dec_angles = coord.Angle(dec*u.degree)
+
+    if fig == None:
+        fig = plt.figure(figsize=(12,12))
+        fig.dpi=dpi
+        ax = fig.add_subplot(111, projection="mollweide")
+        plt.grid(visible=True, which='both')
+        ax.set_xticklabels(['30°', '60°', '90°', '120°', '150°', '180°', '210°', '240°', '270°', '300°', '330°'])
+    else:
+        ax=fig.get_axes()[0]
+
+    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=dotsize)
+    return fig
+
+
+
+def plot_positions(*dataframes, tiles_df: pd.DataFrame = None, DEG_LONG=1, split=True, ra_min=30, dec_min = -5):
+
+    ra_max = ra_min + DEG_LONG
+    dec_max = dec_min + DEG_LONG
+
+    fig,ax = plt.subplots(1)
+    fig.set_size_inches(10*DEG_LONG + 1,10*DEG_LONG + 1) # the extra inch is because of the frame, rough correction
+    dpi = 100
+    fig.set_dpi(dpi)
+    dots_per_sqdeg = 10 * 10 * dpi # so 10,000 dots in a square degree
+    ax.set_aspect('equal')
+    ax.set_xlabel("RA [deg]")
+    ax.set_ylabel("Dec [deg]")
+    ax.set_xlim(ra_min, ra_max)
+    ax.set_ylim(dec_min, dec_max)
+
+    if tiles_df is not None:
+        TILE_RADIUS = 5862.0 * u.arcsec # arcsec
+        tile_radius = TILE_RADIUS.to(u.degree).value
+        circle_ra_max = ra_max + 2*tile_radius
+        circle_ra_min = ra_min - 2*tile_radius
+        circle_dec_max = dec_max + 2*tile_radius
+        circle_dec_min = dec_min - 2*tile_radius
+        tiles_to_draw = tiles_df.query('RA < @circle_ra_max and RA > @circle_ra_min and Dec < @circle_dec_max and Dec > @circle_dec_min')
+        
+        for index, row in tiles_df.iterrows():
+            circ = Circle((row.RA, row.Dec), tile_radius, color='k', fill=False, lw=10)
+            ax.add_patch(circ)
+
+    alpha = 1 if len(dataframes) == 1 else 0.5
+    for d in dataframes:
+        plot_ra_dec_inner(d, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split, alpha)
+
+
+def plot_ra_dec_inner(dataframe: pd.DataFrame, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split, alpha):
+
+    if split:
+        obs = dataframe[dataframe.z_assigned_flag == 0]
+        unobs = dataframe[dataframe.z_assigned_flag != 0]
+    else:
+        obs = dataframe
+
+    # 8 sq deg / 5000 fibers is 0.0016 sq deg per fiber
+    # But in reality the paper says 0.0019 sq deg is area of a fiber's region (there is some overlap)
+    # That is the size we want to draw for each galaxy here.
+    # For 10,000 dots per sq degree, 0.0019 * 10000 = 
+    fiber_patrol_area = 0.00191 # in sq deg
+    ARBITRARY_SCALE_UP = 1 # my calculation didn't work so arbitrarilly sizing up with this
+    size = fiber_patrol_area * dots_per_sqdeg * ARBITRARY_SCALE_UP 
+
+    obs_selected = obs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
+    ax.scatter(obs_selected.RA, obs_selected.Dec, s=size, alpha=alpha)
+    if split:
+        unobs_selected = unobs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
+        ax.scatter(unobs_selected.RA, unobs_selected.Dec, marker='x', s=size, alpha=alpha)
+
+
 
 def _getsize(z):
     if z < 0.05:

@@ -72,14 +72,19 @@ UCHUU_FILE = UCHUU_FILES_FOLDER + "BGS_LC_Uchuu.fits"
 ###################
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/SV3/LSS/fuji/LSScats/3.1/BGS_ANY_full.dat.fits
 BGS_SV3_ANY_FULL_FILE = BGS_FUJI_FOLDER + "BGS_ANY_full.dat.fits"
-# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/SV3/LSS/fuji/LSScats/3.1/BGS_ANY_0_full.ran.fits
-BGS_SV3_RAND_FILE = BGS_FUJI_FOLDER + "BGS_ANY_0_full.ran.fits"
+# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/SV3/LSS/fuji/LSScats/3.1/BGS_ANY_X_full.ran.fits where X is 0 to 17
+BGS_SV3_RAND_FILE = BGS_FUJI_FOLDER + "BGS_ANY_X_full.ran.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/SV3/LSS/fuji/Alltiles_bright_tilelocs.dat.fits   
 BGS_SV3_PROB_OBS_FILE = BGS_FUJI_FOLDER + "Alltiles_bright_tilelocs.dat.fits"
 # This file is BUILT by running code in the BGS_study.ipynb notebook
 # It is a joined BGS file, with a filtered down set of rows and columns
 IAN_BGS_SV3_MERGED_FILE = BGS_FUJI_FOLDER + "ian_BGS_SV3_merged.fits"
 IAN_BGS_SV3_MERGED_NOY3_FILE = BGS_FUJI_FOLDER + "ian_BGS_SV3_merged_noY3.fits"
+
+BGS_SV3_CLUSTERING_N_BRIGHT_FILE = BGS_FUJI_FOLDER + "BGS_BRIGHT_N_clustering.dat.fits"
+BGS_SV3_CLUSTERING_N_BRIGHT_RAND_FILE = BGS_FUJI_FOLDER + "BGS_BRIGHT_N_0_clustering.ran.fits"
+BGS_SV3_CLUSTERING_S_BRIGHT_FILE = BGS_FUJI_FOLDER + "BGS_BRIGHT_S_clustering.dat.fits"
+BGS_SV3_CLUSTERING_S_BRIGHT_RAND_FILE = BGS_FUJI_FOLDER + "BGS_BRIGHT_S_0_clustering.ran.fits"
 
 
 # BGS Y1 DATA FILES
@@ -117,6 +122,7 @@ BGS_Y3_TILES_FILE = BGS_Y3_FOLDER + "tiles-kibo.csv"
 # This file is BUILT by running code in the BGS_study.ipynb notebook
 # It is a joined BGS file, with a filtered down set of rows and columns
 IAN_BGS_Y3_MERGED_FILE = BGS_Y3_FOLDER + "ian_BGS_Y3_merged.fits"
+IAN_BGS_Y3_LIKE_SV3_MERGED_FILE = BGS_Y3_FOLDER + "ian_BGS_Y3_like_SV3_merged.fits"
 IAN_BGS_Y3_MERGED_FILE_JURA = BGS_Y3_FOLDER_OLD + "ian_BGS_Y3_merged.fits"
 
 # DESI LEGACY IMAGING SURVEY FILES
@@ -153,5 +159,6 @@ BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE = BGS_FOLDER + "bgsy3_lost_appmag_zphot_to_z
 # RANDOMS FILES MATCHING OUR FOOTPRINTS
 #######################################
 MY_RANDOMS_SV3 = OUTPUT_FOLDER + "randoms_df_sv3.pkl"
+MY_RANDOMS_SV3_MINI = OUTPUT_FOLDER + "randoms_df_sv3_mini.pkl"
 MY_RANDOMS_Y1 = OUTPUT_FOLDER + "randoms_df_y1iron.pkl"
 MY_RANDOMS_Y3 = OUTPUT_FOLDER + "randoms_df_y3kibo.pkl"

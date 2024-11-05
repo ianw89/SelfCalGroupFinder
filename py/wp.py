@@ -2,6 +2,10 @@ import subprocess
 import os
 import sys
 import pandas as pd
+import numpy as np
+from Corrfunc.utils import convert_rp_pi_counts_to_wp
+from Corrfunc.mocks import DDrppi_mocks
+import astropy.constants as const
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -65,3 +69,63 @@ def run_corrfunc(cwd):
 
 
     """
+
+
+# Constants
+NTHREADS = 16
+COSMOLOGY = 2  # 1->LasDamas, 2->Planck
+RMIN = 0.1
+RMAX = 40.0
+NBINS = 10
+PIMAX = 40.0  # TODO tune   
+RBINS = np.logspace(np.log10(RMIN), np.log10(RMAX), NBINS + 1)
+
+
+
+def calculate_wp_from_df(df: pd.DataFrame, randoms):
+    """
+    Calculate the projected correlation function wp(rp) for the total, red, and blue
+    galaxies for the provided dataframe and randoms using our canonical set of parameters.
+    """
+    cz = df.z.to_numpy().copy() * const.c.to('km/s').value
+
+    # Overall sample
+    rbins , wp_all = calculate_wp(
+        df.RA.to_numpy(), 
+        df.Dec.to_numpy(),  
+        cz, 
+        randoms['RA'],
+        randoms['Dec'])
+    rbins, wp_red = calculate_wp(
+        df.loc[df.quiescent].RA.to_numpy(),
+        df.loc[df.quiescent].Dec.to_numpy(),
+        cz[df.quiescent],
+        randoms['RA'],
+        randoms['Dec'])
+    rbins, wp_blue = calculate_wp(
+        df.loc[~df.quiescent].RA.to_numpy(),
+        df.loc[~df.quiescent].Dec.to_numpy(),
+        cz[~df.quiescent],
+        randoms['RA'],
+        randoms['Dec'])
+
+    return (rbins, wp_all, wp_red, wp_blue)
+
+def calculate_wp(data_ra, data_dec, data_cz, rand_ra, rand_dec, rand_cz=None, weights1=None, weights2=None):
+    """
+    Calculate the projected correlation function wp(rp) for a given data set and randoms using 
+    our canonical set of parameters.
+    """
+
+    # Random's redshifts should be just like the sample's
+    if rand_cz is None:
+        rand_cz = np.random.choice(data_cz, size=len(rand_ra), replace=True)
+
+    DD_counts = DDrppi_mocks(1, COSMOLOGY, NTHREADS, PIMAX, RBINS, data_ra, data_dec, data_cz, weights1=weights1)
+    DR_counts = DDrppi_mocks(0, COSMOLOGY, NTHREADS, PIMAX, RBINS, data_ra, data_dec, data_cz, RA2=rand_ra, DEC2=rand_dec, CZ2=rand_cz, weights1=weights1, weights2=weights2)
+    RR_counts = DDrppi_mocks(1, COSMOLOGY, NTHREADS, PIMAX, RBINS, rand_ra, rand_dec, rand_cz, weights1=weights2)
+
+    # Convert pair counts to wp 
+    wp = convert_rp_pi_counts_to_wp(len(data_ra), len(data_ra), len(rand_ra), len(rand_ra), DD_counts, DR_counts, DR_counts, RR_counts, NBINS, PIMAX)
+    return RBINS, wp
+

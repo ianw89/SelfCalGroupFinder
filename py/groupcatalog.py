@@ -8,15 +8,12 @@ import pickle
 import subprocess as sp
 from astropy.table import Table
 import astropy.io.fits as fits
-import astropy.constants as const
 import copy
 import sys
-import wp as wp
+import wp
 import math
 from multiprocessing import Pool
-import Corrfunc
-from os.path import dirname, abspath, join as pjoin
-from Corrfunc.io import read_catalog
+from joblib import Parallel, delayed
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -24,8 +21,6 @@ from pyutils import *
 from redshift_guesser import SimpleRedshiftGuesser, PhotometricRedshiftGuesser
 from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
-from joblib import Parallel, delayed
-from nnanalysis import cic_binning
 
 # Sentinal value for no truth redshift
 NO_TRUTH_Z = -99.99
@@ -85,6 +80,7 @@ def tile_to_region_raw(key):
     return sv3_tile_to_region.get(key, None)  # Return None if key is not found
 tile_to_region = np.vectorize(tile_to_region_raw)
 
+CLUSTERING_MAG_BINS = [-16, -17, -18, -19, -20, -21, -22, -23]
 
 GF_PROPS_VANILLA = {
     'zmin':0, 
@@ -135,7 +131,10 @@ class GroupCatalog:
         self.L_gal_bins = L_gal_bins
         self.L_gal_labels = L_gal_labels
 
-        self.wp_all = None
+        self.wp_all = None # (rbins, wp_all, wp_r, wp_b)
+        self.wp_all_extra = None # (rbins, wp_all, wp_r, wp_b)
+        self.wp_slices = np.array(len(CLUSTERING_MAG_BINS) * [None]) # Tuple of (rbins, wp) at each index
+        self.wp_slices_extra = np.array(len(CLUSTERING_MAG_BINS) * [None]) # Tuple of (rbins, wp) at each index
 
         # Geneated from popmock option in group finder
         self.mock_b_M17 = None
@@ -622,6 +621,8 @@ class BGSGroupCatalog(GroupCatalog):
             infile = IAN_BGS_MERGED_FILE_OLD
         elif self.data_cut == "Y3-Kibo":
             infile = IAN_BGS_Y3_MERGED_FILE
+        elif self.data_cut == "Y3-Kibo-SV3Cut":
+            infile = IAN_BGS_Y3_MERGED_FILE
         elif self.data_cut == "Y3-Jura":
             infile = IAN_BGS_Y3_MERGED_FILE_JURA
         elif self.data_cut == "sv3":
@@ -719,121 +720,172 @@ class BGSGroupCatalog(GroupCatalog):
         if self.data_cut == 'sv3':
             self.centered = filter_SV3_to_avoid_edges(self)
 
+        if self.data_cut == 'sv3' or self.data_cut == 'Y3-Kibo-SV3Cut':
+            self.calculate_projected_clustering()
+            self.calculate_projected_clustering_in_magbins()
+
         print("Post-processing done.")
 
-    def calculate_projected_clustering(self):
-        """
-        Create subsamples of this BGS catalog and calculate projected clustering for each.
-        """
 
-        if self.data_cut != 'sv3':
-            raise ValueError("calculate_projected_clustering() only works for SV3 right now")
+    def calculate_projected_clustering(self, with_extra_randoms=False):
         print("Calculating projected clustering...")
-        # See how C code does volume limited sample
 
         # TODO weights for fiber collisions corrections
 
-        # For each abs mag bin, calculate projected clustering
+        df = self.all_data
+        if df.get('mag_R') is None:
+            df['mag_R'] = log_solar_L_to_abs_mag_r(np.log10(df['L_gal']))
+            df['mag_bin'] = np.digitize(df.mag_R, CLUSTERING_MAG_BINS)
 
-        """
-        TODO these should have zmin as well, to be like SDSS versions.
-        Mag-5log(h) > -14:  zmax theory=0.01650  zmax obs=0.015029
-        Mag-5log(h) > -15:  zmax theory=0.02595  zmax obs=0.027139
-        Mag-5log(h) > -16:  zmax theory=0.04067  zmax obs=0.043211
-        Mag-5log(h) > -17:  zmax theory=0.06336  zmax obs=0.06597
-        Mag-5log(h) > -18:  zmax theory=0.09792  zmax obs=0.101448
-        Mag-5log(h) > -19:  zmax theory=0.14977  zmax obs=0.154458
-        Mag-5log(h) > -20:  zmax theory=0.22620  zmax obs=0.231856
-        Mag-5log(h) > -21:  zmax theory=0.33694  zmax obs=0.331995
-        Mag-5log(h) > -22:  zmax theory=0.49523  zmax obs=0.459593
-        Mag-5log(h) > -23:  zmax theory=0.72003  zmax obs=0.49971
-        """
-        mag_bin = [-16, -17, -18, -19, -20, -21, -22, -23]
-        zmax = [0.04067, 0.06336, 0.09792, 0.14977, 0.22620, 0.33694, 0.49523, 0.72003]
+        if with_extra_randoms:
+            randoms = pickle.load(open(MY_RANDOMS_SV3, "rb"))
+            print(f"Random count / data count = {len(randoms['RA'])} / {len(df)}")
+            self.wp_all_extra = wp.calculate_wp_from_df(df, randoms)
+
+        randoms = pickle.load(open(MY_RANDOMS_SV3_MINI, "rb"))
+        print(f"Random count / data count = {len(randoms['RA'])} / {len(df)}")
+        self.wp_all = wp.calculate_wp_from_df(df, randoms)
+
+    
+
+    def calculate_projected_clustering_in_magbins(self, with_extra_randoms=False):
+        print("Calculating luminosity dependent clustering...")
+
+        #Mag-5log(h) > -14:  zmax theory=0.01650  zmax obs=0.015029
+        #Mag-5log(h) > -15:  zmax theory=0.02595  zmax obs=0.027139
+        #Mag-5log(h) > -16:  zmax theory=0.04067  zmax obs=0.043211
+        #Mag-5log(h) > -17:  zmax theory=0.06336  zmax obs=0.06597
+        #Mag-5log(h) > -18:  zmax theory=0.09792  zmax obs=0.101448
+        #Mag-5log(h) > -19:  zmax theory=0.14977  zmax obs=0.154458
+        #Mag-5log(h) > -20:  zmax theory=0.22620  zmax obs=0.231856
+        #Mag-5log(h) > -21:  zmax theory=0.33694  zmax obs=0.331995
+        #Mag-5log(h) > -22:  zmax theory=0.49523  zmax obs=0.459593
+        #Mag-5log(h) > -23:  zmax theory=0.72003  zmax obs=0.49971
+        zmax = [0.04067, 0.06336, 0.09792, 0.14977, 0.22620, 0.331995, 0.459593, 0.49971]
+        #Not doing zmin's for now; no need for indepdenent samples for this
 
         df = self.all_data
-        df['mag_R'] = log_solar_L_to_abs_mag_r(np.log10(df['L_gal']))
-        df['mag_bin'] = np.digitize(df.mag_R, mag_bin)
-        cz = df.z.to_numpy().copy() * const.c.to('km/s').value
+        if df.get('mag_R') is None:
+            df['mag_R'] = log_solar_L_to_abs_mag_r(np.log10(df['L_gal']))
+            df['mag_bin'] = np.digitize(df.mag_R, CLUSTERING_MAG_BINS)
 
-        randoms = pickle.load(open(MY_RANDOMS_SV3, "rb"))
-        # Pull random values from df.z since the randoms don't contain z
-        rand_cz = np.random.choice(df.loc[z_flag_is_spectro_z(df.z_assigned_flag), 'z'], size=len(randoms['RA']), replace=True) * const.c.to('km/s').value
-    
-        # Overall sample
-        rbins, wp_all = calculate_wp(
-            df.RA.to_numpy(), 
-            df.Dec.to_numpy(), 
-            cz, 
-            randoms['RA'],
-            randoms['Dec'], 
-            rand_cz)
-        rbins, wp_red = calculate_wp(
-            df.loc[df.quiescent].RA.to_numpy(),
-            df.loc[df.quiescent].Dec.to_numpy(),
-            cz[df.quiescent],
-            randoms['RA'],
-            randoms['Dec'],
-            rand_cz)
-        rbins, wp_blue = calculate_wp(
-            df.loc[~df.quiescent].RA.to_numpy(),
-            df.loc[~df.quiescent].Dec.to_numpy(),
-            cz[~df.quiescent],
-            randoms['RA'],
-            randoms['Dec'],
-            rand_cz)
+        if with_extra_randoms:
+            randoms = pickle.load(open(MY_RANDOMS_SV3, "rb"))
+            for i in range(len(CLUSTERING_MAG_BINS)):
+                in_z_range = df.z < zmax[i]
+                in_mag_bin = df.mag_bin == i
+                mag_min = CLUSTERING_MAG_BINS[i-1] if i > 0 else CLUSTERING_MAG_BINS[i]
+                mag_max = CLUSTERING_MAG_BINS[i]
+                rows = in_z_range & in_mag_bin
 
-        self.wp_all = (rbins, wp_all, wp_red, wp_blue)
-        self.wp_slices = np.array(len(mag_bin) * [None]) # Tuple of (rbins, wp) at each index
+                rbins, wp_a, wp_r, wp_b = wp.calculate_wp_from_df(df.loc[rows], randoms)
 
-        # In mag bins (and red blue split), calculate wp
-        for i in range(len(mag_bin)):
+                self.wp_slices_extra[i] = (rbins, wp_a, wp_r, wp_b, mag_min, mag_max)
+
+        randoms = pickle.load(open(MY_RANDOMS_SV3_MINI, "rb"))
+
+        for i in range(len(CLUSTERING_MAG_BINS)):
             in_z_range = df.z < zmax[i]
             in_mag_bin = df.mag_bin == i
-            mag_min = mag_bin[i-1] if i > 0 else mag_bin[i]
-            mag_max = mag_bin[i]
-            red = df.quiescent
+            mag_min = CLUSTERING_MAG_BINS[i-1] if i > 0 else CLUSTERING_MAG_BINS[i]
+            mag_max = CLUSTERING_MAG_BINS[i]
             rows = in_z_range & in_mag_bin
 
-            rbins, wp_all = calculate_wp(
-                df.loc[rows].RA.to_numpy(), 
-                df.loc[rows].Dec.to_numpy(), 
-                cz[rows], 
-                randoms['RA'],
-                randoms['Dec'], 
-                rand_cz)
+            rbins, wp_a, wp_r, wp_b = wp.calculate_wp_from_df(df.loc[rows], randoms)
 
-            rows = in_z_range & in_mag_bin & red
-            print("RED")
-            if i == 0:
-                print(f"zmax={zmax[i]:.5f}, {mag_bin[i]} < mag, n={len(df.loc[rows])}")
-            else:
-                print(f"zmax={zmax[i]:.5f}, {mag_bin[i-1]} < mag < {mag_bin[i]}, n={len(df.loc[rows])}")
-
-            rbins, wp_red = calculate_wp(
-                df.loc[rows].RA.to_numpy(), 
-                df.loc[rows].Dec.to_numpy(), 
-                cz[rows], 
-                randoms['RA'],
-                randoms['Dec'], 
-                rand_cz)
+            self.wp_slices[i] = (rbins, wp_a, wp_r, wp_b, mag_min, mag_max)
             
-            rows = in_z_range & in_mag_bin & ~red
-            print("BLUE")
-            if i == 0:
-                print(f"zmax={zmax[i]:.5f}, {mag_bin[i]} < mag, n={len(df.loc[rows])}")
+    
+    def add_jackknife_err_to_proj_clustering(self, with_extra_randoms=False, for_mag_bins=False):
+
+        if self.data_cut != 'sv3' and self.data_cut != 'Y3-Kibo-SV3Cut':
+            print("Warning: add_jackknife_err_to_proj_clustering called for non-SV3 data cut. Skipping.")
+            return
+        
+        t1 = time.time()
+        print("Adding jackknife error to projected clustering...")
+        
+        df = self.all_data
+        if with_extra_randoms:
+            randoms = pickle.load(open(MY_RANDOMS_SV3, "rb"))
+        else:
+            randoms = pickle.load(open(MY_RANDOMS_SV3_MINI, "rb"))
+
+        # label the SV3 region each galaxy is in
+        df['region'] = tile_to_region(df['nearest_tile_id']).astype(int)
+        region_ids = df['region'].unique()
+        n = len(region_ids)
+
+        def jacknife_iteration(region_idx_to_drop, mag_bin=None):
+            if mag_bin is not None:
+                in_mag_bin = df.mag_bin == mag_bin
+                in_z_range = df.z < zmax[mag_bin]
+                alt_df = df.loc[np.all([(df['region'] != region_idx_to_drop), in_mag_bin, in_z_range], axis=0)]
             else:
-                print(f"zmax={zmax[i]:.5f}, {mag_bin[i-1]} < mag < {mag_bin[i]}, n={len(df.loc[rows])}")
+                alt_df = df.loc[df['region'] != region_idx_to_drop]
+            print(f"Jackknife cut out region {region_idx_to_drop} with {len(df)-len(alt_df)} galaxies.")
+            return wp.calculate_wp_from_df(alt_df, randoms)
 
-            rbins, wp_blue = calculate_wp(
-                df.loc[rows].RA.to_numpy(), 
-                df.loc[rows].Dec.to_numpy(), 
-                cz[rows],
-                randoms['RA'],
-                randoms['Dec'], 
-                rand_cz)
+        def cov(realizations):
+            mean = np.mean(realizations, axis=0)
+            cov = np.zeros((mean.size, mean.size))
+            for i in range(n):
+                diff = realizations[i] - mean
+                cov += np.outer(diff, diff)
+            cov *= (n - 1) / n
+            return cov
 
-            self.wp_slices[i] = (rbins, wp_all, wp_red, wp_blue, mag_min, mag_max)
+        if for_mag_bins:
+            zmax = [0.04067, 0.06336, 0.09792, 0.14977, 0.22620, 0.331995, 0.459593, 0.49971]
+            self.wp_slices_cov = np.array(len(CLUSTERING_MAG_BINS) * [None])
+            self.wp_slices_r_cov = np.array(len(CLUSTERING_MAG_BINS) * [None])
+            self.wp_slices_b_cov = np.array(len(CLUSTERING_MAG_BINS) * [None])
+            self.wp_slices_err = np.array(len(CLUSTERING_MAG_BINS) * [None])
+            self.wp_slices_r_err = np.array(len(CLUSTERING_MAG_BINS) * [None])
+            self.wp_slices_b_err = np.array(len(CLUSTERING_MAG_BINS) * [None])
+
+            for i in range(len(CLUSTERING_MAG_BINS)):
+                wp_realizations = np.zeros((len(region_ids), wp.NBINS), dtype=float)
+                wp_r_realizations = np.zeros((len(region_ids), wp.NBINS), dtype=float)
+                wp_b_realizations = np.zeros((len(region_ids), wp.NBINS), dtype=float)
+
+                j = 0
+                for rid in region_ids:
+                    rbins, wp_a, wp_r, wp_b = jacknife_iteration(rid, mag_bin=i)
+                    wp_realizations[j, :] = wp_a
+                    wp_r_realizations[j, :] = wp_r
+                    wp_b_realizations[j, :] = wp_b
+                    j += 1
+
+                self.wp_slices_cov[i] = cov(wp_realizations)
+                self.wp_slices_r_cov[i] = cov(wp_r_realizations)
+                self.wp_slices_b_cov[i] = cov(wp_b_realizations)
+                self.wp_slices_err[i] = np.sqrt(np.diag(self.wp_slices_cov[i]))
+                self.wp_slices_r_err[i] = np.sqrt(np.diag(self.wp_slices_r_cov[i]))
+                self.wp_slices_b_err[i] = np.sqrt(np.diag(self.wp_slices_b_cov[i]))
+
+        else:
+            wp_realizations = np.zeros((len(region_ids), wp.NBINS), dtype=float)
+            wp_r_realizations = np.zeros((len(region_ids), wp.NBINS), dtype=float)
+            wp_b_realizations = np.zeros((len(region_ids), wp.NBINS), dtype=float)
+
+            i = 0
+            for rid in region_ids:
+                rbins, wp_a, wp_r, wp_b = jacknife_iteration(rid)
+                wp_realizations[i, :] = wp_a
+                wp_r_realizations[i, :] = wp_r
+                wp_b_realizations[i, :] = wp_b
+                i += 1
+
+            self.wp_cov = cov(wp_realizations)
+            self.wp_r_cov = cov(wp_r_realizations)
+            self.wp_b_cov = cov(wp_b_realizations)
+            self.wp_err = np.sqrt(np.diag(self.wp_cov))
+            self.wp_r_err = np.sqrt(np.diag(self.wp_r_cov))
+            self.wp_b_err = np.sqrt(np.diag(self.wp_b_cov))
+
+        t2 = time.time()
+        print(f"Jackknife error of wp complete in {t2-t1:.2} seconds.")
 
 
     def refresh_df_views(self):
@@ -1023,8 +1075,14 @@ def get_footprint_fraction(data_cut, mode, num_passes_required):
         FOOTPRINT_FRAC_3pass = 0.2338243 # 9645 degrees
         FOOTPRINT_FRAC_4pass = 0.1150345 # 4745 degrees
     elif data_cut == "sv3":
-        FOOTPRINT_FRAC_1pass = 173.87 / DEGREES_ON_SPHERE 
-        FOOTPRINT_FRAC_10pass = 138.192 / DEGREES_ON_SPHERE 
+        # These are for the 18/20 patches being used. We dropped two due to poor Y3 overlap.
+        FOOTPRINT_FRAC_1pass =  156.2628 / DEGREES_ON_SPHERE 
+        FOOTPRINT_FRAC_10pass = 124.2812 / DEGREES_ON_SPHERE 
+    elif data_cut == "Y3-Kibo-SV3Cut":
+        # Here the data was cut to the SV3 10p footprint. 
+        # But the num_passes is now referring to actualy Y3 main survey passes.
+        FOOTPRINT_FRAC_1pass = FOOTPRINT_FRAC_10pass # See the confusion?
+        # Not computed for other situations.
     else:
         print("Invalid data cut. Exiting.")
         exit(2)
@@ -1164,7 +1222,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # NTILE_MINE gives how many tiles include just from inclusion in circles drawn around tile centers
     # null values (masked rows) are unobserved targets; not all columns are masked though
 
+    ##############################################################################
     # Make filter arrays (True/False values)
+    ##############################################################################
     multi_pass_filter = table['NTILE_MINE'] >= num_passes_required
     galaxy_observed_filter = obj_type == b'GALAXY'
     app_mag_filter = app_mag_r < APP_MAG_CUT
@@ -1172,9 +1232,14 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     redshift_hi_filter = z_obs < Z_MAX
     deltachi2_filter = deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
     
-    ##############################################################################
+    # Special version cut to look like SV3 - choose only the ones inside the SV3 footprint
+    if data_cut == "Y3-Kibo-SV3Cut":
+        region = tile_to_region(ntid)
+        to_remove = np.isin(region, sv3_poor_y3overlap)
+        in_good_sv3regions = ~to_remove
+        multi_pass_filter = np.all([multi_pass_filter, table['NTILE_MINE_SV3'] >= 10, in_good_sv3regions], axis=0)
+
     # Roughly remove HII regions of low z, high angular size galaxies (SGA catalog)
-    ##############################################################################
     if maskbits is not None and ref_cat is not None:
         BITMASK_SGA = 0x1000 
         sga_collision = (maskbits & BITMASK_SGA) != 0

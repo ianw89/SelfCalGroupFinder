@@ -13,8 +13,6 @@ import pandas as pd
 import sys
 import multiprocessing as mp
 from scipy.special import erf
-from Corrfunc.utils import convert_rp_pi_counts_to_wp
-from Corrfunc.mocks import DDrppi_mocks
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -398,32 +396,6 @@ def get_max_observable_volume_est(abs_mags, z_obs, m_cut, ra, dec):
     return get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area)
 
 
-
-def calculate_wp(data_ra, data_dec, data_cz, rand_ra, rand_dec, rand_cz):
-
-    nthreads = 16
-
-    # Specify cosmology (1->LasDamas, 2->Planck)
-    cosmology = 1
-
-    # Create the bins array
-    rmin = 0.1
-    rmax = 40.0
-    nbins = 20
-    rbins = np.logspace(np.log10(rmin), np.log10(rmax), nbins + 1)
-
-    # Specify the distance to integrate along line of sight
-    pimax = 40.0 # TODO tune
-
-    DD_counts = DDrppi_mocks(1, cosmology, nthreads, pimax, rbins, data_ra, data_dec, data_cz)
-    DR_counts = DDrppi_mocks(0, cosmology, nthreads, pimax, rbins, data_ra, data_dec, data_cz, RA2=rand_ra, DEC2=rand_dec, CZ2=rand_cz)
-    RR_counts = DDrppi_mocks(1, cosmology, nthreads, pimax, rbins, rand_ra, rand_dec, rand_cz)
-
-    # Convert pair counts to wp 
-    wp = convert_rp_pi_counts_to_wp(len(data_ra), len(data_ra), len(rand_ra), len(rand_ra), DD_counts, DR_counts, DR_counts, RR_counts, nbins, pimax)
-    return rbins, wp
-
-
 def mollweide_transform(ra, dec):
     """
     Transform ra, dec arrays into x, y arrays for plotting in Mollweide projection.
@@ -655,105 +627,6 @@ def build_app_mag_to_z_map_4(app_mag, z_phot, z_obs):
         del the_map[key]
 
     return app_mag_bins, z_phot_bins, the_map
-
-###############################################
-# Routines for making RA DEC maps
-###############################################
-
-# 36*18*640 / 41253 = 10.05 dots per sq degree
-# so a dot size of 1 is 0.1 sq deg
-
-# 0.00191 sq deg is area of a fiber's region
-# that is the size we want to draw for each galaxy
-#so s=0.01 is what we want
-
-def make_map(ra, dec, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
-    """
-    Give numpy array of ra and dec.
-    """
-
-    if np.any(ra > 180.0): # if data given is 0 to 360
-        assert np.all(ra > -0.1)
-        ra = ra - 180
-    if np.any(dec > 90.0): # if data is 0 to 180
-        print(f"WARNING: Dec values are 0 to 180. Subtracting 90 to get -90 to 90.")
-        assert np.all(dec > -0.1)
-        dec = dec - 90
-
-    # Build a map of the galaxies
-    ra_angles = coord.Angle(ra*u.degree)
-    ra_angles = ra_angles.wrap_at(180*u.degree)
-    #ra_angles = ra_angles.wrap_at(360*u.degree)
-    dec_angles = coord.Angle(dec*u.degree)
-
-    if fig == None:
-        fig = plt.figure(figsize=(12,12))
-        fig.dpi=dpi
-        ax = fig.add_subplot(111, projection="mollweide")
-        plt.grid(visible=True, which='both')
-        ax.set_xticklabels(['30°', '60°', '90°', '120°', '150°', '180°', '210°', '240°', '270°', '300°', '330°'])
-    else:
-        ax=fig.get_axes()[0]
-
-    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=dotsize)
-    return fig
-
-def plot_positions(*dataframes, tiles_df: pd.DataFrame = None, DEG_LONG=1, split=True, ra_min=30, dec_min = -5):
-
-    ra_max = ra_min + DEG_LONG
-    dec_max = dec_min + DEG_LONG
-
-    fig,ax = plt.subplots(1)
-    fig.set_size_inches(10*DEG_LONG + 1,10*DEG_LONG + 1) # the extra inch is because of the frame, rough correction
-    dpi = 100
-    fig.set_dpi(dpi)
-    dots_per_sqdeg = 10 * 10 * dpi # so 10,000 dots in a square degree
-    ax.set_aspect('equal')
-    ax.set_xlabel("RA [deg]")
-    ax.set_ylabel("Dec [deg]")
-    ax.set_xlim(ra_min, ra_max)
-    ax.set_ylim(dec_min, dec_max)
-
-    if tiles_df is not None:
-        TILE_RADIUS = 5862.0 * u.arcsec # arcsec
-        tile_radius = TILE_RADIUS.to(u.degree).value
-        circle_ra_max = ra_max + 2*tile_radius
-        circle_ra_min = ra_min - 2*tile_radius
-        circle_dec_max = dec_max + 2*tile_radius
-        circle_dec_min = dec_min - 2*tile_radius
-        tiles_to_draw = tiles_df.query('RA < @circle_ra_max and RA > @circle_ra_min and Dec < @circle_dec_max and Dec > @circle_dec_min')
-        
-        for index, row in tiles_df.iterrows():
-            circ = Circle((row.RA, row.Dec), tile_radius, color='k', fill=False, lw=10)
-            ax.add_patch(circ)
-
-    alpha = 1 if len(dataframes) == 1 else 0.5
-    for d in dataframes:
-        plot_ra_dec_inner(d, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split, alpha)
-
-
-def plot_ra_dec_inner(dataframe: pd.DataFrame, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split, alpha):
-
-    if split:
-        obs = dataframe[dataframe.z_assigned_flag == 0]
-        unobs = dataframe[dataframe.z_assigned_flag != 0]
-    else:
-        obs = dataframe
-
-    # 8 sq deg / 5000 fibers is 0.0016 sq deg per fiber
-    # But in reality the paper says 0.0019 sq deg is area of a fiber's region (there is some overlap)
-    # That is the size we want to draw for each galaxy here.
-    # For 10,000 dots per sq degree, 0.0019 * 10000 = 
-    fiber_patrol_area = 0.00191 # in sq deg
-    ARBITRARY_SCALE_UP = 1 # my calculation didn't work so arbitrarilly sizing up with this
-    size = fiber_patrol_area * dots_per_sqdeg * ARBITRARY_SCALE_UP 
-
-    obs_selected = obs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
-    ax.scatter(obs_selected.RA, obs_selected.Dec, s=size, alpha=alpha)
-    if split:
-        unobs_selected = unobs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
-        ax.scatter(unobs_selected.RA, unobs_selected.Dec, marker='x', s=size, alpha=alpha)
-
 
 
 ###############################################
