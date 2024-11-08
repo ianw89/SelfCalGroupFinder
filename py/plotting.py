@@ -21,6 +21,9 @@ LGAL_XMINS = [6E7]#[6E7, 3E8]
 LGAL_MIN = 6E7
 LGAL_MAX = 2E11
 
+MSTAR_MIN = 1E7
+MSTAR_MAX = 1E12
+
 MHALO_MIN = 1E11
 MHALO_MAX = 1E15
 
@@ -39,6 +42,7 @@ def completeness_stats(cats: GroupCatalog|list[GroupCatalog]):
         print(f"  Total galaxies: {len(d.all_data):,}")
         print(f"  Completeness: {spectroscopic_complete_percent(d.all_data.z_assigned_flag.to_numpy()):.1%}")
         print(f"  Lost gals - neighbor z used: {d.get_lostgal_neighbor_used():.1%}")
+        total_f_sat(d)
 
 
 ##########################
@@ -119,19 +123,8 @@ def single_plots(d: GroupCatalog, truth_on=False):
         sf_gals = d.all_data[np.invert(d.all_data.quiescent)]
         plots_color_split_lost_split_inner(d.name + " Truth", d.L_gal_labels, d.L_gal_bins, q_gals, sf_gals, fsat_truth_vmax_weighted,'Lgal_bin_T')
 
-    print("TOTAL f_sat - entire sample: ")
-    total_f_sat(d)
-
-def z_assigned_fraction(*datasets: GroupCatalog):
-    for d in datasets:
-        assigned_count = (~z_flag_is_spectro_z(d.all_data.z_assigned_flag)).sum()
-        completeness = (z_flag_is_spectro_z(d.all_data.z_assigned_flag)).mean()
-        nn_fraction = (d.all_data.z_assigned_flag >= 1).sum() / assigned_count
-        other_fraction = (d.all_data.z_assigned_flag == AssignedRedshiftFlag.PSEUDO_RANDOM.value).sum() / assigned_count
-
-        print(f"{d.name} - {completeness:.1%} completeness")
-        print(f"  NN: {nn_fraction:.1%}, Other: {other_fraction:.1%}")
-
+    wp_rp(d)
+    wp_rp_magbins(d)
 
 def completeness_comparison(*datasets):        
     fig,ax1=plt.subplots()
@@ -341,56 +334,56 @@ def plots(*catalogs, show_err=None, truth_on=False):
     if len(catalogs) == 1:
         plots_color_split(*catalogs, total_on=True)
 
-    print("Summary Statistics: ")
-    for f in catalogs:
-        print(f.name)
-        total_f_sat(f)
 
 def wp_rp(catalog: GroupCatalog):
     colors = ['k', 'r', 'b']
     f = catalog
     plt.figure(figsize=(5, 5))
+    to_use = f.get_best_wp_all()
     if hasattr(f, 'wp_err'):
-        plt.errorbar(f.wp_all[0][:-1], f.wp_all[1], yerr=f.wp_err, marker='o', linestyle='-', label='All', color=colors[0])
-        plt.errorbar(f.wp_all[0][:-1], f.wp_all[2], yerr=f.wp_r_err, marker='o', linestyle='-', label='Red', color=colors[1])
-        plt.errorbar(f.wp_all[0][:-1], f.wp_all[3], yerr=f.wp_b_err, marker='o', linestyle='-', label='Blue', color=colors[2])
+        plt.errorbar(to_use[0][:-1], to_use[1], yerr=f.wp_err, marker='o', linestyle='-', label='All', color=colors[0])
+        plt.errorbar(to_use[0][:-1], to_use[2], yerr=f.wp_r_err, marker='o', linestyle='-', label='Red', color=colors[1])
+        plt.errorbar(to_use[0][:-1], to_use[3], yerr=f.wp_b_err, marker='o', linestyle='-', label='Blue', color=colors[2])
     else:
-        plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[1], marker='o', linestyle='-', label='All', color=colors[0])
-        plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[2], marker='o', linestyle='-', label='Red', color=colors[1])
-        plt.plot(catalog.wp_all[0][:-1], catalog.wp_all[3], marker='o', linestyle='-', label='Blue', color=colors[2])
+        plt.plot(to_use[0][:-1], to_use[1], marker='o', linestyle='-', label='All', color=colors[0])
+        plt.plot(to_use[0][:-1], to_use[2], marker='o', linestyle='-', label='Red', color=colors[1])
+        plt.plot(to_use[0][:-1], to_use[3], marker='o', linestyle='-', label='Blue', color=colors[2])
     plt.xscale('log')
-    plt.ylim(8, 2000)
+    plt.ylim(3, 2000)
     plt.yscale('log')
     plt.xlabel(r'$r_p$ [Mpc/h]')
     plt.ylabel(r'$w_p(r_p)$')
     plt.legend()
-    plt.title('Full Sample $w_p(r_p)$ ')
+    plt.title(f'{catalog.name} Full $w_p(r_p)$ ')
     plt.grid(True)
     plt.show()
 
-def wp_rp_magbins(catalog: GroupCatalog):
+def wp_rp_magbins(c: GroupCatalog):
     colors = ['k', 'r', 'b']
-    f = catalog
 
     # Additional rows for each magnitude slice in wp_slices
     fig, axes = plt.subplots(2, 3, figsize=(12, 9))
+    if c.wp_slices_extra is not None and c.wp_slices_extra[0] is not None:
+        to_use = c.wp_slices_extra
+    else:
+        to_use = c.wp_slices
 
-    for i, mag_slice in enumerate(catalog.wp_slices):
+    for i, mag_slice in enumerate(to_use):
         if i <= 1:
             continue
-        if i == len(catalog.wp_slices) - 1:
-            mag_range_label = f"{catalog.wp_slices[i][4]:.1f} > $M_r$ - 5log($h$)"
+        if i == len(to_use) - 1:
+            mag_range_label = f"{to_use[i][4]:.1f} > $M_r$ - 5log($h$)"
         else:
-            mag_range_label = f"{catalog.wp_slices[i][4]:.1f} > $M_r$ - 5log($h$) > {catalog.wp_slices[i][5]:.1f}"
+            mag_range_label = f"{to_use[i][4]:.1f} > $M_r$ - 5log($h$) > {to_use[i][5]:.1f}"
 
         row = (i-2) // 3
         col = (i-2) % 3
 
-        axes[row, col].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][1], marker='o', linestyle='-', label=f.name, color=colors[0])
-        axes[row, col].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][2], marker='o', linestyle='-', label=f.name, color=colors[1])
-        axes[row, col].plot(f.wp_slices[i][0][:-1], f.wp_slices[i][3], marker='o', linestyle='-', label=f.name, color=colors[2])
+        axes[row, col].plot(to_use[i][0][:-1], to_use[i][1], marker='o', linestyle='-', label=c.name, color=colors[0])
+        axes[row, col].plot(to_use[i][0][:-1], to_use[i][2], marker='o', linestyle='-', label=c.name, color=colors[1])
+        axes[row, col].plot(to_use[i][0][:-1], to_use[i][3], marker='o', linestyle='-', label=c.name, color=colors[2])
         axes[row, col].set_xscale('log')
-        axes[row, col].set_ylim(8, 2000)
+        axes[row, col].set_ylim(3, 2000)
         axes[row, col].set_yscale('log')
         axes[row, col].set_xlabel(r'$r_p$ [Mpc/h]')
         axes[row, col].set_ylabel(r'$w_p(r_p)$')
@@ -402,15 +395,15 @@ def wp_rp_magbins(catalog: GroupCatalog):
     plt.show()
 
 
-def compare_wp_rp(d1, d2_t):
+def compare_wp_rp(d1: BGSGroupCatalog, d2_t: BGSGroupCatalog):
     def plot_fractional_difference(ax, wp1, wp2, wp1_red, wp2_red, wp1_blue, wp2_blue, label):
         percent_diff = 100 * (wp1 - wp2) / wp2
         percent_diff_r = 100 * (wp1_red - wp2_red) / wp2_red
         percent_diff_b = 100 * (wp1_blue - wp2_blue) / wp2_blue
 
-        ax.plot(d1.wp_all[0][:-1], percent_diff, marker='o', linestyle='-', color='black', label=f'Overall {label}')
-        ax.plot(d1.wp_all[0][:-1], percent_diff_r, marker='o', linestyle='-', color='red', label=f'Red {label}')
-        ax.plot(d1.wp_all[0][:-1], percent_diff_b, marker='o', linestyle='-', color='blue', label=f'Blue {label}')
+        ax.plot(d1.get_best_wp_all()[0][:-1], percent_diff, marker='o', linestyle='-', color='black', label=f'Overall {label}')
+        ax.plot(d1.get_best_wp_all()[0][:-1], percent_diff_r, marker='o', linestyle='-', color='red', label=f'Red {label}')
+        ax.plot(d1.get_best_wp_all()[0][:-1], percent_diff_b, marker='o', linestyle='-', color='blue', label=f'Blue {label}')
         
         ax.set_xscale('log')
         ax.set_ylim(-15, 15)
@@ -420,12 +413,12 @@ def compare_wp_rp(d1, d2_t):
         ax.grid(True)
 
     fig, ax = plt.subplots(figsize=(5, 5))
-    plot_fractional_difference(ax, d1.wp_all[1], d2_t.wp_all[1], d1.wp_all[2], d2_t.wp_all[2], d1.wp_all[3], d2_t.wp_all[3], 'Flux-limited')
+    plot_fractional_difference(ax, d1.get_best_wp_all()[1], d2_t.get_best_wp_all()[1], d1.get_best_wp_all()[2], d2_t.get_best_wp_all()[2], d1.get_best_wp_all()[3], d2_t.get_best_wp_all()[3], 'Flux-limited')
     
     # Show a shaded region for the error in the d2 set. 
-    ax.fill_between(d2_t.wp_all[0][:-1], 100*d2_t.wp_err/d2_t.wp_all[1], -100*d2_t.wp_err/d2_t.wp_all[1], color='black', alpha=0.2)
-    ax.fill_between(d2_t.wp_all[0][:-1], 100*d2_t.wp_r_err/d2_t.wp_all[2], -100*d2_t.wp_r_err/d2_t.wp_all[2], color='red', alpha=0.25)
-    ax.fill_between(d2_t.wp_all[0][:-1], 100*d2_t.wp_b_err/d2_t.wp_all[3], -100*d2_t.wp_b_err/d2_t.wp_all[3], color='blue', alpha=0.25)
+    ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_err/d2_t.get_best_wp_all()[1], -100*d2_t.wp_err/d2_t.get_best_wp_all()[1], color='black', alpha=0.2)
+    ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_r_err/d2_t.get_best_wp_all()[2], -100*d2_t.wp_r_err/d2_t.get_best_wp_all()[2], color='red', alpha=0.25)
+    ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_b_err/d2_t.get_best_wp_all()[3], -100*d2_t.wp_b_err/d2_t.get_best_wp_all()[3], color='blue', alpha=0.25)
     
     ax.set_title('$w_p(r_p)$ Fractional Difference')
     plt.legend()
@@ -754,36 +747,47 @@ def L_func_plot(datasets: list, values: list):
 def compare_L_funcs(one: pd.DataFrame, two: pd.DataFrame):
     one_counts = one.groupby('Lgal_bin').RA.count()
     two_counts = two.groupby('Lgal_bin').RA.count()
-    pp.L_func_plot([one, two], [one_counts, two_counts])
+    L_func_plot([one, two], [one_counts, two_counts])
 
-def qf_cen_plot(*datasets, test_methods=False):
+def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     """
     Quiescent Fraction of Central Galaxies.
     """
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
+    groupby_property = 'Mstar_bin' if mstar else 'Lgal_bin'
+    label_property = 'L_gal_labels' if mstar else 'Mstar_labels'
     for f in datasets:
+        data = f.all_data.loc[np.all([~f.all_data.is_sat], axis=0)]
         if test_methods:
             if not hasattr(f, 'qf_gmr'):
-                f.qf_gmr = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_BGS_gmr_vmax_weighted)
+                f.qf_gmr = f.centrals.groupby(groupby_property, observed=False).apply(qf_BGS_gmr_vmax_weighted)
             if not hasattr(f, 'qf_dn4000'):
-                f.qf_dn4000 = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
-                f.qf_dn4000_hard = f.centrals.groupby('Lgal_bin', observed=False).apply(qf_Dn4000_1_6_vmax_weighted)
-            plt.plot(f.L_gal_labels, f.qf_gmr, '.', label=f'0.1^(g-r) < {GLOBAL_RED_COLOR_CUT}', color='b')
-            plt.plot(f.L_gal_labels, f.qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
-            plt.plot(f.L_gal_labels, f.qf_dn4000_hard, '-', label='Dn4000 > 1.6', color='r')
+                f.qf_dn4000 = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
+                f.qf_dn4000_hard = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_1_6_vmax_weighted)
+            
+            plt.plot(getattr(f, label_property), f.qf_gmr, '.', label=f'0.1^(g-r) < {GLOBAL_RED_COLOR_CUT}', color='b')
+            plt.plot(getattr(f, label_property), f.qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
+            plt.plot(getattr(f, label_property), f.qf_dn4000_hard, '-', label='Dn4000 > 1.6', color='r')
         else:
-            plt.plot(f.L_gal_labels, f.centrals.groupby('Lgal_bin', observed=False).apply(qf_vmax_weighted), f.marker, label=get_dataset_display_name(f), color=f.color)
+           plt.plot(getattr(f, label_property), data.groupby(groupby_property, observed=False).apply(qf_vmax_weighted), f.marker, label=get_dataset_display_name(f), color=f.color)
 
     ax1.set_xscale('log')
-    ax1.set_xlabel("$L_{\\mathrm{cen}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
+    if not mstar:
+        ax1.set_xlabel("$L_{\\mathrm{cen}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
+        ax1.set_xlim(LGAL_MIN,LGAL_MAX)
+        ax1.set_ylim(0.0,1.0)
+    else:
+        ax1.set_xlabel("$mstar~[\\mathrm{M}_\\odot]$")
+        ax1.set_xlim(MSTAR_MIN,MSTAR_MAX)
+        #ax1.set_yscale('log')
+        #ax1.set_ylim(1E-2, 1.0)
+        ax1.set_ylim(0.0,1.0)
+    
     ax1.set_ylabel("$f_{\\mathrm{Q}}$ ")
     #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.legend()
-    X_MIN = 3E8
-    X_MAX = LGAL_MAX
-    ax1.set_xlim(X_MIN,X_MAX)
-    ax1.set_ylim(0.0,1.0)
+
 
 def proj_clustering_plot(gc: GroupCatalog):
 
@@ -954,6 +958,7 @@ def luminosity_function_plots(*catalogs):
     for i in range(len(catalogs)):
         assert len(catalogs[i].L_gal_labels) == len(L_gal_labels)
         catalog = catalogs[i]
+        #data = catalog.all_data.convert_dtypes()
         data = catalog.all_data
 
         lostrows = z_flag_is_not_spectro_z(data.z_assigned_flag.to_numpy())
@@ -961,8 +966,9 @@ def luminosity_function_plots(*catalogs):
         lost_withT_galaxies = data.loc[lost_and_havetruth_rows]
         obs_galaxies = data.loc[~lostrows]
 
-        assert np.isclose(obs_galaxies.z, obs_galaxies.z_T).all()
-        assert np.isclose(obs_galaxies.L_gal, obs_galaxies.L_gal_T).all()
+        closeness = np.isclose(obs_galaxies.z, obs_galaxies.z_T, atol=SIM_Z_THRESH, rtol=0.0)
+        assert closeness.sum() / len(closeness) > .98, f"{1 - (closeness.sum() / len(closeness))} of the galaxies have different z and z_T despite being spectrocopically observed."
+        #assert np.isclose(obs_galaxies.L_gal, obs_galaxies.L_gal_T).all()
 
         boost.append(len(obs_galaxies) / len(lost_withT_galaxies))
 
@@ -971,15 +977,15 @@ def luminosity_function_plots(*catalogs):
         #lost_truth_counts[i] = lost_withT_galaxies.groupby('Lgal_bin_T', observed=False).size()
         #lost_assumed_counts[i] = lost_withT_galaxies.groupby('Lgal_bin', observed=False).size()
 
-        obs_counts[i] = nn.cic_binning(obs_galaxies['L_gal_T'].to_numpy(), [x])
+        obs_counts[i] = nn.cic_binning(obs_galaxies['L_gal'].to_numpy(), [x])
         lost_truth_counts[i] = nn.cic_binning(lost_withT_galaxies['L_gal_T'].to_numpy(), [x])
         lost_assumed_counts[i] = nn.cic_binning(lost_withT_galaxies['L_gal'].to_numpy(), [x])
         
         obs_vs_losttruth[i] = ((lost_truth_counts[i]*boost[i] - obs_counts[i]) / obs_counts[i]) * 100
         assumed_vs_truth[i] =  ((lost_assumed_counts[i] - lost_truth_counts[i]) / lost_truth_counts[i]) * 100
 
-        obs_red_counts = nn.cic_binning(obs_galaxies.loc[obs_galaxies.quiescent, 'L_gal_T'].to_numpy(), [x])
-        obs_blue_counts = nn.cic_binning(obs_galaxies.loc[~obs_galaxies.quiescent, 'L_gal_T'].to_numpy(), [x])
+        obs_red_counts = nn.cic_binning(obs_galaxies.loc[obs_galaxies.quiescent, 'L_gal'].to_numpy(), [x])
+        obs_blue_counts = nn.cic_binning(obs_galaxies.loc[~obs_galaxies.quiescent, 'L_gal'].to_numpy(), [x])
         lost_truth_red_counts = nn.cic_binning(lost_withT_galaxies.loc[lost_withT_galaxies.quiescent, 'L_gal_T'].to_numpy(), [x])
         lost_truth_blue_counts = nn.cic_binning(lost_withT_galaxies.loc[~lost_withT_galaxies.quiescent, 'L_gal_T'].to_numpy(), [x])
         lost_assumed_red_counts = nn.cic_binning(lost_withT_galaxies.loc[lost_withT_galaxies.quiescent, 'L_gal'].to_numpy(), [x])
@@ -989,7 +995,10 @@ def luminosity_function_plots(*catalogs):
         assumed_vs_truth_blue =  ((lost_assumed_blue_counts - lost_truth_blue_counts) / lost_truth_blue_counts) * 100
 
         with np.printoptions(precision=0, suppress=True, linewidth=200):
-            print(f"\n*** {catalog.name} ***")
+            print(f"\n*** {catalogs[i].name} ***")
+            print(f"Lost rows: {lostrows.sum()}")
+            print(f"Lost with T rows: {len(lost_withT_galaxies)}")
+            print(f"Observed rows: {len(obs_galaxies)}")
             print(f"Red:  \nObseved: {obs_red_counts} \nLost (truth): {lost_truth_red_counts} \nLost (assumed): {lost_assumed_red_counts}")
             print(f"Blue: \nObseved: {obs_blue_counts} \nLost (truth): {lost_truth_blue_counts} \nLost (assumed): {lost_assumed_blue_counts}")
 
@@ -1061,20 +1070,34 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
 
     for s in sets:
         print(f"*** Summarizing results for {s.name} ***")
+        print(f"Total Galaxies: {len(s.all_data)}. Lost Galaxies: {z_flag_is_not_spectro_z(s.all_data['z_assigned_flag']).sum()}")
+        
+        # Truth method 1, take from other catalog
+        zt1 = (s.all_data['z_T'] < -1 ) # Looking for sentinal values
+        zt2 = (np.isnan(s.all_data['z_T']))
+        zt3 = (s.all_data['z_T'] > 20.0) # Looking for sentinal values
+        valid_idx = ~np.any([zt1, zt2, zt3], axis=0)
+        idx = valid_idx & (z_flag_is_not_spectro_z(s.all_data['z_assigned_flag']))
+        print(f"There are {idx.sum()} lost galaxies with 'truth'. {zt1.sum()} {zt2.sum()} {zt3.sum()}")
 
-        print(f"All lost galaxies (with 'truth'):")
-        valid_idx = (s.all_data['z_obs'] != -99) & (~np.isnan(s.all_data['z_obs']))
-        idx = valid_idx & ~(z_flag_is_spectro_z(s.all_data['z_assigned_flag']))
-        assigned_z = s.all_data.loc[idx, 'z']
-        observed_z = s.all_data.loc[idx, 'z_obs']
+        # Truth method 2 for SV3 where we dropped passes. Should be equivalent to the above... but not quite? TODO BUG
+        #zt1a = (s.all_data['z_obs'] < -1 ) # Looking for sentinal values
+        #zt2a = (np.isnan(s.all_data['z_obs']))
+        #zt3a = (s.all_data['z_obs'] > 20.0) # Looking for sentinal values
+        #valid_idx_alt = ~np.any([zt1a, zt2a, zt3a], axis=0)
+        #idx_alt = valid_idx_alt & (z_flag_is_not_spectro_z(s.all_data['z_assigned_flag']))
+        #print(f"There are {idx_alt.sum()} lost galaxies with 'truth' (alt). {zt1a.sum()} {zt2a.sum()} {zt3a.sum()}")
+
+        assigned_z = s.all_data.loc[idx, 'z'] 
+        truth_z = s.all_data.loc[idx, 'z_T'] # was using z_obs before which is fine for SV3 with droped passes
         assignment_type = s.all_data.loc[idx, 'z_assigned_flag']
 
-        score = sim_z_score(assigned_z, observed_z)
-        rtophat = close_enough_smooth(assigned_z, observed_z)
-        metric_score1 = photoz_plus_metric_1(assigned_z, observed_z, assignment_type)
-        metric_score2 = photoz_plus_metric_2(assigned_z, observed_z, assignment_type)
-        metric_score3 = photoz_plus_metric_3(assigned_z, observed_z, assignment_type)
-        metric_score4 = photoz_plus_metric_4(assigned_z, observed_z, assignment_type)
+        score = sim_z_score(assigned_z, truth_z)
+        rtophat = close_enough_smooth(assigned_z, truth_z)
+        metric_score1 = photoz_plus_metric_1(assigned_z, truth_z, assignment_type)
+        metric_score2 = photoz_plus_metric_2(assigned_z, truth_z, assignment_type)
+        metric_score3 = photoz_plus_metric_3(assigned_z, truth_z, assignment_type)
+        metric_score4 = photoz_plus_metric_4(assigned_z, truth_z, assignment_type)
         scores_all_lost.append(score.mean())
         rounded_tophat.append(rtophat.mean())
         scores_metric1.append(metric_score1 * -1)
@@ -1085,9 +1108,16 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
         print(f" Neighbor z used {s.get_lostgal_neighbor_used():.1%}")
         print(f" Score Mean: {rtophat.mean():.4f}")
 
+        # Calculate and print off close_enough_smooth for each z_assigned_flag value seperately
+        for flag in np.unique(assignment_type):
+            assigned_z_flag = assigned_z[assignment_type == flag]
+            truth_z_flag = truth_z[assignment_type == flag]
+            rtophat_flag = close_enough_smooth(assigned_z_flag, truth_z_flag)
+            print(f"Flag {AssignedRedshiftFlag(flag)} - {rtophat_flag.mean():.4f}")
+
         #print("Neighbor-assigned Only:")
         assigned_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['z_assigned_flag']), 'z']
-        observed_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['z_assigned_flag']), 'z_obs']
+        observed_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['z_assigned_flag']), 'z_T']
         score2 = sim_z_score(assigned_z2, observed_z2)
         scores_n_only.append(score2.mean())
         #print(f" Galaxies to compare: {len(assigned_z2)} ({len(assigned_z2) / len(s.all_data):.1%})")
@@ -1111,7 +1141,8 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha='right')
     ax.legend()
-    ax.set_ylim(0, 0.9)
+    ax.set_ylim(0, 1.0)
+    ax.set_yticks(np.arange(0, 1.0, 0.1))
     ax.yaxis.grid(True)  # Add horizontal gridlines
 
     fig.tight_layout()
@@ -1392,6 +1423,9 @@ def plot_positions(*dataframes, tiles_df: pd.DataFrame = None, DEG_LONG=1, split
 
     alpha = 1 if len(dataframes) == 1 else 0.5
     for d in dataframes:
+        # if d's type is GroupCatalog, extract the all_data property
+        if hasattr(d, 'all_data'):
+            d = d.all_data 
         plot_ra_dec_inner(d, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split, alpha)
 
 
@@ -1484,32 +1518,46 @@ def write_z(galaxy):
         plt.text(galaxy.RA, galaxy.Dec, "{0:.3f}".format(galaxy.z), size=textsize, color='k')
 
 def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord.Angle('7m')):
+    
 
     z_eff = target.z
     #target_dist_true = z_to_ldist(target.z_obs)
+    buffer_angle = coord.Angle('3m')
+    ra_map_max = (coord.Angle(target.RA*u.degree) + nearby_angle).value
+    ra_map_min = (coord.Angle(target.RA*u.degree) - nearby_angle).value
+    dec_map_max = (coord.Angle(target.Dec*u.degree) + nearby_angle).value
+    dec_map_min = (coord.Angle(target.Dec*u.degree) - nearby_angle).value
 
-    ra_max = (coord.Angle(target.RA*u.degree) + nearby_angle).value
-    ra_min = (coord.Angle(target.RA*u.degree) - nearby_angle).value
-    dec_max = (coord.Angle(target.Dec*u.degree) + nearby_angle).value
-    dec_min = (coord.Angle(target.Dec*u.degree) - nearby_angle).value
+    ra_max = (coord.Angle(target.RA*u.degree) + nearby_angle + buffer_angle).value
+    ra_min = (coord.Angle(target.RA*u.degree) - nearby_angle - buffer_angle).value
+    dec_max = (coord.Angle(target.Dec*u.degree) + nearby_angle + buffer_angle).value
+    dec_min = (coord.Angle(target.Dec*u.degree) - nearby_angle - buffer_angle).value
+    z_min = target.z_phot - 0.05
+    z_max = target.z_phot + 0.05
 
-    nearby = data.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
+    nearby = data.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min and z > @z_min and z < @z_max')
     nearby = nearby.drop(target.name) # drop the target itself from this df
 
     target_observed = 'z_assigned_flag' not in nearby.columns or target.z_assigned_flag == 0
 
     # check if nearby has column z_assigned_flag
     if 'z_assigned_flag' in nearby.columns:
-        nearby_obs = nearby.loc[nearby['z_assigned_flag'] == AssignedRedshiftFlag.DESI_SPEC.value]
-        nearby_unobs = nearby.loc[nearby['z_assigned_flag'] != AssignedRedshiftFlag.DESI_SPEC.value]
+        nearby_obs = nearby.loc[z_flag_is_spectro_z(nearby['z_assigned_flag'])]
+        nearby_unobs = nearby.loc[z_flag_is_not_spectro_z(nearby['z_assigned_flag'])]
     else:
         nearby_obs = nearby
         nearby_unobs = False
 
-    z_match = nearby_obs.query('z == @z_eff')
-    #assert len(z_match) == 1, len(z_match) # TODO need a better way to verify which row is the one that we assigned the z from
-    if len(z_match) > 0:
-        z_match = z_match.iloc[0]
+    z_match = []
+    # This doesn' work because the NN catalog has FAINT observed targets that aren't in the group catalog.
+    #if z_flag_is_neighbor(target.z_assigned_flag):
+    #    idx, d2d, _ = coord.match_coordinates_sky(
+    #        coord.SkyCoord(ra=target.RA*u.degree, dec=target.Dec*u.degree, frame='icrs'),
+    #        coord.SkyCoord(ra=nearby_obs.RA.to_numpy()*u.degree, dec=nearby_obs.Dec.to_numpy()*u.degree, frame='icrs'),
+    #        nthneighbor=target.z_assigned_flag,
+    #        storekdtree=False
+    #    )
+    #    z_match = nearby_obs.iloc[idx]
     #nearby_obs = nearby_obs.drop(z_match.name)
 
     good_obs_z_filter = list(map(lambda a: close_enough(target.z, a), nearby_obs.z))
@@ -1542,7 +1590,10 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
     if target_observed:
         title = f"Observed Galaxy {target.name}: z={target.z:.3f}"
     else:
-        title = f"Lost Galaxy {target.name}: z={target.z:.3f}"
+        if hasattr(target, 'z_T'):
+            title = f"Lost Galaxy {target.name}: A={target.z_assigned_flag} z={target.z:.4f} z_phot={target.z_phot:.4f} Truth={target.z_T:.4f}"
+        else:
+            title = f"Lost Galaxy {target.name}: A={target.z_assigned_flag} z={target.z:.4f} z_phot={target.z_phot:.4f}"
 
     if len(nearby) > 1:
 
@@ -1550,14 +1601,21 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
         fig.set_size_inches(10,10)
         ax.set_aspect('equal')
 
-        # Add virial radii or MXXL Halos to the observed galaxies
-        for k in range(len(nearby_obs)):
-            current = nearby_obs.iloc[k]
+        # Add virial radii or MXXL Halos to the galaxies
+        for k in range(len(nearby)):
+            current = nearby.iloc[k]
             if current.is_sat:
                 continue
             radius = current.halo_radius_arcsec / 3600 # arcsec to degrees, like the plot
             #radius = current.mxxl_halo_vir_radius_guess_arcsec / 3600 # arcsec to degrees, like the plot
-            circ = Circle((current.RA,current.Dec), radius, color=get_color(0), alpha=0.10)
+            if target.igrp == current.igrp:
+                circ = Circle((current.RA,current.Dec), radius, color=get_color(1), alpha=0.20)
+            else:
+                circ = Circle((current.RA,current.Dec), radius, color=get_color(0), alpha=0.10)
+            ax.add_patch(circ)
+        if not target.is_sat:
+            radius = target.halo_radius_arcsec / 3600 # arcsec to degrees, like the plot
+            circ = Circle((target.RA,target.Dec), radius, color=get_color(1), alpha=0.20)
             ax.add_patch(circ)
 
         dimalpha = 0.4
@@ -1600,14 +1658,22 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
             plt.scatter(target.RA, target.Dec, s=_getsize(target.z), marker='X', color=get_color(1), label="Target")  
             write_z(target)
 
-        # Add virial radii or MXXL Halos to the target
-        circ = Circle((target.RA,target.Dec), target.halo_radius_arcsec / 3600, color=get_color(1), alpha=0.20)
-        ax.add_patch(circ)
-        
-        plt.xlim(ra_min, ra_max)
-        plt.ylim(dec_min, dec_max)
+        plt.xlim(ra_map_min, ra_map_max)
+        plt.ylim(dec_map_min, dec_map_max)
         plt.xlabel('RA')
         plt.ylabel('Dec')
+        
+        # Custom tick formatter for RA and Dec
+        def deg_to_dms(deg):
+            d = int(deg)
+            m = int((deg - d) * 60)
+            return f"{d}°{m}'"
+
+        ax = plt.gca()
+        ax.set_xticks(np.linspace(ra_min, ra_max, num=8))
+        ax.set_xticklabels([deg_to_dms(tick) for tick in ax.get_xticks()])
+        ax.set_yticks(np.linspace(dec_min, dec_max, num=8))
+        ax.set_yticklabels([deg_to_dms(tick) for tick in ax.get_yticks()])
         plt.legend()
         plt.title(title)
         plt.draw()

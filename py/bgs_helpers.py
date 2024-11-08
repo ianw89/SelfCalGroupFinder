@@ -206,7 +206,7 @@ def create_merged_file(orig_table_file : str, merged_file : str, year : str):
     add_NTILE_MINE_to_table(table, year)
     table.write(merged_file, format='fits', overwrite='True')
 
-    add_photz_columns(merged_file, IAN_PHOT_Z_FILE_WSPEC)
+    add_photz_columns(merged_file, IAN_PHOT_Z_FILE_NOSPEC)
 
 
 def fix_columns_in_phot_z_file(f):

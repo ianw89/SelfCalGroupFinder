@@ -132,7 +132,7 @@ def mode_to_str(mode: Mode):
 
 class AssignedRedshiftFlag(Enum):
     # TODO switch to using this enum
-    PHOTO_Z = -3 # pseudo-randomly assigned redshift using our methods; see paper
+    PHOTO_Z = -3 # photo-z from legacy catalog; see paper
     PSEUDO_RANDOM = -2 # pseudo-randomly assigned redshift using our methods; see paper
     SDSS_SPEC = -1 # spectroscopic redshfit taken from SDSS
     DESI_SPEC = 0 # spectroscopic redshift from DESI
@@ -141,6 +141,11 @@ class AssignedRedshiftFlag(Enum):
     NEIGHBOR_THREE = 3
     NEIGHBOR_FOUR = 4
     NEIGHBOR_FIVE = 5
+    NEIGHBOR_SIX = 6
+    NEIGHBOR_SEVEN = 7
+    NEIGHBOR_EIGHT = 8
+    NEIGHBOR_NINE = 9
+    NEIGHBOR_TEN = 10
 
 def spectroscopic_complete_percent(flags: np.ndarray):
     return np.logical_or(flags == AssignedRedshiftFlag.SDSS_SPEC.value, flags == AssignedRedshiftFlag.DESI_SPEC.value).sum() / len(flags)

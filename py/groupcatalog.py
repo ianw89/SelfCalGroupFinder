@@ -35,7 +35,7 @@ Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1]
 L_gal_bins = np.logspace(6, 12.5, 40)
 L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1]
 
-mstar_bins = np.logspace(6, 13, 40)
+mstar_bins = np.logspace(6, 13, 30)
 mstar_labels = mstar_bins[0:len(mstar_bins)-1]
 
 Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
@@ -164,6 +164,16 @@ class GroupCatalog:
 
         self.f_sat = None # per Lgal bin 
         self.Lgal_counts = None # size of Lgal bins 
+
+    def get_best_wp_all(self):
+        if self.wp_all_extra is not None:
+            return self.wp_all_extra
+        return self.wp_all
+    
+    def get_best_wp_slices(self):
+        if self.wp_slices_extra is not None and np.all(self.wp_slices_extra != None):
+            return self.wp_slices_extra
+        return self.wp_slices
 
     def get_completeness(self):
         return spectroscopic_complete_percent(self.all_data.z_assigned_flag.to_numpy())
@@ -297,23 +307,52 @@ class GroupCatalog:
         else:
             print("Warning: postprocess called with all_data DataFrame is not set yet. Override postprocess() or after calling run_group_finder() set it.")
 
+    def calculate_projected_clustering(self, with_extra_randoms=False):
+        pass
+
+    def calculate_projected_clustering_in_magbins(self, with_extra_randoms=False):
+        pass
+
     def get_true_z_from(self, truth_df: pd.DataFrame):
         """
         Adds a column to the catalog's all_data DataFrame with the true redshifts from the truth_df DataFrame 
         for rows with z_assigned_flag != 0.
         """
+        #self.all_data = self.all_data.convert_dtypes()
+        
         if self.has_truth:
-            print("Warning: get_true_z_from() called but catalog already has truth data. Skipping.")
-            return
+            self.all_data.drop(columns=['z_T', 'L_gal_T', 'logLgal_T', 'g_r_T', 'is_sat_truth', 'Lgal_bin_T', 'target_id_T', 'z_assigned_flag_T'], inplace=True, errors='ignore')
         
         truth_df = truth_df[['target_id', 'z', 'z_assigned_flag', 'L_gal', 'logLgal', 'g_r', 'Lgal_bin', 'is_sat']].copy()
+        truth_df['target_id'] = truth_df['target_id'].astype('Int64')
         truth_df.index = truth_df.target_id
-        self.all_data = self.all_data.join(truth_df, on='target_id', how='left', rsuffix='_T')
+        self.all_data = self.all_data.join(truth_df, on='target_id', how='left', rsuffix='_T', validate="1:1")
+        # I want target_id_T to be int, but there are NaNs in the join, so turn NaN into -1
         rows_to_nan = z_flag_is_not_spectro_z(self.all_data['z_assigned_flag_T'])
         self.all_data.loc[rows_to_nan, 'z_T'] = NO_TRUTH_Z
-        self.all_data.drop(columns=['target_id_T', 'z_assigned_flag_T'], inplace=True)
+        print(f"{np.sum(rows_to_nan)} galaxies to have no truth redshift.")
+        #self.all_data.drop(columns=['target_id_T', 'z_assigned_flag_T'], inplace=True)
         self.all_data.rename(columns={'is_sat_T': 'is_sat_truth'}, inplace=True)
         self.has_truth = True
+
+        # If we failed to match on target_id for most galaxies, let's instead use match_coordinate_sky
+        #if np.sum(rows_to_nan) > 0.5 * len(self.all_data):
+        #    print("Warning: get_true_z_from() failed to match target_id for many galaxies. Falling back to match_coordinate_sky.")
+            # drop the columns we added
+        #    self.all_data.drop(columns=['z_T', 'is_sat_truth'], inplace=True)
+
+            # match on sky coordinates
+        #    coords_catalog = coord.SkyCoord(ra=self.all_data.RA.to_numpy() * u.degree, dec=self.all_data.Dec.to_numpy() * u.degree)
+        #    coords_truth = coord.SkyCoord(ra=truth_df.RA.to_numpy() * u.degree, dec=truth_df.Dec.to_numpy() * u.degree)
+        #    idx, d2d, _ = coord.match_coordinates_sky(coords_catalog, coords_truth, nthneighbor=1)
+        #    matched = d2d < 1 * u.arcsec  # 1 arcsecond tolerance
+
+        #    self.all_data['z_T'] = NO_TRUTH_Z
+        #    self.all_data.loc[matched, 'z_T'] = truth_df.iloc[idx[matched]]['z']
+        #    self.all_data['is_sat_truth'] = 0
+        #    self.all_data.loc[matched, 'is_sat_truth'] = truth_df.iloc[idx[matched]]['is_sat']
+            
+
 
 class SDSSGroupCatalog(GroupCatalog):
     
@@ -745,6 +784,7 @@ class BGSGroupCatalog(GroupCatalog):
         randoms = pickle.load(open(MY_RANDOMS_SV3_MINI, "rb"))
         print(f"Random count / data count = {len(randoms['RA'])} / {len(df)}")
         self.wp_all = wp.calculate_wp_from_df(df, randoms)
+        serialize(self)
 
     
 
@@ -770,8 +810,11 @@ class BGSGroupCatalog(GroupCatalog):
             df['mag_bin'] = np.digitize(df.mag_R, CLUSTERING_MAG_BINS)
 
         if with_extra_randoms:
+            # For some reason this code path hangs... one loop takes way longer than
+            # the full sample with the same number of randoms.
             randoms = pickle.load(open(MY_RANDOMS_SV3, "rb"))
             for i in range(len(CLUSTERING_MAG_BINS)):
+                print(f"Calculating wp for mag bin {i} with extra randoms...")
                 in_z_range = df.z < zmax[i]
                 in_mag_bin = df.mag_bin == i
                 mag_min = CLUSTERING_MAG_BINS[i-1] if i > 0 else CLUSTERING_MAG_BINS[i]
@@ -781,10 +824,12 @@ class BGSGroupCatalog(GroupCatalog):
                 rbins, wp_a, wp_r, wp_b = wp.calculate_wp_from_df(df.loc[rows], randoms)
 
                 self.wp_slices_extra[i] = (rbins, wp_a, wp_r, wp_b, mag_min, mag_max)
+                serialize(self)
 
         randoms = pickle.load(open(MY_RANDOMS_SV3_MINI, "rb"))
 
         for i in range(len(CLUSTERING_MAG_BINS)):
+            print(f"Calculating wp for mag bin {i} with mini randoms...")
             in_z_range = df.z < zmax[i]
             in_mag_bin = df.mag_bin == i
             mag_min = CLUSTERING_MAG_BINS[i-1] if i > 0 else CLUSTERING_MAG_BINS[i]
@@ -794,6 +839,8 @@ class BGSGroupCatalog(GroupCatalog):
             rbins, wp_a, wp_r, wp_b = wp.calculate_wp_from_df(df.loc[rows], randoms)
 
             self.wp_slices[i] = (rbins, wp_a, wp_r, wp_b, mag_min, mag_max)
+        
+        serialize(self)
             
     
     def add_jackknife_err_to_proj_clustering(self, with_extra_randoms=False, for_mag_bins=False):
@@ -1081,7 +1128,7 @@ def get_footprint_fraction(data_cut, mode, num_passes_required):
     elif data_cut == "Y3-Kibo-SV3Cut":
         # Here the data was cut to the SV3 10p footprint. 
         # But the num_passes is now referring to actualy Y3 main survey passes.
-        FOOTPRINT_FRAC_1pass = FOOTPRINT_FRAC_10pass # See the confusion?
+        FOOTPRINT_FRAC_1pass = 124.2812 / DEGREES_ON_SPHERE 
         # Not computed for other situations.
     else:
         print("Invalid data cut. Exiting.")
@@ -1234,7 +1281,8 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     
     # Special version cut to look like SV3 - choose only the ones inside the SV3 footprint
     if data_cut == "Y3-Kibo-SV3Cut":
-        region = tile_to_region(ntid)
+        ntid_sv3 = get_tbl_column(table, 'NEAREST_TILEIDS_SV3', required=True)[:,0] # just need to nearest tile for our purposes
+        region = tile_to_region(ntid_sv3)
         to_remove = np.isin(region, sv3_poor_y3overlap)
         in_good_sv3regions = ~to_remove
         multi_pass_filter = np.all([multi_pass_filter, table['NTILE_MINE_SV3'] >= 10, in_good_sv3regions], axis=0)
