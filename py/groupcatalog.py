@@ -810,26 +810,18 @@ class BGSGroupCatalog(GroupCatalog):
             df['mag_bin'] = np.digitize(df.mag_R, CLUSTERING_MAG_BINS)
 
         if with_extra_randoms:
+            randoms = pickle.load(open(MY_RANDOMS_SV3, "rb"))
             # For some reason this code path hangs... one loop takes way longer than
             # the full sample with the same number of randoms.
-            randoms = pickle.load(open(MY_RANDOMS_SV3, "rb"))
-            for i in range(len(CLUSTERING_MAG_BINS)):
-                print(f"Calculating wp for mag bin {i} with extra randoms...")
-                in_z_range = df.z < zmax[i]
-                in_mag_bin = df.mag_bin == i
-                mag_min = CLUSTERING_MAG_BINS[i-1] if i > 0 else CLUSTERING_MAG_BINS[i]
-                mag_max = CLUSTERING_MAG_BINS[i]
-                rows = in_z_range & in_mag_bin
-
-                rbins, wp_a, wp_r, wp_b = wp.calculate_wp_from_df(df.loc[rows], randoms)
-
-                self.wp_slices_extra[i] = (rbins, wp_a, wp_r, wp_b, mag_min, mag_max)
-                serialize(self)
-
-        randoms = pickle.load(open(MY_RANDOMS_SV3_MINI, "rb"))
+        else:
+            randoms = pickle.load(open(MY_RANDOMS_SV3_MINI, "rb"))
 
         for i in range(len(CLUSTERING_MAG_BINS)):
-            print(f"Calculating wp for mag bin {i} with mini randoms...")
+            txt = "extra" if with_extra_randoms else "mini"
+            if with_extra_randoms and self.wp_slices_extra is not None and self.wp_slices_extra[i] is not None:
+                print(f"Skipping already calculated wp mag bin {i} with {txt} randoms...")
+                continue
+            print(f"Calculating wp for mag bin {i} with {txt} randoms...")
             in_z_range = df.z < zmax[i]
             in_mag_bin = df.mag_bin == i
             mag_min = CLUSTERING_MAG_BINS[i-1] if i > 0 else CLUSTERING_MAG_BINS[i]
@@ -838,9 +830,12 @@ class BGSGroupCatalog(GroupCatalog):
 
             rbins, wp_a, wp_r, wp_b = wp.calculate_wp_from_df(df.loc[rows], randoms)
 
-            self.wp_slices[i] = (rbins, wp_a, wp_r, wp_b, mag_min, mag_max)
-        
-        serialize(self)
+            if with_extra_randoms:
+                self.wp_slices_extra[i] = (rbins, wp_a, wp_r, wp_b, mag_min, mag_max)
+            else:
+                self.wp_slices[i] = (rbins, wp_a, wp_r, wp_b, mag_min, mag_max)
+
+            serialize(self)
             
     
     def add_jackknife_err_to_proj_clustering(self, with_extra_randoms=False, for_mag_bins=False):

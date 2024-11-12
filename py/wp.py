@@ -6,6 +6,7 @@ import numpy as np
 from Corrfunc.utils import convert_rp_pi_counts_to_wp
 from Corrfunc.mocks import DDrppi_mocks
 import astropy.constants as const
+import random
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -94,20 +95,20 @@ def calculate_wp_from_df(df: pd.DataFrame, randoms):
         df.RA.to_numpy(), 
         df.Dec.to_numpy(),  
         cz, 
-        randoms['RA'],
-        randoms['Dec'])
+        randoms.RA.to_numpy(),
+        randoms.Dec.to_numpy())
     rbins, wp_red = calculate_wp(
         df.loc[df.quiescent].RA.to_numpy(),
         df.loc[df.quiescent].Dec.to_numpy(),
         cz[df.quiescent],
-        randoms['RA'],
-        randoms['Dec'])
+        randoms.RA.to_numpy(),
+        randoms.Dec.to_numpy())
     rbins, wp_blue = calculate_wp(
         df.loc[~df.quiescent].RA.to_numpy(),
         df.loc[~df.quiescent].Dec.to_numpy(),
         cz[~df.quiescent],
-        randoms['RA'],
-        randoms['Dec'])
+        randoms.RA.to_numpy(),
+        randoms.Dec.to_numpy())
 
     return (rbins, wp_all, wp_red, wp_blue)
 
@@ -116,10 +117,25 @@ def calculate_wp(data_ra, data_dec, data_cz, rand_ra, rand_dec, rand_cz=None, we
     Calculate the projected correlation function wp(rp) for a given data set and randoms using 
     our canonical set of parameters.
     """
+    ratio = len(rand_ra) / len(data_ra)
+    print(f"Calculate wp: {len(data_ra)} data points, {len(rand_ra)} random points. {ratio} ratio")
+    g = np.random.Generator(np.random.PCG64())
+    if ratio < 50:
+        print("WARNING: The ratio of randoms to data points is less than 50.")
+
+    if ratio > 500: 
+        # Reduce the number of randoms to 500x the number of data points
+        rand_idx = g.choice(len(rand_ra), size=500*len(data_ra), replace=False)
+        rand_ra = rand_ra[rand_idx]
+        rand_dec = rand_dec[rand_idx]
+        if rand_cz is not None:
+            rand_cz = rand_cz[rand_idx]
+
+        print(f"Reduced randoms to {len(rand_ra)} points")
 
     # Random's redshifts should be just like the sample's
     if rand_cz is None:
-        rand_cz = np.random.choice(data_cz, size=len(rand_ra), replace=True)
+        rand_cz = g.choice(data_cz, size=len(rand_ra), replace=True)
 
     DD_counts = DDrppi_mocks(1, COSMOLOGY, NTHREADS, PIMAX, RBINS, data_ra, data_dec, data_cz, weights1=weights1)
     DR_counts = DDrppi_mocks(0, COSMOLOGY, NTHREADS, PIMAX, RBINS, data_ra, data_dec, data_cz, RA2=rand_ra, DEC2=rand_dec, CZ2=rand_cz, weights1=weights1, weights2=weights2)
