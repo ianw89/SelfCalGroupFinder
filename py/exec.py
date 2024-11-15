@@ -6,7 +6,7 @@ import concurrent.futures
 from multiprocessing import Pool
 
 # EXAMPLE USAGE
-# nohup python exec.py 6 > exec6.out &
+# nohup python exec.py 9 > exec9.out &
 
 
 if './SelfCalGroupFinder/py/' not in sys.path:
@@ -37,15 +37,20 @@ callable_list = [
     cat.bgs_sv3_list, #6
     cat.bgs_y1_list, #7
     cat.bgs_y3_list, #8
+    [cat.bgs_y3_like_sv3_pz_2_4] #9
 ]
 
 def process_gc(gc: GroupCatalog):
     name = gc.name
     print(f"***** process_gc({name}) start *****")
-    #gc = deserialize(d)
+    #gc = deserialize(gc)
     gc.run_group_finder()
     gc.postprocess()
     #d.run_corrfunc()
+    gc.calculate_projected_clustering(with_extra_randoms=True) # 15m
+    gc.calculate_projected_clustering_in_magbins(with_extra_randoms=True) # 45m maybe?
+    
+    #gc.add_jackknife_err_to_proj_clustering(with_extra_randoms=True, for_mag_bins=True)
     gc.dump()
     del(gc)
     print(f"+++++ process_gc({name}) done +++++")
@@ -129,6 +134,5 @@ if __name__ == "__main__":
         to_add = int(sys.argv[1])
         datasets_to_run.extend(callable_list[to_add])
 
-    # Winner
     asyncio.run(main_serial())
     #asyncio.run(main_threaded_parallel())

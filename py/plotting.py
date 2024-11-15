@@ -13,12 +13,13 @@ from groupcatalog import *
 # np.array(zip(*[line.split() for line in f])[1], dtype=float)
 
 
-DPI = 200
+DPI = 400
 FONT_SIZE_DEFAULT = 12
 
 LGAL_XMINS = [6E7]#[6E7, 3E8]
 
 LGAL_MIN = 6E7
+LGAL_MAX_TIGHT = 1E11
 LGAL_MAX = 2E11
 
 MSTAR_MIN = 1E7
@@ -247,7 +248,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
     ax2.set_yscale('log')
     fig.tight_layout()
 
-    X_MAX = 1E11
+    X_MAX = LGAL_MAX_TIGHT
 
     # ALL fsat vs Lgal 
     for xmin in LGAL_XMINS:
@@ -255,7 +256,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         fig.set_dpi(DPI)
         for f in catalogs:
             if f is show_err:
-                plt.errorbar(f.L_gal_labels, f.f_sat, yerr=f.f_sat_err, label=get_dataset_display_name(f), color=f.color)
+                plt.errorbar(f.L_gal_labels, f.f_sat, marker='.', linestyle='none', yerr=f.f_sat_err, label=get_dataset_display_name(f), color=f.color)
             else:
                 plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=get_dataset_display_name(f), color=f.color)
         if truth_on:
@@ -280,7 +281,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         fig.set_dpi(DPI)
         for f in catalogs:
             if f is show_err:
-                plt.errorbar(f.L_gal_labels, f.f_sat_sf, yerr=f.f_sat_sf_err, label=get_dataset_display_name(f), color=f.color)
+                plt.errorbar(f.L_gal_labels, f.f_sat_sf, marker='.', linestyle='none', yerr=f.f_sat_sf_err, label=get_dataset_display_name(f), color=f.color)
             else:
                 plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, color=f.color, label=get_dataset_display_name(f))
 
@@ -302,7 +303,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         fig.set_dpi(DPI)
         for f in catalogs:
             if f is show_err:
-                plt.errorbar(f.L_gal_labels, f.f_sat_q, yerr=f.f_sat_q_err, label=get_dataset_display_name(f), color=f.color)
+                plt.errorbar(f.L_gal_labels, f.f_sat_q, marker='.', linestyle='none', yerr=f.f_sat_q_err, label=get_dataset_display_name(f), color=f.color)
             else:
                 plt.plot(f.L_gal_labels, f.f_sat_q, f.marker, color=f.color, label=get_dataset_display_name(f))
 
@@ -406,7 +407,7 @@ def compare_wp_rp(d1: BGSGroupCatalog, d2_t: BGSGroupCatalog):
         ax.plot(d1.get_best_wp_all()[0][:-1], percent_diff_b, marker='o', linestyle='-', color='blue', label=f'Blue {label}')
         
         ax.set_xscale('log')
-        ax.set_ylim(-15, 15)
+        ax.set_ylim(-25, 25)
         ax.set_yscale('linear')
         ax.set_xlabel(r'$r_p$ [Mpc/h]')
         ax.set_ylabel(r'$w_p(r_p)$ Difference (%)')
@@ -416,11 +417,11 @@ def compare_wp_rp(d1: BGSGroupCatalog, d2_t: BGSGroupCatalog):
     plot_fractional_difference(ax, d1.get_best_wp_all()[1], d2_t.get_best_wp_all()[1], d1.get_best_wp_all()[2], d2_t.get_best_wp_all()[2], d1.get_best_wp_all()[3], d2_t.get_best_wp_all()[3], 'Flux-limited')
     
     # Show a shaded region for the error in the d2 set. 
-    ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_err/d2_t.get_best_wp_all()[1], -100*d2_t.wp_err/d2_t.get_best_wp_all()[1], color='black', alpha=0.2)
+    #ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_err/d2_t.get_best_wp_all()[1], -100*d2_t.wp_err/d2_t.get_best_wp_all()[1], color='black', alpha=0.2)
     ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_r_err/d2_t.get_best_wp_all()[2], -100*d2_t.wp_r_err/d2_t.get_best_wp_all()[2], color='red', alpha=0.25)
     ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_b_err/d2_t.get_best_wp_all()[3], -100*d2_t.wp_b_err/d2_t.get_best_wp_all()[3], color='blue', alpha=0.25)
     
-    ax.set_title('$w_p(r_p)$ Fractional Difference')
+    ax.set_title(f'$\Delta w_p(r_p)$ - {d1.name}')
     plt.legend()
 
     plt.tight_layout()
@@ -756,19 +757,16 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
     groupby_property = 'Mstar_bin' if mstar else 'Lgal_bin'
-    label_property = 'L_gal_labels' if mstar else 'Mstar_labels'
+    label_property = 'Mstar_labels' if mstar else 'L_gal_labels'
     for f in datasets:
         data = f.all_data.loc[np.all([~f.all_data.is_sat], axis=0)]
         if test_methods:
-            if not hasattr(f, 'qf_gmr'):
-                f.qf_gmr = f.centrals.groupby(groupby_property, observed=False).apply(qf_BGS_gmr_vmax_weighted)
-            if not hasattr(f, 'qf_dn4000'):
-                f.qf_dn4000 = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
-                f.qf_dn4000_hard = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_1_6_vmax_weighted)
-            
-            plt.plot(getattr(f, label_property), f.qf_gmr, '.', label=f'0.1^(g-r) < {GLOBAL_RED_COLOR_CUT}', color='b')
-            plt.plot(getattr(f, label_property), f.qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
-            plt.plot(getattr(f, label_property), f.qf_dn4000_hard, '-', label='Dn4000 > 1.6', color='r')
+            qf_gmr = f.centrals.groupby(groupby_property, observed=False).apply(qf_BGS_gmr_vmax_weighted)
+            qf_dn4000 = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
+            qf_dn4000_hard = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_1_6_vmax_weighted)
+            plt.plot(getattr(f, label_property), qf_gmr, '.', label=f'0.1^(g-r) < {GLOBAL_RED_COLOR_CUT}', color='b')
+            plt.plot(getattr(f, label_property), qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
+            plt.plot(getattr(f, label_property), qf_dn4000_hard, '-', label='Dn4000 > 1.6', color='r')
         else:
            plt.plot(getattr(f, label_property), data.groupby(groupby_property, observed=False).apply(qf_vmax_weighted), f.marker, label=get_dataset_display_name(f), color=f.color)
 
@@ -943,16 +941,69 @@ def group_finder_centrals_halo_masses_plots(all_df, comparisons):
 # Luminosity Funcions
 ##################################
 
+def Lfunc_compare(cat1, cat2):
+    """
+    TODO BUG Incomplete.
+    Compare the luminosity functions of two catalogs. Shows a % difference plot for total, red, and blue galaxies.
+    The total count of galaxies is scaled to be the same in the two catalogs (for overall, red, blue seperately) so only the relative difference in Lfunc is shown.
+    """
+    fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    fig.set_dpi(DPI)
+    one = cat1.all_data
+    two = cat2.all_data
+
+    # Calculate the luminosity functions for both catalogs
+    counts1 = one.groupby('Lgal_bin').size()
+    counts2 = two.groupby('Lgal_bin').size()
+
+    # Normalize the counts to the same total number of galaxies
+    norm_counts1 = counts1 / counts1.sum()
+    norm_counts2 = counts2 / counts2.sum()
+
+    # Calculate the percentage difference
+    percent_diff = 100 * (norm_counts1 - norm_counts2) / norm_counts2
+
+    # Plot the percentage difference
+    ax.plot(cat1.L_gal_labels, percent_diff, label='Total', color='black')
+
+    # Repeat for red and blue galaxies
+    counts1_red = one[one.quiescent].groupby('Lgal_bin').size()
+    counts2_red = two[two.quiescent].groupby('Lgal_bin').size()
+    norm_counts1_red = counts1_red / counts1_red.sum()
+    norm_counts2_red = counts2_red / counts2_red.sum()
+    percent_diff_red = 100 * (norm_counts1_red - norm_counts2_red) / norm_counts2_red
+    ax.plot(cat1.L_gal_labels, percent_diff_red, label='Red', color='red')
+
+    counts1_blue = one[~one.quiescent].groupby('Lgal_bin').size()
+    counts2_blue = two[~two.quiescent].groupby('Lgal_bin').size()
+    norm_counts1_blue = counts1_blue / counts1_blue.sum()
+    norm_counts2_blue = counts2_blue / counts2_blue.sum()
+    percent_diff_blue = 100 * (norm_counts1_blue - norm_counts2_blue) / norm_counts2_blue
+    ax.plot(cat1.L_gal_labels, percent_diff_blue, label='Blue', color='blue')
+
+    ax.set_xscale('log')
+    ax.set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
+    ax.set_ylabel('% Difference in counts')
+    ax.legend()
+    ax.set_xlim(LGAL_MIN, LGAL_MAX)
+    ax.set_ylim(-35, 35)
+    ax.axhline(0, color='black', lw=1)
+    fig.tight_layout()
+
+
 def luminosity_function_plots(*catalogs):
     
     #x = L_gal_labels # bins if ising cic code
-    x = np.logspace(8, 11, 16) # bins if ising cic code
+    x = np.logspace(8, 11, 16) # bins if using cic code
 
     obs_counts = np.zeros((len(catalogs), len(x)))
     lost_truth_counts = np.zeros((len(catalogs), len(x)))
     lost_assumed_counts = np.zeros((len(catalogs), len(x)))
     obs_vs_losttruth = np.zeros((len(catalogs), len(x)))
     assumed_vs_truth = np.zeros((len(catalogs), len(x)))
+    total_counts = np.zeros((len(catalogs), len(x)))
+    total_r_counts = np.zeros((len(catalogs), len(x)))
+    total_b_counts = np.zeros((len(catalogs), len(x)))
     boost = []
 
     for i in range(len(catalogs)):
@@ -970,6 +1021,9 @@ def luminosity_function_plots(*catalogs):
         assert closeness.sum() / len(closeness) > .98, f"{1 - (closeness.sum() / len(closeness))} of the galaxies have different z and z_T despite being spectrocopically observed."
         #assert np.isclose(obs_galaxies.L_gal, obs_galaxies.L_gal_T).all()
 
+        if len(lost_withT_galaxies) == 0:
+            boost.append(1)
+            continue
         boost.append(len(obs_galaxies) / len(lost_withT_galaxies))
 
         # Non CIC way looks quite different...
@@ -977,6 +1031,9 @@ def luminosity_function_plots(*catalogs):
         #lost_truth_counts[i] = lost_withT_galaxies.groupby('Lgal_bin_T', observed=False).size()
         #lost_assumed_counts[i] = lost_withT_galaxies.groupby('Lgal_bin', observed=False).size()
 
+        total_counts[i] = nn.cic_binning(data['L_gal'].to_numpy(), [x])
+        total_r_counts[i] = nn.cic_binning(data.loc[data.quiescent, 'L_gal'].to_numpy(), [x])
+        total_b_counts[i] = nn.cic_binning(data.loc[~data.quiescent, 'L_gal'].to_numpy(), [x])
         obs_counts[i] = nn.cic_binning(obs_galaxies['L_gal'].to_numpy(), [x])
         lost_truth_counts[i] = nn.cic_binning(lost_withT_galaxies['L_gal_T'].to_numpy(), [x])
         lost_assumed_counts[i] = nn.cic_binning(lost_withT_galaxies['L_gal'].to_numpy(), [x])
@@ -1002,12 +1059,17 @@ def luminosity_function_plots(*catalogs):
             print(f"Red:  \nObseved: {obs_red_counts} \nLost (truth): {lost_truth_red_counts} \nLost (assumed): {lost_assumed_red_counts}")
             print(f"Blue: \nObseved: {obs_blue_counts} \nLost (truth): {lost_truth_blue_counts} \nLost (assumed): {lost_assumed_blue_counts}")
 
-        plt.figure()
+        plt.figure(dpi=DPI)
+        plt.plot(x, total_counts[i], color='k', label='Total galaxies')
+        plt.plot(x, total_r_counts[i], color='r', label='Total quiescent')
+        plt.plot(x, total_b_counts[i], color='b', label='Total star-forming')
+
+        plt.figure(dpi=DPI)
         plt.plot(x, obs_counts[i], color='b', label='Obs galaxies')
         plt.plot(x, lost_truth_counts[i]*boost[i], color='g', label='Lost gals (True)')
         plt.plot(x, lost_assumed_counts[i]*boost[i], color='orange', label='Lost gals (Assumed)')
         plt.legend()
-        plt.title("Luminosity Functions - " + catalog.name)
+        plt.title("$\Phi(L)$ - " + catalog.name)
         plt.yscale('log')
         plt.xscale('log')
         plt.xlim(LGAL_MIN, LGAL_MAX)
@@ -1015,10 +1077,10 @@ def luminosity_function_plots(*catalogs):
         plt.draw()
 
         # Split by quiescent and star-forming
-        plt.figure()
-        plt.plot(x, assumed_vs_truth_red, color='r', label='Quiescent ' + catalog.name)
-        plt.plot(x, assumed_vs_truth_blue, color='b', label='Star-forming ' + catalog.name)
-        plt.title("Lost (truth) => Lost (assumed) Luminosity Function")
+        plt.figure(dpi=DPI)
+        plt.plot(x, assumed_vs_truth_red, color='r', label=f'Quiescent ({catalog.name})')
+        plt.plot(x, assumed_vs_truth_blue, color='b', label=f'Star-forming ({catalog.name})')
+        plt.title("Lost $\Phi_{Truth}(L)$ -> $\Phi_{Assumed}(L)$ - " + catalog.name)
         plt.xlabel('$L_{gal}$')
         plt.ylabel("% Change in counts")
         plt.xscale('log')
@@ -1028,7 +1090,7 @@ def luminosity_function_plots(*catalogs):
         plt.axhline(0, color='black', lw=1)
         plt.draw()
 
-    plt.figure()
+    plt.figure(dpi=DPI)
     for i in range(len(catalogs)):
         plt.plot(x, obs_vs_losttruth[i], label=f"{catalogs[i].name}")
     plt.title("Obs => Lost (Truth) Luminosity Function")
@@ -1041,7 +1103,7 @@ def luminosity_function_plots(*catalogs):
     plt.axhline(0, color='black', lw=1)
     plt.draw()
 
-    plt.figure()
+    plt.figure(dpi=DPI)
     for i in range(len(catalogs)):
         plt.plot(x , assumed_vs_truth[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
     plt.title("Lost (truth) => Lost (assumed) Luminosity Function")
@@ -1126,14 +1188,14 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     # Plotting the results
     labels = [s.name for s in sets]
     x = np.arange(len(labels))  # the label locations
-    width = 1/5  # the width of the bars
+    width = 1/3  # the width of the bars
 
-    fig, ax = plt.subplots(figsize=(10, 9))
-    rects1 = ax.bar(x - 2*width, scores_all_lost, width, label='% Powerlaw Score (All Lost)')
-    rects3 = ax.bar(x - width  , scores_n_only, width, label='% Powerlaw Score (N-assigned Only)')
-    rects2 = ax.bar(x          , rounded_tophat, width, label='% exp Tophat (All Lost)')
-    #rects5 = ax.bar(x + width, scores_metric3, width, label='Metric 3')
-    rects5 = ax.bar(x + width, scores_metric4, width, label='Metric 4')
+    fig, ax = plt.subplots(figsize=(8, 7), dpi=DPI)
+    rects1 = ax.bar(x - width, scores_all_lost, width, label='% Powerlaw Score (All Lost)', color=get_color(0))
+    #rects3 = ax.bar(x - width  , scores_n_only, width, label='% Powerlaw Score (N-assigned Only)', color=get_color(1))
+    rects2 = ax.bar(x          , rounded_tophat, width, label='% exp Tophat (All Lost)', color=get_color(2))
+    #rects5 = ax.bar(x + width, scores_metric3, width, label='Metric 3', color=get_color(3))
+    #rects5 = ax.bar(x + width, scores_metric4, width, label='Metric 4', color=get_color(3))
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax.set_xlabel('Catalogs')
@@ -1161,11 +1223,17 @@ def build_interior_bin_labels(bin_edges):
         labels.append(f"{bin_edges[i]:.2e} - {bin_edges[i+1]:.2e}")
     return labels
 
-def test_purity_and_completeness(*catalogs: GroupCatalog, color=None, lost_only=False):
+def test_purity_and_completeness(*catalogs: GroupCatalog, truth_catalog: GroupCatalog, color=None, lost_only=False):
+    
+    # Source of truth. Throw away non-spectroscopic targets from it.
+    truth_df = truth_catalog.all_data.loc[z_flag_is_spectro_z(truth_catalog.all_data['z_assigned_flag'])]
 
     for s in catalogs:
+        s.get_true_z_from(truth_catalog.all_data)
+        s.refresh_df_views()
+
         good_rows = s.all_data['z_T'] != NO_TRUTH_Z
-        print(f"Missing truth on {len(s.all_data) - np.sum(good_rows)} galaxies")
+        #print(f"Missing truth on {len(s.all_data) - np.sum(good_rows)} galaxies")
         if lost_only:
             good_rows = np.logical_and(good_rows, z_flag_is_not_spectro_z(s.all_data['z_assigned_flag']))
 
@@ -1173,30 +1241,37 @@ def test_purity_and_completeness(*catalogs: GroupCatalog, color=None, lost_only=
             good_rows = np.logical_and(good_rows, s.all_data['quiescent'].astype(bool) == color)
 
         data = s.all_data.loc[good_rows]
-        print(get_dataset_display_name(s), f"({len(data)})")
+        print(f"-=={get_dataset_display_name(s)}==-", f"({len(data)})")
 
         #if not s.has_truth:
         #    data['is_sat_truth'] = np.logical_or(data.galaxy_type == 1, data.galaxy_type == 3)
 
-        # No 1/vmax weightings for these sums as we're just trying to calculate the purity/completeness
-        # of our sample
+        # No 1/vmax for these sums as we're just trying to calculate the purity/completeness of our sample
 
+        # Of all the assigned sats, how many are actually sats?
         assigned_sats = data.loc[data.is_sat.astype(bool)]
         print(f"Purity of sats: {np.sum(assigned_sats.is_sat_truth) / len(assigned_sats.index):.3f}")
 
+        # Of all the sats in the truth catalog, how many were found?
         true_sats = data.loc[data.is_sat_truth.astype(bool)]
-        print(f"Completeness of sats: {np.sum(true_sats.is_sat) / len(true_sats.index):.3f}")
+        sats_in_truthcat = truth_df.loc[truth_df.is_sat.astype(bool)]
+        print(f"Completeness of sats: {np.sum(true_sats.is_sat) / len(sats_in_truthcat.index):.3f}")
 
+        # Of all the assigned centrals, how many are actually centrals?
         assigned_centrals = data.loc[~data.is_sat.astype(bool)]
-        print(f"Purity of centrals: {1 - (np.sum(assigned_centrals.is_sat_truth) / len(assigned_centrals.index)):.3f}")
+        print(f"Purity of centrals: {np.sum(~assigned_centrals.is_sat_truth.astype(bool)) / len(assigned_centrals.index):.3f}")
 
+        # Of all the centrals in the truth catalog, how many were found?
         true_centrals = data.loc[~data.is_sat_truth.astype(bool)]
-        print(f"Completeness of centrals: {1 - (np.sum(true_centrals.is_sat) / len(true_centrals.index)):.3f}")
-
-        # TODO proofread below
-        #nn.cic_binning(assigned_sats['L_gal'].to_numpy(), [x])
+        centrals_in_truthcat = truth_df.loc[~truth_df.is_sat.astype(bool)]
+        print(f"Completeness of centrals: {np.sum(~true_centrals.is_sat.astype(bool)) / len(centrals_in_truthcat.index):.3f}")
 
         aggregation_column = 'Lgal_bin_T'
+        aggregation_column_t = 'Lgal_bin'
+
+        # TODO update below to use these instead
+        sats_in_truthcat_g = sats_in_truthcat.groupby(aggregation_column_t, observed=False).size().to_numpy()
+        centrals_in_truthcat_g = centrals_in_truthcat.groupby(aggregation_column_t, observed=False).size().to_numpy()
 
         assigned_true_sats = assigned_sats.loc[assigned_sats.is_sat_truth.astype(bool)]
         assigned_sats_g = assigned_sats.groupby(aggregation_column, observed=False).size().to_numpy()
@@ -1208,8 +1283,8 @@ def test_purity_and_completeness(*catalogs: GroupCatalog, color=None, lost_only=
         true_sats_assigned = true_sats.loc[true_sats.is_sat.astype(bool)]
         true_sats_g = true_sats.groupby(aggregation_column, observed=False).size().to_numpy()
         true_sats_correct_g = true_sats_assigned.groupby(aggregation_column, observed=False).size().to_numpy()
-        s.keep2=np.nonzero(true_sats_g)
-        s.completeness_g = true_sats_correct_g[s.keep2] / true_sats_g[s.keep2]
+        s.keep2=np.nonzero(sats_in_truthcat_g)
+        s.completeness_g = true_sats_correct_g[s.keep2] / sats_in_truthcat_g[s.keep2]
 
         assigned_true_centrals = assigned_centrals.loc[~(assigned_centrals.is_sat_truth.astype(bool))]
         assigned_centrals_g = assigned_centrals.groupby(aggregation_column, observed=False).size().to_numpy()
@@ -1220,43 +1295,59 @@ def test_purity_and_completeness(*catalogs: GroupCatalog, color=None, lost_only=
         true_centrals_assigned = true_centrals.loc[~(true_centrals.is_sat.astype(bool))]
         true_centrals_g = true_centrals.groupby(aggregation_column, observed=False).size().to_numpy()
         true_centrals_correct_g = true_centrals_assigned.groupby(aggregation_column, observed=False).size().to_numpy()
-        s.keep4=np.nonzero(true_centrals_g)
-        s.completeness_c_g = true_centrals_correct_g[s.keep4] / true_centrals_g[s.keep4]
+        s.keep4=np.nonzero(centrals_in_truthcat_g)
+        s.completeness_c_g = true_centrals_correct_g[s.keep4] / centrals_in_truthcat_g[s.keep4]
 
 
 def purity_complete_plots(*sets):
     plt.rcParams.update({'font.size': 14})
 
-    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 8))
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(11, 8))
     fig.set_dpi(DPI/2)
 
     XMIN = LGAL_MIN
-    XMAX = LGAL_MAX
+    XMAX = LGAL_MAX_TIGHT
 
     axes[1][0].set_title('Satellite Purity')
     axes[1][0].set_xscale('log')
     axes[1][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[1][0].set_xlim(XMIN,XMAX)
     axes[1][0].set_ylim(0.0,1.0)
+    ax2=axes[1][0].twiny()
+    ax2.plot(Mr_gal_bins[sets[0].keep], sets[0].purity_g, ls="") #just to get it to show up
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(XMIN)), log_solar_L_to_abs_mag_r(np.log10(XMAX)))
+    ax2.set_xlabel("$M_r$ - 5log(h)")
 
     axes[1][1].set_title('Satellite Completeness')
     axes[1][1].set_xscale('log')
     axes[1][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[1][1].set_xlim(XMIN,XMAX)
     axes[1][1].set_ylim(0.0,1.0)
+    ax2=axes[1][1].twiny()
+    ax2.plot(Mr_gal_bins[sets[0].keep2], sets[0].completeness_g, ls="") #just to get it to show up
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(XMIN)), log_solar_L_to_abs_mag_r(np.log10(XMAX)))
+    ax2.set_xlabel("$M_r$ - 5log(h)")
 
     axes[0][0].set_title('Central Purity')
     axes[0][0].set_xscale('log')
     axes[0][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[0][0].set_xlim(XMIN,XMAX)
     axes[0][0].set_ylim(0.0,1.0)
+    ax2=axes[0][0].twiny()
+    ax2.plot(Mr_gal_bins[sets[0].keep3], sets[0].purity_c_g, ls="") #just to get it to show up
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(XMIN)), log_solar_L_to_abs_mag_r(np.log10(XMAX)))
+    ax2.set_xlabel("$M_r$ - 5log(h)")
 
     axes[0][1].set_title('Central Completeness')
     axes[0][1].set_xscale('log')
     axes[0][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[0][1].set_xlim(XMIN,XMAX)
     axes[0][1].set_ylim(0.0,1.0)
-
+    ax2=axes[0][1].twiny()
+    ax2.plot(Mr_gal_bins[sets[0].keep4], sets[0].completeness_c_g, ls="") #just to get it to show up
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(XMIN)), log_solar_L_to_abs_mag_r(np.log10(XMAX)))
+    ax2.set_xlabel("$M_r$ - 5log(h)")
+                   
     for s in sets:
         axes[1][0].plot(s.L_gal_bins[s.keep], s.purity_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
         axes[1][1].plot(s.L_gal_bins[s.keep2], s.completeness_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
@@ -1264,23 +1355,27 @@ def purity_complete_plots(*sets):
         axes[0][1].plot(s.L_gal_bins[s.keep4], s.completeness_c_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
     
     axes[0][0].legend()
-    fig.tight_layout()
 
+    # Grids on
+    for ax in axes.flatten():
+        ax.grid(True)
+
+    fig.tight_layout()
 
     font_restore()
 
     # Make just the satellite purity plot on its own
-    plt.figure(dpi=DPI)
-    for s in sets:
-        plt.plot(s.L_gal_bins[s.keep], s.purity_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
+    #plt.figure(dpi=DPI)
+    #for s in sets:
+    #    plt.plot(s.L_gal_bins[s.keep], s.purity_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
 
-    plt.xscale('log')
-    plt.xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
-    plt.ylabel('Satellite Purity')
-    plt.legend()
-    plt.xlim(XMIN,XMAX)
-    plt.ylim(0.0,1.0)
-    plt.tight_layout()
+    #plt.xscale('log')
+    #plt.xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
+    #plt.ylabel('Satellite Purity')
+    #plt.legend()
+    #plt.xlim(XMIN,XMAX)
+    #plt.ylim(0.0,1.0)
+    #plt.tight_layout()
 
 
 

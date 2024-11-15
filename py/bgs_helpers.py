@@ -119,13 +119,17 @@ def read_fastspecfit_y1_reduced():
     hdul = fits.open(BGS_FASTSPEC_FILE, memmap=True)
     #print(hdul[1].columns)
     data = hdul[1].data
-    fastspecfit_id = data['TARGETID']
-    DN4000 = data['DN4000'] # TODO there is also DN4000_OBS and DN4000_MODEL (and inverse variance)
-    FSF_G = data['ABSMAG01_SDSS_G']
-    FSF_R = data['ABSMAG01_SDSS_R']
+    # TODO there is also DN4000_OBS and DN4000_MODEL (and inverse variance)
+    fastspecfit_table = Table([
+        data['TARGETID'], 
+        data['DN4000'], 
+        data['ABSMAG01_SDSS_G'], 
+        data['ABSMAG01_SDSS_R'], 
+        data['SFR'], 
+        data['LOGMSTAR']
+        ], 
+        names=('TARGETID', 'DN4000', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'SFR', 'LOGMSTAR'))
     hdul.close()
-
-    fastspecfit_table = Table([fastspecfit_id, DN4000, FSF_G, FSF_R], names=('TARGETID', 'DN4000', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R'))
     return fastspecfit_table
 
 def add_fastspecfit_columns(main_table):

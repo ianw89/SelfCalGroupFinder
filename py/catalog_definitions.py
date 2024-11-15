@@ -280,7 +280,7 @@ bgs_sv3_pz_1_10p.color = [0.0, 1.0, 1.0]
 bgs_sv3_pz_2_4_10p = BGSGroupCatalog("Photo-z Plus v2.4 BGS sv3 10pass", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, data_cut='sv3', sdss_fill=True, extra_params=
  (8, [1.2938, 1.5467, 3.0134], [1.2229, 0.8628, 2.5882], [0.8706, 0.6126, 2.4447], [1.1163, 1.2938, 3.1650]))
 bgs_sv3_pz_2_4_10p.GF_props = GF_PROPS_VANILLA.copy()
-bgs_sv3_pz_2_4_10p.color = [0.0, 1.0, 1.0]
+bgs_sv3_pz_2_4_10p.color = 'k'
 
 bgs_sv3_pz_1_0_7p = BGSGroupCatalog("Photo-z Plus v1 BGS sv3 7pass", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, extra_params=(5, (0.8, 1.0, 4.5, 4.0)))
 bgs_sv3_pz_1_0_7p.GF_props = GF_PROPS_VANILLA.copy()
@@ -328,7 +328,15 @@ bgs_y3_like_sv3_pz_2_4.color ='slateblue'
 
 bgs_y3_like_sv3_fiberonly = BGSGroupCatalog("Observed BGS Y3 like-sv3", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=1, data_cut='Y3-Kibo-SV3Cut', sdss_fill=False)
 bgs_y3_like_sv3_fiberonly.GF_props = GF_PROPS_VANILLA.copy()
-bgs_y3_like_sv3_fiberonly.color ='blue'
+bgs_y3_like_sv3_fiberonly.color ='orange'
+
+bgs_y3_like_sv3_pz_2_0 = BGSGroupCatalog("Photo-z Plus v2.0 BGS Y3 like-sv3", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=1, data_cut='Y3-Kibo-SV3Cut', sdss_fill=False, extra_params=(1, [0.0, 0.0, 3.0]))
+bgs_y3_like_sv3_pz_2_0.GF_props = GF_PROPS_VANILLA.copy()
+bgs_y3_like_sv3_pz_2_0.color ='red'
+
+bgs_y3_like_sv3_nn = BGSGroupCatalog("Nearest Neighbor BGS Y3 like-sv3", Mode.NEAREST_NEIGHBOR, 19.5, 21.0, num_passes=1, data_cut='Y3-Kibo-SV3Cut', sdss_fill=False)
+bgs_y3_like_sv3_nn.GF_props = GF_PROPS_VANILLA.copy()
+bgs_y3_like_sv3_nn.color ='green'
 
 bgs_sv3_fiberonly_10p = BGSGroupCatalog("Observed BGS sv3 10pass", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=10, data_cut='sv3')
 bgs_sv3_fiberonly_10p.GF_props = GF_PROPS_VANILLA.copy()
@@ -435,7 +443,9 @@ bgs_sv3_list : list[GroupCatalog] = [
     bgs_sv3_pz_3_1_7p,
     
     bgs_y3_like_sv3_pz_2_4,
-    bgs_y3_like_sv3_fiberonly
+    bgs_y3_like_sv3_fiberonly,
+    bgs_y3_like_sv3_pz_2_0,
+    bgs_y3_like_sv3_nn,
 ]
 bgs_y1_list : list[GroupCatalog] = [
     bgs_y1_pz_2_4,

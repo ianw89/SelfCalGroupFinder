@@ -1057,6 +1057,7 @@ def is_quiescent_BGS_smart(logLgal, Dn4000, gmr):
     indicating if the galaxies are quiescent using 2010.02946 eq 1
     """
     Dcrit = get_SDSS_Dcrit(logLgal)
+    print(f"Dn4000 missing for {np.mean(np.isnan(Dn4000)):.1%}")
     return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
 
 # This is read off of a 0.1^G-R plot I made using GAMA polynomial k-corr

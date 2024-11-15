@@ -38,6 +38,7 @@ L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1]
 mstar_bins = np.logspace(6, 13, 30)
 mstar_labels = mstar_bins[0:len(mstar_bins)-1]
 
+Mr_gal_bins = log_solar_L_to_abs_mag_r(np.log10(L_gal_bins))
 Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
 
 # I built this list of tiles by looking at https://www.legacysurvey.org/viewer-desi and viewing DESI EDR tiles (look for SV3)
@@ -952,6 +953,7 @@ def get_extra_bgs_fastspectfit_data():
         fastspecfit_id = data['TARGETID']
         log_mstar = data['LOGMSTAR'].astype("<f8")
         mstar = np.power(10, log_mstar)
+        #Dn4000 = data['DN4000'].astype("<f8")
         hdul.close()
 
         df = pd.DataFrame({'target_id': fastspecfit_id, 'mstar': mstar})
