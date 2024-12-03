@@ -230,16 +230,16 @@ _cat.marker = '-'
 _cat.color = 'k'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_y1_pz_2_4 = BGSGroupCatalog("Photo-z Plus v2.4 BGS Y1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=
+bgs_y1_pzp_2_4 = BGSGroupCatalog("Photo-z Plus v2.4 BGS Y1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=
  (8, [1.2938, 1.5467, 3.0134], [1.2229, 0.8628, 2.5882], [0.8706, 0.6126, 2.4447], [1.1163, 1.2938, 3.1650]))
-_cat = bgs_y1_pz_2_4
+_cat = bgs_y1_pzp_2_4
 _cat.marker = '-'
 _cat.color = 'k'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
-bgs_y3_pzp_1 = BGSGroupCatalog("Photo-z Plus v1.1 BGS Y3 <19.5", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, data_cut='Y3-Kibo', extra_params=(10, (0.8, 1.0, 0.004, 4.0)))
-_cat = bgs_y3_pzp_1
-_cat.color = 'darkorange'
+bgs_y3_pzp_2_4 = BGSGroupCatalog("Photo-z Plus v2.4 BGS Y3", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Kibo', extra_params=
+(8, [1.2938, 1.5467, 3.0134], [1.2229, 0.8628, 2.5882], [0.8706, 0.6126, 2.4447], [1.1163, 1.2938, 3.1650]))
+_cat.color = 'k'
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
 
@@ -428,19 +428,19 @@ mxxl_list : list[GroupCatalog] = [
     #mxxl_simple_4_c,
 ]
 bgs_sv3_list : list[GroupCatalog] = [
-    bgs_sv3_nn_10p,
-    bgs_sv3_nn_7p,
+    #bgs_sv3_nn_10p,
+    #bgs_sv3_nn_7p,
     bgs_sv3_fiberonly_10p,
-    bgs_sv3_simple_4_10p,
-    bgs_sv3_simple_4_7p,
-    bgs_sv3_simple_5_7p,
-    bgs_sv3_pz_1_10p,
-    bgs_sv3_pz_2_0_7p,
+    #bgs_sv3_simple_4_10p,
+    #bgs_sv3_simple_4_7p,
+    #bgs_sv3_simple_5_7p,
+    #bgs_sv3_pz_1_10p,
+    #bgs_sv3_pz_2_0_7p,
     bgs_sv3_pz_2_4_10p,
-    bgs_sv3_pz_1_0_7p,
-    bgs_sv3_pz_2_4_7p,
-    bgs_sv3_pz_2_5_7p,
-    bgs_sv3_pz_3_1_7p,
+    #bgs_sv3_pz_1_0_7p,
+    #bgs_sv3_pz_2_4_7p,
+    #bgs_sv3_pz_2_5_7p,
+    #bgs_sv3_pz_3_1_7p,
     
     bgs_y3_like_sv3_pz_2_4,
     bgs_y3_like_sv3_fiberonly,
@@ -448,7 +448,7 @@ bgs_sv3_list : list[GroupCatalog] = [
     bgs_y3_like_sv3_nn,
 ]
 bgs_y1_list : list[GroupCatalog] = [
-    bgs_y1_pz_2_4,
+    bgs_y1_pzp_2_4,
     #bgs_simple_4_old,
     ##bgs_simple_4,
     #bgs_simple_4_1pass,
@@ -469,5 +469,6 @@ bgs_y3_list : list[GroupCatalog] = [
     #bgs_y3_fiberonly_1pass,
     #bgs_y3_fiberonly,
     ##bgs_y3_simple_5,
-    bgs_y3_pzp_1
+    bgs_y1_pzp_2_4,
+    bgs_y3_pzp_2_4
 ]

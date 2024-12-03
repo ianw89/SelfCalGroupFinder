@@ -96,7 +96,7 @@ def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHO
 
 
 def get_dataset_display_name(d: GroupCatalog, keep_mag_limit=False):
-    name = d.name.replace("Fiber Only", "Observed").replace(" Vanilla", "").replace("Nearest Neighbor", "NN")
+    name = d.name.replace("Fiber Only", "Observed").replace(" Vanilla", "")
     if keep_mag_limit:
         return name
     else:
@@ -274,6 +274,22 @@ def plots(*catalogs, show_err=None, truth_on=False):
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
         ax2.set_xlabel("$M_r$ - 5log(h)")
         fig.tight_layout()
+        
+    # Show % change in fsat from the show_err catalog
+    if show_err is not None:
+        fig,ax1=plt.subplots()
+        fig.set_dpi(DPI)
+        for f in catalogs:
+            if f is not show_err:
+                plt.plot(f.L_gal_labels, (f.f_sat - show_err.f_sat) / show_err.f_sat, f.marker, label=get_dataset_display_name(f), color=f.color)
+        ax1.set_xscale('log')
+        ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
+        ax1.set_ylabel("$f_{\\mathrm{sat}}$ % Change")
+        legend_ax(ax1, catalogs)
+        ax1.set_xlim(LGAL_MIN,LGAL_MAX)
+        ax1.set_ylim(-0.5,0.5)
+        ax1.grid(True)
+        fig.tight_layout()
 
     # Blue fsat
     for xmin in LGAL_XMINS:
@@ -426,7 +442,7 @@ def compare_wp_rp(d1: BGSGroupCatalog, d2_t: BGSGroupCatalog):
 
     plt.tight_layout()
     plt.show()
-
+    
     # Additional rows for each magnitude slice in wp_slices
     fig, axes = plt.subplots(2, 3, figsize=(12, 9))
 
@@ -1188,18 +1204,18 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     # Plotting the results
     labels = [s.name for s in sets]
     x = np.arange(len(labels))  # the label locations
-    width = 1/3  # the width of the bars
+    width = 1/3  # the width of the bars; change based on how many bars you want
 
-    fig, ax = plt.subplots(figsize=(8, 7), dpi=DPI)
-    rects1 = ax.bar(x - width, scores_all_lost, width, label='% Powerlaw Score (All Lost)', color=get_color(0))
+    fig, ax = plt.subplots(figsize=(6, 5), dpi=DPI)
+    rects1 = ax.bar(x - width, scores_all_lost, width, label='Score (Powerlaw kernel)', color=get_color(0))
     #rects3 = ax.bar(x - width  , scores_n_only, width, label='% Powerlaw Score (N-assigned Only)', color=get_color(1))
-    rects2 = ax.bar(x          , rounded_tophat, width, label='% exp Tophat (All Lost)', color=get_color(2))
+    rects2 = ax.bar(x          , rounded_tophat, width, label='% Correct (Tophat)', color=get_color(2))
     #rects5 = ax.bar(x + width, scores_metric3, width, label='Metric 3', color=get_color(3))
     #rects5 = ax.bar(x + width, scores_metric4, width, label='Metric 4', color=get_color(3))
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
-    ax.set_xlabel('Catalogs')
-    ax.set_title('Various Metrics for Redshift Assignment')
+    #ax.set_xlabel('Catalogs')
+    ax.set_title('Correct Redshift Assignment')
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha='right')
     ax.legend()
@@ -1458,6 +1474,11 @@ def make_map(ra, dec, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
     """
     Give numpy array of ra and dec.
     """
+    # If ra or dec is a pd.Series, convert to numpy array
+    if isinstance(ra, pd.Series):
+        ra = ra.to_numpy()
+    if isinstance(dec, pd.Series):
+        dec = dec.to_numpy()
 
     if np.any(ra > 180.0): # if data given is 0 to 360
         assert np.all(ra > -0.1)

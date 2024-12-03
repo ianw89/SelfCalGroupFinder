@@ -660,8 +660,12 @@ class BGSGroupCatalog(GroupCatalog):
         elif self.data_cut == "Y1-Iron-v1.2":
             infile = IAN_BGS_MERGED_FILE_OLD
         elif self.data_cut == "Y3-Kibo":
-            infile = IAN_BGS_Y3_MERGED_FILE
+            infile = IAN_BGS_Y3_MERGED_FILE_KIBO
         elif self.data_cut == "Y3-Kibo-SV3Cut":
+            infile = IAN_BGS_Y3_MERGED_FILE_KIBO
+        elif self.data_cut == "Y3-Loa":
+            infile = IAN_BGS_Y3_MERGED_FILE
+        elif self.data_cut == "Y3-Loa-SV3Cut":
             infile = IAN_BGS_Y3_MERGED_FILE
         elif self.data_cut == "Y3-Jura":
             infile = IAN_BGS_Y3_MERGED_FILE_JURA
@@ -760,15 +764,25 @@ class BGSGroupCatalog(GroupCatalog):
         if self.data_cut == 'sv3':
             self.centered = filter_SV3_to_avoid_edges(self)
 
-        if self.data_cut == 'sv3' or self.data_cut == 'Y3-Kibo-SV3Cut':
+        if self.data_cut == 'sv3' or self.data_cut == 'Y3-Kibo-SV3Cut' or self.data_cut == 'Y3-Loa-SV3Cut':
             self.calculate_projected_clustering()
             self.calculate_projected_clustering_in_magbins()
 
         print("Post-processing done.")
 
+    def get_clustering_randoms(self):
+        if self.data_cut == 'sv3' or self.data_cut == 'Y3-Kibo-SV3Cut' or self.data_cut == 'Y3-Loa-SV3Cut':
+            return pickle.load(open(MY_RANDOMS_SV3_CLUSTERING, "rb"))
+        else:
+            print("Randoms not available for this data cut.")
+        
+    def get_clustering_randoms_mini(self):
+        if self.data_cut == 'sv3' or self.data_cut == 'Y3-Kibo-SV3Cut' or self.data_cut == 'Y3-Loa-SV3Cut':
+            return pickle.load(open(MY_RANDOMS_SV3_CLUSTERING_MINI, "rb"))
+        else:
+            print("Randoms not available for this data cut.")
 
     def calculate_projected_clustering(self, with_extra_randoms=False):
-        print("Calculating projected clustering...")
 
         # TODO weights for fiber collisions corrections
 
@@ -778,13 +792,19 @@ class BGSGroupCatalog(GroupCatalog):
             df['mag_bin'] = np.digitize(df.mag_R, CLUSTERING_MAG_BINS)
 
         if with_extra_randoms:
-            randoms = pickle.load(open(MY_RANDOMS_SV3, "rb"))
-            print(f"Random count / data count = {len(randoms['RA'])} / {len(df)}")
-            self.wp_all_extra = wp.calculate_wp_from_df(df, randoms)
+            randoms = self.get_clustering_randoms()
+        else:
+            randoms = self.get_clustering_randoms_mini()
 
-        randoms = pickle.load(open(MY_RANDOMS_SV3_MINI, "rb"))
-        print(f"Random count / data count = {len(randoms['RA'])} / {len(df)}")
-        self.wp_all = wp.calculate_wp_from_df(df, randoms)
+        if randoms is not None:
+            print(f"Calculating mini projected clustering: Random count / data count = {len(randoms['RA'])} / {len(df)}")
+            if with_extra_randoms:
+                self.wp_all_extra = wp.calculate_wp_from_df(df, randoms)
+            else:
+                self.wp_all = wp.calculate_wp_from_df(df, randoms)
+        else:
+            print("Randoms not available for this data cut.")
+
         serialize(self)
 
     
@@ -811,11 +831,11 @@ class BGSGroupCatalog(GroupCatalog):
             df['mag_bin'] = np.digitize(df.mag_R, CLUSTERING_MAG_BINS)
 
         if with_extra_randoms:
-            randoms = pickle.load(open(MY_RANDOMS_SV3, "rb"))
+            randoms = self.get_clustering_randoms()
             # For some reason this code path hangs... one loop takes way longer than
             # the full sample with the same number of randoms.
         else:
-            randoms = pickle.load(open(MY_RANDOMS_SV3_MINI, "rb"))
+            randoms = self.get_clustering_randoms_mini()
 
         for i in range(len(CLUSTERING_MAG_BINS)):
             txt = "extra" if with_extra_randoms else "mini"
@@ -841,7 +861,7 @@ class BGSGroupCatalog(GroupCatalog):
     
     def add_jackknife_err_to_proj_clustering(self, with_extra_randoms=False, for_mag_bins=False):
 
-        if self.data_cut != 'sv3' and self.data_cut != 'Y3-Kibo-SV3Cut':
+        if self.data_cut != 'sv3' and self.data_cut != 'Y3-Kibo-SV3Cut' and self.data_cut != 'Y3-Loa-SV3Cut':
             print("Warning: add_jackknife_err_to_proj_clustering called for non-SV3 data cut. Skipping.")
             return
         
@@ -1112,7 +1132,7 @@ def get_footprint_fraction(data_cut, mode, num_passes_required):
         FOOTPRINT_FRAC_2pass = 0.286837 # 11832 degrees
         FOOTPRINT_FRAC_3pass = 0.233920 # 9649 degrees
         FOOTPRINT_FRAC_4pass = 0.115183 # 4751 degrees
-    elif data_cut == "Y3-Kibo":
+    elif data_cut == "Y3-Kibo" or data_cut == "Y3-Loa":
         # For Y3-Kibo
         FOOTPRINT_FRAC_1pass = 0.3112278 # 12839 degrees
         FOOTPRINT_FRAC_2pass = 0.2870291 # 11840 degrees
@@ -1122,7 +1142,7 @@ def get_footprint_fraction(data_cut, mode, num_passes_required):
         # These are for the 18/20 patches being used. We dropped two due to poor Y3 overlap.
         FOOTPRINT_FRAC_1pass =  156.2628 / DEGREES_ON_SPHERE 
         FOOTPRINT_FRAC_10pass = 124.2812 / DEGREES_ON_SPHERE 
-    elif data_cut == "Y3-Kibo-SV3Cut":
+    elif data_cut == "Y3-Kibo-SV3Cut" or data_cut == "Y3-Loa-SV3Cut":
         # Here the data was cut to the SV3 10p footprint. 
         # But the num_passes is now referring to actualy Y3 main survey passes.
         FOOTPRINT_FRAC_1pass = 124.2812 / DEGREES_ON_SPHERE 
@@ -1277,7 +1297,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     deltachi2_filter = deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
     
     # Special version cut to look like SV3 - choose only the ones inside the SV3 footprint
-    if data_cut == "Y3-Kibo-SV3Cut":
+    if data_cut == "Y3-Kibo-SV3Cut" or data_cut == "Y3-Loa-SV3Cut":
         ntid_sv3 = get_tbl_column(table, 'NEAREST_TILEIDS_SV3', required=True)[:,0] # just need to nearest tile for our purposes
         region = tile_to_region(ntid_sv3)
         to_remove = np.isin(region, sv3_poor_y3overlap)

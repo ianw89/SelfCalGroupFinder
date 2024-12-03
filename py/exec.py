@@ -50,7 +50,8 @@ def process_gc(gc: GroupCatalog):
     gc.calculate_projected_clustering(with_extra_randoms=True) # 15m
     gc.calculate_projected_clustering_in_magbins(with_extra_randoms=True) # 45m maybe?
     
-    #gc.add_jackknife_err_to_proj_clustering(with_extra_randoms=True, for_mag_bins=True)
+    if gc == cat.bgs_sv3_pz_2_4_10p:
+        gc.add_jackknife_err_to_proj_clustering(with_extra_randoms=True, for_mag_bins=True)
     gc.dump()
     del(gc)
     print(f"+++++ process_gc({name}) done +++++")

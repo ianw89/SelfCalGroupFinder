@@ -2,6 +2,8 @@
 # Information on where files are located
 ###################################################
 
+#  /global/cfs/cdirs/desi/ == https://data.desi.lbl.gov/desi/
+
 # This is the root folder of this repository; update it to your own path
 #BASE_FOLDER = '/Users/ianw89/Repos/SelfCalGroupFinder/'
 BASE_FOLDER = '/mount/sirocco1/imw2293/GROUP_CAT/'
@@ -17,10 +19,11 @@ DATA_FOLDER = BASE_FOLDER + 'DATA/'
 #DATA_FOLDER = "/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/DATA/"
 SDSS_FOLDER = DATA_FOLDER + 'SDSS/'
 BGS_IMAGES_FOLDER = DATA_FOLDER + 'BGS_IMAGES/'
-BGS_FOLDER = DATA_FOLDER + 'BGS_IRON/'
+BGS_Y1_FOLDER = DATA_FOLDER + 'BGS_IRON/'
 BGS_FUJI_FOLDER = DATA_FOLDER + 'BGS_FUJI/'
-BGS_Y3_FOLDER_OLD = DATA_FOLDER + 'BGS_JURA/'
-BGS_Y3_FOLDER = DATA_FOLDER + 'BGS_KIBO/'
+BGS_Y3_FOLDER_JURA = DATA_FOLDER + 'BGS_JURA/'
+BGS_Y3_FOLDER_KIBO = DATA_FOLDER + 'BGS_KIBO/'
+BGS_Y3_FOLDER = DATA_FOLDER + 'BGS_LOA/'
 #MXXL_DATA_DIR="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
 MXXL_DATA_DIR=DATA_FOLDER + "MXXL/"
 UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
@@ -82,48 +85,49 @@ IAN_BGS_SV3_MERGED_FILE = BGS_FUJI_FOLDER + "ian_BGS_SV3_merged.fits"
 IAN_BGS_SV3_MERGED_NOY3_FILE = BGS_FUJI_FOLDER + "ian_BGS_SV3_merged_noY3.fits"
 
 BGS_SV3_CLUSTERING_N_BRIGHT_FILE = BGS_FUJI_FOLDER + "BGS_BRIGHT_N_clustering.dat.fits"
-BGS_SV3_CLUSTERING_N_BRIGHT_RAND_FILE = BGS_FUJI_FOLDER + "BGS_BRIGHT_N_0_clustering.ran.fits"
 BGS_SV3_CLUSTERING_S_BRIGHT_FILE = BGS_FUJI_FOLDER + "BGS_BRIGHT_S_clustering.dat.fits"
-BGS_SV3_CLUSTERING_S_BRIGHT_RAND_FILE = BGS_FUJI_FOLDER + "BGS_BRIGHT_S_0_clustering.ran.fits"
+BGS_SV3_CLUSTERING_RAND_FILE = BGS_FUJI_FOLDER + "BGS_BRIGHT_N_X_clustering.ran.fits"
 
 
 # BGS Y1 DATA FILES
 ###################
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.5/BGS_ANY_full.dat.fits
-BGS_ANY_FULL_FILE = BGS_FOLDER + "BGS_ANY_full.dat.fits"
+BGS_ANY_FULL_FILE = BGS_Y1_FOLDER + "BGS_ANY_full.dat.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.2/BGS_ANY_full.dat.fits
-BGS_ANY_FULL_FILE_OLD = BGS_FOLDER + "BGS_ANY_full.dat.fits~"
+BGS_ANY_FULL_FILE_OLD = BGS_Y1_FOLDER + "BGS_ANY_full.dat.fits~"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.5/BGS_ANY_0_full.ran.fits
-BGS_RAND_FILE = BGS_FOLDER + "BGS_ANY_0_full.ran.fits"
+BGS_RAND_FILE = BGS_Y1_FOLDER + "BGS_ANY_0_full.ran.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/mainbw-bright-allTiles_v1.fits
-BGS_PROB_OBS_FILE = BGS_FOLDER + "mainbw-bright-allTiles_v1.fits"
+BGS_PROB_OBS_FILE = BGS_Y1_FOLDER + "mainbw-bright-allTiles_v1.fits"
 # File was acquired from Index of /public/dr1/vac/dr1/fastspecfit/iron/v2.1/catalogs/fastspec-iron-main-bright.fits
-BGS_FASTSPEC_FILE = BGS_FOLDER + "fastspec-iron-main-bright.fits"
+BGS_FASTSPEC_FILE = BGS_Y1_FOLDER + "fastspec-iron-main-bright.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/spectro/redux/iron/tiles-iron.csv
-BGS_TILES_FILE = BGS_FOLDER + "tiles-iron.csv"
+BGS_TILES_FILE = BGS_Y1_FOLDER + "tiles-iron.csv"
 # This file is BUILT by running code in the BGS_study.ipynb notebook
 # It is a joined BGS file, with a filtered down set of rows and columns
-IAN_BGS_MERGED_FILE = BGS_FOLDER + "ian_BGS_merged.fits"
-IAN_BGS_MERGED_FILE_OLD = BGS_FOLDER + "ian_BGS_merged.fits~"
+IAN_BGS_MERGED_FILE = BGS_Y1_FOLDER + "ian_BGS_merged.fits"
+IAN_BGS_MERGED_FILE_OLD = BGS_Y1_FOLDER + "ian_BGS_merged.fits~"
 
 
 # BGS Y3 DATA FILES
 ###################
 # TODO get fastspecfit when available
-# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/kibo-v1/LSScats/v0.1/BGS_ANY_full.dat.fits
-# Old File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/jura-v1/LSScats/test/BGS_ANY_full_noveto.dat.fits    
+# File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v1.1/BGS_ANY_full.dat.fits
 BGS_Y3_ANY_FULL_FILE = BGS_Y3_FOLDER + "BGS_ANY_full.dat.fits"
-# File was acquried from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/kibo-v1/LSScats/v0.1/BGS_ANY_0_full.ran.fits
-# Old file was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/jura-v1/LSScats/test/BGS_BRIGHT_0_full.ran.fits
-BGS_Y3_RAND_FILE = BGS_Y3_FOLDER + "BGS_ANY_0_full.ran.fits"
-# File was acquired from https://data.desi.lbl.gov/desi/spectro/redux/kibo/tiles-kibo.csv
-# Old file was acquired from https://data.desi.lbl.gov/desi/spectro/redux/jura/tiles-jura.csv
-BGS_Y3_TILES_FILE = BGS_Y3_FOLDER + "tiles-kibo.csv"
+# File was acquried from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v1.1/nonkp/BGS_BRIGHT_0_full.ran.fits
+BGS_Y3_RAND_FILE = BGS_Y3_FOLDER + "BGS_BRIGHT_0_full.ran.fits"
+# File was acquired from https://data.desi.lbl.gov/desi/spectro/redux/loa/tiles-kibo.csv
+BGS_Y3_TILES_FILE = BGS_Y3_FOLDER + "tiles-loa.csv"
+#
+BGS_Y3_CLUSTERING_FILE = BGS_Y3_FOLDER + "BGS_BRIGHT_clustering.dat.fits"
 # This file is BUILT by running code in the BGS_study.ipynb notebook
 # It is a joined BGS file, with a filtered down set of rows and columns
 IAN_BGS_Y3_MERGED_FILE = BGS_Y3_FOLDER + "ian_BGS_Y3_merged.fits"
-IAN_BGS_Y3_LIKE_SV3_MERGED_FILE = BGS_Y3_FOLDER + "ian_BGS_Y3_like_SV3_merged.fits"
-IAN_BGS_Y3_MERGED_FILE_JURA = BGS_Y3_FOLDER_OLD + "ian_BGS_Y3_merged.fits"
+
+
+# Older versions
+IAN_BGS_Y3_MERGED_FILE_JURA = BGS_Y3_FOLDER_JURA + "ian_BGS_Y3_merged.fits"
+IAN_BGS_Y3_MERGED_FILE_KIBO = BGS_Y3_FOLDER_KIBO + "ian_BGS_Y3_merged.fits"
 
 # DESI LEGACY IMAGING SURVEY FILES
 ##################################
@@ -145,20 +149,28 @@ NEIGHBOR_ANALYSIS_MXXL_BINS_FILE = OUTPUT_FOLDER + 'MXXL_cic_binned_data.pkl'
 #############################
 
 # This file is BUILT by running code in the MXXL_study.ipynb notebook
-IAN_MXXL_LOST_APP_TO_Z_FILE = BGS_FOLDER + "mxxl_lost_appmag_to_z_map.dat"
+IAN_MXXL_LOST_APP_TO_Z_FILE = BGS_Y1_FOLDER + "mxxl_lost_appmag_to_z_map.dat"
 # This file is BUILT by running code in the MXXL_study.ipynb notebook
 MXXL_PROB_OBS_FILE = OUTPUT_FOLDER + "prob_obs.npy"
 MXXL_ABS_MAG_R_FILE = OUTPUT_FOLDER + "mxxl_abs_mag_r_mine.npy"
 
 # BGS DERIVED AUXILERY FILES
 ###############################
-BGS_Y3_LOST_APP_TO_Z_FILE = BGS_FOLDER + "bgsy3_lost_appmag_to_z_map.dat"
-BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE = BGS_FOLDER + "bgsy3_lost_appmag_zphot_to_z_map.dat"
+BGS_Y3_LOST_APP_TO_Z_FILE = BGS_Y1_FOLDER + "bgsy3_lost_appmag_to_z_map.dat"
+BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE = BGS_Y1_FOLDER + "bgsy3_lost_appmag_zphot_to_z_map.dat"
 
 
 # RANDOMS FILES MATCHING OUR FOOTPRINTS
 #######################################
 MY_RANDOMS_SV3 = OUTPUT_FOLDER + "randoms_df_sv3.pkl"
+MY_RANDOMS_SV3_20 = OUTPUT_FOLDER + "randoms_df_sv3_20.pkl"
 MY_RANDOMS_SV3_MINI = OUTPUT_FOLDER + "randoms_df_sv3_mini.pkl"
+MY_RANDOMS_SV3_MINI_20 = OUTPUT_FOLDER + "randoms_df_sv3_mini_20.pkl"
+
+MY_RANDOMS_SV3_CLUSTERING = OUTPUT_FOLDER + "randoms_df_sv3_clustering.pkl"
+MY_RANDOMS_SV3_CLUSTERING_20 = OUTPUT_FOLDER + "randoms_df_sv3_clustering_20.pkl"
+MY_RANDOMS_SV3_CLUSTERING_MINI = OUTPUT_FOLDER + "randoms_df_sv3_clustering_mini.pkl"
+MY_RANDOMS_SV3_CLUSTERING_MINI_20 = OUTPUT_FOLDER + "randoms_df_sv3_clustering_mini_20.pkl"
+
 MY_RANDOMS_Y1 = OUTPUT_FOLDER + "randoms_df_y1iron.pkl"
 MY_RANDOMS_Y3 = OUTPUT_FOLDER + "randoms_df_y3kibo.pkl"

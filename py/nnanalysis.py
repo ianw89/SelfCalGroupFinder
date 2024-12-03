@@ -463,7 +463,7 @@ class NNAnalyzer_cic():
                     
                     cplot = axrow[0].pcolor(ANGULAR_BINS, APP_MAG_BINS, self.frac[nn_q,t_q,zb,:,:], shading='auto', cmap='RdYlGn', norm=c.Normalize(vmin=0, vmax=0.8))
                     fig.colorbar(cplot, ax=axrow[0])
-                    axrow[0].set_title(f"NN {phrase} Fraction (NN z {getlabel(zb, Z_BINS)})")
+                    axrow[0].set_title(f"{phrase} Fraction (z {getlabel(zb, Z_BINS)})")
                     axrow[0].set_ylabel("Lost Galaxy app r-mag")
                     axrow[0].set_xlabel("Angular Distance (arcsec) to NN")
                     axrow[0].set_xscale('log')
@@ -471,7 +471,7 @@ class NNAnalyzer_cic():
 
                     cplot = axrow[1].pcolor(ANGULAR_BINS, APP_MAG_BINS, self.binary_split(self.frac)[nn_q,t_q,zb,:,:], shading='auto', cmap='RdYlGn')
                     fig.colorbar(cplot, ax=axrow[1])
-                    axrow[1].set_title(f"NN {phrase} Over 40% (NN z {getlabel(zb, Z_BINS)})")
+                    axrow[1].set_title(f"{phrase} Over 40% (z {getlabel(zb, Z_BINS)})")
                     axrow[1].set_ylabel("Lost Galaxy app r-mag")    
                     axrow[1].set_xlabel("Angular Distance (arcsec) to NN")
                     axrow[1].set_xscale('log')
@@ -479,7 +479,7 @@ class NNAnalyzer_cic():
 
                     cplot = axrow[2].pcolor(ANGULAR_BINS, APP_MAG_BINS, all_counts[nn_q,t_q,zb,:,:], shading='auto', cmap='YlGn', norm=c.LogNorm(vmin=1, vmax=5000))
                     fig.colorbar(cplot, ax=axrow[2])
-                    axrow[2].set_title(f"Counts (NN z {getlabel(zb, Z_BINS)})")
+                    axrow[2].set_title(f"Counts (z {getlabel(zb, Z_BINS)})")
                     axrow[2].set_ylabel("Lost Galaxy app r-mag")    
                     axrow[2].set_xlabel("Angular Distance (arcsec) to NN")
                     axrow[2].set_xscale('log')

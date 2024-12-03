@@ -11,6 +11,7 @@ if './SelfCalGroupFinder/py/' not in sys.path:
 from pyutils import *
 from dataloc import *
 from photoz import *
+from groupcatalog import tile_to_region, sv3_poor_y3overlap
 
 # This corresponds to 8.33 square degrees and empircally makes sense by looking at the randoms
 TILE_RADIUS = 5862.0 * u.arcsec # arcsec
@@ -224,3 +225,96 @@ def fix_columns_in_phot_z_file(f):
 
 # Run this after building photo-z file
 #fix_columns_in_phot_z_file(IAN_PHOT_Z_FILE_NOSPEC)
+
+
+
+def build_sv3_full_randoms_files():
+    NTILE_MIN = 10
+
+    def read_randoms(base, n):
+        rtable = Table.read(base.replace("X", str(n)), format='fits')
+        r_dec = rtable['DEC'].astype("<f8")
+        r_ra = rtable['RA'].astype("<f8")
+        r_ntiles = rtable['NTILE'].astype("<i8")
+
+        randoms_df = pd.DataFrame({'RA': r_ra, 'Dec': r_dec, 'NTILE': r_ntiles})
+        return randoms_df
+    
+    tiles_BGS = read_tiles_Y3_sv3()
+    
+    # Make a mini version from one randoms file
+    randoms_df0 = read_randoms(BGS_SV3_RAND_FILE, 0)
+    
+    ntiles_inside, nearest_tile_ids = find_tiles_for_galaxies(tiles_BGS, randoms_df0, NTILE_MIN)
+    randoms_df0['NTILE_MINE'] = ntiles_inside
+    randoms_df0['REGION'] = tile_to_region(nearest_tile_ids[:,0])
+    pickle.dump(randoms_df0, open(MY_RANDOMS_SV3_MINI_20, "wb"))
+    to_remove = np.isin(randoms_df0['REGION'], sv3_poor_y3overlap)
+    randoms_df0 = randoms_df0.loc[~to_remove]
+    pickle.dump(randoms_df0, open(MY_RANDOMS_SV3_MINI, "wb"))
+    
+    
+    # Make a big version combining all randoms files
+    big_rand_df = read_randoms(BGS_SV3_RAND_FILE, 0)
+    for i in range(1, 18):
+        rand_df = read_randoms(BGS_SV3_RAND_FILE, i)
+        big_rand_df = pd.concat([big_rand_df, rand_df])
+    
+    ntiles_inside, nearest_tile_ids = find_tiles_for_galaxies(tiles_BGS, big_rand_df, NTILE_MIN)
+    big_rand_df['NTILE_MINE'] = ntiles_inside
+    big_rand_df['REGION'] = tile_to_region(nearest_tile_ids[:,0])
+
+    pickle.dump(big_rand_df, open(MY_RANDOMS_SV3_20, "wb"))
+
+    to_remove = np.isin(big_rand_df['REGION'], sv3_poor_y3overlap)
+    big_rand_df = big_rand_df.loc[~to_remove]
+
+    pickle.dump(big_rand_df, open(MY_RANDOMS_SV3, "wb"))
+    
+    
+
+def build_sv3_clustering_randoms_files():
+    NTILE_MIN = 10
+
+    def read_randoms(base, n):
+        rtable = Table.read(base.replace("X", str(n)), format='fits')
+        r_dec = rtable['DEC'].astype("<f8")
+        r_ra = rtable['RA'].astype("<f8")
+        r_ntiles = rtable['NTILE'].astype("<i8")
+
+        randoms_df = pd.DataFrame({'RA': r_ra, 'Dec': r_dec, 'NTILE': r_ntiles})
+        return randoms_df
+    
+    tiles_BGS = read_tiles_Y3_sv3()
+    
+    # Make a mini version from one randoms file
+    randoms_df0 = read_randoms(BGS_SV3_CLUSTERING_RAND_FILE, 0)
+    
+    ntiles_inside, nearest_tile_ids = find_tiles_for_galaxies(tiles_BGS, randoms_df0, NTILE_MIN)
+    randoms_df0['NTILE_MINE'] = ntiles_inside
+    randoms_df0['REGION'] = tile_to_region(nearest_tile_ids[:,0])
+    pickle.dump(randoms_df0, open(MY_RANDOMS_SV3_CLUSTERING_MINI_20, "wb"))
+    to_remove = np.isin(randoms_df0['REGION'], sv3_poor_y3overlap)
+    randoms_df0 = randoms_df0.loc[~to_remove]
+    pickle.dump(randoms_df0, open(MY_RANDOMS_SV3_CLUSTERING_MINI, "wb"))
+    
+    
+    # Make a big version combining all randoms files
+    big_rand_df = read_randoms(BGS_SV3_CLUSTERING_RAND_FILE, 0)
+    for i in range(1, 18):
+        rand_df = read_randoms(BGS_SV3_CLUSTERING_RAND_FILE, i)
+        big_rand_df = pd.concat([big_rand_df, rand_df])
+    for i in range(0, 18):
+        rand_df = read_randoms(BGS_SV3_CLUSTERING_RAND_FILE.replace("_N_", "_S_"), i)
+        big_rand_df = pd.concat([big_rand_df, rand_df])
+    
+    ntiles_inside, nearest_tile_ids = find_tiles_for_galaxies(tiles_BGS, big_rand_df, NTILE_MIN)
+    big_rand_df['NTILE_MINE'] = ntiles_inside
+    big_rand_df['REGION'] = tile_to_region(nearest_tile_ids[:,0])
+
+    pickle.dump(big_rand_df, open(MY_RANDOMS_SV3_CLUSTERING_20, "wb"))
+
+    to_remove = np.isin(big_rand_df['REGION'], sv3_poor_y3overlap)
+    big_rand_df = big_rand_df.loc[~to_remove]
+
+    pickle.dump(big_rand_df, open(MY_RANDOMS_SV3_CLUSTERING, "wb"))

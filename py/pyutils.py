@@ -301,7 +301,6 @@ def photoz_plus_metric_4(z_guessed: np.ndarray[float], z_truth: np.ndarray[float
 
     # pseudorandom guesses help preserve luminosity func so give them a little credit
     score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.2, 0.0) 
-    #score = score + np.where(guess_type == AssignedRedshiftFlag.PHOTO_Z.value, 0.1, 0.0) 
 
     # in case pseduo-random guesses were spot on it can be > 1.0, so cap the score at 1.0
     score = np.where(score > 1.0, 1.0, score)
