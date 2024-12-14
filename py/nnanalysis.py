@@ -262,7 +262,7 @@ class NNAnalyzer_cic():
         to_match = coord.SkyCoord(ra=df.loc[rl,'ra'].to_numpy()*u.degree, dec=df.loc[rl,'dec'].to_numpy()*u.degree, frame='icrs')
         idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=nthneighbor, storekdtree=False)
         ang_dist = d2d.to(u.arcsec).value
-        sim_z = close_enough_smooth(df.loc[rl,'z_obs'], z_obs_catalog[idx])
+        sim_z = rounded_tophat_score(df.loc[rl,'z_obs'], z_obs_catalog[idx])
 
         df['nn1_ang_dist'] = np.nan
         df.loc[rl,'nn1_ang_dist'] = ang_dist

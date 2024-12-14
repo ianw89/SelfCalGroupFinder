@@ -21,12 +21,10 @@ from pyutils import *
 from redshift_guesser import SimpleRedshiftGuesser, PhotometricRedshiftGuesser
 from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
+from bgs_helpers import *
 
 # Sentinal value for no truth redshift
 NO_TRUTH_Z = -99.99
-
-# Sentinal value from legacy survey for no photo-z
-NO_PHOTO_Z = -99.0
 
 # Shared bins for various purposes
 Mhalo_bins = np.logspace(10, 15.5, 40)
@@ -40,46 +38,6 @@ mstar_labels = mstar_bins[0:len(mstar_bins)-1]
 
 Mr_gal_bins = log_solar_L_to_abs_mag_r(np.log10(L_gal_bins))
 Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
-
-# I built this list of tiles by looking at https://www.legacysurvey.org/viewer-desi and viewing DESI EDR tiles (look for SV3)
-sv3_regions = [
-    [122, 128, 125, 124, 120, 127, 126, 121, 123, 129],
-    [499, 497, 503, 500, 495, 502, 501, 496, 498, 504],
-    [14,  16,  20,  19,  13,  12,  21,  18,  15,  17 ],
-    [41,  47,  49,  44,  43,  39,  46,  45,  40,  42,  48],
-    [68,  74,  76,  71,  70,  66,  73,  72,  67,  69,  75],
-    [149, 155, 152, 147, 151, 154, 148, 156, 150, 153], 
-    [527, 533, 530, 529, 525, 532, 531, 526, 528, 534], 
-    [236, 233, 230, 228, 238, 234, 232, 231, 235, 237, 229],
-    [265, 259, 257, 262, 263, 256, 260, 264, 255, 258, 261],
-    [286, 284, 289, 290, 283, 287, 291, 282, 285, 288],
-    [211, 205, 203, 208, 209, 202, 206, 210, 201, 204, 207],
-    [397, 394, 391, 400, 399, 392, 393, 398, 396, 395, 390],
-    [373, 365, 371, 367, 368, 363, 369, 370, 366, 364, 372],
-    [346, 338, 340, 344, 343, 341, 336, 342, 339, 337, 345],
-    [592, 589, 586, 595, 587, 593, 590, 594, 585, 588, 591],
-    [313, 316, 319, 311, 317, 314, 309, 310, 318, 312, 315],
-    [176, 182, 184, 179, 178, 174, 181, 180, 175, 177, 183],
-    [564, 558, 556, 561, 562, 555, 559, 560, 565, 563, 557],
-    [421, 424, 427, 419, 425, 422, 417, 423, 418, 420, 426],
-    [95,  101, 103, 98,  97,  93,  100, 99,  94,  96,  102],
-]
-sv3_poor_y3overlap = [0,1] # the first two regions from above have poor overlap wth Y3 footprint
-
-sv3_regions_sorted = []
-for region in sv3_regions:
-    a = region.copy()
-    a.sort()
-    sv3_regions_sorted.append(a)
-
-# Build a dictionary of tile_id to region index
-sv3_tile_to_region = {}
-for i, region in enumerate(sv3_regions):
-    for tile in region:
-        sv3_tile_to_region[tile] = i
-def tile_to_region_raw(key):
-    return sv3_tile_to_region.get(key, None)  # Return None if key is not found
-tile_to_region = np.vectorize(tile_to_region_raw)
 
 CLUSTERING_MAG_BINS = [-16, -17, -18, -19, -20, -21, -22, -23]
 
@@ -770,15 +728,15 @@ class BGSGroupCatalog(GroupCatalog):
 
         print("Post-processing done.")
 
-    def get_clustering_randoms(self):
+    def get_randoms(self):
         if self.data_cut == 'sv3' or self.data_cut == 'Y3-Kibo-SV3Cut' or self.data_cut == 'Y3-Loa-SV3Cut':
-            return pickle.load(open(MY_RANDOMS_SV3_CLUSTERING, "rb"))
+            return get_sv3_randoms_inner()
         else:
             print("Randoms not available for this data cut.")
         
-    def get_clustering_randoms_mini(self):
+    def get_randoms_mini(self):
         if self.data_cut == 'sv3' or self.data_cut == 'Y3-Kibo-SV3Cut' or self.data_cut == 'Y3-Loa-SV3Cut':
-            return pickle.load(open(MY_RANDOMS_SV3_CLUSTERING_MINI, "rb"))
+            return get_sv3_randoms_inner_mini()
         else:
             print("Randoms not available for this data cut.")
 
@@ -792,14 +750,14 @@ class BGSGroupCatalog(GroupCatalog):
             df['mag_bin'] = np.digitize(df.mag_R, CLUSTERING_MAG_BINS)
 
         if with_extra_randoms:
-            randoms = self.get_clustering_randoms()
+            randoms = self.get_randoms() # TODO clustering or full randoms???
         else:
-            randoms = self.get_clustering_randoms_mini()
+            randoms = self.get_randoms_mini() # TODO clustering or full randoms???
 
         if randoms is not None:
             print(f"Calculating mini projected clustering: Random count / data count = {len(randoms['RA'])} / {len(df)}")
             if with_extra_randoms:
-                self.wp_all_extra = wp.calculate_wp_from_df(df, randoms)
+                self.wp_all_extra = wp.calculate_wp_from_df(df, randoms) 
             else:
                 self.wp_all = wp.calculate_wp_from_df(df, randoms)
         else:
@@ -831,11 +789,9 @@ class BGSGroupCatalog(GroupCatalog):
             df['mag_bin'] = np.digitize(df.mag_R, CLUSTERING_MAG_BINS)
 
         if with_extra_randoms:
-            randoms = self.get_clustering_randoms()
-            # For some reason this code path hangs... one loop takes way longer than
-            # the full sample with the same number of randoms.
+            randoms = self.get_randoms()# TODO clustering or full randoms???
         else:
-            randoms = self.get_clustering_randoms_mini()
+            randoms = self.get_randoms_mini()# TODO clustering or full randoms???
 
         for i in range(len(CLUSTERING_MAG_BINS)):
             txt = "extra" if with_extra_randoms else "mini"
@@ -870,9 +826,9 @@ class BGSGroupCatalog(GroupCatalog):
         
         df = self.all_data
         if with_extra_randoms:
-            randoms = pickle.load(open(MY_RANDOMS_SV3, "rb"))
+            randoms = self.get_randoms()
         else:
-            randoms = pickle.load(open(MY_RANDOMS_SV3_MINI, "rb"))
+            randoms = self.get_randoms_mini()
 
         # label the SV3 region each galaxy is in
         df['region'] = tile_to_region(df['nearest_tile_id']).astype(int)
@@ -955,12 +911,15 @@ class BGSGroupCatalog(GroupCatalog):
         super().refresh_df_views()
         self.add_bootstrapped_f_sat()
 
-    def write_sharable_output_file(self):
+    def write_sharable_output_file(self, name=None):
         print("Writing a sharable output file")
-        filename_out = str.replace(self.GF_outfile, ".out", " Catalog.csv")
+        if name is None:
+            name = str.replace(self.GF_outfile, ".out", " Catalog.csv")
+        elif not name.endswith('.csv'):
+            name = name + '.csv'
         df = self.all_data.drop(columns=['Mstar_bin', 'Mh_bin', 'Lgal_bin', 'logLgal', 'Dn4000'])
         print(df.columns)
-        df.to_csv(filename_out, index=False, header=True)
+        df.to_csv(name, index=False, header=True)
 
 
 def get_extra_bgs_fastspectfit_data():
@@ -1127,17 +1086,15 @@ def get_footprint_fraction(data_cut, mode, num_passes_required):
         FOOTPRINT_FRAC_4pass = 0.0228093 # 940 degrees
         # 0% 5pass coverage
     elif data_cut == "Y3-Jura":
-        # For Y3-Jura
         FOOTPRINT_FRAC_1pass = 0.310691 # 12816 degrees
         FOOTPRINT_FRAC_2pass = 0.286837 # 11832 degrees
         FOOTPRINT_FRAC_3pass = 0.233920 # 9649 degrees
         FOOTPRINT_FRAC_4pass = 0.115183 # 4751 degrees
     elif data_cut == "Y3-Kibo" or data_cut == "Y3-Loa":
-        # For Y3-Kibo
-        FOOTPRINT_FRAC_1pass = 0.3112278 # 12839 degrees
-        FOOTPRINT_FRAC_2pass = 0.2870291 # 11840 degrees
-        FOOTPRINT_FRAC_3pass = 0.2338243 # 9645 degrees
-        FOOTPRINT_FRAC_4pass = 0.1150345 # 4745 degrees
+        FOOTPRINT_FRAC_1pass = 0.30968189465008605 # 12775 degrees
+        FOOTPRINT_FRAC_2pass = 0.2859776210215015 # 11797 degrees
+        FOOTPRINT_FRAC_3pass = 0.23324031706784962 # 9621 degrees
+        FOOTPRINT_FRAC_4pass = 0.1148695997866822 # 4738 degrees
     elif data_cut == "sv3":
         # These are for the 18/20 patches being used. We dropped two due to poor Y3 overlap.
         FOOTPRINT_FRAC_1pass =  156.2628 / DEGREES_ON_SPHERE 

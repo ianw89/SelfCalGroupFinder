@@ -18,7 +18,7 @@ import aiohttp
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from dataloc import *
-from groupcatalog import NO_PHOTO_Z
+from bgs_helpers import NO_PHOTO_Z
 
 # Recommended usage:
 # nohup python photoz.py 1 N > outN.1 &

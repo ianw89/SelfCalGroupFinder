@@ -352,11 +352,11 @@ def plots(*catalogs, show_err=None, truth_on=False):
         plots_color_split(*catalogs, total_on=True)
 
 
-def wp_rp(catalog: GroupCatalog):
+def wp_rp(catalog: GroupCatalog|tuple):
     colors = ['k', 'r', 'b']
     f = catalog
     plt.figure(figsize=(5, 5))
-    to_use = f.get_best_wp_all()
+    to_use = f.get_best_wp_all() if isinstance(f, GroupCatalog) else f
     if hasattr(f, 'wp_err'):
         plt.errorbar(to_use[0][:-1], to_use[1], yerr=f.wp_err, marker='o', linestyle='-', label='All', color=colors[0])
         plt.errorbar(to_use[0][:-1], to_use[2], yerr=f.wp_r_err, marker='o', linestyle='-', label='Red', color=colors[1])
@@ -371,7 +371,8 @@ def wp_rp(catalog: GroupCatalog):
     plt.xlabel(r'$r_p$ [Mpc/h]')
     plt.ylabel(r'$w_p(r_p)$')
     plt.legend()
-    plt.title(f'{catalog.name} Full $w_p(r_p)$ ')
+    if isinstance(catalog, BGSGroupCatalog):
+        plt.title(f'{catalog.name} Full $w_p(r_p)$') 
     plt.grid(True)
     plt.show()
 
@@ -412,53 +413,65 @@ def wp_rp_magbins(c: GroupCatalog):
     plt.show()
 
 
-def compare_wp_rp(d1: BGSGroupCatalog, d2_t: BGSGroupCatalog):
-    def plot_fractional_difference(ax, wp1, wp2, wp1_red, wp2_red, wp1_blue, wp2_blue, label):
+def compare_wp_rp(d1: BGSGroupCatalog|tuple, d2_t: BGSGroupCatalog|tuple):
+    """
+    Compare two wp_rp functions (total, red, blue). The second is used as the 'truth' (in the denominator).
+    """
+    
+    def plot_fractional_difference(ax, wp1, wp2, wp1_red, wp2_red, wp1_blue, wp2_blue, label, bins):
         percent_diff = 100 * (wp1 - wp2) / wp2
         percent_diff_r = 100 * (wp1_red - wp2_red) / wp2_red
         percent_diff_b = 100 * (wp1_blue - wp2_blue) / wp2_blue
 
-        ax.plot(d1.get_best_wp_all()[0][:-1], percent_diff, marker='o', linestyle='-', color='black', label=f'Overall {label}')
-        ax.plot(d1.get_best_wp_all()[0][:-1], percent_diff_r, marker='o', linestyle='-', color='red', label=f'Red {label}')
-        ax.plot(d1.get_best_wp_all()[0][:-1], percent_diff_b, marker='o', linestyle='-', color='blue', label=f'Blue {label}')
+        ax.plot(bins, percent_diff, marker='o', linestyle='-', color='black', label=f'Overall {label}')
+        ax.plot(bins, percent_diff_r, marker='o', linestyle='-', color='red', label=f'Red {label}')
+        ax.plot(bins, percent_diff_b, marker='o', linestyle='-', color='blue', label=f'Blue {label}')
         
         ax.set_xscale('log')
-        ax.set_ylim(-25, 25)
+        lim = np.max([*np.abs(percent_diff), *np.abs(percent_diff_r), *np.abs(percent_diff_b)])
+        ax.set_ylim(-lim, lim)
         ax.set_yscale('linear')
         ax.set_xlabel(r'$r_p$ [Mpc/h]')
         ax.set_ylabel(r'$w_p(r_p)$ Difference (%)')
         ax.grid(True)
 
     fig, ax = plt.subplots(figsize=(5, 5))
-    plot_fractional_difference(ax, d1.get_best_wp_all()[1], d2_t.get_best_wp_all()[1], d1.get_best_wp_all()[2], d2_t.get_best_wp_all()[2], d1.get_best_wp_all()[3], d2_t.get_best_wp_all()[3], 'Flux-limited')
+    first = d1.get_best_wp_all() if isinstance(d1, GroupCatalog) else d1
+    second = d2_t.get_best_wp_all() if isinstance(d2_t, GroupCatalog) else d2_t
+
+    plot_fractional_difference(ax, first[1], second[1], first[2], second[2], first[3], second[3], 'Flux-limited', first[0][:-1])
     
     # Show a shaded region for the error in the d2 set. 
-    #ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_err/d2_t.get_best_wp_all()[1], -100*d2_t.wp_err/d2_t.get_best_wp_all()[1], color='black', alpha=0.2)
-    ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_r_err/d2_t.get_best_wp_all()[2], -100*d2_t.wp_r_err/d2_t.get_best_wp_all()[2], color='red', alpha=0.25)
-    ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_b_err/d2_t.get_best_wp_all()[3], -100*d2_t.wp_b_err/d2_t.get_best_wp_all()[3], color='blue', alpha=0.25)
-    
-    ax.set_title(f'$\Delta w_p(r_p)$ - {d1.name}')
+    if hasattr(d2_t, 'wp_r_err') and hasattr(d2_t, 'wp_b_err'):
+        #ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_err/d2_t.get_best_wp_all()[1], -100*d2_t.wp_err/d2_t.get_best_wp_all()[1], color='black', alpha=0.2)
+        ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_r_err/d2_t.get_best_wp_all()[2], -100*d2_t.wp_r_err/d2_t.get_best_wp_all()[2], color='red', alpha=0.25)
+        ax.fill_between(d2_t.get_best_wp_all()[0][:-1], 100*d2_t.wp_b_err/d2_t.get_best_wp_all()[3], -100*d2_t.wp_b_err/d2_t.get_best_wp_all()[3], color='blue', alpha=0.25)
+        
+    if isinstance(d1, GroupCatalog) and isinstance(d2_t, GroupCatalog):
+        ax.set_title(f'{d1.name} vs {d2_t.name}')
     plt.legend()
-
     plt.tight_layout()
     plt.show()
     
-    # Additional rows for each magnitude slice in wp_slices
-    fig, axes = plt.subplots(2, 3, figsize=(12, 9))
 
-    for i, mag_slice in enumerate(d1.wp_slices):
-        if i <= 1:
-            continue
+    if isinstance(d1, BGSGroupCatalog) and isinstance(d2_t, BGSGroupCatalog):
+        
+        # Additional rows for each magnitude slice in wp_slices
+        fig, axes = plt.subplots(2, 3, figsize=(12, 9))
 
-        mag_range_label = f"{d1.wp_slices[i][4]:.1f} > $M_r$ - 5log($h$) > {d1.wp_slices[i][5]:.1f}"
-        row = (i - 2) // 3
-        col = (i - 2) % 3
+        for i, mag_slice in enumerate(d1.wp_slices):
+            if i <= 1:
+                continue
 
-        plot_fractional_difference(axes[row, col], d1.wp_slices[i][1], d2_t.wp_slices[i][1], d1.wp_slices[i][2], d2_t.wp_slices[i][2], d1.wp_slices[i][3], d2_t.wp_slices[i][3], f'\n{mag_range_label}')
-        axes[row, col].set_title(f'{mag_range_label}')
+            mag_range_label = f"{d1.wp_slices[i][4]:.1f} > $M_r$ - 5log($h$) > {d1.wp_slices[i][5]:.1f}"
+            row = (i - 2) // 3
+            col = (i - 2) % 3
 
-    plt.tight_layout()
-    plt.show()
+            plot_fractional_difference(axes[row, col], d1.wp_slices[i][1], d2_t.wp_slices[i][1], d1.wp_slices[i][2], d2_t.wp_slices[i][2], d1.wp_slices[i][3], d2_t.wp_slices[i][3], f'\n{mag_range_label}', d1.wp_slices[i][0][:-1])
+            axes[row, col].set_title(f'{mag_range_label}')
+
+        plt.tight_layout()
+        plt.show()
 
 
 def plots_color_split_lost_split(f, grpby_col):
@@ -1010,13 +1023,15 @@ def Lfunc_compare(cat1, cat2):
 def luminosity_function_plots(*catalogs):
     
     #x = L_gal_labels # bins if ising cic code
-    x = np.logspace(8, 11, 16) # bins if using cic code
+    x = np.logspace(8, 11, 12) # bins if using cic code
 
     obs_counts = np.zeros((len(catalogs), len(x)))
     lost_truth_counts = np.zeros((len(catalogs), len(x)))
     lost_assumed_counts = np.zeros((len(catalogs), len(x)))
     obs_vs_losttruth = np.zeros((len(catalogs), len(x)))
     assumed_vs_truth = np.zeros((len(catalogs), len(x)))
+    assumed_vs_truth_red = np.zeros((len(catalogs), len(x)))
+    assumed_vs_truth_blue = np.zeros((len(catalogs), len(x)))
     total_counts = np.zeros((len(catalogs), len(x)))
     total_r_counts = np.zeros((len(catalogs), len(x)))
     total_b_counts = np.zeros((len(catalogs), len(x)))
@@ -1064,8 +1079,8 @@ def luminosity_function_plots(*catalogs):
         lost_assumed_red_counts = nn.cic_binning(lost_withT_galaxies.loc[lost_withT_galaxies.quiescent, 'L_gal'].to_numpy(), [x])
         lost_assumed_blue_counts = nn.cic_binning(lost_withT_galaxies.loc[~lost_withT_galaxies.quiescent, 'L_gal'].to_numpy(), [x])
 
-        assumed_vs_truth_red =  ((lost_assumed_red_counts - lost_truth_red_counts) / lost_truth_red_counts) * 100
-        assumed_vs_truth_blue =  ((lost_assumed_blue_counts - lost_truth_blue_counts) / lost_truth_blue_counts) * 100
+        assumed_vs_truth_red[i] =  ((lost_assumed_red_counts - lost_truth_red_counts) / lost_truth_red_counts) * 100
+        assumed_vs_truth_blue[i] =  ((lost_assumed_blue_counts - lost_truth_blue_counts) / lost_truth_blue_counts) * 100
 
         with np.printoptions(precision=0, suppress=True, linewidth=200):
             print(f"\n*** {catalogs[i].name} ***")
@@ -1080,6 +1095,7 @@ def luminosity_function_plots(*catalogs):
         plt.plot(x, total_r_counts[i], color='r', label='Total quiescent')
         plt.plot(x, total_b_counts[i], color='b', label='Total star-forming')
 
+        """
         plt.figure(dpi=DPI)
         plt.plot(x, obs_counts[i], color='b', label='Obs galaxies')
         plt.plot(x, lost_truth_counts[i]*boost[i], color='g', label='Lost gals (True)')
@@ -1091,11 +1107,11 @@ def luminosity_function_plots(*catalogs):
         plt.xlim(LGAL_MIN, LGAL_MAX)
         plt.xlabel('$L_{gal}$')
         plt.draw()
-
+        """
         # Split by quiescent and star-forming
         plt.figure(dpi=DPI)
-        plt.plot(x, assumed_vs_truth_red, color='r', label=f'Quiescent ({catalog.name})')
-        plt.plot(x, assumed_vs_truth_blue, color='b', label=f'Star-forming ({catalog.name})')
+        plt.plot(x, assumed_vs_truth_red[i], color='r', label=f'Quiescent ({catalog.name})')
+        plt.plot(x, assumed_vs_truth_blue[i], color='b', label=f'Star-forming ({catalog.name})')
         plt.title("Lost $\Phi_{Truth}(L)$ -> $\Phi_{Assumed}(L)$ - " + catalog.name)
         plt.xlabel('$L_{gal}$')
         plt.ylabel("% Change in counts")
@@ -1122,14 +1138,37 @@ def luminosity_function_plots(*catalogs):
     plt.figure(dpi=DPI)
     for i in range(len(catalogs)):
         plt.plot(x , assumed_vs_truth[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
-    plt.title("Lost (truth) => Lost (assumed) Luminosity Function")
+    plt.title("Change in Lost Galaxy $\Phi_L(L)$")
     plt.xlabel('$L_{gal}$')
-    plt.ylabel("% Change in counts")
+    plt.ylabel("$\Delta \Phi_L(L)$ (%)")
     plt.xscale('log')
     plt.xlim(LGAL_MIN, LGAL_MAX)
     plt.ylim(-60, 60)
     plt.legend()
     plt.axhline(0, color='black', lw=1)
+    plt.draw()
+
+    fig, axes = plt.subplots(nrows = 1, ncols=2, figsize=(10, 4), dpi=DPI)
+    for i in range(len(catalogs)):
+        axes[0].plot(x , assumed_vs_truth_red[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
+    #axes[0].set_title("Change in Red Lost Galaxy $\Phi_L(L)$")
+    axes[0].set_xlabel('$L_{gal}$')
+    axes[0].set_ylabel("$\Delta \Phi_{L,r}(L)$ (%)")
+    axes[0].set_xscale('log')
+    axes[0].set_xlim(LGAL_MIN, LGAL_MAX)
+    axes[0].set_ylim(-60, 60)
+    axes[0].axhline(0, color='black', lw=1)
+    for i in range(len(catalogs)):
+        axes[1].plot(x , assumed_vs_truth_blue[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
+    #axes[1].set_title("Change in Blue Lost Galaxy $\Phi_L(L)$")
+    axes[1].set_xlabel('$L_{gal}$')
+    axes[1].set_ylabel("$\Delta \Phi_{L,b}(L)$ (%)")
+    axes[1].set_xscale('log')
+    axes[1].set_xlim(LGAL_MIN, LGAL_MAX)
+    axes[1].set_ylim(-60, 60)
+    axes[1].axhline(0, color='black', lw=1)
+    plt.legend()
+    fig.tight_layout()
     plt.draw()
 
 
@@ -1170,8 +1209,8 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
         truth_z = s.all_data.loc[idx, 'z_T'] # was using z_obs before which is fine for SV3 with droped passes
         assignment_type = s.all_data.loc[idx, 'z_assigned_flag']
 
-        score = sim_z_score(assigned_z, truth_z)
-        rtophat = close_enough_smooth(assigned_z, truth_z)
+        score = powerlaw_score_1(assigned_z, truth_z)
+        rtophat = rounded_tophat_score(assigned_z, truth_z)
         metric_score1 = photoz_plus_metric_1(assigned_z, truth_z, assignment_type)
         metric_score2 = photoz_plus_metric_2(assigned_z, truth_z, assignment_type)
         metric_score3 = photoz_plus_metric_3(assigned_z, truth_z, assignment_type)
@@ -1190,13 +1229,13 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
         for flag in np.unique(assignment_type):
             assigned_z_flag = assigned_z[assignment_type == flag]
             truth_z_flag = truth_z[assignment_type == flag]
-            rtophat_flag = close_enough_smooth(assigned_z_flag, truth_z_flag)
+            rtophat_flag = rounded_tophat_score(assigned_z_flag, truth_z_flag)
             print(f"Flag {AssignedRedshiftFlag(flag)} - {rtophat_flag.mean():.4f}")
 
         #print("Neighbor-assigned Only:")
         assigned_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['z_assigned_flag']), 'z']
         observed_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['z_assigned_flag']), 'z_T']
-        score2 = sim_z_score(assigned_z2, observed_z2)
+        score2 = rounded_tophat(assigned_z2, observed_z2)
         scores_n_only.append(score2.mean())
         #print(f" Galaxies to compare: {len(assigned_z2)} ({len(assigned_z2) / len(s.all_data):.1%})")
         #print(f" Score Mean: {score2.mean():.4f}")
@@ -1207,11 +1246,14 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     width = 1/3  # the width of the bars; change based on how many bars you want
 
     fig, ax = plt.subplots(figsize=(6, 5), dpi=DPI)
-    rects1 = ax.bar(x - width, scores_all_lost, width, label='Score (Powerlaw kernel)', color=get_color(0))
-    #rects3 = ax.bar(x - width  , scores_n_only, width, label='% Powerlaw Score (N-assigned Only)', color=get_color(1))
-    rects2 = ax.bar(x          , rounded_tophat, width, label='% Correct (Tophat)', color=get_color(2))
+    #rects1 = ax.bar(x - width, scores_all_lost, width, label='Score (Powerlaw kernel)', color=get_color(0))
     #rects5 = ax.bar(x + width, scores_metric3, width, label='Metric 3', color=get_color(3))
-    #rects5 = ax.bar(x + width, scores_metric4, width, label='Metric 4', color=get_color(3))
+    
+    #rects2 = ax.bar(x - width/2        , rounded_tophat, width, label='Fraction Correct', color=get_color(2))
+    #rects5 = ax.bar(x + width/2, scores_metric4, width, label='MCMC Metric Score', color=get_color(3))
+
+    rects2 = ax.bar(x -width/2       , rounded_tophat, width, label='Fraction Correct (all)', color=get_color(2))
+    rects3 = ax.bar(x + width/2  , scores_n_only, width, label='Fraction Correct (neighbor assigned)', color=get_color(1))
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     #ax.set_xlabel('Catalogs')
@@ -1219,8 +1261,8 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha='right')
     ax.legend()
-    ax.set_ylim(0, 1.0)
-    ax.set_yticks(np.arange(0, 1.0, 0.1))
+    ax.set_ylim(0, 0.8)
+    ax.set_yticks(np.arange(0, 0.8, 0.1))
     ax.yaxis.grid(True)  # Add horizontal gridlines
 
     fig.tight_layout()

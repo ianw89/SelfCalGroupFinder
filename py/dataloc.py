@@ -96,7 +96,7 @@ BGS_ANY_FULL_FILE = BGS_Y1_FOLDER + "BGS_ANY_full.dat.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.2/BGS_ANY_full.dat.fits
 BGS_ANY_FULL_FILE_OLD = BGS_Y1_FOLDER + "BGS_ANY_full.dat.fits~"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.5/BGS_ANY_0_full.ran.fits
-BGS_RAND_FILE = BGS_Y1_FOLDER + "BGS_ANY_0_full.ran.fits"
+BGS_Y1_RAND_FILE = BGS_Y1_FOLDER + "BGS_ANY_X_full.ran.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/mainbw-bright-allTiles_v1.fits
 BGS_PROB_OBS_FILE = BGS_Y1_FOLDER + "mainbw-bright-allTiles_v1.fits"
 # File was acquired from Index of /public/dr1/vac/dr1/fastspecfit/iron/v2.1/catalogs/fastspec-iron-main-bright.fits
@@ -115,7 +115,9 @@ IAN_BGS_MERGED_FILE_OLD = BGS_Y1_FOLDER + "ian_BGS_merged.fits~"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v1.1/BGS_ANY_full.dat.fits
 BGS_Y3_ANY_FULL_FILE = BGS_Y3_FOLDER + "BGS_ANY_full.dat.fits"
 # File was acquried from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v1.1/nonkp/BGS_BRIGHT_0_full.ran.fits
-BGS_Y3_RAND_FILE = BGS_Y3_FOLDER + "BGS_BRIGHT_0_full.ran.fits"
+BGS_Y3_RAND_FILE = BGS_Y3_FOLDER + "BGS_BRIGHT_X_full.ran.fits"
+BGS_Y3_CLUSTERING_RAND_FILE = BGS_Y3_FOLDER + "BGS_BRIGHT_X_clustering.ran.fits"
+
 # File was acquired from https://data.desi.lbl.gov/desi/spectro/redux/loa/tiles-kibo.csv
 BGS_Y3_TILES_FILE = BGS_Y3_FOLDER + "tiles-loa.csv"
 #
@@ -131,7 +133,7 @@ IAN_BGS_Y3_MERGED_FILE_KIBO = BGS_Y3_FOLDER_KIBO + "ian_BGS_Y3_merged.fits"
 
 # DESI LEGACY IMAGING SURVEY FILES
 ##################################
-# These are constructed from the sweeps because the sweeps are big.
+# These are constructed from the sweeps because the sweeps are big. Use photoz.py to build them.
 IAN_PHOT_Z_FILE = BGS_IMAGES_FOLDER + "IAN_PHOTZ_MATCHES.pkl"
 IAN_PHOT_Z_FILE_NOSPEC = BGS_IMAGES_FOLDER + "IAN_PHOTZ_MATCHES_NS_NOSPEC.pkl"
 IAN_PHOT_Z_FILE_WSPEC = BGS_IMAGES_FOLDER + "IAN_PHOTZ_MATCHES_NS_WSPEC.pkl"
@@ -162,15 +164,29 @@ BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE = BGS_Y1_FOLDER + "bgsy3_lost_appmag_zphot_t
 
 # RANDOMS FILES MATCHING OUR FOOTPRINTS
 #######################################
+
+# ##### SV3 (FUJI) Randoms #####
+# These versions of randoms are for use with unweighted clustering where the untargeted galaxies have been assigned redshifts somehow
 MY_RANDOMS_SV3 = OUTPUT_FOLDER + "randoms_df_sv3.pkl"
 MY_RANDOMS_SV3_20 = OUTPUT_FOLDER + "randoms_df_sv3_20.pkl"
 MY_RANDOMS_SV3_MINI = OUTPUT_FOLDER + "randoms_df_sv3_mini.pkl"
 MY_RANDOMS_SV3_MINI_20 = OUTPUT_FOLDER + "randoms_df_sv3_mini_20.pkl"
 
+# Clustering versions of randoms have weights from the LSS team. Meant for use with PIP weighted clustering
 MY_RANDOMS_SV3_CLUSTERING = OUTPUT_FOLDER + "randoms_df_sv3_clustering.pkl"
 MY_RANDOMS_SV3_CLUSTERING_20 = OUTPUT_FOLDER + "randoms_df_sv3_clustering_20.pkl"
 MY_RANDOMS_SV3_CLUSTERING_MINI = OUTPUT_FOLDER + "randoms_df_sv3_clustering_mini.pkl"
 MY_RANDOMS_SV3_CLUSTERING_MINI_20 = OUTPUT_FOLDER + "randoms_df_sv3_clustering_mini_20.pkl"
 
-MY_RANDOMS_Y1 = OUTPUT_FOLDER + "randoms_df_y1iron.pkl"
-MY_RANDOMS_Y3 = OUTPUT_FOLDER + "randoms_df_y3kibo.pkl"
+# ##### Y3 cut to SV3 10p footprint ######
+# Clustering versions of randoms have weights from the LSS team. Meant for use with PIP weighted clustering
+MY_RANDOMS_Y3_LIKESV3_CLUSTERING = OUTPUT_FOLDER + "randoms_df_y3likesv3_clustering.pkl"
+MY_RANDOMS_Y3_LIKESV3_CLUSTERING_20 = OUTPUT_FOLDER + "randoms_df_y3likesv3_clustering_20.pkl"
+MY_RANDOMS_Y3_LIKESV3_CLUSTERING_MINI = OUTPUT_FOLDER + "randoms_df_y3likesv3_clustering_mini.pkl"
+MY_RANDOMS_Y3_LIKESV3_CLUSTERING_MINI_20 = OUTPUT_FOLDER + "randoms_df_y3likesv3_clustering_mini_20.pkl"
+
+
+
+MY_RANDOMS_Y1_MINI = OUTPUT_FOLDER + "randoms_df_y1iron_mini.pkl"
+
+MY_RANDOMS_Y3_MINI = OUTPUT_FOLDER + "randoms_df_y3loa_mini.pkl"

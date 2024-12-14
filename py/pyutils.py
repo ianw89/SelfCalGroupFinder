@@ -201,7 +201,7 @@ def close_enough(target_z, z_arr, threshold=SIM_Z_THRESH):
     """
     return np.abs(z_arr - target_z) < threshold
 
-def close_enough_smooth(target_z, z_arr):
+def rounded_tophat_score(target_z, z_arr):
     """
     Compares two arrays of redshifts and returns a smooth transition from 1.0 to 0.0 around a 0.005 difference.
     This is used by the nnanalysis object to evaluat the similar-z fraction that goes into the bins.
@@ -217,7 +217,7 @@ def close_enough_smooth(target_z, z_arr):
     TURNING=0.0023
     return np.round(1.0 - erf((np.abs(z_arr-target_z) / (np.pi * TURNING))**TUNABLE), 3)
 
-def sim_z_score(target_z, z_arr):
+def powerlaw_score_1(target_z, z_arr):
     """
     Compares two arrays of redshifts. Instead of binary close enough evaluations like close_enough,
     this will give a 1.0 for close enough values and smoothly go to 0.0 for definintely far away targets.
@@ -252,7 +252,7 @@ def zdelta_spectrum(target_z, z_arr):
 def photoz_plus_metric_1(z_guessed: np.ndarray[float], z_truth: np.ndarray[float], guess_type: np.ndarray[int]):
     assert guess_type.shape == z_guessed.shape
     assert guess_type.shape == z_truth.shape
-    score = sim_z_score(z_guessed, z_truth)
+    score = powerlaw_score_1(z_guessed, z_truth)
 
     # pseudorandom guesses help preserve luminosity func so give them a little credit
     score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.3, 0.0) 
@@ -267,7 +267,7 @@ def photoz_plus_metric_1(z_guessed: np.ndarray[float], z_truth: np.ndarray[float
 def photoz_plus_metric_2(z_guessed: np.ndarray[float], z_truth: np.ndarray[float], guess_type: np.ndarray[int]):
     assert guess_type.shape == z_guessed.shape
     assert guess_type.shape == z_truth.shape
-    score = sim_z_score(z_guessed, z_truth)
+    score = powerlaw_score_1(z_guessed, z_truth)
 
     # pseudorandom guesses help preserve luminosity func so give them a little credit
     score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.4, 0.0) 
@@ -282,7 +282,7 @@ def photoz_plus_metric_2(z_guessed: np.ndarray[float], z_truth: np.ndarray[float
 def photoz_plus_metric_3(z_guessed: np.ndarray[float], z_truth: np.ndarray[float], guess_type: np.ndarray[int]):
     assert guess_type.shape == z_guessed.shape
     assert guess_type.shape == z_truth.shape
-    score = sim_z_score(z_guessed, z_truth)
+    score = powerlaw_score_1(z_guessed, z_truth)
 
     # pseudorandom guesses help preserve luminosity func so give them a little credit
     score = score + np.where(guess_type == AssignedRedshiftFlag.PSEUDO_RANDOM.value, 0.4, 0.0) 
