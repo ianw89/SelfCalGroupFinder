@@ -10,7 +10,6 @@ from astropy.table import Table
 import astropy.io.fits as fits
 import copy
 import sys
-import wp
 import math
 from multiprocessing import Pool
 from joblib import Parallel, delayed
@@ -22,6 +21,7 @@ from redshift_guesser import SimpleRedshiftGuesser, PhotometricRedshiftGuesser
 from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
 from bgs_helpers import *
+import wp
 
 # Sentinal value for no truth redshift
 NO_TRUTH_Z = -99.99
@@ -124,6 +124,50 @@ class GroupCatalog:
         self.f_sat = None # per Lgal bin 
         self.Lgal_counts = None # size of Lgal bins 
 
+    def sanity_tests(self):
+        print(f"Running sanity tests on {self.name}")
+        # TODO
+        df = self.all_data
+        assert len(df[~df.is_sat]) == len(df.igrp.unique()), "Centrals should be unique"
+        assert len(df[df.is_sat]) == len(df) - len(df.igrp.unique()), "Sats should be all the rest"
+
+    def write_sharable_output_file(self, name=None):
+        if name is None:
+            name = str.replace(self.GF_outfile, ".out", "_Catalog.csv").replace(" ", "_").replace("<", "").replace(">", "")
+        elif not name.endswith('.csv'):
+            name = name + '.csv'
+        print(f"Writing a sharable output file: {name}")
+
+        columns_to_write = [
+            'target_id', 
+            'RA',
+            'Dec',
+            'z',
+            'L_gal', 
+            'V_max',
+            'P_sat', 
+            'M_halo',
+            'N_sat', 
+            'L_tot', 
+            'igrp', 
+            'weight', 
+            'app_mag', 
+            'z_assigned_flag',
+            'g_r',
+            'is_sat', 
+            'quiescent', 
+            'mstar' 
+        ]
+        for c in columns_to_write.copy():
+            if c not in self.all_data.columns:
+                print("WARNING - column not found: " + c)
+                columns_to_write.remove(c)
+
+        df_to_write = self.all_data.loc[:, columns_to_write]
+        df_to_write.to_csv(name, index=False, header=True)
+
+        return name
+
     def get_best_wp_all(self):
         if self.wp_all_extra is not None:
             return self.wp_all_extra
@@ -140,6 +184,19 @@ class GroupCatalog:
     def get_lostgal_neighbor_used(self):
         arr = self.all_data.z_assigned_flag.to_numpy()
         return np.sum(z_flag_is_neighbor(arr)) / np.sum(z_flag_is_not_spectro_z(arr))
+
+    def basic_stats(self):
+        groups = self.centrals[self.centrals.N_sat >= 1]
+        clusters = self.centrals[self.centrals.N_sat >= 10]
+
+        print(f"Basic stats for {self.name}")
+        print(f"  Total galaxies: {len(self.all_data)}")
+        print(f"  Total groups (sats >= 1): {len(groups)}")
+        print(f"  Total clusters (sats >= 10): {len(clusters)}")
+        print(f"  Total satellites: {len(self.sats)}")
+        print(f"  Spectroscopic completeness: {self.get_completeness():.2%}")
+        print(f"  Footprint: {self.GF_props['frac_area'] * DEGREES_ON_SPHERE:.1f} deg^2")
+        
 
     def dump(self):
         self.__class__ = eval(self.__class__.__name__) #reset __class__ attribute
@@ -911,16 +968,6 @@ class BGSGroupCatalog(GroupCatalog):
         super().refresh_df_views()
         self.add_bootstrapped_f_sat()
 
-    def write_sharable_output_file(self, name=None):
-        print("Writing a sharable output file")
-        if name is None:
-            name = str.replace(self.GF_outfile, ".out", " Catalog.csv")
-        elif not name.endswith('.csv'):
-            name = name + '.csv'
-        df = self.all_data.drop(columns=['Mstar_bin', 'Mh_bin', 'Lgal_bin', 'logLgal', 'Dn4000'])
-        print(df.columns)
-        df.to_csv(name, index=False, header=True)
-
 
 def get_extra_bgs_fastspectfit_data():
     fname = OUTPUT_FOLDER + 'bgs_mstar.pkl'
@@ -1347,9 +1394,13 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             sdss_z = sdss_vanilla.all_data.iloc[idx]['z'].to_numpy()
 
             # if angular distance is < 3", then we consider it a match to SDSS catalog and copy over it's z
-            ANGULAR_DISTANCE_MATCH = 3
+            ANGULAR_DISTANCE_MATCH = 1.0
             matched = ang_dist < ANGULAR_DISTANCE_MATCH
             idx_from_sloan = idx_unobserved[matched]
+
+            # If sloan z is very different from z_phot, we should probably not use it
+            # This is a bit of a hack to avoid using the SDSS z for galaxies that are likely to be wrong
+            # TODO
             
             z_eff[idx_unobserved] = np.where(matched, sdss_z, np.nan)    
             z_assigned_flag[idx_unobserved] = np.where(matched, AssignedRedshiftFlag.SDSS_SPEC.value, z_assigned_flag[idx_unobserved])
