@@ -259,7 +259,7 @@ async def process_photoz_files(url_base_pz, url_base_main, pz_links_file, main_l
             df.reset_index(drop=True, inplace=True)
 
             # At this point df only contains galaxies with a redshift, and the best redshift from the legacy catalog.
-            legacy_coords = coord.SkyCoord(ra=df.RA.to_numpy()*u.degree, dec=df.DEC.to_numpy()*u.degree, frame='icrs')
+            legacy_coords = coord.SkyCoord(ra=df.RA.to_numpy()*u.degree, dec=df['DEC'].to_numpy()*u.degree, frame='icrs')
 
             # idx is the index of the DESI target (unchanging arrays) that is closest to the each legacy source
             idx, d2d, d3d = coord.match_coordinates_sky(legacy_coords, desi_coords, nthneighbor=1, storekdtree='BGS-GALS')

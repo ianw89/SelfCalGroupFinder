@@ -1003,7 +1003,7 @@ def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base)
 
     # Experiment
     #t3 = time.time()
-    #pd.DataFrame({'ra':ra, 'dec':dec, 'z_eff':z_eff, 'log_L_gal':log_L_gal, 'V_max':V_max, 'colors':colors, 'chi':chi}).to_csv(outname_base + ".dat~", sep=' ', index=False, header=False)
+    #pd.DataFrame({'ra':ra, 'dec':dec, 'z_eff':z_eff, 'log_L_gal':log_L_gal, 'VMAX':V_max, 'colors':colors, 'chi':chi}).to_csv(outname_base + ".dat~", sep=' ', index=False, header=False)
     #pd.DataFrame(galprops).to_csv(outname_base + "_galprops.dat~", sep=' ', index=False, header=False)
     #t4 = time.time()
 

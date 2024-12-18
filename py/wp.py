@@ -96,26 +96,26 @@ def calculate_wp_from_df(df: pd.DataFrame, randoms, data_weights=None, rand_weig
     # Overall sample
     rbins , wp_all = calculate_wp(
         df.RA.to_numpy(), 
-        df.Dec.to_numpy(),  
+        df['DEC'].to_numpy(),  
         dist.value, 
         randoms.RA.to_numpy(),
-        randoms.Dec.to_numpy(),
+        randoms['DEC'].to_numpy(),
         data_weights=data_weights,
         rand_weights=rand_weights)
     rbins, wp_red = calculate_wp(
-        df.loc[df.quiescent].RA.to_numpy(),
-        df.loc[df.quiescent].Dec.to_numpy(),
-        dist.value[df.quiescent],
+        df.loc[df['QUIESCENT']].RA.to_numpy(),
+        df.loc[df['QUIESCENT']]['DEC'].to_numpy(),
+        dist.value[df['QUIESCENT']],
         randoms.RA.to_numpy(),
-        randoms.Dec.to_numpy(),
+        randoms['DEC'].to_numpy(),
         data_weights=data_weights,
         rand_weights=rand_weights)
     rbins, wp_blue = calculate_wp(
-        df.loc[~df.quiescent].RA.to_numpy(),
-        df.loc[~df.quiescent].Dec.to_numpy(),
-        dist.value[~df.quiescent],
+        df.loc[~df['QUIESCENT']].RA.to_numpy(),
+        df.loc[~df['QUIESCENT']]['DEC'].to_numpy(),
+        dist.value[~df['QUIESCENT']],
         randoms.RA.to_numpy(),
-        randoms.Dec.to_numpy(),
+        randoms['DEC'].to_numpy(),
         data_weights=data_weights,
         rand_weights=rand_weights)
 

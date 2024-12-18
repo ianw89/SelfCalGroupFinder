@@ -6,7 +6,7 @@ import concurrent.futures
 from multiprocessing import Pool
 
 # EXAMPLE USAGE
-# nohup python exec.py 9 > exec9.out &
+# nohup python exec.py 6 9 > exec.out &
 
 
 if './SelfCalGroupFinder/py/' not in sys.path:
@@ -39,8 +39,8 @@ callable_list = [
     cat.uchuu_list, #4
     cat.mxxl_list, #5
     cat.bgs_sv3_list, #6
-    cat.bgs_y1_list, #7
-    cat.bgs_y3_list, #8
+    cat.bgs_aux_list, #7
+    cat.bgs_main_list, #8
     [cat.bgs_y3_like_sv3_pz_2_4] #9
 ]
 
@@ -51,8 +51,8 @@ def process_gc(gc: GroupCatalog):
     gc.run_group_finder()
     gc.postprocess()
     #d.run_corrfunc()
-    gc.calculate_projected_clustering(with_extra_randoms=True) # 15m
-    gc.calculate_projected_clustering_in_magbins(with_extra_randoms=True) # 45m maybe?
+    #gc.calculate_projected_clustering(with_extra_randoms=True) # 15m
+    #gc.calculate_projected_clustering_in_magbins(with_extra_randoms=True) # 45m maybe?
     
     #if gc == cat.bgs_sv3_pz_2_4_10p:
     #    gc.add_jackknife_err_to_proj_clustering(with_extra_randoms=True, for_mag_bins=True)
@@ -136,8 +136,9 @@ if __name__ == "__main__":
     #perf_test()
 
     if len(sys.argv[1]) > 0:
-        to_add = int(sys.argv[1])
-        datasets_to_run.extend(callable_list[to_add])
+        for arg in sys.argv[1:]:
+            to_add = int(arg)
+            datasets_to_run.extend(callable_list[to_add])
 
     asyncio.run(main_serial())
     #asyncio.run(main_threaded_parallel())

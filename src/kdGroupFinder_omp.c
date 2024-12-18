@@ -142,12 +142,15 @@ void groupfind()
     if (!SILENT) fprintf(stderr, "done sorting galaxies.\n");
 
     // do the inverse-abundance matching
+    
     density2host_halo(0.01);
     if (!SILENT) fprintf(stderr, "Starting inverse-sham...\n");
     galden = 0;
+
     // reset the sham counters
     if (FLUXLIM)
       density2host_halo_zbins3(-1, 0);
+
     for (i1 = 1; i1 <= NGAL; ++i1)
     {
       i = itmp[i1];

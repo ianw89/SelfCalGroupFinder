@@ -65,8 +65,8 @@ def find_tiles_for_galaxies(tiles_df, gals_df, num_tiles_to_find):
     num_galaxies = len(gals_df.RA)
     num_tiles = len(tiles_df.RA)
 
-    tiles_coord = coord.SkyCoord(ra=tiles_df.RA.to_numpy()*u.degree, dec=tiles_df.Dec.to_numpy()*u.degree, frame='icrs')
-    gals_coord = coord.SkyCoord(ra=gals_df.RA.to_numpy()*u.degree, dec=gals_df.Dec.to_numpy()*u.degree, frame='icrs')
+    tiles_coord = coord.SkyCoord(ra=tiles_df.RA.to_numpy()*u.degree, dec=tiles_df['DEC'].to_numpy()*u.degree, frame='icrs')
+    gals_coord = coord.SkyCoord(ra=gals_df.RA.to_numpy()*u.degree, dec=gals_df['DEC'].to_numpy()*u.degree, frame='icrs')
 
     # Structure for resultant data
     nearest_tile_ids = np.zeros((num_galaxies, num_tiles_to_find), dtype=int)
@@ -186,7 +186,7 @@ def add_fastspecfit_columns(main_table):
 def read_tiles_Y1_main():
     tiles_table = Table.read(BGS_TILES_FILE, format='csv')
     tiles_table.keep_columns(['TILEID', 'FAFLAVOR', 'TILERA', 'TILEDEC'])
-    tiles_df = pd.DataFrame({'RA': tiles_table['TILERA'].astype("<f8"), 'Dec': tiles_table['TILEDEC'].astype("<f8"), 'FAFLAVOR': tiles_table['FAFLAVOR'], 'TILEID': tiles_table['TILEID']})
+    tiles_df = pd.DataFrame({'RA': tiles_table['TILERA'].astype("<f8"), 'DEC': tiles_table['TILEDEC'].astype("<f8"), 'FAFLAVOR': tiles_table['FAFLAVOR'], 'TILEID': tiles_table['TILEID']})
     tiles_df = tiles_df[tiles_df.FAFLAVOR == 'mainbright']
     tiles_df.reset_index(drop=True, inplace=True)
     return tiles_df
@@ -194,7 +194,7 @@ def read_tiles_Y1_main():
 def read_tiles_Y3_sv3():
     tiles_table = Table.read(BGS_Y3_TILES_FILE, format='csv')
     tiles_table.keep_columns(['TILEID', 'FAFLAVOR', 'TILERA', 'TILEDEC'])
-    tiles_df = pd.DataFrame({'RA': tiles_table['TILERA'].astype("<f8"), 'Dec': tiles_table['TILEDEC'].astype("<f8"), 'FAFLAVOR': tiles_table['FAFLAVOR'], 'TILEID': tiles_table['TILEID']})
+    tiles_df = pd.DataFrame({'RA': tiles_table['TILERA'].astype("<f8"), 'DEC': tiles_table['TILEDEC'].astype("<f8"), 'FAFLAVOR': tiles_table['FAFLAVOR'], 'TILEID': tiles_table['TILEID']})
     tiles_df = tiles_df[tiles_df.FAFLAVOR == 'sv3bright']
     tiles_df.reset_index(drop=True, inplace=True)
     return tiles_df
@@ -202,7 +202,7 @@ def read_tiles_Y3_sv3():
 def read_tiles_Y3_main():
     tiles_table = Table.read(BGS_Y3_TILES_FILE, format='csv')
     tiles_table.keep_columns(['TILEID', 'FAFLAVOR', 'TILERA', 'TILEDEC'])
-    tiles_df = pd.DataFrame({'RA': tiles_table['TILERA'].astype("<f8"), 'Dec': tiles_table['TILEDEC'].astype("<f8"), 'FAFLAVOR': tiles_table['FAFLAVOR'], 'TILEID': tiles_table['TILEID']})
+    tiles_df = pd.DataFrame({'RA': tiles_table['TILERA'].astype("<f8"), 'DEC': tiles_table['TILEDEC'].astype("<f8"), 'FAFLAVOR': tiles_table['FAFLAVOR'], 'TILEID': tiles_table['TILEID']})
     tiles_df = tiles_df[tiles_df.FAFLAVOR == 'mainbright']
     tiles_df.reset_index(drop=True, inplace=True)
     return tiles_df
@@ -277,7 +277,7 @@ def read_randoms(base, n):
     r_ra = rtable['RA'].astype("<f8")
     r_ntiles = rtable['NTILE'].astype("<i8")
 
-    randoms_df = pd.DataFrame({'RA': r_ra, 'Dec': r_dec, 'NTILE': r_ntiles})
+    randoms_df = pd.DataFrame({'RA': r_ra, 'DEC': r_dec, 'NTILE': r_ntiles})
 
     if 'WEIGHT' in rtable.columns:
         randoms_df['WEIGHT'] = rtable['WEIGHT'].astype("<f8")

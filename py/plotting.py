@@ -41,7 +41,7 @@ def completeness_stats(cats: GroupCatalog|list[GroupCatalog]):
         name = d.name.replace("BGS sv3", "SV3")
         print(f"{name}")
         print(f"  Total galaxies: {len(d.all_data):,}")
-        print(f"  Completeness: {spectroscopic_complete_percent(d.all_data.z_assigned_flag.to_numpy()):.1%}")
+        print(f"  Completeness: {spectroscopic_complete_percent(d.all_data['Z_ASSIGNED_FLAG'].to_numpy()):.1%}")
         print(f"  Lost gals - neighbor z used: {d.get_lostgal_neighbor_used():.1%}")
         total_f_sat(d)
 
@@ -61,14 +61,14 @@ def legend_ax(ax, datasets):
 def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHOW_UNWEIGHTED=False):
     HOD_LGAL_CUT = 4E9
 
-    vmax_cen_avg = np.average(centrals.loc[centrals.L_gal > HOD_LGAL_CUT].V_max)
-    vmax_sat_avg = np.average(sats.loc[sats.L_gal > HOD_LGAL_CUT].V_max)
-    vmax_gal_avg = np.average(df.loc[df.L_gal > HOD_LGAL_CUT].V_max)
-    halo_bin_sizes_weighted = centrals.groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * np.average(centrals.V_max)
+    vmax_cen_avg = np.average(centrals.loc[centrals['L_GAL']> HOD_LGAL_CUT]['VMAX'])
+    vmax_sat_avg = np.average(sats.loc[sats['L_GAL']> HOD_LGAL_CUT]['VMAX'])
+    vmax_gal_avg = np.average(df.loc[df['L_GAL']> HOD_LGAL_CUT]['VMAX'])
+    halo_bin_sizes_weighted = centrals.groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * np.average(centrals['VMAX'])
 
-    N_cen = centrals[centrals.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * vmax_cen_avg / halo_bin_sizes_weighted
-    N_sat = sats[sats.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * vmax_sat_avg / halo_bin_sizes_weighted
-    N_gal = df[df.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * vmax_gal_avg / halo_bin_sizes_weighted
+    N_cen = centrals[centrals['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * vmax_cen_avg / halo_bin_sizes_weighted
+    N_sat = sats[sats['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * vmax_sat_avg / halo_bin_sizes_weighted
+    N_gal = df[df['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * vmax_gal_avg / halo_bin_sizes_weighted
     
 
     plt.figure(dpi=DPI)
@@ -78,9 +78,9 @@ def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHO
 
     if SHOW_UNWEIGHTED:
         halo_bin_sizes_weighted2 = centrals.groupby(mass_bin_prop, observed=False).size()
-        N_cen2 = centrals[centrals.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).size()  / halo_bin_sizes_weighted2
-        N_sat2 = sats[sats.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).size()  / halo_bin_sizes_weighted2
-        N_gal2 = df[df.L_gal > HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).size()  / halo_bin_sizes_weighted2
+        N_cen2 = centrals[centrals['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).size()  / halo_bin_sizes_weighted2
+        N_sat2 = sats[sats['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).size()  / halo_bin_sizes_weighted2
+        N_gal2 = df[df['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).size()  / halo_bin_sizes_weighted2
 
         plt.plot(mass_labels, N_cen2, ".", label=f"Centrals Unweighted", color='red', alpha=0.5)
         plt.plot(mass_labels, N_sat2, "--", label=f"Satellites Unweighted", color='red', alpha=0.5)
@@ -117,12 +117,12 @@ def single_plots(d: GroupCatalog, truth_on=False):
 
     plots_color_split(d, truth_on=truth_on, total_on=True)
 
-    if 'z_assigned_flag' in d.all_data.columns:
-        plots_color_split_lost_split(d, 'Lgal_bin')
+    if 'Z_ASSIGNED_FLAG' in d.all_data.columns:
+        plots_color_split_lost_split(d, 'LGAL_BIN')
     if d.has_truth and truth_on:
-        q_gals = d.all_data[d.all_data.quiescent]
-        sf_gals = d.all_data[np.invert(d.all_data.quiescent)]
-        plots_color_split_lost_split_inner(d.name + " Truth", d.L_gal_labels, d.L_gal_bins, q_gals, sf_gals, fsat_truth_vmax_weighted,'Lgal_bin_T')
+        q_gals = d.all_data[d.all_data['QUIESCENT']]
+        sf_gals = d.all_data[np.invert(d.all_data['QUIESCENT'])]
+        plots_color_split_lost_split_inner(d.name + " Truth", d.L_gal_labels, d.L_gal_bins, q_gals, sf_gals, fsat_truth_vmax_weighted,'LGAL_BIN_T')
 
     wp_rp(d)
     wp_rp_magbins(d)
@@ -136,7 +136,7 @@ def completeness_comparison(*datasets):
         completeness = np.zeros(len(datasets))
         fsat = np.zeros(len(datasets))
         for i in range(0,len(datasets)):
-            completeness[i] = (datasets[i].all_data.z_assigned_flag == 0).mean()
+            completeness[i] = (datasets[i].all_data['Z_ASSIGNED_FLAG'] == 0).mean()
             fsat[i] = datasets[i].f_sat.iloc[index]
         plt.plot(completeness, fsat, label=f'log(L)={np.log10(L_gal_labels[index]):.1f}', marker='o')
     ax1.set_xlabel("Completeness")
@@ -158,7 +158,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
     plt.figure(dpi=DPI)
     for f in catalogs:
         lcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-        lcen_scatter = f.centrals.groupby('Mh_bin', observed=False).L_gal.std() # TODO not right?
+        lcen_scatter = f.centrals.groupby('Mh_bin', observed=False)['L_GAL'].std() # TODO not right?
         plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
     plt.xscale('log')
     plt.yscale('log')
@@ -210,7 +210,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
             widths[i]=(f.Mhalo_bins[i+1] - f.Mhalo_bins[i]) / len(datasets)
         
         # This version 1/vmax weights the counts
-        #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin', observed=False).apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
+        #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('LGAL_BIN', observed=False).apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
         ax2.bar(f.labels+(widths*idx), f.all_data.groupby('Mh_bin', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
         idx+=1
     ax2.set_ylabel('$N_{gal}$')
@@ -241,8 +241,8 @@ def plots(*catalogs, show_err=None, truth_on=False):
         for i in range(0,len(f.L_gal_bins)-1):
             widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / len(catalogs)
         # This version 1/vmax weights the counts
-        #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('Lgal_bin', observed=False).apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
-        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data.groupby('Lgal_bin', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
+        #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('LGAL_BIN', observed=False).apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
+        ax2.bar(f.L_gal_labels+(widths*idx), f.all_data.groupby('LGAL_BIN', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
         idx+=1
     ax2.set_ylabel('$N_{gal}$')
     ax2.set_yscale('log')
@@ -261,7 +261,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
                 plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=get_dataset_display_name(f), color=f.color)
         if truth_on:
             for f in catalogs:
-                if 'is_sat_truth' in f.all_data.columns:
+                if 'IS_SAT_T' in f.all_data.columns:
                     plt.plot(f.L_gal_labels, f.truth_f_sat, 'v', label=f"{f.name} Truth", color=f.color)
         ax1.set_xscale('log')
         ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
@@ -341,7 +341,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
     #    widths = np.zeros(len(f.L_gal_bins)-1)
     #    for i in range(0,len(f.L_gal_bins)-1):
     #        widths[i]=(f.L_gal_bins[i+1] - f.L_gal_bins[i]) / (len(datasets))
-    #    ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data.is_sat == True].groupby('Lgal_bin', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
+    #    ax2.bar(f.L_gal_labels+(widths*idx), f.all_data[f.all_data['IS_SAT'] == True].groupby('LGAL_BIN', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
     #    idx+=1
     #ax2.set_ylabel('$N_{sat}$')
     fig.tight_layout()
@@ -357,6 +357,10 @@ def wp_rp(catalog: GroupCatalog|tuple):
     f = catalog
     plt.figure(figsize=(5, 5))
     to_use = f.get_best_wp_all() if isinstance(f, GroupCatalog) else f
+
+    if to_use is None:
+        return
+    
     if hasattr(f, 'wp_err'):
         plt.errorbar(to_use[0][:-1], to_use[1], yerr=f.wp_err, marker='o', linestyle='-', label='All', color=colors[0])
         plt.errorbar(to_use[0][:-1], to_use[2], yerr=f.wp_r_err, marker='o', linestyle='-', label='Red', color=colors[1])
@@ -385,6 +389,9 @@ def wp_rp_magbins(c: GroupCatalog):
         to_use = c.wp_slices_extra
     else:
         to_use = c.wp_slices
+
+    if to_use is None:
+        return
 
     for i, mag_slice in enumerate(to_use):
         if i <= 1:
@@ -475,15 +482,15 @@ def compare_wp_rp(d1: BGSGroupCatalog|tuple, d2_t: BGSGroupCatalog|tuple):
 
 
 def plots_color_split_lost_split(f, grpby_col):
-    q_gals = f.all_data[f.all_data.quiescent]
-    sf_gals = f.all_data[np.invert(f.all_data.quiescent)]
+    q_gals = f.all_data[f.all_data['QUIESCENT']]
+    sf_gals = f.all_data[np.invert(f.all_data['QUIESCENT'])]
     plots_color_split_lost_split_inner(get_dataset_display_name(f), f.L_gal_labels, f.L_gal_bins, q_gals, sf_gals, fsat_vmax_weighted, grpby_col)
 
 def plots_color_split_lost_split_inner(name, L_gal_labels, L_gal_bins, q_gals, sf_gals, aggregation_func, grpby_col, show_plot=True):
-    q_lost = q_gals[z_flag_is_not_spectro_z(q_gals.z_assigned_flag)].groupby([grpby_col], observed=False)
-    q_obs = q_gals[z_flag_is_spectro_z(q_gals.z_assigned_flag)].groupby([grpby_col], observed=False)
-    sf_lost = sf_gals[z_flag_is_not_spectro_z(sf_gals.z_assigned_flag)].groupby([grpby_col], observed=False)
-    sf_obs = sf_gals[z_flag_is_spectro_z(sf_gals.z_assigned_flag)].groupby([grpby_col], observed=False)
+    q_lost = q_gals[z_flag_is_not_spectro_z(q_gals['Z_ASSIGNED_FLAG'])].groupby([grpby_col], observed=False)
+    q_obs = q_gals[z_flag_is_spectro_z(q_gals['Z_ASSIGNED_FLAG'])].groupby([grpby_col], observed=False)
+    sf_lost = sf_gals[z_flag_is_not_spectro_z(sf_gals['Z_ASSIGNED_FLAG'])].groupby([grpby_col], observed=False)
+    sf_obs = sf_gals[z_flag_is_spectro_z(sf_gals['Z_ASSIGNED_FLAG'])].groupby([grpby_col], observed=False)
     fsat_qlost = q_lost.apply(aggregation_func)
     fsat_qobs = q_obs.apply(aggregation_func)
     fsat_sflost = sf_lost.apply(aggregation_func)
@@ -617,9 +624,9 @@ def plots_color_split(*datasets, truth_on=False, total_on=False):
         fig.set_dpi(DPI)
         for f in datasets:
             #if not hasattr(f, 'f_sat_q'):
-            #    f.f_sat_q = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
+            #    f.f_sat_q = f.all_data[f.all_data['QUIESCENT']].groupby(['LGAL_BIN'], observed=False).apply(fsat_vmax_weighted)
             #if not hasattr(f, 'f_sat_sf'):
-            #    f.f_sat_sf = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_vmax_weighted)
+            #    f.f_sat_sf = f.all_data[np.invert(f.all_data['QUIESCENT'])].groupby(['LGAL_BIN'], observed=False).apply(fsat_vmax_weighted)
             
             if hasattr(f, 'f_sat_q_err'):
                 plt.errorbar(f.L_gal_labels, f.f_sat_q, yerr=f.f_sat_q_err, label=get_dataset_display_name(f) + " Quiescent", color='r')
@@ -641,8 +648,8 @@ def plots_color_split(*datasets, truth_on=False, total_on=False):
             if truth_on:
                 if f.has_truth:
                     truth_on = False
-                    f.f_sat_q_t = f.all_data[f.all_data.quiescent].groupby(['Lgal_bin'], observed=False).apply(fsat_truth_vmax_weighted)
-                    f.f_sat_sf_t = f.all_data[np.invert(f.all_data.quiescent)].groupby(['Lgal_bin'], observed=False).apply(fsat_truth_vmax_weighted)
+                    f.f_sat_q_t = f.all_data[f.all_data['QUIESCENT']].groupby(['LGAL_BIN'], observed=False).apply(fsat_truth_vmax_weighted)
+                    f.f_sat_sf_t = f.all_data[np.invert(f.all_data['QUIESCENT'])].groupby(['LGAL_BIN'], observed=False).apply(fsat_truth_vmax_weighted)
                     plt.plot(f.L_gal_labels, f.f_sat_q_t, 'x', label="Simulation's Truth", color='r')
                     plt.plot(f.L_gal_labels, f.f_sat_sf_t, 'x', label="Simulation's Truth", color='b')
 
@@ -669,11 +676,11 @@ def total_f_sat(ds):
     """
     Prints out the total f_sat for a dataframe, 1/Vmax weighted and not. 
     """
-    print(f"  fsat (no weight):  {ds.all_data['is_sat'].mean():.3f}")
+    print(f"  fsat (no weight):  {ds.all_data['IS_SAT'].mean():.3f}")
     print(f"  fsat (1 / V_max):  {fsat_vmax_weighted(ds.all_data):.3f}")
     
-    if ds.has_truth and 'is_sat_truth' in ds.all_data.columns:
-        print(f"  Truth (no weight):  {ds.all_data['is_sat_truth'].mean():.3f}")
+    if ds.has_truth and 'IS_SAT_T' in ds.all_data.columns:
+        print(f"  Truth (no weight):  {ds.all_data['IS_SAT_T'].mean():.3f}")
         print(f"  Truth (1 / V_max):  {fsat_truth_vmax_weighted(ds.all_data):.3f}")
 
 
@@ -686,9 +693,9 @@ def fsat_by_zbins_sv3_centers(*datasets, z_bins=np.array([0.0, 0.2, 1.0], dtype=
         fig.set_dpi(DPI)
 
         for d in datasets:
-            z_cut = np.all([d.all_data.z > z_low, d.all_data.z < z_high], axis=0)
+            z_cut = np.all([d.all_data['Z'] > z_low, d.all_data['Z'] < z_high], axis=0)
             print(f"z: {z_low:.2} - {z_high:.2} ({np.sum(z_cut)} galaxies)")
-            fsat_zcut = d.all_data[z_cut].groupby('Lgal_bin').apply(fsat_vmax_weighted)
+            fsat_zcut = d.all_data[z_cut].groupby('LGAL_BIN').apply(fsat_vmax_weighted)
             plt.plot(d.L_gal_labels, fsat_zcut, d.marker, label=get_dataset_display_name(d), color=d.color)
 
         ax1.set_xscale('log')
@@ -712,11 +719,11 @@ def fsat_by_z_bins(dataset, z_bins=np.array([0.0, 0.05, 0.1, 0.2, 0.3, 1.0]), sh
     for i in range(0, len(z_bins)-1):
         z_low = z_bins[i]
         z_high = z_bins[i+1]
-        z_cut = np.all([dataset.all_data.z > z_low, dataset.all_data.z < z_high], axis=0)
+        z_cut = np.all([dataset.all_data['Z'] > z_low, dataset.all_data['Z'] < z_high], axis=0)
         print(f"z: {z_low:.2} - {z_high:.2} ({np.sum(z_cut)} galaxies)")
-        q_gals = dataset.all_data[np.all([dataset.all_data.quiescent, z_cut], axis=0)]
+        q_gals = dataset.all_data[np.all([dataset.all_data['QUIESCENT'], z_cut], axis=0)]
         #q_gals.reset_index(drop=True, inplace=True)
-        sf_gals = dataset.all_data[np.all([np.invert(dataset.all_data.quiescent), z_cut], axis=0)]
+        sf_gals = dataset.all_data[np.all([np.invert(dataset.all_data['QUIESCENT']), z_cut], axis=0)]
         #sf_gals.reset_index(drop=True, inplace=True)
         fsat_qlost, fsat_qobs, fsat_qtot, fsat_sflost, fsat_sfobs, fsat_sftot = plots_color_split_lost_split_inner(f"{dataset.name} z: {z_low:.2} - {z_high:.2}", dataset.L_gal_labels, dataset.L_gal_bins, q_gals, sf_gals, aggregation, show_plot=show_plots)
         fsat_qlost_arr.append(fsat_qlost[L_bin_number])
@@ -775,8 +782,8 @@ def L_func_plot(datasets: list, values: list):
     ax2.set_xlabel("$M_r$ - 5log(h)")
     
 def compare_L_funcs(one: pd.DataFrame, two: pd.DataFrame):
-    one_counts = one.groupby('Lgal_bin').RA.count()
-    two_counts = two.groupby('Lgal_bin').RA.count()
+    one_counts = one.groupby('LGAL_BIN').RA.count()
+    two_counts = two.groupby('LGAL_BIN').RA.count()
     L_func_plot([one, two], [one_counts, two_counts])
 
 def qf_cen_plot(*datasets, test_methods=False, mstar=False):
@@ -785,10 +792,10 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     """
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
-    groupby_property = 'Mstar_bin' if mstar else 'Lgal_bin'
+    groupby_property = 'Mstar_bin' if mstar else 'LGAL_BIN'
     label_property = 'Mstar_labels' if mstar else 'L_gal_labels'
     for f in datasets:
-        data = f.all_data.loc[np.all([~f.all_data.is_sat], axis=0)]
+        data = f.all_data.loc[np.all([~f.all_data['IS_SAT']], axis=0)]
         if test_methods:
             qf_gmr = f.centrals.groupby(groupby_property, observed=False).apply(qf_BGS_gmr_vmax_weighted)
             qf_dn4000 = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
@@ -906,18 +913,18 @@ def lsat_data_compare_plot(gc: GroupCatalog):
 # Halo Masses (in group finder abundance matching)
 def group_finder_centrals_halo_masses_plots(all_df, comparisons):
     
-    count_to_use = np.max([len(c.all_data[c.all_data.index == c.all_data.igrp]) for c in comparisons])
+    count_to_use = np.max([len(c.all_data[c.all_data.index == c.all_data['IGRP']]) for c in comparisons])
     
-    all_centrals = all_df.all_data[all_df.all_data.index == all_df.all_data.igrp]
+    all_centrals = all_df.all_data[all_df.all_data.index == all_df.all_data['IGRP']]
 
     #if len(all_df.all_data) > count_to_use:
     #    # Randomly sample to match the largest comparison
     #    print(len(all_centrals))
     #    print(count_to_use)
-    #    reduced_all_centrals_halos = np.random.choice(all_centrals.M_halo, count_to_use, replace=False)
+    #    reduced_all_centrals_halos = np.random.choice(all_centrals['M_HALO'], count_to_use, replace=False)
 
     #angdist_bin_ind = np.digitize(reduced_all_centrals_halos, all_df.Mhalo_bins)
-    angdist_bin_ind = np.digitize(all_centrals.M_halo, all_df.Mhalo_bins)
+    angdist_bin_ind = np.digitize(all_centrals['M_HALO'], all_df.Mhalo_bins)
     all_bincounts = np.bincount(angdist_bin_ind)[0:len(all_df.Mhalo_bins)]
     all_density = all_bincounts / np.sum(all_bincounts)
 
@@ -941,8 +948,8 @@ def group_finder_centrals_halo_masses_plots(all_df, comparisons):
 
     for comparison in comparisons:
 
-        centrals = comparison.all_data[comparison.all_data.index == comparison.all_data.igrp]
-        angdist_bin_ind = np.digitize(centrals.M_halo, all_df.Mhalo_bins)
+        centrals = comparison.all_data[comparison.all_data.index == comparison.all_data['IGRP']]
+        angdist_bin_ind = np.digitize(centrals['M_HALO'], all_df.Mhalo_bins)
         bincounts = np.bincount(angdist_bin_ind)[0:len(all_df.Mhalo_bins)]
         density = bincounts / np.sum(bincounts)
 
@@ -955,9 +962,9 @@ def group_finder_centrals_halo_masses_plots(all_df, comparisons):
     # Look up the centrals from all in fiberonly
     for comparison in comparisons:
 
-        centrals = comparison.all_data[comparison.all_data.index == comparison.all_data.igrp]
-        catalog = coord.SkyCoord(ra=all_centrals.RA.to_numpy()*u.degree, dec=all_centrals.Dec.to_numpy()*u.degree, frame='icrs')
-        to_match = coord.SkyCoord(ra=centrals.RA.to_numpy()*u.degree, dec=centrals.Dec.to_numpy()*u.degree, frame='icrs')
+        centrals = comparison.all_data[comparison.all_data.index == comparison.all_data['IGRP']]
+        catalog = coord.SkyCoord(ra=all_centrals.RA.to_numpy()*u.degree, dec=all_centrals['DEC'].to_numpy()*u.degree, frame='icrs')
+        to_match = coord.SkyCoord(ra=centrals.RA.to_numpy()*u.degree, dec=centrals['DEC'].to_numpy()*u.degree, frame='icrs')
         idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=1, storekdtree=False)
 
         perfect_match = np.isclose(d2d.to(u.arcsec).value, 0, rtol=0.0, atol=0.0001) 
@@ -982,8 +989,8 @@ def Lfunc_compare(cat1, cat2):
     two = cat2.all_data
 
     # Calculate the luminosity functions for both catalogs
-    counts1 = one.groupby('Lgal_bin').size()
-    counts2 = two.groupby('Lgal_bin').size()
+    counts1 = one.groupby('LGAL_BIN').size()
+    counts2 = two.groupby('LGAL_BIN').size()
 
     # Normalize the counts to the same total number of galaxies
     norm_counts1 = counts1 / counts1.sum()
@@ -996,15 +1003,15 @@ def Lfunc_compare(cat1, cat2):
     ax.plot(cat1.L_gal_labels, percent_diff, label='Total', color='black')
 
     # Repeat for red and blue galaxies
-    counts1_red = one[one.quiescent].groupby('Lgal_bin').size()
-    counts2_red = two[two.quiescent].groupby('Lgal_bin').size()
+    counts1_red = one[one['QUIESCENT']].groupby('LGAL_BIN').size()
+    counts2_red = two[two['QUIESCENT']].groupby('LGAL_BIN').size()
     norm_counts1_red = counts1_red / counts1_red.sum()
     norm_counts2_red = counts2_red / counts2_red.sum()
     percent_diff_red = 100 * (norm_counts1_red - norm_counts2_red) / norm_counts2_red
     ax.plot(cat1.L_gal_labels, percent_diff_red, label='Red', color='red')
 
-    counts1_blue = one[~one.quiescent].groupby('Lgal_bin').size()
-    counts2_blue = two[~two.quiescent].groupby('Lgal_bin').size()
+    counts1_blue = one[~one['QUIESCENT']].groupby('LGAL_BIN').size()
+    counts2_blue = two[~two['QUIESCENT']].groupby('LGAL_BIN').size()
     norm_counts1_blue = counts1_blue / counts1_blue.sum()
     norm_counts2_blue = counts2_blue / counts2_blue.sum()
     percent_diff_blue = 100 * (norm_counts1_blue - norm_counts2_blue) / norm_counts2_blue
@@ -1043,14 +1050,13 @@ def luminosity_function_plots(*catalogs):
         #data = catalog.all_data.convert_dtypes()
         data = catalog.all_data
 
-        lostrows = z_flag_is_not_spectro_z(data.z_assigned_flag.to_numpy())
-        lost_and_havetruth_rows = np.logical_and(z_flag_is_not_spectro_z(data.z_assigned_flag.to_numpy()), data.z_T.to_numpy() > 0)
+        lostrows = z_flag_is_not_spectro_z(data['Z_ASSIGNED_FLAG'].to_numpy())
+        lost_and_havetruth_rows = np.logical_and(z_flag_is_not_spectro_z(data['Z_ASSIGNED_FLAG'].to_numpy()), data['Z_T'].to_numpy() > 0)
         lost_withT_galaxies = data.loc[lost_and_havetruth_rows]
         obs_galaxies = data.loc[~lostrows]
 
-        closeness = np.isclose(obs_galaxies.z, obs_galaxies.z_T, atol=SIM_Z_THRESH, rtol=0.0)
-        assert closeness.sum() / len(closeness) > .98, f"{1 - (closeness.sum() / len(closeness))} of the galaxies have different z and z_T despite being spectrocopically observed."
-        #assert np.isclose(obs_galaxies.L_gal, obs_galaxies.L_gal_T).all()
+        closeness = np.isclose(obs_galaxies['Z'], obs_galaxies['Z_T'], atol=SIM_Z_THRESH, rtol=0.0)
+        assert closeness.sum() / len(closeness) > .98, f"{1 - (closeness.sum() / len(closeness))} of the galaxies have different z and Z_T despite being spectrocopically observed."
 
         if len(lost_withT_galaxies) == 0:
             boost.append(1)
@@ -1058,26 +1064,26 @@ def luminosity_function_plots(*catalogs):
         boost.append(len(obs_galaxies) / len(lost_withT_galaxies))
 
         # Non CIC way looks quite different...
-        #obs_counts[i] = obs_galaxies.groupby('Lgal_bin_T', observed=False).size()
-        #lost_truth_counts[i] = lost_withT_galaxies.groupby('Lgal_bin_T', observed=False).size()
-        #lost_assumed_counts[i] = lost_withT_galaxies.groupby('Lgal_bin', observed=False).size()
+        #obs_counts[i] = obs_galaxies.groupby('LGAL_BIN_T', observed=False).size()
+        #lost_truth_counts[i] = lost_withT_galaxies.groupby('LGAL_BIN_T', observed=False).size()
+        #lost_assumed_counts[i] = lost_withT_galaxies.groupby('LGAL_BIN', observed=False).size()
 
-        total_counts[i] = nn.cic_binning(data['L_gal'].to_numpy(), [x])
-        total_r_counts[i] = nn.cic_binning(data.loc[data.quiescent, 'L_gal'].to_numpy(), [x])
-        total_b_counts[i] = nn.cic_binning(data.loc[~data.quiescent, 'L_gal'].to_numpy(), [x])
-        obs_counts[i] = nn.cic_binning(obs_galaxies['L_gal'].to_numpy(), [x])
-        lost_truth_counts[i] = nn.cic_binning(lost_withT_galaxies['L_gal_T'].to_numpy(), [x])
-        lost_assumed_counts[i] = nn.cic_binning(lost_withT_galaxies['L_gal'].to_numpy(), [x])
+        total_counts[i] = nn.cic_binning(data['L_GAL'].to_numpy(), [x])
+        total_r_counts[i] = nn.cic_binning(data.loc[data['QUIESCENT'], 'L_GAL'].to_numpy(), [x])
+        total_b_counts[i] = nn.cic_binning(data.loc[~data['QUIESCENT'], 'L_GAL'].to_numpy(), [x])
+        obs_counts[i] = nn.cic_binning(obs_galaxies['L_GAL'].to_numpy(), [x])
+        lost_truth_counts[i] = nn.cic_binning(lost_withT_galaxies['L_GAL_T'].to_numpy(), [x])
+        lost_assumed_counts[i] = nn.cic_binning(lost_withT_galaxies['L_GAL'].to_numpy(), [x])
         
         obs_vs_losttruth[i] = ((lost_truth_counts[i]*boost[i] - obs_counts[i]) / obs_counts[i]) * 100
         assumed_vs_truth[i] =  ((lost_assumed_counts[i] - lost_truth_counts[i]) / lost_truth_counts[i]) * 100
 
-        obs_red_counts = nn.cic_binning(obs_galaxies.loc[obs_galaxies.quiescent, 'L_gal'].to_numpy(), [x])
-        obs_blue_counts = nn.cic_binning(obs_galaxies.loc[~obs_galaxies.quiescent, 'L_gal'].to_numpy(), [x])
-        lost_truth_red_counts = nn.cic_binning(lost_withT_galaxies.loc[lost_withT_galaxies.quiescent, 'L_gal_T'].to_numpy(), [x])
-        lost_truth_blue_counts = nn.cic_binning(lost_withT_galaxies.loc[~lost_withT_galaxies.quiescent, 'L_gal_T'].to_numpy(), [x])
-        lost_assumed_red_counts = nn.cic_binning(lost_withT_galaxies.loc[lost_withT_galaxies.quiescent, 'L_gal'].to_numpy(), [x])
-        lost_assumed_blue_counts = nn.cic_binning(lost_withT_galaxies.loc[~lost_withT_galaxies.quiescent, 'L_gal'].to_numpy(), [x])
+        obs_red_counts = nn.cic_binning(obs_galaxies.loc[obs_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), [x])
+        obs_blue_counts = nn.cic_binning(obs_galaxies.loc[~obs_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), [x])
+        lost_truth_red_counts = nn.cic_binning(lost_withT_galaxies.loc[lost_withT_galaxies['QUIESCENT'], 'L_GAL_T'].to_numpy(), [x])
+        lost_truth_blue_counts = nn.cic_binning(lost_withT_galaxies.loc[~lost_withT_galaxies['QUIESCENT'], 'L_GAL_T'].to_numpy(), [x])
+        lost_assumed_red_counts = nn.cic_binning(lost_withT_galaxies.loc[lost_withT_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), [x])
+        lost_assumed_blue_counts = nn.cic_binning(lost_withT_galaxies.loc[~lost_withT_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), [x])
 
         assumed_vs_truth_red[i] =  ((lost_assumed_red_counts - lost_truth_red_counts) / lost_truth_red_counts) * 100
         assumed_vs_truth_blue[i] =  ((lost_assumed_blue_counts - lost_truth_blue_counts) / lost_truth_blue_counts) * 100
@@ -1187,27 +1193,27 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
 
     for s in sets:
         print(f"*** Summarizing results for {s.name} ***")
-        print(f"Total Galaxies: {len(s.all_data)}. Lost Galaxies: {z_flag_is_not_spectro_z(s.all_data['z_assigned_flag']).sum()}")
+        print(f"Total Galaxies: {len(s.all_data)}. Lost Galaxies: {z_flag_is_not_spectro_z(s.all_data['Z_ASSIGNED_FLAG']).sum()}")
         
         # Truth method 1, take from other catalog
-        zt1 = (s.all_data['z_T'] < -1 ) # Looking for sentinal values
-        zt2 = (np.isnan(s.all_data['z_T']))
-        zt3 = (s.all_data['z_T'] > 20.0) # Looking for sentinal values
+        zt1 = (s.all_data['Z_T'] < -1 ) # Looking for sentinal values
+        zt2 = (np.isnan(s.all_data['Z_T']))
+        zt3 = (s.all_data['Z_T'] > 20.0) # Looking for sentinal values
         valid_idx = ~np.any([zt1, zt2, zt3], axis=0)
-        idx = valid_idx & (z_flag_is_not_spectro_z(s.all_data['z_assigned_flag']))
+        idx = valid_idx & (z_flag_is_not_spectro_z(s.all_data['Z_ASSIGNED_FLAG']))
         print(f"There are {idx.sum()} lost galaxies with 'truth'. {zt1.sum()} {zt2.sum()} {zt3.sum()}")
 
         # Truth method 2 for SV3 where we dropped passes. Should be equivalent to the above... but not quite? TODO BUG
-        #zt1a = (s.all_data['z_obs'] < -1 ) # Looking for sentinal values
-        #zt2a = (np.isnan(s.all_data['z_obs']))
-        #zt3a = (s.all_data['z_obs'] > 20.0) # Looking for sentinal values
+        #zt1a = (s.all_data['Z_OBS'] < -1 ) # Looking for sentinal values
+        #zt2a = (np.isnan(s.all_data['Z_OBS']))
+        #zt3a = (s.all_data['Z_OBS'] > 20.0) # Looking for sentinal values
         #valid_idx_alt = ~np.any([zt1a, zt2a, zt3a], axis=0)
-        #idx_alt = valid_idx_alt & (z_flag_is_not_spectro_z(s.all_data['z_assigned_flag']))
+        #idx_alt = valid_idx_alt & (z_flag_is_not_spectro_z(s.all_data['Z_ASSIGNED_FLAG']))
         #print(f"There are {idx_alt.sum()} lost galaxies with 'truth' (alt). {zt1a.sum()} {zt2a.sum()} {zt3a.sum()}")
 
-        assigned_z = s.all_data.loc[idx, 'z'] 
-        truth_z = s.all_data.loc[idx, 'z_T'] # was using z_obs before which is fine for SV3 with droped passes
-        assignment_type = s.all_data.loc[idx, 'z_assigned_flag']
+        assigned_z = s.all_data.loc[idx, 'Z'] 
+        truth_z = s.all_data.loc[idx, 'Z_T'] # was using z_obs before which is fine for SV3 with droped passes
+        assignment_type = s.all_data.loc[idx, 'Z_ASSIGNED_FLAG']
 
         score = powerlaw_score_1(assigned_z, truth_z)
         rtophat = rounded_tophat_score(assigned_z, truth_z)
@@ -1233,8 +1239,8 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
             print(f"Flag {AssignedRedshiftFlag(flag)} - {rtophat_flag.mean():.4f}")
 
         #print("Neighbor-assigned Only:")
-        assigned_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['z_assigned_flag']), 'z']
-        observed_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['z_assigned_flag']), 'z_T']
+        assigned_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['Z_ASSIGNED_FLAG']), 'Z']
+        observed_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['Z_ASSIGNED_FLAG']), 'Z_T']
         score2 = rounded_tophat(assigned_z2, observed_z2)
         scores_n_only.append(score2.mean())
         #print(f" Galaxies to compare: {len(assigned_z2)} ({len(assigned_z2) / len(s.all_data):.1%})")
@@ -1284,73 +1290,73 @@ def build_interior_bin_labels(bin_edges):
 def test_purity_and_completeness(*catalogs: GroupCatalog, truth_catalog: GroupCatalog, color=None, lost_only=False):
     
     # Source of truth. Throw away non-spectroscopic targets from it.
-    truth_df = truth_catalog.all_data.loc[z_flag_is_spectro_z(truth_catalog.all_data['z_assigned_flag'])]
+    truth_df = truth_catalog.all_data.loc[z_flag_is_spectro_z(truth_catalog.all_data['Z_ASSIGNED_FLAG'])]
 
     for s in catalogs:
         s.get_true_z_from(truth_catalog.all_data)
         s.refresh_df_views()
 
-        good_rows = s.all_data['z_T'] != NO_TRUTH_Z
+        good_rows = s.all_data['Z_T'] != NO_TRUTH_Z
         #print(f"Missing truth on {len(s.all_data) - np.sum(good_rows)} galaxies")
         if lost_only:
-            good_rows = np.logical_and(good_rows, z_flag_is_not_spectro_z(s.all_data['z_assigned_flag']))
+            good_rows = np.logical_and(good_rows, z_flag_is_not_spectro_z(s.all_data['Z_ASSIGNED_FLAG']))
 
         if color is not None:
-            good_rows = np.logical_and(good_rows, s.all_data['quiescent'].astype(bool) == color)
+            good_rows = np.logical_and(good_rows, s.all_data['QUIESCENT'].astype(bool) == color)
 
         data = s.all_data.loc[good_rows]
         print(f"-=={get_dataset_display_name(s)}==-", f"({len(data)})")
 
         #if not s.has_truth:
-        #    data['is_sat_truth'] = np.logical_or(data.galaxy_type == 1, data.galaxy_type == 3)
+        #    data['IS_SAT_T'] = np.logical_or(data.galaxy_type == 1, data.galaxy_type == 3)
 
         # No 1/vmax for these sums as we're just trying to calculate the purity/completeness of our sample
 
         # Of all the assigned sats, how many are actually sats?
-        assigned_sats = data.loc[data.is_sat.astype(bool)]
-        print(f"Purity of sats: {np.sum(assigned_sats.is_sat_truth) / len(assigned_sats.index):.3f}")
+        assigned_sats = data.loc[data['IS_SAT'].astype(bool)]
+        print(f"Purity of sats: {np.sum(assigned_sats.IS_SAT_T) / len(assigned_sats.index):.3f}")
 
         # Of all the sats in the truth catalog, how many were found?
-        true_sats = data.loc[data.is_sat_truth.astype(bool)]
-        sats_in_truthcat = truth_df.loc[truth_df.is_sat.astype(bool)]
-        print(f"Completeness of sats: {np.sum(true_sats.is_sat) / len(sats_in_truthcat.index):.3f}")
+        true_sats = data.loc[data.IS_SAT_T.astype(bool)]
+        sats_in_truthcat = truth_df.loc[truth_df['IS_SAT'].astype(bool)]
+        print(f"Completeness of sats: {np.sum(true_sats['IS_SAT']) / len(sats_in_truthcat.index):.3f}")
 
         # Of all the assigned centrals, how many are actually centrals?
-        assigned_centrals = data.loc[~data.is_sat.astype(bool)]
-        print(f"Purity of centrals: {np.sum(~assigned_centrals.is_sat_truth.astype(bool)) / len(assigned_centrals.index):.3f}")
+        assigned_centrals = data.loc[~data['IS_SAT'].astype(bool)]
+        print(f"Purity of centrals: {np.sum(~assigned_centrals.IS_SAT_T.astype(bool)) / len(assigned_centrals.index):.3f}")
 
         # Of all the centrals in the truth catalog, how many were found?
-        true_centrals = data.loc[~data.is_sat_truth.astype(bool)]
-        centrals_in_truthcat = truth_df.loc[~truth_df.is_sat.astype(bool)]
-        print(f"Completeness of centrals: {np.sum(~true_centrals.is_sat.astype(bool)) / len(centrals_in_truthcat.index):.3f}")
+        true_centrals = data.loc[~data.IS_SAT_T.astype(bool)]
+        centrals_in_truthcat = truth_df.loc[~truth_df['IS_SAT'].astype(bool)]
+        print(f"Completeness of centrals: {np.sum(~true_centrals['IS_SAT'].astype(bool)) / len(centrals_in_truthcat.index):.3f}")
 
-        aggregation_column = 'Lgal_bin_T'
-        aggregation_column_t = 'Lgal_bin'
+        aggregation_column = 'LGAL_BIN_T'
+        aggregation_column_t = 'LGAL_BIN'
 
         # TODO update below to use these instead
         sats_in_truthcat_g = sats_in_truthcat.groupby(aggregation_column_t, observed=False).size().to_numpy()
         centrals_in_truthcat_g = centrals_in_truthcat.groupby(aggregation_column_t, observed=False).size().to_numpy()
 
-        assigned_true_sats = assigned_sats.loc[assigned_sats.is_sat_truth.astype(bool)]
+        assigned_true_sats = assigned_sats.loc[assigned_sats.IS_SAT_T.astype(bool)]
         assigned_sats_g = assigned_sats.groupby(aggregation_column, observed=False).size().to_numpy()
 
         assigned_sats_correct_g = assigned_true_sats.groupby(aggregation_column, observed=False).size().to_numpy()
         s.keep=np.nonzero(assigned_sats_g)
         s.purity_g = assigned_sats_correct_g[s.keep] / assigned_sats_g[s.keep]
 
-        true_sats_assigned = true_sats.loc[true_sats.is_sat.astype(bool)]
+        true_sats_assigned = true_sats.loc[true_sats['IS_SAT'].astype(bool)]
         true_sats_g = true_sats.groupby(aggregation_column, observed=False).size().to_numpy()
         true_sats_correct_g = true_sats_assigned.groupby(aggregation_column, observed=False).size().to_numpy()
         s.keep2=np.nonzero(sats_in_truthcat_g)
         s.completeness_g = true_sats_correct_g[s.keep2] / sats_in_truthcat_g[s.keep2]
 
-        assigned_true_centrals = assigned_centrals.loc[~(assigned_centrals.is_sat_truth.astype(bool))]
+        assigned_true_centrals = assigned_centrals.loc[~(assigned_centrals.IS_SAT_T.astype(bool))]
         assigned_centrals_g = assigned_centrals.groupby(aggregation_column, observed=False).size().to_numpy()
         assigned_centrals_correct_g = assigned_true_centrals.groupby(aggregation_column, observed=False).size().to_numpy()
         s.keep3=np.nonzero(assigned_centrals_g)
         s.purity_c_g = assigned_centrals_correct_g[s.keep3] / assigned_centrals_g[s.keep3]
 
-        true_centrals_assigned = true_centrals.loc[~(true_centrals.is_sat.astype(bool))]
+        true_centrals_assigned = true_centrals.loc[~(true_centrals['IS_SAT'].astype(bool))]
         true_centrals_g = true_centrals.groupby(aggregation_column, observed=False).size().to_numpy()
         true_centrals_correct_g = true_centrals_assigned.groupby(aggregation_column, observed=False).size().to_numpy()
         s.keep4=np.nonzero(centrals_in_truthcat_g)
@@ -1453,7 +1459,7 @@ def assigned_halo_analysis(*sets):
         #same_mxxl_halo = data.all_data['assigned_halo_mass']
         #data.all_data['same_mxxl_halo'] = same_mxxl_halo
 
-        lost_galaxies = data.all_data[data.all_data.z_assigned_flag != 0]
+        lost_galaxies = data.all_data[data.all_data['Z_ASSIGNED_FLAG'] != 0]
         print(len(lost_galaxies), "lost galaxies")
 
         lost_galaxies = lost_galaxies[lost_galaxies['assigned_halo_id'] != 0]
@@ -1466,26 +1472,26 @@ def assigned_halo_analysis(*sets):
         print("Fraction of time assigned halo mass is \'the same\' as the galaxy's actual halo mass: {0:.3f}".format(np.sum(lost_galaxies_same_halo_mass) / len(lost_galaxies_same_halo_mass)))
       
         z_thresh=0.01
-        lost_galaxies_similar_z = np.isclose(lost_galaxies['z'], lost_galaxies['z_obs'], atol=z_thresh, rtol=0.0)         
+        lost_galaxies_similar_z = np.isclose(lost_galaxies['Z'], lost_galaxies['Z_OBS'], atol=z_thresh, rtol=0.0)         
         print("Fraction of time assigned z is the target z +/- {0:.3f}:".format(z_thresh), np.sum(lost_galaxies_similar_z) / len(lost_galaxies_similar_z))
 
         z_thresh=0.005
-        lost_galaxies_similar_z = np.isclose(lost_galaxies['z'], lost_galaxies['z_obs'], atol=z_thresh, rtol=0.0)         
+        lost_galaxies_similar_z = np.isclose(lost_galaxies['Z'], lost_galaxies['Z_OBS'], atol=z_thresh, rtol=0.0)         
         print("Fraction of time assigned z is the target z +/- {0:.3f}:".format(z_thresh), np.sum(lost_galaxies_similar_z) / len(lost_galaxies_similar_z))
 
         z_thresh=0.003
-        lost_galaxies_similar_z = np.isclose(lost_galaxies['z'], lost_galaxies['z_obs'], atol=z_thresh, rtol=0.0)         
+        lost_galaxies_similar_z = np.isclose(lost_galaxies['Z'], lost_galaxies['Z_OBS'], atol=z_thresh, rtol=0.0)         
         print("Fraction of time assigned z is the target z +/- {0:.3f}:".format(z_thresh), np.sum(lost_galaxies_similar_z) / len(lost_galaxies_similar_z))
 
         z_thresh=0.001
-        lost_galaxies_similar_z = np.isclose(lost_galaxies['z'], lost_galaxies['z_obs'], atol=z_thresh, rtol=0.0)        
+        lost_galaxies_similar_z = np.isclose(lost_galaxies['Z'], lost_galaxies['Z_OBS'], atol=z_thresh, rtol=0.0)        
         print("Fraction of time assigned z is the target z +/- {0:.3f}:".format(z_thresh), np.sum(lost_galaxies_similar_z) / len(lost_galaxies_similar_z))
         
         # TODO as a function of reshift. But we essentially already have this from the direct MXXL data plots
 
-        #z_bins = np.linspace(min(data.all_data.z), max(data.all_data.z), 20)
+        #z_bins = np.linspace(min(data.all_data['Z']), max(data.all_data['Z']), 20)
         #z_labels = z_bins[0:len(z_bins)-1] 
-        #data.all_data['z_bin'] = pd.cut(x = data.all_data['z'], bins = z_bins, labels = z_labels, include_lowest = True)
+        #data.all_data['z_bin'] = pd.cut(x = data.all_data['Z'], bins = z_bins, labels = z_labels, include_lowest = True)
 
         #groupby_z = lost_galaxies.groupby('z_bin')['same_halo_mass'].sum() / lost_galaxies.groupby('z_bin')['same_halo_mass'].count()
 
@@ -1510,7 +1516,7 @@ def assigned_halo_analysis(*sets):
 #so s=0.01 is what we want
 
 #def molleweide_map_for_catalog(catalog: GroupCatalog, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
-#    return make_map(catalog.all_data.RA.to_numpy(), catalog.all_data.Dec.to_numpy(), alpha, dpi, fig, dotsize)
+#    return make_map(catalog.all_data.RA.to_numpy(), catalog.all_data['DEC'].to_numpy(), alpha, dpi, fig, dotsize)
 
 def make_map(ra, dec, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
     """
@@ -1573,10 +1579,10 @@ def plot_positions(*dataframes, tiles_df: pd.DataFrame = None, DEG_LONG=1, split
         circle_ra_min = ra_min - 2*tile_radius
         circle_dec_max = dec_max + 2*tile_radius
         circle_dec_min = dec_min - 2*tile_radius
-        tiles_to_draw = tiles_df.query('RA < @circle_ra_max and RA > @circle_ra_min and Dec < @circle_dec_max and Dec > @circle_dec_min')
+        tiles_to_draw = tiles_df.query('RA < @circle_ra_max and RA > @circle_ra_min and DEC < @circle_dec_max and DEC > @circle_dec_min')
         
         for index, row in tiles_df.iterrows():
-            circ = Circle((row.RA, row.Dec), tile_radius, color='k', fill=False, lw=10)
+            circ = Circle((row.RA, row['DEC']), tile_radius, color='k', fill=False, lw=10)
             ax.add_patch(circ)
 
     alpha = 1 if len(dataframes) == 1 else 0.5
@@ -1590,8 +1596,8 @@ def plot_positions(*dataframes, tiles_df: pd.DataFrame = None, DEG_LONG=1, split
 def plot_ra_dec_inner(dataframe: pd.DataFrame, ax, dots_per_sqdeg, ra_min, ra_max, dec_min, dec_max, split, alpha):
 
     if split:
-        obs = dataframe[dataframe.z_assigned_flag == 0]
-        unobs = dataframe[dataframe.z_assigned_flag != 0]
+        obs = dataframe[dataframe['Z_ASSIGNED_FLAG'] == 0]
+        unobs = dataframe[dataframe['Z_ASSIGNED_FLAG'] != 0]
     else:
         obs = dataframe
 
@@ -1603,11 +1609,11 @@ def plot_ra_dec_inner(dataframe: pd.DataFrame, ax, dots_per_sqdeg, ra_min, ra_ma
     ARBITRARY_SCALE_UP = 1 # my calculation didn't work so arbitrarilly sizing up with this
     size = fiber_patrol_area * dots_per_sqdeg * ARBITRARY_SCALE_UP 
 
-    obs_selected = obs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
-    ax.scatter(obs_selected.RA, obs_selected.Dec, s=size, alpha=alpha)
+    obs_selected = obs.query('RA < @ra_max and RA > @ra_min and DEC < @dec_max and DEC > @dec_min')
+    ax.scatter(obs_selected.RA, obs_selected['DEC'], s=size, alpha=alpha)
     if split:
-        unobs_selected = unobs.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
-        ax.scatter(unobs_selected.RA, unobs_selected.Dec, marker='x', s=size, alpha=alpha)
+        unobs_selected = unobs.query('RA < @ra_max and RA > @ra_min and DEC < @dec_max and DEC > @dec_min')
+        ax.scatter(unobs_selected.RA, unobs_selected['DEC'], marker='x', s=size, alpha=alpha)
 
 
 
@@ -1633,19 +1639,19 @@ def _getsize(z):
 
 def examine_area(ra_min, ra_max, dec_min, dec_max, data: pd.DataFrame):
     length_arcmin = (ra_max - ra_min) * 60
-    galaxies = data.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min')
-    centrals = galaxies.query('is_sat == False')
-    sats = galaxies.query('is_sat == True')
+    galaxies = data.query('RA < @ra_max and RA > @ra_min and DEC < @dec_max and DEC > @dec_min')
+    centrals = galaxies.query('IS_SAT == False')
+    sats = galaxies.query('IS_SAT == True')
     textsize = 9
 
     fig,ax = plt.subplots(1)
     fig.set_size_inches(10,10)
     ax.set_aspect('equal')
 
-    plt.scatter(centrals.RA, centrals.Dec, s=list(map(lambda x: _getsize(x)/(length_arcmin/10), centrals.z)), color='k')
-    plt.scatter(sats.RA, sats.Dec, s=list(map(lambda x: _getsize(x)/(length_arcmin/10), sats.z)), color='b')
+    plt.scatter(centrals.RA, centrals['DEC'], s=list(map(lambda x: _getsize(x)/(length_arcmin/10), centrals['Z'])), color='k')
+    plt.scatter(sats.RA, sats['DEC'], s=list(map(lambda x: _getsize(x)/(length_arcmin/10), sats['Z'])), color='b')
     plt.xlabel('RA')
-    plt.ylabel('Dec')
+    plt.ylabel('DEC')
     plt.title("Galaxies in Area")
     plt.xlim(ra_min, ra_max)
     plt.ylim(dec_min, dec_max)
@@ -1654,71 +1660,76 @@ def examine_area(ra_min, ra_max, dec_min, dec_max, data: pd.DataFrame):
     for k in range(len(centrals)):
         current = centrals.iloc[k]
         radius = current.halo_radius_arcsec / 3600 # arcsec to degrees, like the plot
-        circ = Circle((current.RA,current.Dec), radius, color=get_color(0), alpha=0.10)
+        circ = Circle((current.RA,current['DEC']), radius, color=get_color(0), alpha=0.10)
         ax.add_patch(circ)
 
     if len(galaxies) < 50:
         for k in range(len(galaxies)):
-            plt.text(galaxies.iloc[k].RA, galaxies.iloc[k].Dec, "{0:.3f}".format(galaxies.iloc[k].z), size=textsize)
+            plt.text(galaxies.iloc[k].RA, galaxies.iloc[k]['DEC'], "{0:.3f}".format(galaxies.iloc[k]['Z']), size=textsize)
 
     return galaxies
 
 
 textsize = 9
 def write_z(galaxy):
-    if hasattr(galaxy, 'z_truth'):
-        if close_enough(galaxy.z, galaxy.z_truth):
-            plt.text(galaxy.RA, galaxy.Dec, "{0:.3f}".format(galaxy.z), size=textsize, color='green')
+    if hasattr(galaxy, 'Z_T'):
+        if close_enough(galaxy['Z'], galaxy['Z_T']):
+            plt.text(galaxy.RA, galaxy['DEC'], "{0:.3f}".format(galaxy['Z']), size=textsize, color='green')
         else:
-            plt.text(galaxy.RA, galaxy.Dec, "{0:.3f}".format(galaxy.z), size=textsize, color='red')
-            plt.text(galaxy.RA, galaxy.Dec-0.0035, "{0:.3f}".format(galaxy.z_truth), size=textsize, color='blue')
+            plt.text(galaxy.RA, galaxy['DEC'], "{0:.3f}".format(galaxy['Z']), size=textsize, color='red')
+            plt.text(galaxy.RA, galaxy['DEC']-0.0035, "{0:.3f}".format(galaxy['Z_T']), size=textsize, color='blue')
     else:
-        plt.text(galaxy.RA, galaxy.Dec, "{0:.3f}".format(galaxy.z), size=textsize, color='k')
+        plt.text(galaxy.RA, galaxy['DEC'], "{0:.3f}".format(galaxy['Z']), size=textsize, color='k')
 
-def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord.Angle('7m')):
+def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord.Angle('7m'), zfilt=False):
     
 
-    z_eff = target.z
+    z_eff = target['Z']
     #target_dist_true = z_to_ldist(target.z_obs)
     buffer_angle = coord.Angle('3m')
     ra_map_max = (coord.Angle(target.RA*u.degree) + nearby_angle).value
     ra_map_min = (coord.Angle(target.RA*u.degree) - nearby_angle).value
-    dec_map_max = (coord.Angle(target.Dec*u.degree) + nearby_angle).value
-    dec_map_min = (coord.Angle(target.Dec*u.degree) - nearby_angle).value
+    dec_map_max = (coord.Angle(target['DEC']*u.degree) + nearby_angle).value
+    dec_map_min = (coord.Angle(target['DEC']*u.degree) - nearby_angle).value
 
     ra_max = (coord.Angle(target.RA*u.degree) + nearby_angle + buffer_angle).value
     ra_min = (coord.Angle(target.RA*u.degree) - nearby_angle - buffer_angle).value
-    dec_max = (coord.Angle(target.Dec*u.degree) + nearby_angle + buffer_angle).value
-    dec_min = (coord.Angle(target.Dec*u.degree) - nearby_angle - buffer_angle).value
-    z_min = target.z_phot - 0.05
-    z_max = target.z_phot + 0.05
+    dec_max = (coord.Angle(target['DEC']*u.degree) + nearby_angle + buffer_angle).value
+    dec_min = (coord.Angle(target['DEC']*u.degree) - nearby_angle - buffer_angle).value
 
-    nearby = data.query('RA < @ra_max and RA > @ra_min and Dec < @dec_max and Dec > @dec_min and z > @z_min and z < @z_max')
-    nearby = nearby.drop(target.name) # drop the target itself from this df
+    if zfilt:
+        z_min = target['Z_PHOT'] - 0.05
+        z_max = target['Z_PHOT'] + 0.05
+        nearby = data.query('RA < @ra_max and RA > @ra_min and DEC < @dec_max and DEC > @dec_min and z > @z_min and z < @z_max')
+    else:
+        nearby = data.query('RA < @ra_max and RA > @ra_min and DEC < @dec_max and DEC > @dec_min')
 
-    target_observed = 'z_assigned_flag' not in nearby.columns or target.z_assigned_flag == 0
+    if target.name in nearby.index:
+        nearby = nearby.drop(target.name) # drop the target itself from this df
+
+    target_observed = 'Z_ASSIGNED_FLAG' not in nearby.columns or target['Z_ASSIGNED_FLAG'] == 0
 
     # check if nearby has column z_assigned_flag
-    if 'z_assigned_flag' in nearby.columns:
-        nearby_obs = nearby.loc[z_flag_is_spectro_z(nearby['z_assigned_flag'])]
-        nearby_unobs = nearby.loc[z_flag_is_not_spectro_z(nearby['z_assigned_flag'])]
+    if 'Z_ASSIGNED_FLAG' in nearby.columns:
+        nearby_obs = nearby.loc[z_flag_is_spectro_z(nearby['Z_ASSIGNED_FLAG'])]
+        nearby_unobs = nearby.loc[z_flag_is_not_spectro_z(nearby['Z_ASSIGNED_FLAG'])]
     else:
         nearby_obs = nearby
         nearby_unobs = False
 
     z_match = []
     # This doesn' work because the NN catalog has FAINT observed targets that aren't in the group catalog.
-    #if z_flag_is_neighbor(target.z_assigned_flag):
+    #if z_flag_is_neighbor(target['Z_ASSIGNED_FLAG']):
     #    idx, d2d, _ = coord.match_coordinates_sky(
-    #        coord.SkyCoord(ra=target.RA*u.degree, dec=target.Dec*u.degree, frame='icrs'),
-    #        coord.SkyCoord(ra=nearby_obs.RA.to_numpy()*u.degree, dec=nearby_obs.Dec.to_numpy()*u.degree, frame='icrs'),
-    #        nthneighbor=target.z_assigned_flag,
+    #        coord.SkyCoord(ra=target.RA*u.degree, dec=target['DEC']*u.degree, frame='icrs'),
+    #        coord.SkyCoord(ra=nearby_obs.RA.to_numpy()*u.degree, dec=nearby_obs['DEC'].to_numpy()*u.degree, frame='icrs'),
+    #        nthneighbor=target['Z_ASSIGNED_FLAG'],
     #        storekdtree=False
     #    )
     #    z_match = nearby_obs.iloc[idx]
     #nearby_obs = nearby_obs.drop(z_match.name)
 
-    good_obs_z_filter = list(map(lambda a: close_enough(target.z, a), nearby_obs.z))
+    good_obs_z_filter = list(map(lambda a: close_enough(target['Z'], a), nearby_obs['Z']))
     nearby_obs_good_z = nearby_obs.loc[good_obs_z_filter]
     nearby_obs_good_z_dim = nearby_obs_good_z.loc[nearby_obs_good_z.app_mag > 19.5]
     nearby_obs_good_z = nearby_obs_good_z.loc[np.invert(nearby_obs_good_z.app_mag > 19.5)]
@@ -1731,7 +1742,7 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
     nearby_obs_other = nearby_obs_other.loc[np.invert(nearby_obs_other.app_mag > 19.5)]
 
     if nearby_unobs is not False:
-        good_unobs_z_filter = list(map(lambda a: close_enough(target.z, a), nearby_unobs['z']))
+        good_unobs_z_filter = list(map(lambda a: close_enough(target['Z'], a), nearby_unobs['Z']))
 
         nearby_unobs_good_z = nearby_unobs.loc[good_unobs_z_filter]
         if good_unobs_z_filter:
@@ -1746,12 +1757,12 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
         nearby_unobs_good_z = nearby_unobs_good_z.loc[np.invert(nearby_unobs_good_z.app_mag > 19.5)]
 
     if target_observed:
-        title = f"Observed Galaxy {target.name}: z={target.z:.3f}"
+        title = f"Observed Galaxy {target.name}: z={target['Z']:.3f}"
     else:
-        if hasattr(target, 'z_T'):
-            title = f"Lost Galaxy {target.name}: A={target.z_assigned_flag} z={target.z:.4f} z_phot={target.z_phot:.4f} Truth={target.z_T:.4f}"
+        if hasattr(target, 'Z_T'):
+            title = f"Lost Galaxy {target.name}: A={target['Z_ASSIGNED_FLAG']} z={target['Z']:.4f} z_phot={target['Z_PHOT']:.4f} Truth={target['Z_T']:.4f}"
         else:
-            title = f"Lost Galaxy {target.name}: A={target.z_assigned_flag} z={target.z:.4f} z_phot={target.z_phot:.4f}"
+            title = f"Lost Galaxy {target.name}: A={target['Z_ASSIGNED_FLAG']} z={target['Z']:.4f} z_phot={target['Z_PHOT']:.4f}"
 
     if len(nearby) > 1:
 
@@ -1762,42 +1773,42 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
         # Add virial radii or MXXL Halos to the galaxies
         for k in range(len(nearby)):
             current = nearby.iloc[k]
-            if current.is_sat:
+            if current['IS_SAT']:
                 continue
             radius = current.halo_radius_arcsec / 3600 # arcsec to degrees, like the plot
             #radius = current.mxxl_halo_vir_radius_guess_arcsec / 3600 # arcsec to degrees, like the plot
-            if target.igrp == current.igrp:
-                circ = Circle((current.RA,current.Dec), radius, color=get_color(1), alpha=0.20)
+            if target['IGRP'] == current['IGRP']:
+                circ = Circle((current.RA,current['DEC']), radius, color=get_color(1), alpha=0.20)
             else:
-                circ = Circle((current.RA,current.Dec), radius, color=get_color(0), alpha=0.10)
+                circ = Circle((current.RA,current['DEC']), radius, color=get_color(0), alpha=0.10)
             ax.add_patch(circ)
-        if not target.is_sat:
+        if not target['IS_SAT']:
             radius = target.halo_radius_arcsec / 3600 # arcsec to degrees, like the plot
-            circ = Circle((target.RA,target.Dec), radius, color=get_color(1), alpha=0.20)
+            circ = Circle((target.RA,target['DEC']), radius, color=get_color(1), alpha=0.20)
             ax.add_patch(circ)
 
         dimalpha = 0.4
 
-        plt.scatter(nearby_obs_other.RA, nearby_obs_other.Dec, s=list(map(_getsize, nearby_obs_other.z)), color=get_color(0), label="Obs ({0})".format(len(nearby_obs_other)))
+        plt.scatter(nearby_obs_other.RA, nearby_obs_other['DEC'], s=list(map(_getsize, nearby_obs_other['Z'])), color=get_color(0), label="Obs ({0})".format(len(nearby_obs_other)))
         if len(nearby_obs_other_dim) > 0:
-            plt.scatter(nearby_obs_other_dim.RA, nearby_obs_other_dim.Dec, s=list(map(_getsize, nearby_obs_other_dim.z)), color=get_color(2), alpha=dimalpha, label="Obs dim ({0})".format(len(nearby_obs_other_dim)))
+            plt.scatter(nearby_obs_other_dim.RA, nearby_obs_other_dim['DEC'], s=list(map(_getsize, nearby_obs_other_dim['Z'])), color=get_color(2), alpha=dimalpha, label="Obs dim ({0})".format(len(nearby_obs_other_dim)))
         
-        plt.scatter(nearby_obs_good_z.RA, nearby_obs_good_z.Dec, s=list(map(_getsize, nearby_obs_good_z.z)), color=get_color(2), label="Obs good z ({0})".format(len(nearby_obs_good_z)))
+        plt.scatter(nearby_obs_good_z.RA, nearby_obs_good_z['DEC'], s=list(map(_getsize, nearby_obs_good_z['Z'])), color=get_color(2), label="Obs good z ({0})".format(len(nearby_obs_good_z)))
         if len(nearby_obs_good_z_dim) > 0:
-            plt.scatter(nearby_obs_good_z_dim.RA, nearby_obs_good_z_dim.Dec, s=list(map(_getsize, nearby_obs_good_z_dim.z)), color=get_color(0), alpha=dimalpha, label="Obs good z dim ({0})".format(len(nearby_obs_good_z_dim)))
+            plt.scatter(nearby_obs_good_z_dim.RA, nearby_obs_good_z_dim['DEC'], s=list(map(_getsize, nearby_obs_good_z_dim['Z'])), color=get_color(0), alpha=dimalpha, label="Obs good z dim ({0})".format(len(nearby_obs_good_z_dim)))
 
         if nearby_unobs is not False:
-            plt.scatter(nearby_unobs_other.RA, nearby_unobs_other.Dec, marker='x', s=list(map(_getsize, nearby_unobs_other.z)), color=get_color(0), label="Unobs ({0})".format(len(nearby_unobs_other)))
+            plt.scatter(nearby_unobs_other.RA, nearby_unobs_other['DEC'], marker='x', s=list(map(_getsize, nearby_unobs_other['Z'])), color=get_color(0), label="Unobs ({0})".format(len(nearby_unobs_other)))
             if len(nearby_unobs_other_dim) > 0:
-                plt.scatter(nearby_unobs_other_dim.RA, nearby_unobs_other_dim.Dec, marker='x', s=list(map(_getsize, nearby_unobs_other_dim.z)), color=get_color(0), alpha=dimalpha, label="Unobs dim ({0})".format(len(nearby_unobs_other_dim)))
+                plt.scatter(nearby_unobs_other_dim.RA, nearby_unobs_other_dim['DEC'], marker='x', s=list(map(_getsize, nearby_unobs_other_dim['Z'])), color=get_color(0), alpha=dimalpha, label="Unobs dim ({0})".format(len(nearby_unobs_other_dim)))
             
-            plt.scatter(nearby_unobs_good_z.RA, nearby_unobs_good_z.Dec, marker='x', s=list(map(_getsize, nearby_unobs_good_z.z)), color=get_color(2), label="Unobs good z ({0})".format(len(nearby_unobs_good_z)))
+            plt.scatter(nearby_unobs_good_z.RA, nearby_unobs_good_z['DEC'], marker='x', s=list(map(_getsize, nearby_unobs_good_z['Z'])), color=get_color(2), label="Unobs good z ({0})".format(len(nearby_unobs_good_z)))
             if len(nearby_unobs_good_z_dim) > 0:
-                plt.scatter(nearby_unobs_good_z_dim.RA, nearby_unobs_good_z_dim.Dec, marker='x', s=list(map(_getsize, nearby_unobs_good_z_dim.z)), color=get_color(2), alpha=dimalpha, label="Unobs good z dim ({0})".format(len(nearby_unobs_good_z_dim)))
+                plt.scatter(nearby_unobs_good_z_dim.RA, nearby_unobs_good_z_dim['DEC'], marker='x', s=list(map(_getsize, nearby_unobs_good_z_dim['Z'])), color=get_color(2), alpha=dimalpha, label="Unobs good z dim ({0})".format(len(nearby_unobs_good_z_dim)))
             
         # redshift data labels
         for k in range(len(nearby_obs)):
-            plt.text(nearby_obs.iloc[k].RA, nearby_obs.iloc[k].Dec, "{0:.3f}".format(nearby_obs.iloc[k].z), size=textsize)
+            plt.text(nearby_obs.iloc[k].RA, nearby_obs.iloc[k]['DEC'], "{0:.3f}".format(nearby_obs.iloc[k]['Z']), size=textsize)
         if nearby_unobs is not False:
             for k in range(len(nearby_unobs)):
                 # Choose color for each based on if z_truth and z are close
@@ -1805,21 +1816,21 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
 
         # Circle assigned one
         if len(z_match) > 0:
-            plt.scatter(z_match.RA, z_match.Dec, color=get_color(3), facecolors='none', s=_getsize(z_match.z)*2, label="Assigned")
-            plt.text(z_match.RA, z_match.Dec, "{0:.3f}".format(z_match.z), size=textsize)
+            plt.scatter(z_match.RA, z_match['DEC'], color=get_color(3), facecolors='none', s=_getsize(z_match['Z'])*2, label="Assigned")
+            plt.text(z_match.RA, z_match['DEC'], "{0:.3f}".format(z_match['Z']), size=textsize)
 
         # Target galaxy
         if target_observed:
-            plt.scatter(target.RA, target.Dec, s=_getsize(target.z), color=get_color(1), label="Target")
-            plt.text(target.RA, target.Dec, "{0:.3f}".format(target.z), size=textsize)
+            plt.scatter(target.RA, target['DEC'], s=_getsize(target['Z']), color=get_color(1), label="Target")
+            plt.text(target.RA, target['DEC'], "{0:.3f}".format(target['Z']), size=textsize)
         else:
-            plt.scatter(target.RA, target.Dec, s=_getsize(target.z), marker='X', color=get_color(1), label="Target")  
+            plt.scatter(target.RA, target['DEC'], s=_getsize(target['Z']), marker='X', color=get_color(1), label="Target")  
             write_z(target)
 
         plt.xlim(ra_map_min, ra_map_max)
         plt.ylim(dec_map_min, dec_map_max)
         plt.xlabel('RA')
-        plt.ylabel('Dec')
+        plt.ylabel('DEC')
         
         # Custom tick formatter for RA and Dec
         def deg_to_dms(deg):

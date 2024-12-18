@@ -243,7 +243,7 @@ class NNAnalyzer_cic():
         else:
             catalog = coord.SkyCoord(ra=df.ra.to_numpy()*u.degree, dec=df.dec.to_numpy()*u.degree, frame='icrs')
             z_obs_catalog = df.z_obs.to_numpy()
-            color_catalog = df.quiescent.to_numpy()
+            color_catalog = df['QUIESCENT'].to_numpy()
             abs_mag_catalog = df.abs_mag.to_numpy()
 
         if LOST_GALAXIES_ONLY: 

@@ -6,6 +6,7 @@
 #include "groups.h"
 
 #define HALO_MAX 1.0E+16
+#define HALO_MIN 1.0E+7
 
 /*external functions
  */
@@ -24,12 +25,19 @@ float halo_abundance(float m);
 float halo_abundance2(float m);
 float func_match_nhost(float mass, float galaxy_density);
 
+/* 
+* For a galaxy at a certain redshift and vmax, use the provided halo mass function to
+ * determine the host halo mass. 
+ * For a given galaxy density, use the provided halo mass function to... */
 float density2host_halo(float galaxy_density)
 {
-  return exp(zbrent(func_match_nhost, log(1.0E+7), log(HALO_MAX), 1.0E-5, galaxy_density));
+  return exp(zbrent(func_match_nhost, log(HALO_MIN), log(HALO_MAX), 1.0E-5, galaxy_density));
 }
 
-/* Using a vmax correction for galaxies that can't make it
+/* For a galaxy at a certain redshift and vmax, use the provided halo mass function to
+ * determine the host halo mass. For flux-limited mode. 
+ * 
+ * Using a vmax correction for galaxies that can't make it
  * to the end of the redshift bin.
  */
 float density2host_halo_zbins3(float z, float vmax)
@@ -57,7 +65,9 @@ float density2host_halo_zbins3(float z, float vmax)
       volume[i] = 4. / 3. * PI * (rhi * rhi * rhi - rlo * rlo * rlo) * FRAC_AREA;
       vhi[i] = 4. / 3. * PI * rhi * rhi * rhi * FRAC_AREA;
       vlo[i] = 4. / 3. * PI * rlo * rlo * rlo * FRAC_AREA;
-      // fprintf(stderr,"volume[%d]= %e %f\n",i,volume[i],r);
+      //fprintf(stderr,"%d: z_lo-z_hi: %f - %f",i,zlo[i],zhi[i]);
+      //fprintf(stderr,"  r_lo-r_hi: %f - %f",rlo,rhi);
+      //fprintf(stderr,"  volume= %e\n",volume[i]);
     }
     flag = 0;
   }
@@ -79,11 +89,13 @@ float density2host_halo_zbins3(float z, float vmax)
   }
 
   // what bins does this galaxy belong to?
+  // TODO this can definitely be optimized to not have a loop NZBIN times for each galaxy.
   dzmin = 1;
   for (i = 0; i < NZBIN; ++i)
   {
     if (z >= zlo[i] && z < zhi[i])
     {
+      //fprintf(stderr, "Matched z = %f to bin %d\n", z, i);
       if (vmax > vhi[i])
         vv = volume[i];
       else
@@ -109,6 +121,9 @@ float density2host_halo_zbins3(float z, float vmax)
   }
   // fprintf(stdout,"%f %d %e %e %f %f %f\n",z,iz,zcnt[iz],vmax,zlo[iz],zhi[iz],dzmin);
   // fflush(stdout);
+  //fprintf(stderr, "Getting mass for z = %f, iz = %d, zcnt = %f", z, iz, zcnt[iz]);
+  //float results = density2host_halo(zcnt[iz]);
+  //fprintf(stderr, ". Result = %e\n", results);
   return density2host_halo(zcnt[iz]);
 
 #undef NZBIN
@@ -121,6 +136,7 @@ float func_match_nhost(float mass, float g7_ngal)
   int i;
   float a, maglo, maghi, dmag, m, n1, n2;
 
+  // First time setup, will read in a halo mass function file
   if (flag)
   {
     flag = 0;
@@ -142,6 +158,8 @@ float func_match_nhost(float mass, float g7_ngal)
     }
     spline(mh, nh, n, 1.0E+30, 1.0E+30, mx);
   }
+
+  // Interpolate the halo mass function
   splint(mh, nh, mx, n, mass, &a);
   return exp(a) - g7_ngal;
 }
