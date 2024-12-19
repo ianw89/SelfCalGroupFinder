@@ -156,7 +156,7 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
     idx_unassigned = np.flatnonzero(unobserved)
 
     # Want 0 for observed (DESI OR SDSS fill in), 1 for NN-assigned, 2 for other assigned
-    z_assigned_flag = np.zeros(len(z_obs), dtype=np.int8)
+    z_assigned_flag = np.zeros(len(z_obs), dtype=np.int32)
 
 
     count = len(dec)
@@ -256,9 +256,9 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
         print(f"{quiescent.sum()} quiescent galaxies, {len(quiescent) - quiescent.sum()} star-forming galaxies")
         colors = quiescent
     else:
-        colors = np.zeros(count, dtype=np.int8) 
+        colors = np.zeros(count, dtype=np.int32) 
     
-    chi = np.zeros(count, dtype=np.int8) # TODO compute chi
+    chi = np.zeros(count, dtype=np.int32) # TODO compute chi
     
     # Output files
     t1 = time.time()

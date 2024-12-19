@@ -8,6 +8,7 @@ import pickle
 import subprocess as sp
 from astropy.table import Table
 import astropy.io.fits as fits
+import astropy.units as u
 import copy
 import sys
 import math
@@ -138,18 +139,18 @@ class GroupCatalog:
         print("WARNING - a test is skipped because it fails.")
 
         sats = df.loc[df['IS_SAT'].astype(bool)]
-        assert np.all(sats.P_sat > 0.499999), f"Everything marked as a sat should have P_sat > 0.5"
+        assert np.all(sats['P_SAT'] > 0.499999), f"Everything marked as a sat should have P_sat > 0.5"
         assert np.all(sats.index != sats['IGRP']), "Satellites should have igrp != index"
 
         cens = df.loc[~df['IS_SAT'].astype(bool)]
-        assert np.all(cens.P_sat < 0.500001), f"Everything marked as a central should have P_sat < 0.5"
+        assert np.all(cens['P_SAT'] < 0.500001), f"Everything marked as a central should have P_sat < 0.5"
         assert np.all(cens.index == cens['IGRP']), "Centrals should have igrp == index"
 
         # TODO BUG - This fails
         #assert len(cens) == len(df['IGRP'].unique()), f"Counts of centrals should be count of unique groups, but {len(df.loc[~df['IS_SAT'].astype(bool)])} != {len(df['IGRP'].unique())}"
         print("WARNING - a test is skipped because it fails.")
 
-        bighalos = cens.loc[cens.z < 0.2].sort_values('M_HALO', ascending=False).head(20)
+        bighalos = cens.loc[cens['Z'] < 0.2].sort_values('M_HALO', ascending=False).head(20)
         assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
 
 
@@ -158,7 +159,8 @@ class GroupCatalog:
             name = str.replace(self.GF_outfile, ".out", "_Catalog.csv").replace(" ", "_").replace("<", "").replace(">", "")
         elif not name.endswith('.csv'):
             name = name + '.csv'
-        print(f"Writing a sharable output file: {name}")
+
+        fitsname = name.replace(".csv", ".fits")
 
         columns_to_write = [
             'TARGETID', 
@@ -185,10 +187,28 @@ class GroupCatalog:
                 print("WARNING - column not found: " + c)
                 columns_to_write.remove(c)
 
+        print(f"Writing a sharable output file: {name}")
         df_to_write = self.all_data.loc[:, columns_to_write]
         df_to_write.to_csv(name, index=False, header=True)
 
-        return name
+        # Now also write a .FITS table
+        print(f"Writing a sharable output file: {fitsname}")
+        table = Table.from_pandas(
+            df_to_write,
+            units={ 
+                'RA': u.degree,
+                'DEC': u.degree,
+                'L_GAL': u.solLum,
+                'VMAX': u.Mpc**3,
+                'M_HALO': u.solMass,
+                'L_TOT': u.solLum,
+                'MSTAR': u.solMass
+            } # Others are dimensionless
+            )
+        
+        table.write(fitsname, overwrite=True)
+
+        return fitsname
 
     def get_best_wp_all(self):
         if self.wp_all_extra is not None:
@@ -201,10 +221,10 @@ class GroupCatalog:
         return self.wp_slices
 
     def get_completeness(self):
-        return spectroscopic_complete_percent(self.all_data.Z_ASSIGNED_FLAG.to_numpy())
+        return spectroscopic_complete_percent(self.all_data['Z_ASSIGNED_FLAG'].to_numpy())
 
     def get_lostgal_neighbor_used(self):
-        arr = self.all_data.Z_ASSIGNED_FLAG.to_numpy()
+        arr = self.all_data['Z_ASSIGNED_FLAG'].to_numpy()
         return np.sum(z_flag_is_neighbor(arr)) / np.sum(z_flag_is_not_spectro_z(arr))
 
     def basic_stats(self):
@@ -437,10 +457,8 @@ class SDSSGroupCatalog(GroupCatalog):
         self.efac = 0.1 # let's just add a constant fractional error bar
 
     def postprocess(self):
-        origprops = pd.read_csv(self.preprocess_file, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
         galprops = pd.read_csv(self.galprops_file, delimiter=' ', names=('MAG_G', 'MAG_R', 'SIGMA_V', 'DN4000', 'CONCENTRATION', 'LOG_M_STAR', 'Z_ASSIGNED_FLAG'))
         galprops['G_R'] = galprops['MAG_G'] - galprops['MAG_R'] 
-        galprops['QUIESCENT'] = origprops['QUIESCENT'].astype(bool)
         galprops.rename(columns={'MAG_R': 'APP_MAG_R'}, inplace=True)
         self.all_data = read_and_combine_gf_output(self, galprops)
         #self.all_data['QUIESCENT'] = is_quiescent_SDSS_Dn4000(self.all_data['LOGLGAL'], self.all_data.DN4000)
@@ -583,7 +601,7 @@ class MXXLGroupCatalog(GroupCatalog):
         if os.path.exists(filename_props_fast):
             galprops = pd.read_pickle(filename_props_fast)
         else:
-            galprops = pd.read_csv(filename_props_slow, delimiter=' ', names=('APP_MAG_R', 'G_R', 'galaxy_type', 'mxxl_halo_mass', 'Z_ASSIGNED_FLAG', 'assigned_halo_mass', 'Z_OBS', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32, 'Z_ASSIGNED_FLAG': np.int8})
+            galprops = pd.read_csv(filename_props_slow, delimiter=' ', names=('APP_MAG_R', 'G_R', 'galaxy_type', 'mxxl_halo_mass', 'Z_ASSIGNED_FLAG', 'assigned_halo_mass', 'Z_OBS', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32, 'Z_ASSIGNED_FLAG': np.int32})
         
         self.all_data = read_and_combine_gf_output(self, galprops)
         df = self.all_data
@@ -626,12 +644,7 @@ class UchuuGroupCatalog(GroupCatalog):
 
 
     def postprocess(self):
-        filename_props_fast = str.replace(self.GF_outfile, ".out", "_galprops.pkl")
-        filename_props_slow = str.replace(self.GF_outfile, ".out", "_galprops.dat")
-        if os.path.exists(filename_props_fast):
-            galprops = pd.read_pickle(filename_props_fast)
-        else:
-            galprops = pd.read_csv(filename_props_slow, delimiter=' ', names=('APP_MAG_R', 'G_R', 'central', 'uchuu_halo_mass', 'uchuu_halo_id'), dtype={'uchuu_halo_id': np.int64, 'central': np.bool_})
+        galprops = pd.read_pickle(str.replace(self.GF_outfile, ".out", "_galprops.pkl"))
         
         df = read_and_combine_gf_output(self, galprops)
         self.all_data = df
@@ -731,7 +744,7 @@ class BGSGroupCatalog(GroupCatalog):
             print("Bootstrapping for fsat error estimate...")
             t1 = time.time()
             # label the SV3 region each galaxy is in
-            df['region'] = tile_to_region(df['nearest_tile_id'])
+            df['region'] = tile_to_region(df['NTID'])
 
             # Add bootstrapped error bars for fsat
             f_sat_realizations = []
@@ -771,9 +784,6 @@ class BGSGroupCatalog(GroupCatalog):
         print("Post-processing...")
         galprops = pd.read_pickle(str.replace(self.GF_outfile, ".out", "_galprops.pkl"))
         df = read_and_combine_gf_output(self, galprops)
-
-        origprops = pd.read_csv(self.preprocess_file, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
-        df['QUIESCENT'] = origprops['QUIESCENT'].astype(bool)
 
         # Get extra fastspecfit columns. Could have threaded these through with galprops
         # But if they aren't used in group finding or preprocessing this is easier to update
@@ -915,7 +925,7 @@ class BGSGroupCatalog(GroupCatalog):
             randoms = self.get_randoms_mini()
 
         # label the SV3 region each galaxy is in
-        df['region'] = tile_to_region(df['nearest_tile_id']).astype(int)
+        df['region'] = tile_to_region(df['NTID']).astype(int)
         region_ids = df['region'].unique()
         n = len(region_ids)
 
@@ -1399,7 +1409,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     observed = np.invert(unobserved)
     idx_unobserved = np.flatnonzero(unobserved)
-    z_assigned_flag = np.zeros(len(z_obs), dtype=np.int8)
+    z_assigned_flag = np.zeros(len(z_obs), dtype=np.int32)
 
     count = len(dec)
     print(f"{count:,} galaxies left for main catalog after filters.")
@@ -1577,7 +1587,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
 
     # TODO get galaxy concentration from somewhere
-    chi = np.zeros(count, dtype=np.int8) 
+    chi = np.zeros(count, dtype=np.int32) 
 
     ####################################################################################
     # Write the completed preprocess files for the group finder / post-processing to use
@@ -1586,12 +1596,13 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     galprops= pd.DataFrame({
         'APP_MAG_R': app_mag_r[final_selection].astype("<f8"),
         'TARGETID': target_id[final_selection].astype("<i8"),
-        'Z_ASSIGNED_FLAG': z_assigned_flag[final_selection].astype("<i1"),
+        'Z_ASSIGNED_FLAG': z_assigned_flag[final_selection].astype("<i4"),
         'G_R': G_R_k[final_selection].astype("<f8"), # TODO name this G_R_k ?
         'DN4000': dn4000[final_selection].astype("<f8"),
-        'nearest_tile_id': ntid[final_selection].astype("<i8"),
+        'NTID': ntid[final_selection].astype("<i8"),
         'Z_PHOT': z_phot[final_selection].astype("<f8"),
         'Z_OBS': z_obs[final_selection].astype("<f8"),
+        'QUIESCENT': quiescent[final_selection].astype("bool"),
     })
     galprops.to_pickle(outname_base + "_galprops.pkl")  
     t2 = time.time()
