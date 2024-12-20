@@ -5,12 +5,48 @@
 #include <assert.h>
 #include "groups.h"
 
-int main(int argc, char **argv) {
+void test_angular_separation() {
+    float theta, theta_old;
 
-    // TODO: switch to assertions when ready
+    float CLOSE = 15.0/3600.0 * PI/180.0; // 15 arcsec
+    float FAR = 3.0 * PI/180.0; // 3 degrees
 
-    // Sanity test on distance_redshift, update_galaxy_halo_props, 
-    // angular_separation, and radial_probability() functions
+    printf("\n=== ANGULAR SEPARATION TESTS ===\n");
+
+    // Test 1: Same coordinates
+    theta = angular_separation(0.0, 0.0, 0.0, 0.0);
+    theta_old = angular_separation_old(0.0, 0.0, 0.0, 0.0);
+    printf("Test 1: angular_separation(0.0, 0.0, 0.0, 0.0) = %f, old = %f\n", theta, theta_old);
+    assert(theta == 0.0 && "angular_separation should be 0 for same coordinates");
+
+    // Test 2: Small separation
+    theta = angular_separation(0.0, 0.0, CLOSE, CLOSE);
+    theta_old = angular_separation_old(0.0, 0.0, CLOSE, CLOSE);
+    printf("Test 2: angular_separation(0.0, 0.0, 15 arcsec, 15 arcsec) = %f, old = %f\n", theta, theta_old);
+    assert(theta > 0.0 && "angular_separation should be greater than 0 for small separation");
+
+    // Test 3: Larger separation
+    theta = angular_separation(0.0, 0.0, FAR, FAR);
+    theta_old = angular_separation_old(0.0, 0.0, FAR, FAR);
+    printf("Test 3: angular_separation(0.0, 0.0, 3 deg, 3 deg) = %f, old = %f\n", theta, theta_old);
+    assert(theta > 0.0 && "angular_separation should be greater than 0 for larger separation");
+
+    // Test 4: Different quadrants, very far away
+    theta = angular_separation(1.0, 1.0, -1.0, -1.0);
+    theta_old = angular_separation_old(1.0, 1.0, -1.0, -1.0);
+    printf("Test 4: angular_separation(1.0, 1.0, -1.0, -1.0) = %f, old = %f\n", theta, theta_old);
+    assert(theta > 0.0 && "angular_separation should be greater than 0 for different quadrants");
+
+    // Test 5: Edge case at poles
+    theta = angular_separation(PI/2, 0.0, -PI/2, 0.0);
+    theta_old = angular_separation_old(PI/2, 0.0, -PI/2, 0.0);
+    printf("Test 5: angular_separation(PI/2, 0.0, -PI/2, 0.0) = %f, old = %f\n", theta, theta_old);
+    assert(fabs(theta-PI)<0.000001 && "angular_separation should be PI at poles");
+
+    printf(" *** All angular_separation tests passed.\n\n");
+}
+
+void test_psat() {
     struct galaxy gal;
     gal.mass = 1E12;
     gal.redshift = 0.1;
@@ -19,7 +55,7 @@ int main(int argc, char **argv) {
     float arcmin = 0.5; // like 50kpc out
     float delta_z = 0.001;
     float bprob = 10;
-    float p0,p1,p2,p3,p4,p5,p6 = 0.0;
+    float p0,p1,p2,p3,p4,p5,p6,p7 = 0.0;
     float ang_sep = angular_separation(0.0, 0.0, 0.0, (arcmin/60.0)*(PI/180.0)); 
     float result, result2 = 0.0;
 
@@ -91,10 +127,13 @@ int main(int argc, char **argv) {
     printf("psat = %f\n", p6); // should go down compared to previous
     assert(p6 < p5 && "psat should go down compared to previous since larger delta_z");  
 
-    printf(" ***TESTS PASSED***\n");
+    printf(" *** All psat tests passed.\n\n");
+}
 
+int main(int argc, char **argv) {
 
-    printf("\n=== ABUNDANCE MATCHING TESTS ===\n");
-    
+    test_angular_separation();
+    test_psat();
 
+    printf(" *** ALL TESTS PASSED ***\n");
 }

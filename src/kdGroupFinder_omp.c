@@ -368,7 +368,7 @@ void groupfind()
     // the weight printed off here is only the color-dependent centrals weight
     // not the chi properties affected weight
     // TODO: should we change that?
-    printf("%d %f %f %f %e %e %f %e %e %e %d %e\n",
+    printf("%d %f %f %f %e %e %f %e %d %e %d %e\n",
             i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
             GAL[i].mstellar, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
             GAL[i].nsat, GAL[i].mtot, GAL[i].igrp, GAL[i].weight);
@@ -457,11 +457,7 @@ void find_satellites(int icen, void *kd)
       bprob = 0.001;
 
     p0 = psat(&GAL[icen], theta, dz, bprob);
-    if (isnan(p0))
-    {
-      p0 = 1; //???
-      fprintf(stderr, "Unexpected nan result for prob sat at index %i\n", j);
-    }
+    
     // Keep track of the highest psat so far
     if (p0 > GAL[j].psat)
       GAL[j].psat = p0;    
@@ -475,6 +471,11 @@ void find_satellites(int icen, void *kd)
     {
       GAL[GAL[j].igrp].nsat--;
       GAL[GAL[j].igrp].mtot -= GAL[j].mstellar;
+      if (GAL[GAL[j].igrp].nsat < 0)
+      {
+        fprintf(stderr, "NEGATIVE NSAT %d %d %f %f\n", j, GAL[j].igrp, GAL[j].mstellar, GAL[j].psat);
+        GAL[GAL[j].igrp].nsat = 0;
+      }
     }
     GAL[j].psat = p0;
     GAL[j].igrp = icen;

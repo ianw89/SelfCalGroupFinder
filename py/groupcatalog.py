@@ -550,7 +550,7 @@ class TestGroupCatalog(GroupCatalog):
         gals = pd.read_csv(SDSS_v1_DAT_FILE, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
         galprops = pd.read_csv(SDSS_v1_1_GALPROPS_FILE, delimiter=' ', names=('MAG_G', 'MAG_R', 'SIGMA_V', 'DN4000', 'CONCENTRATION', 'LOG_M_STAR', 'Z_ASSIGNED_FLAG'))
 
-        cut_gals = gals[np.logical_and(gals.ra > 149.119, gals.ra < 151.119)]
+        cut_gals = gals[np.logical_and(gals.RA > 149.119, gals.RA < 151.119)]
         cut_gals = cut_gals[np.logical_and(cut_gals['DEC'] > 1.205, cut_gals['DEC'] < 3.205)]
         indexes = cut_gals.index
         print(f"Cut to {len(indexes)} galaxies.")
@@ -717,8 +717,6 @@ class BGSGroupCatalog(GroupCatalog):
             infile = IAN_BGS_Y3_MERGED_FILE
         elif self.data_cut == "Y3-Loa-SV3Cut":
             infile = IAN_BGS_Y3_MERGED_FILE
-        elif self.data_cut == "Y3-Jura":
-            infile = IAN_BGS_Y3_MERGED_FILE_JURA
         elif self.data_cut == "sv3":
             infile = IAN_BGS_SV3_MERGED_FILE
         else:
@@ -815,6 +813,8 @@ class BGSGroupCatalog(GroupCatalog):
         print(f"  Lost Galaxy Handling: {self.mode}")     
         if self.extra_params is not None:
             print(f"    Parameters: {self.extra_params}")
+            zflag = self.all_data['Z_ASSIGNED_FLAG']
+            print(f"    Neighbor usage %: {z_flag_is_neighbor(zflag).sum() / z_flag_is_not_spectro_z(zflag).sum() * 100:.2f}")
         print(f"  Magnitude Limit: {self.mag_cut}")     
         print(f"  Neighbor Magnitude Limit: {self.catalog_mag_cut}")     
         print(f"  Use SDSS Redshifts: {self.sdss_fill}")
@@ -1171,11 +1171,6 @@ def get_footprint_fraction(data_cut, mode, num_passes_required):
         FOOTPRINT_FRAC_3pass = 0.0649677 # 2680 degrees
         FOOTPRINT_FRAC_4pass = 0.0228093 # 940 degrees
         # 0% 5pass coverage
-    elif data_cut == "Y3-Jura":
-        FOOTPRINT_FRAC_1pass = 0.310691 # 12816 degrees
-        FOOTPRINT_FRAC_2pass = 0.286837 # 11832 degrees
-        FOOTPRINT_FRAC_3pass = 0.233920 # 9649 degrees
-        FOOTPRINT_FRAC_4pass = 0.115183 # 4751 degrees
     elif data_cut == "Y3-Kibo" or data_cut == "Y3-Loa":
         FOOTPRINT_FRAC_1pass = 0.30968189465008605 # 12775 degrees
         FOOTPRINT_FRAC_2pass = 0.2859776210215015 # 11797 degrees
@@ -1317,8 +1312,13 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if dn4000 is None:
         dn4000 = np.zeros(len(z_obs))
 
+    # A manually curated list of bad targets, usually from visual inspection of images
+    bad_targets = [39627705590745283, 39628011489723373]
+
     # For SV3 Analysis we can pretend to not have observed some galaxies
-    # TODO BUG this procedure is not right accordin to Ashley Ross
+    # This procedure is really accurate and doesn't produce a main-like situation. 
+    # Instead for our fiber incompleteness analysis, we take Y3 and cut to SV3 isntead.
+    # So this code path is not critical anymore.
     if data_cut == "sv3":
         unobserved = drop_SV3_passes(drop_passes, tileid, unobserved)
 
@@ -1340,6 +1340,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     redshift_filter = z_obs > Z_MIN
     redshift_hi_filter = z_obs < Z_MAX
     deltachi2_filter = deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
+    bad_targets_filter = ~np.isin(target_id, bad_targets)
     
     # Special version cut to look like SV3 - choose only the ones inside the SV3 footprint
     if data_cut == "Y3-Kibo-SV3Cut" or data_cut == "Y3-Loa-SV3Cut":
@@ -1354,7 +1355,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         BITMASK_SGA = 0x1000 
         sga_collision = (maskbits & BITMASK_SGA) != 0
         sga_central = ref_cat == b'L3'
-        to_remove_blue = sga_collision & ~sga_central & (g_r_apparent < 0.5)
+        to_remove_blue = sga_collision & ~sga_central & (g_r_apparent < 0.8)
         print(f"{np.sum(to_remove_blue):,} galaxies ({np.sum(to_remove_blue) / len(dec) * 100:.2f}%) have a SGA collision, are not SGA centrals, and are blue enough to remove.")
         no_SGA_Issues = np.invert(to_remove_blue)
     else:
@@ -1368,10 +1369,10 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     unobserved = np.all([app_mag_filter, np.logical_or(unobserved, treat_as_unobserved)], axis=0)
 
     if mode == Mode.FIBER_ASSIGNED_ONLY.value: # means 3pass 
-        keep = np.all([multi_pass_filter, observed_requirements], axis=0)
+        keep = np.all([bad_targets_filter, multi_pass_filter, observed_requirements], axis=0)
 
     if mode == Mode.NEAREST_NEIGHBOR.value or Mode.is_simple(mode) or Mode.is_photoz_plus(mode):
-        keep = np.all([multi_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
+        keep = np.all([bad_targets_filter, multi_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
         # TODO why bother with this for the real data? Use all we got, right? 
@@ -1439,26 +1440,25 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             ANGULAR_DISTANCE_MATCH = 1.0
             matched_old = ang_dist < ANGULAR_DISTANCE_MATCH_OLD
             matched = ang_dist < ANGULAR_DISTANCE_MATCH
-            idx_from_sloan = idx_unobserved[matched]
 
             print(f"{matched.sum():,} of {first_need_redshift_count:,} lost galaxies matched to SDSS catalog (would have matched {matched_old.sum():,} with 3\")")
 
             # If sloan z is very different from z_phot, we should probably not use it
             # This is a bit of a hack to avoid using the SDSS z for galaxies that are likely to be wrong
-            matched_sensible = np.logical_and(matched, np.abs(z_phot[idx_unobserved] - sdss_z) < 0.1)
-            print(f"{matched_sensible.sum():,} are reasonable matches givben the photo-z.")
+            matched = np.logical_and(matched, np.abs(z_phot[idx_unobserved] - sdss_z) < 0.1)
+            print(f"{matched.sum():,} are reasonable matches given the photo-z.")
             
-            z_eff[idx_unobserved] = np.where(matched_sensible, sdss_z, np.nan)    
-            z_assigned_flag[idx_unobserved] = np.where(matched_sensible, AssignedRedshiftFlag.SDSS_SPEC.value, z_assigned_flag[idx_unobserved])
+            z_eff[idx_unobserved] = np.where(matched, sdss_z, np.nan) # Set to SDSS redshift of nan if not matched
+            z_assigned_flag[idx_unobserved] = np.where(matched, AssignedRedshiftFlag.SDSS_SPEC.value, -4) 
             
+            idx_from_sloan = idx_unobserved[matched]
             update_properties_for_indices(idx_from_sloan, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, log_L_gal, quiescent)
-            unobserved[idx_unobserved] = np.where(matched_sensible, False, unobserved[idx_unobserved])
+            unobserved[idx_unobserved] = np.where(matched, False, unobserved[idx_unobserved])
             observed = np.invert(unobserved)
             idx_unobserved = np.flatnonzero(unobserved)
      
-            print(f"{matched_sensible.sum():,} of {first_need_redshift_count:,} redshifts taken from SDSS.")
+            print(f"{matched.sum():,} of {first_need_redshift_count:,} redshifts taken from SDSS.")
             print(f"{unobserved.sum():,} remaining galaxies need redshifts.")
-            #print(f"z_eff, after SDSS match: {z_eff[0:20]}")   
         else:
             print("No SDSS catalog to match to. Skipping.")
 
@@ -1477,9 +1477,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     # We need to guess a color (target_quiescent) for the unobserved galaxies to help the redshift guesser
     if Mode.is_simple(mode) or Mode.is_photoz_plus(mode):
-        # Multiple possible ideas
-        # 1) Could use the NN's redshift to k-correct but I don't like it
-        # 2) Use the lost galaxies' photometric redshift to k-correct
+        # Use the lost galaxies' photometric redshift to k-correct
         if have_z_phot:
             lost_abs_mag_R = app_mag_to_abs_mag(app_mag_r[idx_unobserved], z_phot[idx_unobserved])
             lost_abs_mag_R_k = k_correct(lost_abs_mag_R, z_phot[idx_unobserved], g_r_apparent[idx_unobserved])
@@ -1489,7 +1487,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             lost_G_R_k = lost_abs_mag_G_k - lost_abs_mag_R_k
             target_quiescent = is_quiescent_BGS_gmr(None, lost_G_R_k)
         else:
-        # 3) Use an uncorrected apparent g-r color cut to guess if the galaxy is quiescent or not
+            # Use an uncorrected apparent g-r color cut to guess if the galaxy is quiescent or not
             target_quiescent = is_quiescent_lost_gal_guess(app_mag_g[idx_unobserved] - app_mag_r[idx_unobserved]).astype(int)
         
     if Mode.is_simple(mode):
@@ -1568,10 +1566,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     
     assert np.isnan(z_eff).sum() == 0
 
-    # Redshift assignments could have placed lost galaxies outside the range of the catalog. Remove them.
-    final_selection = np.logical_and(z_eff > Z_MIN, z_eff < Z_MAX)
-    print(f"{np.sum(~final_selection):,} galaxies have redshifts outside the range of the catalog and will be removed.")
-    
+
     print(f"Neighbor usage %: {z_flag_is_neighbor(z_assigned_flag).sum() / z_flag_is_not_spectro_z(z_assigned_flag).sum() * 100:.2f}")
 
     # Now that we have redshifts for lost galaxies, we can calculate the rest of the properties
@@ -1588,6 +1583,23 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     # TODO get galaxy concentration from somewhere
     chi = np.zeros(count, dtype=np.int32) 
+
+    ####################################################################################
+    # FINAL QUALITY CONTROL
+    ####################################################################################
+    
+    # Redshift assignments could have placed lost galaxies outside the range of the catalog. Remove them.
+    qa1 = np.logical_and(z_eff > Z_MIN, z_eff < Z_MAX)
+    print(f"{np.sum(~qa1):,} galaxies have redshifts outside the range of the catalog and will be removed.")
+
+    # Ensure implied luminosity (for assigned z only) isn't totally crazy. If so, remove them.
+    L_GAL_MAX = np.log10(4e11)
+    qa2 = ~np.logical_and(log_L_gal > L_GAL_MAX, unobserved)
+    print(f"{np.sum(~qa2):,} unobserved galaxies have implied log(L_gal) > {L_GAL_MAX:.2f} and will be removed.")
+
+    assert np.all(z_assigned_flag >= -3), "z_assigned_flag is unset for some targets."
+
+    final_selection = np.logical_and(qa1, qa2)
 
     ####################################################################################
     # Write the completed preprocess files for the group finder / post-processing to use

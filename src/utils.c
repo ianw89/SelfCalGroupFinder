@@ -33,19 +33,46 @@ float distance_redshift(float z)
 
 /* Angular separation between two points. Give the ra, dec in radians.
  */
-float angular_separation(float a1, float d1, float a2, float d2)
+float angular_separation_old(float a1, float d1, float a2, float d2)
 {
   return atan((sqrt(cos(d2) * cos(d2) * sin(a2 - a1) * sin(a2 - a1) +
                     pow(cos(d1) * sin(d2) - sin(d1) * cos(d2) * cos(a2 - a1), 2.0))) /
               (sin(d1) * sin(d2) + cos(d1) * cos(d2) * cos(a2 - a1)));
 }
 
+/* Angular separation between two points using Vincenty formula. Give the ra, dec in radians.
+ */
+float angular_separation(float a1, float d1, float a2, float d2)
+{
+  float sin_d1 = sin(d1);
+  float cos_d1 = cos(d1);
+  float sin_d2 = sin(d2);
+  float cos_d2 = cos(d2);
+  float delta_a = a2 - a1;
+  float cos_delta_a = cos(delta_a);
+  float sin_delta_a = sin(delta_a);
+
+  float numerator = sqrt(pow(cos_d2 * sin_delta_a, 2) +
+                         pow(cos_d1 * sin_d2 - sin_d1 * cos_d2 * cos_delta_a, 2));
+  float denominator = sin_d1 * sin_d2 + cos_d1 * cos_d2 * cos_delta_a;
+
+  return atan2(numerator, denominator);
+}
+
 float psat(struct galaxy *central, float dr, float dz, float bprob)
 {
-  float prob_ang, prob_rad;
+  float prob_ang, prob_rad, result;
   prob_ang = radial_probability_g(central, dr);
   prob_rad = compute_prob_rad(dz, central->sigmav);
-  return (1 - 1 / (1 + prob_ang * prob_rad / bprob));
+  result = (1 - 1 / (1 + prob_ang * prob_rad / bprob));
+
+  if (isnan(result))
+  {
+    fprintf(stderr, "Unexpected nan result in psat: dr=%f dz=%f bprob=%f prob_ang=%f prob_rad%f RESULT: %f\n", dr, dz, bprob, prob_ang, prob_rad, result);
+    result = 0.0;
+  }
+
+  return result;
 }
 
 /* Probability assuming a projected NFW profile using the given galaxy's halo properties.

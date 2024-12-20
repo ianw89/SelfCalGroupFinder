@@ -107,6 +107,7 @@ int search(int n, float *x, float val);
 void test_centering(void *kd);
 int group_center(int icen0, void *kd);
 float angular_separation(float a1, float d1, float a2, float d2);
+float angular_separation_old(float a1, float d1, float a2, float d2);
 void test_fof(void *kd);
 float compute_prob_rad(float dz, float sigmav);
 float radial_probability(float mass, float dr, float rad, float ang_rad);

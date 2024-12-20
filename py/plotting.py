@@ -18,9 +18,9 @@ FONT_SIZE_DEFAULT = 12
 
 LGAL_XMINS = [6E7]#[6E7, 3E8]
 
-LGAL_MIN = 6E7
-LGAL_MAX_TIGHT = 1E11
-LGAL_MAX = 2E11
+LGAL_MIN = 1E7
+LGAL_MAX_TIGHT = 4E11
+LGAL_MAX = 4E11
 
 MSTAR_MIN = 1E7
 MSTAR_MAX = 1E12
@@ -1686,7 +1686,7 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
 
     z_eff = target['Z']
     #target_dist_true = z_to_ldist(target.z_obs)
-    buffer_angle = coord.Angle('3m')
+    buffer_angle = coord.Angle('1m')
     ra_map_max = (coord.Angle(target.RA*u.degree) + nearby_angle).value
     ra_map_min = (coord.Angle(target.RA*u.degree) - nearby_angle).value
     dec_map_max = (coord.Angle(target['DEC']*u.degree) + nearby_angle).value
@@ -1731,15 +1731,15 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
 
     good_obs_z_filter = list(map(lambda a: close_enough(target['Z'], a), nearby_obs['Z']))
     nearby_obs_good_z = nearby_obs.loc[good_obs_z_filter]
-    nearby_obs_good_z_dim = nearby_obs_good_z.loc[nearby_obs_good_z.app_mag > 19.5]
-    nearby_obs_good_z = nearby_obs_good_z.loc[np.invert(nearby_obs_good_z.app_mag > 19.5)]
+    nearby_obs_good_z_dim = nearby_obs_good_z.loc[nearby_obs_good_z['APP_MAG_R'] > 19.5]
+    nearby_obs_good_z = nearby_obs_good_z.loc[np.invert(nearby_obs_good_z['APP_MAG_R'] > 19.5)]
 
     if len(good_obs_z_filter) > 0:
         nearby_obs_other = nearby_obs.loc[np.invert(good_obs_z_filter)]
     else:
         nearby_obs_other = nearby_obs
-    nearby_obs_other_dim = nearby_obs_other.loc[nearby_obs_other.app_mag > 19.5]
-    nearby_obs_other = nearby_obs_other.loc[np.invert(nearby_obs_other.app_mag > 19.5)]
+    nearby_obs_other_dim = nearby_obs_other.loc[nearby_obs_other['APP_MAG_R'] > 19.5]
+    nearby_obs_other = nearby_obs_other.loc[np.invert(nearby_obs_other['APP_MAG_R'] > 19.5)]
 
     if nearby_unobs is not False:
         good_unobs_z_filter = list(map(lambda a: close_enough(target['Z'], a), nearby_unobs['Z']))
@@ -1747,14 +1747,14 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
         nearby_unobs_good_z = nearby_unobs.loc[good_unobs_z_filter]
         if good_unobs_z_filter:
             nearby_unobs_other = nearby_unobs.loc[np.invert(good_unobs_z_filter)]
-            nearby_unobs_other_dim = nearby_unobs_other.loc[nearby_unobs_other.app_mag > 19.5]
-            nearby_unobs_other = nearby_unobs_other.loc[np.invert(nearby_unobs_other.app_mag > 19.5)]
+            nearby_unobs_other_dim = nearby_unobs_other.loc[nearby_unobs_other['APP_MAG_R'] > 19.5]
+            nearby_unobs_other = nearby_unobs_other.loc[np.invert(nearby_unobs_other['APP_MAG_R'] > 19.5)]
         else:
             nearby_unobs_other = nearby_unobs_good_z # empty df
             nearby_unobs_other_dim = nearby_unobs_good_z
 
-        nearby_unobs_good_z_dim = nearby_unobs_good_z.loc[nearby_unobs_good_z.app_mag > 19.5]
-        nearby_unobs_good_z = nearby_unobs_good_z.loc[np.invert(nearby_unobs_good_z.app_mag > 19.5)]
+        nearby_unobs_good_z_dim = nearby_unobs_good_z.loc[nearby_unobs_good_z['APP_MAG_R'] > 19.5]
+        nearby_unobs_good_z = nearby_unobs_good_z.loc[np.invert(nearby_unobs_good_z['APP_MAG_R'] > 19.5)]
 
     if target_observed:
         title = f"Observed Galaxy {target.name}: z={target['Z']:.3f}"

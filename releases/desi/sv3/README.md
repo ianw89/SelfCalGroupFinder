@@ -1,12 +1,10 @@
-# DESI BGS DR1 Galaxy Group Catalog
+# DESI BGS SV3 Galaxy Group Catalog
 Ian Williams (ianwilliams@nyu.edu)
 Jeremy Tinker (jlt12@nyu.edu).
 
-This folder contains a galaxy group catalog built from DESI DR1 (Year 1) Bright Galaxy Survey ('IRON' reductions).
+This folder contains a (presently) INTERNAL galaxy group catalog built from DESI SV3 Bright Galaxy Survey ('FUJI' reductions). Please get in touch with the authors if you are using this for DESI science.
 
-
-
-The catalog is built using the Self Calibrated Group Finder, a public halo-based group finder. The code used for preprocessing and group finding can be found in [SelfCalGroupFinder](https://github.com/ianw89/SelfCalGroupFinder), tagged with 'bgs_dr1_v1.0'. For details regarding the group finding methods, see [arXiv:2007.12200](https://arxiv.org/abs/2007.12200), [arXiv:2010.02946](https://arxiv.org/abs/2010.02946) and [galaxygroupfinder.net](http://www.galaxygroupfinder.net), which contains information not yet published describing details of this catalog's construction.
+The catalog is built using the Self Calibrated Group Finder, a public halo-based group finder. The code used for preprocessing and group finding can be found in [SelfCalGroupFinder](https://github.com/ianw89/SelfCalGroupFinder). For details regarding the group finding methods, see [arXiv:2007.12200](https://arxiv.org/abs/2007.12200), [arXiv:2010.02946](https://arxiv.org/abs/2010.02946) and [galaxygroupfinder.net](http://www.galaxygroupfinder.net), which contains information not yet published describing details of this catalog's construction.
 
 The catalog is provided as a single table in a .FITS archive. In Python, this can be easily read as follows:
 

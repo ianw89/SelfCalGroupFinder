@@ -6,7 +6,7 @@ import concurrent.futures
 from multiprocessing import Pool
 
 # EXAMPLE USAGE
-# nohup python exec.py 6 9 > exec.out &
+# nohup python exec.py 6 8 &> exec.out &
 
 
 if './SelfCalGroupFinder/py/' not in sys.path:
@@ -41,7 +41,7 @@ callable_list = [
     cat.bgs_sv3_list, #6
     cat.bgs_aux_list, #7
     cat.bgs_main_list, #8
-    [cat.bgs_y3_like_sv3_pz_2_4] #9
+    [] #9
 ]
 
 def process_gc(gc: GroupCatalog):

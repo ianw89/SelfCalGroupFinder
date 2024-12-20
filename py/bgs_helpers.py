@@ -155,7 +155,7 @@ def table_to_df(table: Table):
     dec = table['DEC'].astype("<f8") # Big endian vs little endian regression in pandas. Convert more of these fields like this
     ra = table['RA'].astype("<f8") # as needed if using pandas with this data
     df = pd.DataFrame({
-        'Dec': dec,
+        'DEC': dec,
         'RA': ra,
         })
 
@@ -256,7 +256,7 @@ def create_merged_file(orig_table_file : str, merged_file : str, year : str):
     add_NTILE_MINE_to_table(table, year)
     table.write(merged_file, format='fits', overwrite='True')
 
-    add_photz_columns(merged_file, IAN_PHOT_Z_FILE_NOSPEC)
+    add_photz_columns(merged_file, IAN_PHOT_Z_FILE_WSPEC)
 
 
 def fix_columns_in_phot_z_file(f):
