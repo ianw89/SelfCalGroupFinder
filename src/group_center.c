@@ -45,11 +45,11 @@ int group_center(int icen0, void *kd)
   nmem = 0;
   for(i=0;i<NGAL;++i)
     {
-      if(GAL[i].igrp==icen0 && GAL[i].mstellar>LUM_LIMIT)
+      if(GAL[i].igrp==icen0 && GAL[i].lum>LUM_LIMIT)
 	{
 	  nmem++;	  
 	  id[nmem] = i;
-	  lum[nmem] = -GAL[i].mstellar;
+	  lum[nmem] = -GAL[i].lum;
 	}
     }
 
@@ -100,7 +100,7 @@ int group_center(int icen0, void *kd)
 	}
 	if(j==icen)continue;
 	n++;
-	lumtot[i] -= pow(GAL[j].mstellar,0.25)/pow(theta + rhalo/10,0.25);
+	lumtot[i] -= pow(GAL[j].lum,0.25)/pow(theta + rhalo/10,0.25);
 	//vsat[i] += (GAL[j].redshift-GAL[icen].redshift)*SPEED_OF_LIGHT;
       }
       //vsat[i] /= n;
@@ -171,7 +171,7 @@ void test_centering(void *kd)
 	  GAL[j].igrp=i;
 	  GAL[i].nsat++;
 	  // let's check the frequency of Lsat>Lcen
-	  if(GAL[j].mstellar>GAL[i].mstellar)flag = 1;
+	  if(GAL[j].lum>GAL[i].lum)flag = 1;
 	  // printf("%e %e %e %e\n",mass[i],GAL[j].ra, GAL[j].dec, GAL[j].redshift);
 	}      
       if(flag)cnt++;
@@ -223,7 +223,7 @@ int iterative_center(int ii)
       localid[i] = i;
       galid[i] = j;
       skipflag[i] = 0;
-      lum[i] = -GAL[j].mstellar;
+      lum[i] = -GAL[j].lum;
       redshift[i] = GAL[j].redshift;
       j = GAL[j].next;
     }
@@ -247,9 +247,9 @@ int iterative_center(int ii)
 
   /*
   for(i=0;i<n;++i)
-    printf("%d %d %d %d %e %d %e\n",i,galid[i],localid[i],lumrank[i],GAL[galid[i]].mstellar,
+    printf("%d %d %d %d %e %d %e\n",i,galid[i],localid[i],lumrank[i],GAL[galid[i]].lum,
 	   zrank[i],GAL[galid[i]].redshift);
-  printf("%d %d %d %e\n",ibrightest, zrank[ibrightest], lumrank[0]-1, galid[lumrank[0]-1], GAL[galid[lumrank[0]-1]].mstellar);
+  printf("%d %d %d %e\n",ibrightest, zrank[ibrightest], lumrank[0]-1, galid[lumrank[0]-1], GAL[galid[lumrank[0]-1]].lum);
   exit(0);
   */
   //printf("ZRANK %d %d %d\n",n, zrank[0], zrank[ibrightest]);
@@ -267,10 +267,10 @@ int iterative_center(int ii)
       {
 	if(skipflag[i])continue;
 	if(lumrank[i]<=NUMLUM) { ncnt++; iii=j; }
-	ra = ra + pow(GAL[j].mstellar,POW)*GAL[j].ra;
-	dec = dec + pow(GAL[j].mstellar,POW)*GAL[j].ra;
-	zz = zz + pow(GAL[j].mstellar,POW)*GAL[j].rco;
-	w = w + pow(GAL[j].mstellar,POW);
+	ra = ra + pow(GAL[j].lum,POW)*GAL[j].ra;
+	dec = dec + pow(GAL[j].lum,POW)*GAL[j].ra;
+	zz = zz + pow(GAL[j].lum,POW)*GAL[j].rco;
+	w = w + pow(GAL[j].lum,POW);
 	j = GAL[j].next;
       }
     ra = ra/w;
@@ -307,7 +307,7 @@ int iterative_center(int ii)
   // now that we only have 2 galaxies, take brightest
   i1 = id[1];
   i2 = id[2];
-  if(GAL[galid[11]].mstellar>GAL[galid[i2]].mstellar)return galid[i1];
+  if(GAL[galid[11]].lum>GAL[galid[i2]].lum)return galid[i1];
   return galid[i2];
 						       
 }

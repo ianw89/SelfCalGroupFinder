@@ -131,24 +131,24 @@ class GroupCatalog:
         df = self.all_data
 
         # TODO BUG This fails
-        #assert np.all(df.loc[:, 'L_TOT'] >= 0.9999*df.loc[:, 'L_GAL']), f"Total luminosity should be greater than galaxy luminosity, but {np.sum(df.loc[:, 'L_TOT'] < df.loc[:, 'L_GAL'])} are not."
-        print("WARNING - a test is skipped because it fails.")
+        assert np.all(df.loc[:, 'L_TOT'] >= 0.9999*df.loc[:, 'L_GAL']), f"Total luminosity should be greater than galaxy luminosity, but {np.sum(df.loc[:, 'L_TOT'] < df.loc[:, 'L_GAL'])} are not."
+        #print("WARNING - a test is skipped because it fails.")
 
         # TODO BUG This fails
-        #assert np.all(df['N_SAT'] >= 0), f"Number of satellites should be >= 0, but {np.sum(df['N_SAT'] < 0)} are not."
-        print("WARNING - a test is skipped because it fails.")
+        assert np.all(df['N_SAT'] >= 0), f"Number of satellites should be >= 0, but {np.sum(df['N_SAT'] < 0)} are not."
+        #print("WARNING - a test is skipped because it fails.")
 
-        sats = df.loc[df['IS_SAT'].astype(bool)]
-        assert np.all(sats['P_SAT'] > 0.499999), f"Everything marked as a sat should have P_sat > 0.5"
+        sats = df.loc[df['IS_SAT']]
+        assert np.all(sats['P_SAT'] > 0.499999), f"Everything marked as a sat should have P_sat > 0.5, but {np.sum(sats['P_SAT'] < 0.5)} do not."
         assert np.all(sats.index != sats['IGRP']), "Satellites should have igrp != index"
 
-        cens = df.loc[~df['IS_SAT'].astype(bool)]
-        assert np.all(cens['P_SAT'] < 0.500001), f"Everything marked as a central should have P_sat < 0.5"
+        cens = df.loc[~df['IS_SAT']]
+        assert np.all(cens['P_SAT'] < 0.500001), f"Everything marked as a central should have P_sat < 0.5, but {np.sum(cens['P_SAT'] > 0.5)} do not."
         assert np.all(cens.index == cens['IGRP']), "Centrals should have igrp == index"
 
         # TODO BUG - This fails
-        #assert len(cens) == len(df['IGRP'].unique()), f"Counts of centrals should be count of unique groups, but {len(df.loc[~df['IS_SAT'].astype(bool)])} != {len(df['IGRP'].unique())}"
-        print("WARNING - a test is skipped because it fails.")
+        assert len(cens) == len(df['IGRP'].unique()), f"Counts of centrals should be count of unique groups, but {len(df.loc[~df['IS_SAT'].astype(bool)])} != {len(df['IGRP'].unique())}"
+        #print("WARNING - a test is skipped because it fails.")
 
         bighalos = cens.loc[cens['Z'] < 0.2].sort_values('M_HALO', ascending=False).head(20)
         assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
@@ -263,6 +263,8 @@ class GroupCatalog:
         #sp.run(["cp", HALO_MASS_FUNC_FILE , self.output_folder])
         #sp.run(["cp", LSAT_LOOKUP_FILE , self.output_folder])
 
+        sys.stdout.flush()
+        
         with open(self.GF_outfile, "w") as f:
             args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
             args.append(str(self.GF_props['zmin']))
@@ -511,7 +513,7 @@ class SDSSPublishedGroupCatalog(GroupCatalog):
         df = pd.merge(main_df, galprops, left_index=True, right_index=True, validate="1:1")
 
         # add columns indicating if galaxy is a satellite
-        df['IS_SAT'] = (df.index != df['IGRP']).astype(int)
+        df['IS_SAT'] = (df.index != df['IGRP']).astype(bool)
         df['LOGLGAL'] = np.log10(df['L_GAL'])
 
         # add column for halo mass bins and Lgal bins

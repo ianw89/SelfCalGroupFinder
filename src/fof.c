@@ -46,7 +46,7 @@ void fof(void *kd)
     {
       GAL[i].igrp = -1;
       GAL[i].next = -1;
-      GAL[i].mtot = 0;
+      GAL[i].lgrp = 0;
     }
 			
   
@@ -83,7 +83,7 @@ void fof(void *kd)
       grpid[ngrp] = i;
       ngrp++;
       GAL[i].igrp = i;
-      GAL[i].mtot = GAL[i].mstellar;
+      GAL[i].lgrp = GAL[i].lum;
       
       // what is local linking lengths?
       galsep = mean_galaxy_separation(GAL[i].redshift);
@@ -114,7 +114,7 @@ void fof(void *kd)
 	  {
 	    GAL[j].igrp = i;
 	    GAL[iprev].next = j;
-	    GAL[i].mtot += GAL[j].mstellar;
+	    GAL[i].lgrp += GAL[j].lum;
 	    grpmem[ngrp-1]++;
 	    iprev = j;
 	    //printf("%d %d\n",i,grpmem[ngrp-1]);
@@ -150,7 +150,7 @@ void fof(void *kd)
 	    {
 	      GAL[j].igrp = i;
 	      GAL[iprev].next = j;
-	      GAL[i].mtot += GAL[j].mstellar;
+	      GAL[i].lgrp += GAL[j].lum;
 	      grpmem[ngrp-1]++;
 	      iprev = j;
 	      //printf("%d %d\n",i,grpmem[ngrp-1]);
@@ -169,7 +169,7 @@ void fof(void *kd)
 	n = 1;
 	do {	  
 	  printf("%d %d %e %e %e\n",n,j,
-		 GAL[j].ra*180/PI, GAL[j].dec*180/PI, GAL[j].mstellar);
+		 GAL[j].ra*180/PI, GAL[j].dec*180/PI, GAL[j].lum);
 	  j = GAL[j].next;	  
 	  n++;
 	} while(j!=-1);
@@ -183,7 +183,7 @@ void fof(void *kd)
   for(i=0;i<ngrp;++i)
     {
       j = grpid[i];
-      printf("%d %d %d %e\n",i,j,grpmem[i],GAL[j].mtot);
+      printf("%d %d %d %e\n",i,j,grpmem[i],GAL[j].lgrp);
     }
   exit(0);
 }
@@ -255,7 +255,7 @@ void test_fof(void *kd)
 	  */
 	  if(GAL[i].igrp==ii) {
 	    nfof++;
-	    if(GAL[i].mstellar>GAL[ii].mstellar)flag = 1;
+	    if(GAL[i].lum>GAL[ii].lum)flag = 1;
 	  }
 	  if(listid[i]==ii)ntrue++;
 	  //printf("MOO %d %f %f %d\n",i,proj_sep/plink, rad_sep/zlink, GAL[i].igrp);      

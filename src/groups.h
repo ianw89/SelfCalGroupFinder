@@ -21,7 +21,7 @@ extern struct galaxy {
   float ra, dec; // in radians
   float redshift; 
   float rco; // comoving distnace (in Mpc??) set from distance_redshift(z)
-  float mstellar, // mstellar might mean luminosity as well
+  float lum, // lum might mean mstellar
     psat,
     color, // greater than 0.8 means red, otherwise blue
     propx,
@@ -29,18 +29,17 @@ extern struct galaxy {
     weight,
     vmax;
   int igrp;
-  //int id;
   int listid;
   int next;
   int grp_rank;
-
+  
   // halo properties  
   float mass,
     theta,
     rad,
     sigmav,
-    mtot, // tracks total mstellar or luminosity of group
-    nsat;
+    lgrp; // tracks total luminosity or stellar mass of group
+  int nsat;
 } *GAL;
 
 /* Structure for the halos in the simulations */
@@ -109,8 +108,8 @@ int group_center(int icen0, void *kd);
 float angular_separation(float a1, float d1, float a2, float d2);
 float angular_separation_old(float a1, float d1, float a2, float d2);
 void test_fof(void *kd);
-float compute_prob_rad(float dz, float sigmav);
-float radial_probability(float mass, float dr, float rad, float ang_rad);
-float radial_probability_g(struct galaxy *gal, float dr);
+float compute_p_z(float dz, float sigmav);
+float compute_p_proj(float mass, float dr, float rad, float ang_rad);
+float compute_p_proj_g(struct galaxy *gal, float dr);
 float psat(struct galaxy *central, float dr, float dz, float bprob);
 

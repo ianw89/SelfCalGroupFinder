@@ -53,11 +53,13 @@ int SILENT = 0; // TODO make this work
 int VERBOSE = 0; // TODO make this work
 int POPULATE_MOCK = 0; // default is do not populate mock
 
+// This is only called once right now. 
+// Maybe later we can make it more dynamic for MCMC purposes but think about memory management.
 void groupfind()
 {
   FILE *fp;
   char aa[1000];
-  int i, i1, niter, MAX_ITER = 5, j, ngrp_prev, icen_new;
+  int i, i1, niter, min_iter=5, MAX_ITER = 30, j, ngrp_prev, icen_new;
   float frac_area, nsat_tot, weight, wx;
   double galden, pt[3], t0, t1, t3, t4;
   long IDUM1 = -555;
@@ -66,6 +68,7 @@ void groupfind()
   static float volume, *xtmp, *lumshift;
   static void *kd;
   static int first_call = 1, ngrp;
+  if (!SILENT) fprintf(stderr, "groupfind()\n");
 
   if (first_call)
   {
@@ -90,16 +93,14 @@ void groupfind()
     galden = 0;
     for (i = 0; i < NGAL; ++i)
     {
-      // Thought called mstellar throughout the code, this galaxy property could be luminosity
-      // instead (at least, that's what Ian has been doing). Unclear if that is an issue yet. TODO
-      fscanf(fp, "%f %f %f %f", &GAL[i].ra, &GAL[i].dec, &GAL[i].redshift, &GAL[i].mstellar);
+      // Thought called lum throughout the code, this galaxy property could be mstellar too.
+      fscanf(fp, "%f %f %f %f", &GAL[i].ra, &GAL[i].dec, &GAL[i].redshift, &GAL[i].lum);
       GAL[i].ra *= PI / 180.;
       GAL[i].dec *= PI / 180.;
-      //GAL[i].id = i;
       GAL[i].rco = distance_redshift(GAL[i].redshift);
       // check if the stellar mass (or luminosity) is in log
-      if (GAL[i].mstellar < 100)
-        GAL[i].mstellar = pow(10.0, GAL[i].mstellar);
+      if (GAL[i].lum < 100)
+        GAL[i].lum = pow(10.0, GAL[i].lum);
       // I think we can just set the bsat here
       if (FLUXLIM)
         fscanf(fp, "%f", &GAL[i].vmax);
@@ -128,18 +129,28 @@ void groupfind()
     xtmp = vector(1, NGAL);
     itmp = ivector(1, NGAL);
     permanent_id = ivector(1, NGAL);
-    lumshift = vector(0, NGAL - 1);
+    lumshift = vector(1, NGAL);
     for (i = 1; i <= NGAL; ++i)
     {
       // just for kicks, give each galaxy a random luminosity
-      lumshift[i - 1] = pow(10.0, gasdev(&IDUM1) * 0.0);
+      lumshift[i] = pow(10.0, gasdev(&IDUM1) * 0.0);
 
-      xtmp[i] = -(GAL[i - 1].mstellar * lumshift[i - 1]);
+      xtmp[i] = -(GAL[i - 1].lum * lumshift[i]);
       itmp[i] = i - 1;
     }
+    //fprintf(stderr, "itmp initial: ");
+    //for (i = 1; i <= NGAL; ++i)
+    //  fprintf(stderr, "%d ", itmp[i]);
+    //fprintf(stderr, "\n");
+
     if (!SILENT) fprintf(stderr, "sorting galaxies...\n");
     sort2(NGAL, xtmp, itmp);
     if (!SILENT) fprintf(stderr, "done sorting galaxies.\n");
+
+    //fprintf(stderr, "itmp after sort2 by LGAL: ");
+    //for (i = 1; i <= NGAL; ++i)
+    //  fprintf(stderr, "%d ", itmp[i]);
+    //fprintf(stderr, "\n");
 
     // do the inverse-abundance matching
     
@@ -174,14 +185,13 @@ void groupfind()
     if (!SILENT) fprintf(stderr, "Done inverse-sham.\n");
     // assume that NGAL=NGROUP at first
     ngrp = NGAL;
-  }
+  } // end of first call code
 
   // let's create a 3D KD tree
   if (!SILENT) fprintf(stderr, "Building KD-tree...\n");
   kd = kd_create(3);
-  for (i = 1; i <= NGAL; ++i)
+  for (j = 0; j < NGAL; ++j)
   {
-    j = i;
     permanent_id[j] = j;
     pt[0] = GAL[j].x;
     pt[1] = GAL[j].y;
@@ -197,16 +207,24 @@ void groupfind()
   // test_centering(kd);
 
   // now start the group-finding iterations
-  for (niter = 1; niter <= MAX_ITER; ++niter)
+  for (niter = 1; niter <= min_iter; ++niter)
   {
+    // Some scenarios require another iteration to cleanup
+    if (niter > MAX_ITER)
+    {
+      fprintf(stderr, "ERROR - MAX ITERATIONS HIT. Need to debug why.\n");
+      exit(0);
+    }
+
     t3 = omp_get_wtime();
+
     // first, reset the psat values
     for (j = 0; j < NGAL; ++j)
     {
       GAL[j].igrp = -1;
       GAL[j].psat = 0;
       GAL[j].nsat = 0;
-      GAL[j].mtot = GAL[j].mstellar;
+      GAL[j].lgrp = GAL[j].lum;
 
       // Each galaxy can optionally have it's halo mass weighted by a property
       weight = 1.0;
@@ -214,12 +232,12 @@ void groupfind()
       {
         if (GAL[j].color < 0.8)
         {
-          wx = PROPX_WEIGHT_BLUE + PROPX_SLOPE_BLUE * (log10(GAL[j].mstellar) - 9.5);
+          wx = PROPX_WEIGHT_BLUE + PROPX_SLOPE_BLUE * (log10(GAL[j].lum) - 9.5);
           weight = exp(GAL[j].propx / wx);
         }
         else
         {
-          wx = PROPX_WEIGHT_RED + PROPX_SLOPE_RED * (log10(GAL[j].mstellar) - 9.5);
+          wx = PROPX_WEIGHT_RED + PROPX_SLOPE_RED * (log10(GAL[j].lum) - 9.5);
           weight = exp(GAL[j].propx / wx);
         }
       }
@@ -230,7 +248,7 @@ void groupfind()
         else
           weight *= exp(GAL[j].propx2 / PROPX2_WEIGHT_RED);
       }
-      GAL[j].mtot *= weight;
+      GAL[j].lgrp *= weight;
 
       // Color-dependent weighting of centrals masses
       weight = 1.0;
@@ -238,16 +256,16 @@ void groupfind()
       {
         if (GAL[j].color < 0.8)
           // If colors not provided, this is what will be used
-          weight = 1 / pow(10.0, 0.5 * (1 + erf((log10(GAL[j].mstellar) - WCEN_MASS) / WCEN_SIG)) * WCEN_NORM);
+          weight = 1 / pow(10.0, 0.5 * (1 + erf((log10(GAL[j].lum) - WCEN_MASS) / WCEN_SIG)) * WCEN_NORM);
         else
-          weight = 1 / pow(10.0, 0.5 * (1 + erf((log10(GAL[j].mstellar) - WCEN_MASSR) / WCEN_SIGR)) * WCEN_NORMR);
+          weight = 1 / pow(10.0, 0.5 * (1 + erf((log10(GAL[j].lum) - WCEN_MASSR) / WCEN_SIGR)) * WCEN_NORMR);
       }
       GAL[j].weight = weight;
 
       flag[j] = 1;
     }
     // find the satellites for each halo, in order of group mass
-    ngrp_prev = ngrp;
+    ngrp_prev = ngrp; // first iteration this is NGAL
     ngrp = 0;
     t0 = omp_get_wtime();
 #pragma omp parallel for private(i1, i)
@@ -264,8 +282,8 @@ void groupfind()
       {
         GAL[i].igrp = i;
         ngrp++;
-        GAL[i].mtot *= GAL[i].weight;
-        xtmp[ngrp] = -GAL[i].mtot;
+        GAL[i].lgrp *= GAL[i].weight;
+        xtmp[ngrp] = -GAL[i].lgrp;
         itmp[ngrp] = i;
         GAL[i].listid = ngrp;
         if (FLUXLIM)
@@ -280,6 +298,7 @@ void groupfind()
     {
       if (flag[j] && GAL[j].psat < 0.5)
       {
+        //fprintf(stderr, "Newly exposed central: %d. Finding sats.\n", j);
         find_satellites(j, kd);
       }
     }
@@ -287,10 +306,11 @@ void groupfind()
     {
       if (flag[j] && GAL[j].psat < 0.5)
       {
+        //fprintf(stderr, "Newly exposed central: %d. Settings props.\n", j);
         ngrp++;
         GAL[j].igrp = j;
-        GAL[j].mtot *= GAL[j].weight;
-        xtmp[ngrp] = -GAL[j].mtot;
+        GAL[j].lgrp *= GAL[j].weight;
+        xtmp[ngrp] = -GAL[j].lgrp;
         itmp[ngrp] = j;
         GAL[j].listid = ngrp;
         if (FLUXLIM)
@@ -299,6 +319,7 @@ void groupfind()
     }
 
     // Find new group centers if option enabled (its NOT)
+    // BUG - I may have slightly changed the logic here by changing what MAX_ITER and min_iter mean
     if (RECENTERING && niter != MAX_ITER)
     {
       for (j = 1; j <= ngrp; ++j)
@@ -309,7 +330,7 @@ void groupfind()
           icen_new = group_center(i, kd);
           if (icen_new == -1)
           {
-            printf("ZERO %.1f %e %.3f\n", GAL[i].nsat, GAL[i].mass, GAL[i].psat);
+            printf("ZERO %d %e %.3f\n", GAL[i].nsat, GAL[i].mass, GAL[i].psat);
             exit(0);
           }
           if (icen_new != i)
@@ -321,7 +342,7 @@ void groupfind()
             GAL[i].psat = 1;
             GAL[i].igrp = icen_new; // need to swap all of them, fyi...
             GAL[icen_new].psat = 0;
-            GAL[icen_new].mtot = GAL[i].mtot;
+            GAL[icen_new].lgrp = GAL[i].lgrp;
             GAL[icen_new].nsat = GAL[i].nsat;
             GAL[i].nsat = 0;
           }
@@ -331,6 +352,11 @@ void groupfind()
 
     // sort groups by their total stellar mass
     sort2(ngrp, xtmp, itmp);
+
+    //fprintf(stderr, "itmp after sort2 by LTOT: ");
+    //for (i = 1; i <= NGAL; ++i)
+    //  fprintf(stderr, "%d ", itmp[i]);
+    //fprintf(stderr, "\n");
 
     // reassign the halo masses
     nsat_tot = galden = 0;
@@ -353,7 +379,7 @@ void groupfind()
 
     // for the satellites, set their host halo mass
     for (j = 0; j < NGAL; ++j)
-      if (GAL[j].psat > 0.5)
+      if (GAL[j].psat > 0.5) 
         GAL[j].mass = GAL[GAL[j].igrp].mass;
 
     if (!SILENT) 
@@ -361,8 +387,10 @@ void groupfind()
             niter, ngrp, nsat_tot / NGAL, t1 - t0, t4 - t3);
   } // end of main iteration loop
 
-  /* Output to disk the final results
-   */
+
+  // **********************************
+  // Output to disk the final results
+  // **********************************
   for (i = 0; i < NGAL; ++i)
   {
     // the weight printed off here is only the color-dependent centrals weight
@@ -370,8 +398,8 @@ void groupfind()
     // TODO: should we change that?
     printf("%d %f %f %f %e %e %f %e %d %e %d %e\n",
             i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
-            GAL[i].mstellar, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
-            GAL[i].nsat, GAL[i].mtot, GAL[i].igrp, GAL[i].weight);
+            GAL[i].lum, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
+            GAL[i].nsat, GAL[i].lgrp, GAL[i].igrp, GAL[i].weight);
   }
   fflush(stdout);
   
@@ -408,7 +436,6 @@ void find_satellites(int icen, void *kd)
   set = kd_nearest_range(kd, cen, range);
 
   // Set now contains the nearest neighbours within a distance range. Grab their info.
-
   while (!kd_res_end(set))
   {
 
@@ -423,7 +450,7 @@ void find_satellites(int icen, void *kd)
       continue;
 
     // skip if the object is more massive than the icen
-    if (GAL[j].mstellar >= GAL[icen].mstellar)
+    if (GAL[j].lum >= GAL[icen].lum)
       continue;
 
     // Skip if already assigned to a central.
@@ -448,53 +475,66 @@ void find_satellites(int icen, void *kd)
     if (USE_BSAT)
     {
       if (GAL[j].color > 0.8)
-        bprob = BPROB_RED + (log10(GAL[j].mstellar) - 9.5) * BPROB_XRED;
+        bprob = BPROB_RED + (log10(GAL[j].lum) - 9.5) * BPROB_XRED;
       else
-        bprob = BPROB_BLUE + (log10(GAL[j].mstellar) - 9.5) * BPROB_XBLUE;
+        bprob = BPROB_BLUE + (log10(GAL[j].lum) - 9.5) * BPROB_XBLUE;
     }
     // let's put a lower limit of the prob
     if (bprob < 0.001)
       bprob = 0.001;
 
     p0 = psat(&GAL[icen], theta, dz, bprob);
-    
+
     // Keep track of the highest psat so far
     if (p0 > GAL[j].psat)
       GAL[j].psat = p0;    
     if (p0 < 0.5)
       continue;
 
-    // this is considered a member of the group
-    // NB if this was previously a member of other (lower-rank)
-    // group, remove it from that.
+    // This is considered a member of the group
+
+    // If this was previously a member of another (lower-rank) group, remove it from that.
     if (GAL[j].igrp >= 0)
     {
-      GAL[GAL[j].igrp].nsat--;
-      GAL[GAL[j].igrp].mtot -= GAL[j].mstellar;
-      if (GAL[GAL[j].igrp].nsat < 0)
+      // It was it's own central 
+      if (GAL[j].igrp == j) 
       {
-        fprintf(stderr, "NEGATIVE NSAT %d %d %f %f\n", j, GAL[j].igrp, GAL[j].mstellar, GAL[j].psat);
-        GAL[GAL[j].igrp].nsat = 0;
+        if (GAL[j].nsat > 0)
+        {
+          // It's its own central with satellites, do we handle it right? Not until next iteration BUG!
+          fprintf(stderr, "Central %d with (N_SAT=%d) into CENTRAL %d\n", j, GAL[j].nsat, icen);
+          //if (niter == min_iter)
+          //  min_iter++;
+        }
+      }
+      else // Was just a sat of another group, update that group's properties
+      {
+        int old_group_idx = GAL[j].igrp;
+        GAL[old_group_idx].nsat--;
+        GAL[old_group_idx].lgrp -= GAL[j].lum;
       }
     }
+    // Assign it to this group
     GAL[j].psat = p0;
+    GAL[j].nsat = 0;
     GAL[j].igrp = icen;
-    GAL[icen].mtot += GAL[j].mstellar;
+    GAL[icen].lgrp += GAL[j].lum;
     GAL[icen].nsat++;
   }
-  // exit(0);
+  
   //  Correct for boundary conditions
   if (!FLUXLIM)
   {
+    // TODO BUG I switched nsat to be int, will this be busted?
     dz = SPEED_OF_LIGHT * fabs(GAL[icen].redshift - MINREDSHIFT);
     vol_corr = 1 - (0.5 * erfc(dz / (ROOT2 * GAL[icen].sigmav)));
     GAL[icen].nsat /= vol_corr;
-    GAL[icen].mtot /= vol_corr;
+    GAL[icen].lgrp /= vol_corr;
 
     dz = SPEED_OF_LIGHT * fabs(GAL[icen].redshift - MAXREDSHIFT);
     vol_corr = 1 - (0.5 * erfc(dz / (ROOT2 * GAL[j].sigmav)));
     GAL[icen].nsat /= vol_corr;
-    GAL[icen].mtot /= vol_corr;
+    GAL[icen].lgrp /= vol_corr;
   }
 }
 

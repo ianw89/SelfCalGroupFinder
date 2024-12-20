@@ -129,7 +129,7 @@ void lsat_model()
     if (GAL[i].psat > 0.5)
       continue;
     // Bin the Lsat values according to the luminosity/stellar mass
-    im = (int)(log10(GAL[i].mstellar) / 0.1 + 0.5);
+    im = (int)(log10(GAL[i].lum) / 0.1 + 0.5);
     // get x, the lsat value for this galaxy according to the lookup
     splint(mx, lx, m2x, nt, log10(GAL[i].mass), &x); 
     if (GAL[i].color > 0.8)
@@ -143,7 +143,7 @@ void lsat_model()
       lsatb[im] += pow(10.0, x);
     }
     // let's print this out just for kick
-    // printf("LSAT %d %d %f %f %f %f\n",i,im,log10(GAL[i].mass),x,log10(GAL[i].mstellar),GAL[i].color);
+    // printf("LSAT %d %d %f %f %f %f\n",i,im,log10(GAL[i].mass),x,log10(GAL[i].lum),GAL[i].color);
 
     if (!SECOND_PARAMETER)
       continue;
@@ -154,8 +154,8 @@ void lsat_model()
       continue;
 
     // binning for lsat-vs-propx at fixed lum
-    im = (int)((log10(GAL[i].mstellar) - M0_PROPX) / DM_PROPX);
-    // printf("BINX %d %f %f\n",im,log10(GAL[i].mstellar),(log10(GAL[i].mstellar)-M0_PROPX-DM_PROPX/2)/DM_PROPX);
+    im = (int)((log10(GAL[i].lum) - M0_PROPX) / DM_PROPX);
+    // printf("BINX %d %f %f\n",im,log10(GAL[i].lum),(log10(GAL[i].lum)-M0_PROPX-DM_PROPX/2)/DM_PROPX);
     if (im < 0 || im >= 5)
       continue;
     ix = (int)floor((GAL[i].propx + dpropx / 2) / dpropx); // for the mocks
@@ -379,13 +379,13 @@ void tabulate_hods()
     }*/
 
     // check the magnitude of the galaxy
-    mag = -2.5 * log10(GAL[i].mstellar) + 4.65;
+    mag = -2.5 * log10(GAL[i].lum) + 4.65;
     ibin = (int)(fabs(mag)) - 17;
-    // printf("BOO %f %f %d\n",log10(GAL[i].mstellar),mag,ibin);
+    // printf("BOO %f %f %d\n",log10(GAL[i].lum),mag,ibin);
     //  check if we are using stellar mass
     if (STELLAR_MASS)
     {
-      mag = log10(GAL[i].mstellar) * 2;
+      mag = log10(GAL[i].lum) * 2;
       ibin = (int)(mag)-18;
     }
 
@@ -486,7 +486,7 @@ void lsat_model_scatter()
   {
     if (GAL[i].psat > 0.5)
       continue;
-    im = (int)(log10(GAL[i].mstellar) / 0.1 + 0.5);
+    im = (int)(log10(GAL[i].lum) / 0.1 + 0.5);
     id = search(NHALO, mvir, GAL[i].mass);
     lsat = HALO[indx[id]].lsat;
     // printf("LSAT %d %e %e %e\n",id,GAL[i].mass, HALO[indx[id]].mass, lsat);

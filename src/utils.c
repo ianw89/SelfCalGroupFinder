@@ -62,8 +62,8 @@ float angular_separation(float a1, float d1, float a2, float d2)
 float psat(struct galaxy *central, float dr, float dz, float bprob)
 {
   float prob_ang, prob_rad, result;
-  prob_ang = radial_probability_g(central, dr);
-  prob_rad = compute_prob_rad(dz, central->sigmav);
+  prob_ang = compute_p_proj_g(central, dr);
+  prob_rad = compute_p_z(dz, central->sigmav);
   result = (1 - 1 / (1 + prob_ang * prob_rad / bprob));
 
   if (isnan(result))
@@ -77,14 +77,14 @@ float psat(struct galaxy *central, float dr, float dz, float bprob)
 
 /* Probability assuming a projected NFW profile using the given galaxy's halo properties.
  */
-float radial_probability_g(struct galaxy *gal, float dr)
+float compute_p_proj_g(struct galaxy *gal, float dr)
 {
-  return radial_probability(gal->mass, dr, gal->rad, gal->theta);
+  return compute_p_proj(gal->mass, dr, gal->rad, gal->theta);
 }
 
 /* Probability assuming a projected NFW profile
  */
-float radial_probability(float mass, float dr, float rad, float ang_rad)
+float compute_p_proj(float mass, float dr, float rad, float ang_rad)
 {
   float c, x, rs, delta, f;
 
@@ -109,7 +109,7 @@ float radial_probability(float mass, float dr, float rad, float ang_rad)
  * dz is the redshift difference between the galaxy and the group center times the speed of light
  * sigmav is the velocity dispersion of the group
  */
-float compute_prob_rad(float dz, float sigmav)
+float compute_p_z(float dz, float sigmav)
 {
   // presumably sigmav is comoving otherwise need (1+z_group) factor next to each one
   return exp(-dz * dz / (2 * sigmav * sigmav)) * SPEED_OF_LIGHT / (RT2PI * sigmav);
