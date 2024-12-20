@@ -52,6 +52,7 @@ static struct argp_option options[] = {
   {"stellarmass",  'm', 0,                                    0,  "Abundance match on stellar mass, not luminosity", 1},
   {"popmock",      'o', 0,                                    0,  "Populate the mock catalog after group finding", 1},
   {"colors",       'c', 0,                                    0,  "Read in and use galaxy colors", 1},
+  {"random",       'r', 0,                                    0,  "Randomly perturb luminosity/mstar for first group finding", 1 },
   {"wcen",         'w', "MASS,SIGMA,MASSR,SIGMAR,NORM,NORMR", 0,  "Six parameters for weighting the centrals", 2},
   {"bsat",         'b', "RED,XRED,BLUE,XBLUE",                0,  "Four parameters for the satellite probability", 2},
   {"chi1",         'p', "WEIGHT_B,WEIGHT_R,SLOPE_B,SLOPE_R",  0,  "Four parameters per-galaxy extra property weighting", 2},
@@ -85,6 +86,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       break;
     case 'c':
       COLOR = 1;
+      break;
+    case 'r':
+      PERTURB = 1;
       break;
     case 'o':
       POPULATE_MOCK = 1;

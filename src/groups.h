@@ -56,6 +56,7 @@ extern int NGAL;
 /* Options and general purpose globals */
 extern int FLUXLIM;
 extern int COLOR;
+extern int PERTURB;
 extern int USE_WCEN;
 extern int USE_BSAT;
 extern int STELLAR_MASS;

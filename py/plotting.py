@@ -1313,22 +1313,22 @@ def test_purity_and_completeness(*catalogs: GroupCatalog, truth_catalog: GroupCa
         # No 1/vmax for these sums as we're just trying to calculate the purity/completeness of our sample
 
         # Of all the assigned sats, how many are actually sats?
-        assigned_sats = data.loc[data['IS_SAT'].astype(bool)]
+        assigned_sats = data.loc[data['IS_SAT']]
         print(f"Purity of sats: {np.sum(assigned_sats.IS_SAT_T) / len(assigned_sats.index):.3f}")
 
         # Of all the sats in the truth catalog, how many were found?
         true_sats = data.loc[data.IS_SAT_T.astype(bool)]
-        sats_in_truthcat = truth_df.loc[truth_df['IS_SAT'].astype(bool)]
+        sats_in_truthcat = truth_df.loc[truth_df['IS_SAT']]
         print(f"Completeness of sats: {np.sum(true_sats['IS_SAT']) / len(sats_in_truthcat.index):.3f}")
 
         # Of all the assigned centrals, how many are actually centrals?
-        assigned_centrals = data.loc[~data['IS_SAT'].astype(bool)]
+        assigned_centrals = data.loc[~data['IS_SAT']]
         print(f"Purity of centrals: {np.sum(~assigned_centrals.IS_SAT_T.astype(bool)) / len(assigned_centrals.index):.3f}")
 
         # Of all the centrals in the truth catalog, how many were found?
         true_centrals = data.loc[~data.IS_SAT_T.astype(bool)]
-        centrals_in_truthcat = truth_df.loc[~truth_df['IS_SAT'].astype(bool)]
-        print(f"Completeness of centrals: {np.sum(~true_centrals['IS_SAT'].astype(bool)) / len(centrals_in_truthcat.index):.3f}")
+        centrals_in_truthcat = truth_df.loc[~truth_df['IS_SAT']]
+        print(f"Completeness of centrals: {np.sum(~true_centrals['IS_SAT']) / len(centrals_in_truthcat.index):.3f}")
 
         aggregation_column = 'LGAL_BIN_T'
         aggregation_column_t = 'LGAL_BIN'
@@ -1344,7 +1344,7 @@ def test_purity_and_completeness(*catalogs: GroupCatalog, truth_catalog: GroupCa
         s.keep=np.nonzero(assigned_sats_g)
         s.purity_g = assigned_sats_correct_g[s.keep] / assigned_sats_g[s.keep]
 
-        true_sats_assigned = true_sats.loc[true_sats['IS_SAT'].astype(bool)]
+        true_sats_assigned = true_sats.loc[true_sats['IS_SAT']]
         true_sats_g = true_sats.groupby(aggregation_column, observed=False).size().to_numpy()
         true_sats_correct_g = true_sats_assigned.groupby(aggregation_column, observed=False).size().to_numpy()
         s.keep2=np.nonzero(sats_in_truthcat_g)
@@ -1356,7 +1356,7 @@ def test_purity_and_completeness(*catalogs: GroupCatalog, truth_catalog: GroupCa
         s.keep3=np.nonzero(assigned_centrals_g)
         s.purity_c_g = assigned_centrals_correct_g[s.keep3] / assigned_centrals_g[s.keep3]
 
-        true_centrals_assigned = true_centrals.loc[~(true_centrals['IS_SAT'].astype(bool))]
+        true_centrals_assigned = true_centrals.loc[~(true_centrals['IS_SAT'])]
         true_centrals_g = true_centrals.groupby(aggregation_column, observed=False).size().to_numpy()
         true_centrals_correct_g = true_centrals_assigned.groupby(aggregation_column, observed=False).size().to_numpy()
         s.keep4=np.nonzero(centrals_in_truthcat_g)
