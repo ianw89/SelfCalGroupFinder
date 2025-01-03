@@ -79,6 +79,8 @@ BGS_SV3_ANY_FULL_FILE = BGS_FUJI_FOLDER + "BGS_ANY_full.dat.fits"
 BGS_SV3_RAND_FILE = BGS_FUJI_FOLDER + "BGS_ANY_X_full.ran.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/SV3/LSS/fuji/Alltiles_bright_tilelocs.dat.fits   
 BGS_SV3_PROB_OBS_FILE = BGS_FUJI_FOLDER + "Alltiles_bright_tilelocs.dat.fits"
+BGS_SV3_FASTSPEC_FILE = BGS_FUJI_FOLDER + "fastspec-fuji-sv3-bright.fits"
+
 # This file is BUILT by running code in the BGS_study.ipynb notebook
 # It is a joined BGS file, with a filtered down set of rows and columns
 IAN_BGS_SV3_MERGED_FILE = BGS_FUJI_FOLDER + "ian_BGS_SV3_merged.fits"

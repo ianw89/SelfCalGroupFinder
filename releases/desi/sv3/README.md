@@ -2,7 +2,7 @@
 Ian Williams (ianwilliams@nyu.edu)
 Jeremy Tinker (jlt12@nyu.edu).
 
-This folder contains a (presently) INTERNAL galaxy group catalog built from DESI SV3 Bright Galaxy Survey ('FUJI' reductions). Please get in touch with the authors if you are using this for DESI science.
+This folder contains a (presently) INTERNAL galaxy group catalog built from DESI SV3 Bright Galaxy Survey ('FUJI' reductions). It also contains a test catalog built from Y3 data (either KIBO or LOA) cut to the SV3 footprint (that one is labelled TEST). They have largely the same targets, but different completness levels. Please get in touch with the authors if you are using this for DESI science.
 
 The catalog is built using the Self Calibrated Group Finder, a public halo-based group finder. The code used for preprocessing and group finding can be found in [SelfCalGroupFinder](https://github.com/ianw89/SelfCalGroupFinder). For details regarding the group finding methods, see [arXiv:2007.12200](https://arxiv.org/abs/2007.12200), [arXiv:2010.02946](https://arxiv.org/abs/2010.02946) and [galaxygroupfinder.net](http://www.galaxygroupfinder.net), which contains information not yet published describing details of this catalog's construction.
 

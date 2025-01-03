@@ -82,6 +82,14 @@ def find_tiles_for_galaxies(tiles_df, gals_df, num_tiles_to_find):
 
 def add_mag_columns(table):
     print("Adding magnitude columns to table.")
+    
+    # if the table doesn't have DN4000_MODEL, print a warning
+    if 'DN4000_MODEL' not in table.columns:
+        print("Warning: DN4000_MODEL not in table. Color cut will only be based on g-r.")
+        dn4000 = None
+    else:
+        dn4000 = table['DN4000_MODEL']
+
     app_mag_r = get_app_mag(table['FLUX_R'])
     app_mag_g = get_app_mag(table['FLUX_G'])
     g_r = app_mag_g - app_mag_r
@@ -97,7 +105,7 @@ def add_mag_columns(table):
     abs_mag_G_k = k_correct(abs_mag_G, z_obs, g_r, band='g')
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k) 
     G_R_k = abs_mag_G_k - abs_mag_R_k
-    quiescent = is_quiescent_BGS_gmr(log_L_gal, G_R_k)
+    quiescent = is_quiescent_BGS_smart(log_L_gal, dn4000, G_R_k)
 
     table.add_column(app_mag_r, name='APP_MAG_R')
     table.add_column(app_mag_g, name='APP_MAG_G')
@@ -161,25 +169,43 @@ def table_to_df(table: Table):
 
     return df
 
-def read_fastspecfit_y1_reduced():
-    hdul = fits.open(BGS_FASTSPEC_FILE, memmap=True)
-    #print(hdul[1].columns)
+def read_fastspecfit_sv3():
+    hdul = fits.open(BGS_SV3_FASTSPEC_FILE, memmap=True)
     data = hdul[1].data
-    # TODO there is also DN4000_OBS and DN4000_MODEL (and inverse variance)
     fastspecfit_table = Table([
         data['TARGETID'], 
         data['DN4000'], 
+        data['DN4000_MODEL'], 
         data['ABSMAG01_SDSS_G'], 
         data['ABSMAG01_SDSS_R'], 
         data['SFR'], 
         data['LOGMSTAR']
         ], 
-        names=('TARGETID', 'DN4000', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'SFR', 'LOGMSTAR'))
+        names=('TARGETID', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'SFR', 'LOGMSTAR'))
     hdul.close()
     return fastspecfit_table
 
-def add_fastspecfit_columns(main_table):
-    fastspecfit_table = read_fastspecfit_y1_reduced()
+def read_fastspecfit_y1_reduced():
+    hdul = fits.open(BGS_FASTSPEC_FILE, memmap=True)
+    data = hdul[1].data
+    fastspecfit_table = Table([
+        data['TARGETID'], 
+        data['DN4000'], 
+        data['DN4000_MODEL'], 
+        data['ABSMAG01_SDSS_G'], 
+        data['ABSMAG01_SDSS_R'], 
+        data['SFR'], 
+        data['LOGMSTAR']
+        ], 
+        names=('TARGETID', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'SFR', 'LOGMSTAR'))
+    hdul.close()
+    return fastspecfit_table
+
+def add_fastspecfit_columns(main_table, version:str):
+    if version == 'sv3':
+        fastspecfit_table = read_fastspecfit_sv3()
+    else:
+        fastspecfit_table = read_fastspecfit_y1_reduced()
     final_table = join(main_table, fastspecfit_table, join_type='left', keys="TARGETID")
     return final_table
 
@@ -246,7 +272,7 @@ def create_merged_file(orig_table_file : str, merged_file : str, year : str):
     del(orig_table)
 
     # Filter to needed columns only and save
-    table.keep_columns(['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'DN4000', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'MASKBITS'])
+    table.keep_columns(['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'MASKBITS'])
     table.rename_column('Z_not4clus', 'Z')
     table.write(merged_file, format='fits', overwrite='True')
 

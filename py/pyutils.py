@@ -1042,6 +1042,11 @@ def write_dat_files_v2(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_ba
 def get_SDSS_Dcrit(logLgal):
     return 1.42 + (0.35 / 2) * (1 + special.erf((logLgal - 9.9) / 0.8))
 
+# A=1.411, B=0.171, C=9.795, D=0.777
+# Very similar fit comapred to SDSS, might as well keep it the same and just use SDSS_Dcrit
+def get_ian_Dcrit(logLgal):
+    return 1.411 + (0.171) * (1 + special.erf((logLgal - 9.795) / 0.777))
+
 def is_quiescent_SDSS_Dn4000(logLgal, Dn4000):
     """
     Takes in two arrays of log Lgal and Dn4000 and returns an array 
@@ -1054,8 +1059,23 @@ def is_quiescent_BGS_smart(logLgal, Dn4000, gmr):
     """
     Takes in two arrays of log Lgal and Dn4000 and returns an array 
     indicating if the galaxies are quiescent using 2010.02946 eq 1
+    when Dn4000 is available and using g-r color cut when it is not.
     """
+    if Dn4000 is None:
+        return is_quiescent_BGS_gmr(logLgal, gmr)
     Dcrit = get_SDSS_Dcrit(logLgal)
+    print(f"Dn4000 missing for {np.mean(np.isnan(Dn4000)):.1%}")
+    return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
+
+def is_quiescent_BGS_smart_hardvariant(logLgal, Dn4000, gmr):
+    """
+    Takes in two arrays of log Lgal and Dn4000 and returns an array 
+    indicating if the galaxies are quiescent using Dn4000 < 1.6 
+    when Dn4000 is available and using g-r color cut when it is not.
+    """
+    if Dn4000 is None:
+        return is_quiescent_BGS_gmr(logLgal, gmr)
+    Dcrit = 1.6
     print(f"Dn4000 missing for {np.mean(np.isnan(Dn4000)):.1%}")
     return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
 

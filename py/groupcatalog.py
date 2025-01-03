@@ -186,11 +186,11 @@ class GroupCatalog:
                 print("WARNING - column not found: " + c)
                 columns_to_write.remove(c)
 
-        print(f"Writing a sharable output file: {name}")
         df_to_write = self.all_data.loc[:, columns_to_write]
-        df_to_write.to_csv(name, index=False, header=True)
 
-        # Now also write a .FITS table
+        #print(f"Writing a sharable output file: {name}")
+        #df_to_write.to_csv(name, index=False, header=True)
+
         print(f"Writing a sharable output file: {fitsname}")
         table = Table.from_pandas(
             df_to_write,
@@ -206,6 +206,11 @@ class GroupCatalog:
             )
         
         table.write(fitsname, overwrite=True)
+
+        # Add a name to the table, to confrom to DESI VAC standards
+        hdul = fits.open(fitsname, memmap=True)
+        hdul[1].name = "GALAXIES"
+        hdul.writeto(fitsname, overwrite=True)
 
         return fitsname
 
@@ -462,7 +467,6 @@ class SDSSGroupCatalog(GroupCatalog):
         galprops['G_R'] = galprops['MAG_G'] - galprops['MAG_R'] 
         galprops.rename(columns={'MAG_R': 'APP_MAG_R'}, inplace=True)
         self.all_data = read_and_combine_gf_output(self, galprops)
-        #self.all_data['QUIESCENT'] = is_quiescent_SDSS_Dn4000(self.all_data['LOGLGAL'], self.all_data.DN4000)
         self.all_data['MSTAR'] = np.power(10, self.all_data.LOG_M_STAR)
         self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['MSTAR'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
         super().postprocess()
@@ -520,7 +524,6 @@ class SDSSPublishedGroupCatalog(GroupCatalog):
         df['LGAL_BIN'] = pd.cut(x = df['L_GAL'], bins = self.L_gal_bins, labels = self.L_gal_labels, include_lowest = True)
 
         self.all_data = df
-        #self.all_data['QUIESCENT'] = is_quiescent_SDSS_Dn4000(self.all_data['LOGLGAL'], self.all_data.DN4000)
         self.all_data['MSTAR'] = np.power(10, self.all_data.LOG_M_STAR)
         self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['MSTAR'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
         super().postprocess()
@@ -568,7 +571,6 @@ class TestGroupCatalog(GroupCatalog):
         galprops['QUIESCENT'] = origprops['QUIESCENT'].astype(bool)
         galprops.rename(columns={'MAG_R': 'APP_MAG_R'}, inplace=True)
         self.all_data = read_and_combine_gf_output(self, galprops)
-        #self.all_data['QUIESCENT'] = is_quiescent_SDSS_Dn4000(self.all_data['LOGLGAL'], self.all_data.DN4000)
         add_halo_columns(self)
         return super().postprocess()
 
@@ -1144,13 +1146,19 @@ def add_halo_columns(catalog: GroupCatalog):
     #df.loc[:, 'ldist_true'] = z_to_ldist(df.z_obs.to_numpy())
 
 def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, log_L_gal, quiescent):
+    """
+    Updates the properties for the given indices in the arrays. This is used for lost galaxies when we assigned
+    redshifts to them generally.
+
+    Returns the new k-corrected G-R color.
+    """
     np.put(abs_mag_R, idx, app_mag_to_abs_mag(app_mag_r[idx], z_eff[idx]))
     np.put(abs_mag_R_k, idx, k_correct(abs_mag_R[idx], z_eff[idx], g_r_apparent[idx], band='r'))
     np.put(abs_mag_G, idx, app_mag_to_abs_mag(app_mag_g[idx], z_eff[idx]))
     np.put(abs_mag_G_k, idx, k_correct(abs_mag_G[idx], z_eff[idx], g_r_apparent[idx], band='g'))
     np.put(log_L_gal, idx, abs_mag_r_to_log_solar_L(abs_mag_R_k[idx]))
     G_R_k = abs_mag_G_k - abs_mag_R_k
-    np.put(quiescent, idx, is_quiescent_BGS_gmr(None, G_R_k[idx]))
+    np.put(quiescent, idx, is_quiescent_BGS_gmr(None, G_R_k[idx])) # We don't have DN4000_MODEL for lost galaxies anyway
     return G_R_k
 
 def get_tbl_column(tbl, colname, required=False):
@@ -1312,6 +1320,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     dn4000 = get_tbl_column(table, 'DN4000')
     if dn4000 is None:
         dn4000 = np.zeros(len(z_obs))
+    dn4000_model = get_tbl_column(table, 'DN4000_MODEL')
+    if dn4000_model is None:
+        dn4000_model = np.zeros(len(z_obs))
 
     # A manually curated list of bad targets, usually from visual inspection of images
     bad_targets = [39627705590745283, 39628011489723373]
@@ -1404,6 +1415,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     log_L_gal = log_L_gal[keep]
     quiescent = quiescent[keep]
     dn4000 = dn4000[keep]
+    dn4000_model = dn4000_model[keep]
     ntid = ntid[keep]
     z_phot = z_phot[keep]
     unobserved = unobserved[keep]
@@ -1612,12 +1624,13 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         'APP_MAG_R': app_mag_r[final_selection].astype("<f8"),
         'TARGETID': target_id[final_selection].astype("<i8"),
         'Z_ASSIGNED_FLAG': z_assigned_flag[final_selection].astype("<i4"),
-        'G_R': G_R_k[final_selection].astype("<f8"), # TODO name this G_R_k ?
+        'G_R': G_R_k[final_selection].astype("<f8"), # this is k corrected to z=0.1
         'DN4000': dn4000[final_selection].astype("<f8"),
+        'DN4000_MODEL': dn4000_model[final_selection].astype("<f8"),
         'NTID': ntid[final_selection].astype("<i8"),
         'Z_PHOT': z_phot[final_selection].astype("<f8"),
         'Z_OBS': z_obs[final_selection].astype("<f8"),
-        'QUIESCENT': quiescent[final_selection].astype("bool"),
+        'QUIESCENT': quiescent[final_selection].astype("bool"), 
     })
     galprops.to_pickle(outname_base + "_galprops.pkl")  
     t2 = time.time()
@@ -1828,13 +1841,27 @@ def qf_Dn4000_1_6_vmax_weighted(series):
     if len(series) == 0:
         return 0
     else:
-        return np.average((series.DN4000 >  1.6), weights=1/series['VMAX'])
+        return np.average(is_quiescent_BGS_smart_hardvariant(series['LOGLGAL'], series['DN4000'], series['G_R']), weights=1/series['VMAX'])
+
+def qf_Dn4000MODEL_1_6_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return np.average(is_quiescent_BGS_smart_hardvariant(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
+
+
+def qf_Dn4000MODEL_smart_eq_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return np.average(is_quiescent_BGS_smart(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
+
 
 def qf_Dn4000_smart_eq_vmax_weighted(series):
     if len(series) == 0:
         return 0
     else:
-        return np.average(is_quiescent_BGS_smart(series['LOGLGAL'], series.DN4000, series.G_R), weights=1/series['VMAX'])
+        return np.average(is_quiescent_BGS_smart(series['LOGLGAL'], series['DN4000'], series.G_R), weights=1/series['VMAX'])
 
 def qf_BGS_gmr_vmax_weighted(series):
     if len(series) == 0:

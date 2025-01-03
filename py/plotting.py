@@ -149,6 +149,8 @@ def plots(*catalogs, show_err=None, truth_on=False):
     catalogs = list(catalogs)
     if isinstance(show_err, GroupCatalog) and show_err not in catalogs:
         catalogs.append(show_err)
+    else:
+        print("show_err must be a GroupCatalog")
 
     completeness_stats(catalogs)
 
@@ -800,9 +802,13 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
             qf_gmr = f.centrals.groupby(groupby_property, observed=False).apply(qf_BGS_gmr_vmax_weighted)
             qf_dn4000 = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
             qf_dn4000_hard = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_1_6_vmax_weighted)
-            plt.plot(getattr(f, label_property), qf_gmr, '.', label=f'0.1^(g-r) < {GLOBAL_RED_COLOR_CUT}', color='b')
+            qf_dn4000model = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000MODEL_smart_eq_vmax_weighted)
+            qf_dn4000model_hard = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000MODEL_1_6_vmax_weighted)
+            plt.plot(getattr(f, label_property), qf_gmr, '.', label=f'(g-r)^0.1 < {GLOBAL_RED_COLOR_CUT}', color='b')
             plt.plot(getattr(f, label_property), qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
             plt.plot(getattr(f, label_property), qf_dn4000_hard, '-', label='Dn4000 > 1.6', color='r')
+            plt.plot(getattr(f, label_property), qf_dn4000model, '-', label='Dn4000_M Eq. 1', color='purple')
+            plt.plot(getattr(f, label_property), qf_dn4000model_hard, '-', label='Dn4000_M > 1.6', color='orange')
         else:
            plt.plot(getattr(f, label_property), data.groupby(groupby_property, observed=False).apply(qf_vmax_weighted), f.marker, label=get_dataset_display_name(f), color=f.color)
 
@@ -1185,7 +1191,7 @@ def luminosity_function_plots(*catalogs):
 def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     scores_all_lost = []
     scores_n_only = []
-    rounded_tophat = []
+    rounded_tophat_scores = []
     scores_metric1 = []
     scores_metric2 = []
     scores_metric3 = []
@@ -1222,7 +1228,7 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
         metric_score3 = photoz_plus_metric_3(assigned_z, truth_z, assignment_type)
         metric_score4 = photoz_plus_metric_4(assigned_z, truth_z, assignment_type)
         scores_all_lost.append(score.mean())
-        rounded_tophat.append(rtophat.mean())
+        rounded_tophat_scores.append(rtophat.mean())
         scores_metric1.append(metric_score1 * -1)
         scores_metric2.append(metric_score2 * -1)
         scores_metric3.append(metric_score3 * -1)
@@ -1241,7 +1247,7 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
         #print("Neighbor-assigned Only:")
         assigned_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['Z_ASSIGNED_FLAG']), 'Z']
         observed_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['Z_ASSIGNED_FLAG']), 'Z_T']
-        score2 = rounded_tophat(assigned_z2, observed_z2)
+        score2 = rounded_tophat_score(assigned_z2, observed_z2)
         scores_n_only.append(score2.mean())
         #print(f" Galaxies to compare: {len(assigned_z2)} ({len(assigned_z2) / len(s.all_data):.1%})")
         #print(f" Score Mean: {score2.mean():.4f}")
@@ -1255,10 +1261,10 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     #rects1 = ax.bar(x - width, scores_all_lost, width, label='Score (Powerlaw kernel)', color=get_color(0))
     #rects5 = ax.bar(x + width, scores_metric3, width, label='Metric 3', color=get_color(3))
     
-    #rects2 = ax.bar(x - width/2        , rounded_tophat, width, label='Fraction Correct', color=get_color(2))
+    #rects2 = ax.bar(x - width/2        , rounded_tophat_scores, width, label='Fraction Correct', color=get_color(2))
     #rects5 = ax.bar(x + width/2, scores_metric4, width, label='MCMC Metric Score', color=get_color(3))
 
-    rects2 = ax.bar(x -width/2       , rounded_tophat, width, label='Fraction Correct (all)', color=get_color(2))
+    rects2 = ax.bar(x -width/2       , rounded_tophat_scores, width, label='Fraction Correct (all)', color=get_color(2))
     rects3 = ax.bar(x + width/2  , scores_n_only, width, label='Fraction Correct (neighbor assigned)', color=get_color(1))
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
