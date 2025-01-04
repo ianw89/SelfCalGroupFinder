@@ -191,6 +191,7 @@ bgs_y3_pzp_2_4 = BGSGroupCatalog("Photo-z Plus v2.4 BGS Y3", Mode.PHOTOZ_PLUS_v2
 _cat.color = 'k'
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_VANILLA.copy()
+bgs_y3_pzp_2_4.GF_props['iterations'] = 7
 
 bgs_y3_fiberonly = BGSGroupCatalog("Observed BGS Y3 <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, data_cut='Y3-Kibo')
 _cat = bgs_y3_fiberonly
@@ -388,7 +389,9 @@ bgs_aux_list : list[GroupCatalog] = [
     bgs_y3_fiberonly_1pass,
     bgs_nn_sdsslike,
 ]
-bgs_main_list : list[GroupCatalog] = [
+bgs_y1_list : list[GroupCatalog] = [
     bgs_y1_pzp_2_4,
-    bgs_y3_pzp_2_4
+]
+bgs_y3_list : list[GroupCatalog] = [
+    bgs_y3_pzp_2_4,
 ]

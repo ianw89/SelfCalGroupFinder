@@ -21,6 +21,8 @@ int NGAL;
 /* Local functions */
 void find_satellites(int icen, void *kd);
 float fluxlim_correction(float z);
+float get_chi_weight(int idx);
+float get_bprob(int idx);
 
 /* Variables for determining if a galaxy is a satellite */
 int USE_BSAT = 0; // off by default
@@ -53,6 +55,7 @@ int SECOND_PARAMETER = 0; // default is no extra per-galaxy parameters
 int SILENT = 0; // TODO make this work
 int VERBOSE = 0; // TODO make this work
 int POPULATE_MOCK = 0; // default is do not populate mock
+int MAX_ITER = 5; // default is 5 iterations
 
 // This is only called once right now. 
 // Maybe later we can make it more dynamic for MCMC purposes but think about memory management.
@@ -60,9 +63,9 @@ void groupfind()
 {
   FILE *fp;
   char aa[1000];
-  int i, i1, niter, min_iter=5, MAX_ITER = 30, j, ngrp_prev, icen_new;
-  float frac_area, nsat_tot, weight, wx;
-  double galden, pt[3], t0, t1, t3, t4;
+  int i, i1, niter, j, ngrp_prev, icen_new;
+  float frac_area, nsat_tot, weight;
+  double galden, pt[3], t_start_findsats, t_end_findsats, t_start_iter, t_end_iter; // galden (galaxy density) only includes centrals, because only they get halos
   long IDUM1 = -555;
 
   // xtmp stores the values of what we sort by. itmp stores the index in the GAL array. It' gets sorted and we find sats in that order.
@@ -71,7 +74,6 @@ void groupfind()
   static float volume, *xtmp, *lumshift; 
   static void *kd;
   static int first_call = 1, ngrp;
-  if (!SILENT) fprintf(stderr, "groupfind()\n");
 
   if (first_call)
   {
@@ -115,6 +117,8 @@ void groupfind()
         fscanf(fp, "%f", &GAL[i].propx);
       if (SECOND_PARAMETER == 2)
         fscanf(fp, "%f", &GAL[i].propx2);
+      GAL[i].chiweight = get_chi_weight(i);
+      GAL[i].bprob = get_bprob(i);
       fgets(aa, 1000, fp);
       galden += 1 / GAL[i].vmax;
     }
@@ -129,13 +133,13 @@ void groupfind()
     }
 
     // For the first time through, sort by LGAL / stellar mass
-    xtmp = vector(1, NGAL);
-    itmp = ivector(1, NGAL);
+    xtmp = vector(1, NGAL); // group property that is abundance matched on (the values)
+    itmp = ivector(1, NGAL); // index in the GAL array
     permanent_id = ivector(1, NGAL);
     for (i = 1; i <= NGAL; ++i)
     {
-      xtmp[i] = -(GAL[i - 1].lum);
-      itmp[i] = i - 1;
+      xtmp[i] = -(GAL[i-1].lum) * GAL[i-1].chiweight; // Used to not multiply by chiweight here and only in main iterations. But why not? TODO
+      itmp[i] = i-1;
 
       // just for kicks, give each galaxy a random luminosity 
       if (PERTURB) {
@@ -176,7 +180,7 @@ void groupfind()
       else
       {
         galden += 1 / GAL[i].vmax;
-        GAL[i].mass = density2host_halo(galden);
+        GAL[i].mass = density2host_halo(galden); // TODO is this right? we haven't counted galden fully yet?
       }
       // Set other properties derived from that
       update_galaxy_halo_props(&GAL[i]);
@@ -191,7 +195,7 @@ void groupfind()
     ngrp = NGAL;
   } // end of first call code
 
-  // let's create a 3D KD tree
+  // Create the 3D KD tree for fast lookup of nearby galaxies
   if (!SILENT) fprintf(stderr, "Building KD-tree...\n");
   kd = kd_create(3);
   for (j = 0; j < NGAL; ++j)
@@ -210,17 +214,10 @@ void groupfind()
   // now let's go to the center finder
   // test_centering(kd);
 
-  // now start the group-finding iterations
-  for (niter = 1; niter <= min_iter; ++niter)
+  // Start the group-finding iterations
+  for (niter = 1; niter <= MAX_ITER; ++niter)
   {
-    // Some scenarios require another iteration to cleanup
-    if (niter > MAX_ITER)
-    {
-      fprintf(stderr, "ERROR - MAX ITERATIONS HIT. Need to debug why.\n");
-      exit(0);
-    }
-
-    t3 = omp_get_wtime();
+    t_start_iter = omp_get_wtime();
 
     // Reset group properties except the halo mass
     // (We have the itmp array from the last iteration with the previous LGRP values sorted already)
@@ -229,33 +226,9 @@ void groupfind()
       GAL[j].igrp = -1;
       GAL[j].psat = 0;
       GAL[j].nsat = 0;
-      GAL[j].lgrp = GAL[j].lum;
+      GAL[j].lgrp = GAL[j].lum * GAL[j].chiweight;
 
-      // Each galaxy can optionally have it's halo mass weighted by a property
-      weight = 1.0;
-      if (SECOND_PARAMETER)
-      {
-        if (GAL[j].color < 0.8)
-        {
-          wx = PROPX_WEIGHT_BLUE + PROPX_SLOPE_BLUE * (log10(GAL[j].lum) - 9.5);
-          weight = exp(GAL[j].propx / wx);
-        }
-        else
-        {
-          wx = PROPX_WEIGHT_RED + PROPX_SLOPE_RED * (log10(GAL[j].lum) - 9.5);
-          weight = exp(GAL[j].propx / wx);
-        }
-      }
-      if (SECOND_PARAMETER == 2)
-      {
-        if (GAL[j].color < 0.8)
-          weight *= exp(GAL[j].propx2 / PROPX2_WEIGHT_BLUE);
-        else
-          weight *= exp(GAL[j].propx2 / PROPX2_WEIGHT_RED);
-      }
-      GAL[j].lgrp *= weight;
-
-      // Color-dependent weighting of centrals masses
+      // Color-dependent weighting of centrals luminosities/stellar masses
       weight = 1.0;
       if (USE_WCEN)
       {
@@ -269,10 +242,12 @@ void groupfind()
 
       flag[j] = 1;
     }
-    // find the satellites for each halo, in order of group lum/mass
+
+    // Find the satellites for each halo, in order of group lum/mass
+    // This is the where most CPU time is spent
     ngrp_prev = ngrp; // first iteration this is NGAL
     ngrp = 0;
-    t0 = omp_get_wtime();
+    t_start_findsats = omp_get_wtime();
 #pragma omp parallel for private(i1, i)
     for (i1 = 1; i1 <= ngrp_prev; ++i1)
     {
@@ -280,12 +255,13 @@ void groupfind()
       flag[i] = 0;
       find_satellites(i, kd);
     }
+    t_end_findsats = omp_get_wtime();
 
     // After finding satellites, now set some properties on the centrals
     for (i1 = 1; i1 <= ngrp_prev; ++i1)
     {
       i = itmp[i1];
-      if (GAL[i].psat < 0.5)
+      if (GAL[i].psat <= 0.5)
       {
         GAL[i].igrp = i;
         ngrp++;
@@ -294,16 +270,15 @@ void groupfind()
         itmp[ngrp] = i;
         GAL[i].listid = ngrp;
         if (FLUXLIM)
-          xtmp[ngrp] *= fluxlim_correction(GAL[i].redshift);
+          xtmp[ngrp] *= fluxlim_correction(GAL[i].redshift); // TODO Why apply correction to order but not lgrp entirely?
       }
     }
-    t1 = omp_get_wtime();
 
 // go back and check objects are newly-exposed centrals
 #pragma omp parallel for private(j)
     for (j = 0; j < NGAL; ++j)
     {
-      if (flag[j] && GAL[j].psat < 0.5)
+      if (flag[j] && GAL[j].psat <= 0.5)
       {
         //fprintf(stderr, "Newly exposed central: %d.\n", j);
         find_satellites(j, kd);
@@ -311,7 +286,7 @@ void groupfind()
     }
     for (j = 0; j < NGAL; ++j)
     {
-      if (flag[j] && GAL[j].psat < 0.5)
+      if (flag[j] && GAL[j].psat <= 0.5)
       {
         ngrp++;
         GAL[j].igrp = j;
@@ -324,14 +299,46 @@ void groupfind()
       }
     }
 
+  // Fix up orphaned satellites (satellites of centrals that became satellites)
+  for (int k = 0; k < NGAL; ++k) {
+    if (GAL[k].psat > 0.5) {
+      #ifndef OPTIMIZE
+      if (GAL[k].igrp == k) { 
+        fprintf(stderr, "ERROR - psat>0.5 galaxy %d has igrp itself! (N_SAT=%d)\n", k, GAL[k].nsat);
+      }
+      #endif
+      // Orphaned Satellite - it's central became a satellite in the final iteration. Need to reassign.
+      if (GAL[GAL[k].igrp].igrp != GAL[k].igrp) { 
+         // Consider this a central now, next loop will process it.
+        //fprintf(stderr, "WARNING - psat>0.5 galaxy %d points to central %d which isn't a central!\n", k, GAL[k].igrp);
+        ngrp++;  
+        GAL[k].igrp = k;
+        GAL[k].psat = 0.0;
+        GAL[k].nsat = 0;
+        GAL[k].lgrp = GAL[k].lum;      
+        GAL[k].lgrp *= GAL[k].weight;
+        xtmp[ngrp] = -GAL[k].lgrp;
+        itmp[ngrp] = k;
+        GAL[k].listid = ngrp;
+        if (FLUXLIM)
+          xtmp[ngrp] *= fluxlim_correction(GAL[k].redshift);
+      }
+    }
+    #ifndef OPTIMIZE
+    else if (GAL[k].igrp != k) {
+      fprintf(stderr, "ERROR - psat<=0.5 galaxy %d not it's own central (N_SAT=%d)\n", k, GAL[k].nsat);
+    }
+    #endif
+  }
+
     // Find new group centers if option enabled (its NOT)
-    // BUG - I may have slightly changed the logic here by changing what MAX_ITER and min_iter mean
+    // TODO: This might be broken, it's not been tested since the fork
     if (RECENTERING && niter != MAX_ITER)
     {
       for (j = 1; j <= ngrp; ++j)
       {
         i = itmp[j];
-        if (GAL[i].mass > 5e12 && GAL[i].psat < 0.5)
+        if (GAL[i].mass > 5e12 && GAL[i].psat <= 0.5)
         {
           icen_new = group_center(i, kd);
           if (icen_new == -1)
@@ -364,53 +371,66 @@ void groupfind()
     //  fprintf(stderr, "%d ", itmp[i]);
     //fprintf(stderr, "\n");
 
-    // reassign the halo masses
+    // Re-assign the halo masses to each central
     nsat_tot = galden = 0;
     // reset the sham counters
     if (FLUXLIM)
       density2host_halo_zbins3(-1, 0);
     for (j = 1; j <= ngrp; ++j)
     {
-      GAL[i].grp_rank = j;
       i = itmp[j];
+      GAL[i].grp_rank = j;
       galden += 1 / GAL[i].vmax;
       if (FLUXLIM)
         GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
       else
-        GAL[i].mass = density2host_halo(galden);
+        GAL[i].mass = density2host_halo(galden); // BUG is this right, we haven't fully counted up galden yet?
       update_galaxy_halo_props(&GAL[i]);
       nsat_tot += GAL[i].nsat;
     }
-    t4 = omp_get_wtime();
 
-    // for the satellites, set their host halo mass
-    // TODO should we copy over lgrp and nsat as well? Does it matter?
-    for (j = 0; j < NGAL; ++j)
-      if (GAL[j].psat > 0.5) 
-        GAL[j].mass = GAL[GAL[j].igrp].mass;
+    // For the satellites, set their host halo mass. Actually it doesn't matter until all iteraitons are over I think?
+    //for (j = 0; j < NGAL; ++j)
+    //  if (GAL[j].psat > 0.5) 
+    //    GAL[j].mass = GAL[GAL[j].igrp].mass;
+
+
+    t_end_iter = omp_get_wtime();
 
     if (!SILENT) 
       fprintf(stderr, "iter %d ngroups=%d fsat=%f (kdtime=%.2f %.2f)\n",
-            niter, ngrp, nsat_tot / NGAL, t1 - t0, t4 - t3);
+            niter, ngrp, nsat_tot / NGAL, t_end_findsats - t_start_findsats, t_end_iter - t_start_iter);
   } // end of main iteration loop
 
 
   // **********************************
   // End of group finding
   // Copy group properties to each member
+  // Perform other sanity checks
   // **********************************
+  fprintf(stderr, "Group finding complete.\n");
   for (j = 0; j < NGAL; ++j) {
+    // Satellites
     if (GAL[j].psat > 0.5) {
-      if (GAL[j].igrp == j) { // It thinks it's a satellite of itself?
-        fprintf(stderr, "ERROR - psat>0.5 galaxy %d has igrp itself! (N_SAT=%d)\n", j, GAL[j].nsat);
+      // It thinks it's a satellite of itself? Should not happen
+      if (GAL[j].igrp == j) { 
+        fprintf(stderr, "FINAL ERROR - psat>0.5 galaxy %d has igrp itself! (N_SAT=%d)\n", j, GAL[j].nsat);
       }
-      GAL[j].lgrp = GAL[GAL[j].igrp].lgrp;
-      GAL[j].mass = GAL[GAL[j].igrp].mass;
-      GAL[j].nsat = GAL[GAL[j].igrp].nsat;
+      // Orphaned Satellite - it's central became a satellite in the final iteration. Need to reassign.
+      if (GAL[GAL[j].igrp].igrp != GAL[j].igrp) { 
+        fprintf(stderr, "FINAL ERROR - psat>0.5 galaxy %d points to central %d which isn't a central!\n", j, GAL[j].igrp);
+      }
+      // Standard satellite - Copy group properties to this member
+      else {
+        GAL[j].lgrp = GAL[GAL[j].igrp].lgrp;
+        GAL[j].mass = GAL[GAL[j].igrp].mass;
+        GAL[j].nsat = GAL[GAL[j].igrp].nsat;
+      }
     }
+    // Centrals
     else {
       if (GAL[j].igrp != j) {
-        fprintf(stderr, "ERROR - psat<0.5 galaxy %d not it's own central (N_SAT=%d)\n", j, GAL[j].nsat);
+        fprintf(stderr, "FINAL ERROR - psat<=0.5 galaxy %d not it's own central (N_SAT=%d)\n", j, GAL[j].nsat);
       }
     }
   }
@@ -440,6 +460,8 @@ void groupfind()
  */
 void find_satellites(int icen, void *kd)
 {
+  //int thread_num = omp_get_thread_num();
+  //float t_start = omp_get_wtime();
   int j, k;
   float dx, dy, dz, theta, prob_ang, vol_corr, prob_rad, grp_lum, p0, range;
   float cenDist, bprob;
@@ -461,7 +483,9 @@ void find_satellites(int icen, void *kd)
   // find all galaxies in 3D that are within 4sigma of the velocity dispersion
   range = 4 * GAL[icen].sigmav / 100.0 * (1 + GAL[icen].redshift) /
           sqrt(OMEGA_M * pow(1 + GAL[icen].redshift, 3.0) + 1 - OMEGA_M);
-  set = kd_nearest_range(kd, cen, range);
+  set = kd_nearest_range(kd, cen, range); // TODO possible optimization is to store the set for each galaxy for a large sigmav value? Hmm
+
+  //float t_nset_done = omp_get_wtime();
 
   // Set now contains the nearest neighbours within a distance range. Grab their info.
   while (!kd_res_end(set))
@@ -497,26 +521,13 @@ void find_satellites(int icen, void *kd)
 
     // Now determine the probability of being a satellite
     //(both projected onto the sky, and along the line of sight).
-
-    // set the background level
-    bprob = BPROB_DEFAULT;
-    if (USE_BSAT)
-    {
-      if (GAL[j].color > 0.8)
-        bprob = BPROB_RED + (log10(GAL[j].lum) - 9.5) * BPROB_XRED;
-      else
-        bprob = BPROB_BLUE + (log10(GAL[j].lum) - 9.5) * BPROB_XBLUE;
-    }
-    // let's put a lower limit of the prob
-    if (bprob < 0.001)
-      bprob = 0.001;
-
+    bprob = GAL[j].bprob; 
     p0 = psat(&GAL[icen], theta, dz, bprob);
 
     // Keep track of the highest psat so far
     if (p0 > GAL[j].psat)
       GAL[j].psat = p0;    
-    if (p0 < 0.5)
+    if (p0 <= 0.5)
       continue;
 
     // This is considered a member of the group
@@ -525,7 +536,8 @@ void find_satellites(int icen, void *kd)
     if (GAL[j].igrp >= 0)
     {
       // It was it's own central 
-      // Not entirely sure how this happens given the ordering of the loop, but it can I don't think it's a bug
+      // Not entirely sure how this happens given the ordering of the loop, but it can. I don't think it's a bug?
+      // Perhaps it's because of parallelization?
       if (GAL[j].igrp == j) 
       {
         if (GAL[j].nsat > 0)
@@ -533,17 +545,17 @@ void find_satellites(int icen, void *kd)
           // It's its own central with satellites (as of this iteration!), but we are adding it to this central
           // BUG I think this special case leads to issue that we don't handle it right if its' the last iteration
           //fprintf(stderr, "Central %d with (N_SAT=%d) into CENTRAL %d\n", j, GAL[j].nsat, icen);
-          //if (niter == min_iter)
-          //  min_iter++;
         }
       }
       else // Was just a sat of another group, update that group's properties
       {
+       // BUG: Aren't there race conditions here?
         GAL[GAL[j].igrp].nsat--;
         GAL[GAL[j].igrp].lgrp -= GAL[j].lum;
       }
     }
     // Assign it to this group
+    // BUG: Aren't there race conditions here?
     GAL[j].psat = p0;
     GAL[j].nsat = 0;
     GAL[j].igrp = icen;
@@ -565,6 +577,10 @@ void find_satellites(int icen, void *kd)
     GAL[icen].nsat /= vol_corr;
     GAL[icen].lgrp /= vol_corr;
   }
+
+  //float t_done = omp_get_wtime();
+  //if (VERBOSE)
+  //  fprintf(stderr, "Thread %d: icen=%d start to set=%.5f full method=%.5f\n", thread_num, icen, t_nset_done - t_start, t_done - t_start);
 }
 
 
@@ -583,4 +599,44 @@ float fluxlim_correction(float z)
   //return 1;                                   // no correction
   //return pow(10.0, pow(z / 0.16, 2.5) * 0.6); // SDSS (sham mock)
   return pow(10.0, pow(z / 0.40, 4.0) * 0.4); // from rho_lum(z) BGS
+}
+
+
+float get_chi_weight(int idx) {
+  float weight = 1.0;
+  float wx;
+  if (SECOND_PARAMETER) {
+    if (GAL[idx].color < 0.8)
+    {
+      wx = PROPX_WEIGHT_BLUE + PROPX_SLOPE_BLUE * (log10(GAL[idx].lum) - 9.5);
+      weight = exp(GAL[idx].propx / wx);
+    }
+    else
+    {
+      wx = PROPX_WEIGHT_RED + PROPX_SLOPE_RED * (log10(GAL[idx].lum) - 9.5);
+      weight = exp(GAL[idx].propx / wx);
+    }
+  }
+  if (SECOND_PARAMETER == 2) {
+    if (GAL[idx].color < 0.8)
+      weight *= exp(GAL[idx].propx2 / PROPX2_WEIGHT_BLUE);
+    else
+      weight *= exp(GAL[idx].propx2 / PROPX2_WEIGHT_RED);
+  }
+  return weight;
+}
+
+float get_bprob(int idx) {
+  float bprob = BPROB_DEFAULT;
+  if (USE_BSAT) {
+    if (GAL[idx].color > 0.8)
+      bprob = BPROB_RED + (log10(GAL[idx].lum) - 9.5) * BPROB_XRED;
+    else
+      bprob = BPROB_BLUE + (log10(GAL[idx].lum) - 9.5) * BPROB_XBLUE;
+  }
+  // let's put a lower limit of the prob
+  if (bprob < 0.001)
+    bprob = 0.001;
+
+  return bprob;
 }

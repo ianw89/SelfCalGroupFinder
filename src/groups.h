@@ -15,6 +15,8 @@
 #define ANG (PI / 180.0)
 #define RT2PI 2.50663
 
+//#define OPTIMIZE
+
 /* Structure definition for galaxies. */
 extern struct galaxy {
   float x,y,z;
@@ -27,9 +29,11 @@ extern struct galaxy {
     propx,
     propx2,
     weight,
+    chiweight,
+    bprob,
     vmax;
   int igrp;
-  int listid;
+  int listid; // only used in fof group finder...
   int next;
   int grp_rank;
   
@@ -57,6 +61,7 @@ extern int NGAL;
 extern int FLUXLIM;
 extern int COLOR;
 extern int PERTURB;
+extern int MAX_ITER;
 extern int USE_WCEN;
 extern int USE_BSAT;
 extern int STELLAR_MASS;

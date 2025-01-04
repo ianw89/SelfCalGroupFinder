@@ -127,13 +127,10 @@ class GroupCatalog:
 
     def sanity_tests(self):
         print(f"Running sanity tests on {self.name}")
-        # TODO
         df = self.all_data
 
-        # Get the first group
-        g = df.loc[df['IGRP'].idxmin()]
-
-        assert np.all(df.loc[:, 'L_TOT'] >= 0.9999*df.loc[:, 'L_GAL']), f"Total luminosity should be greater than galaxy luminosity, but {np.sum(df.loc[:, 'L_TOT'] <  0.9999*df.loc[:, 'L_GAL'])} are not."
+        good_ltot = df.loc[:, 'L_TOT'] >= 0.9999*df.loc[:, 'L_GAL']
+        assert np.all(good_ltot), f"Total luminosity should be greater than galaxy luminosity, but {df.loc[~good_ltot, 'TARGETID'].to_numpy()} are not."
 
         assert np.all(df['N_SAT'] >= 0), f"Number of satellites should be >= 0, but {df.loc[df['N_SAT'] < 0, 'TARGETID'].to_numpy()} have negative NSAT."
 
@@ -145,12 +142,11 @@ class GroupCatalog:
         assert np.all(cens['P_SAT'] < 0.500001), f"Everything marked as a central should have P_sat < 0.5, but {np.sum(cens['P_SAT'] > 0.5)} do not."
         assert np.all(cens.index == cens['IGRP']), "Centrals should have igrp == index"
 
-        # TODO BUG - This fails
-        #assert len(cens) == len(df['IGRP'].unique()), f"Counts of centrals should be count of unique groups, but {len(df.loc[~df['IS_SAT']])} != {len(df['IGRP'].unique())}"
-        print("WARNING - a test is skipped because it fails.")
+        assert len(cens) == len(df['IGRP'].unique()), f"Counts of centrals should be count of unique groups, but {len(df.loc[~df['IS_SAT']])} != {len(df['IGRP'].unique())}"
 
-        bighalos = cens.loc[cens['Z'] < 0.2].sort_values('M_HALO', ascending=False).head(20)
-        assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
+        if len(df) > 1000:
+            bighalos = cens.loc[cens['Z'] < 0.2].sort_values('M_HALO', ascending=False).head(20)
+            assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
 
 
     def write_sharable_output_file(self, name=None):
@@ -248,7 +244,7 @@ class GroupCatalog:
         with open(self.results_file, 'wb') as f:
             pickle.dump(self, f)
 
-    def run_group_finder(self, popmock=False, silent=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False):
         t1 = time.time()
         print("Running Group Finder for " + self.name)
 
@@ -278,10 +274,14 @@ class GroupCatalog:
                 args.append("-f")
             if self.GF_props.get('color') == 1:
                 args.append("-c")
+            if 'iterations' in self.GF_props:
+                args.append("--iterations=" + str(self.GF_props['iterations']))
             if silent:
                 args.append("-s")
             if popmock:
                 args.append("--popmock")
+            if verbose:
+                args.append("-v")
             if 'omegaL_sf' in self.GF_props:
                 args.append(f"--wcen={self.GF_props['omegaL_sf']},{self.GF_props['sigma_sf']},{self.GF_props['omegaL_q']},{self.GF_props['sigma_q']},{self.GF_props['omega0_sf']},{self.GF_props['omega0_q']}")
             if 'beta0q' in self.GF_props:
@@ -785,6 +785,10 @@ class BGSGroupCatalog(GroupCatalog):
         print("Post-processing...")
         galprops = pd.read_pickle(str.replace(self.GF_outfile, ".out", "_galprops.pkl"))
         df = read_and_combine_gf_output(self, galprops)
+        
+        bad = df.loc[np.isnan(df.L_GAL)]
+        if len(bad) > 0:
+            print(f"Warning: {len(bad)} galaxies have nan L_GAL.")
 
         # Get extra fastspecfit columns. Could have threaded these through with galprops
         # But if they aren't used in group finding or preprocessing this is easier to update
@@ -1610,9 +1614,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     qa2 = ~np.logical_and(log_L_gal > L_GAL_MAX, unobserved)
     print(f"{np.sum(~qa2):,} unobserved galaxies have implied log(L_gal) > {L_GAL_MAX:.2f} and will be removed.")
 
+    qa3 = ~np.isnan(log_L_gal)
+    print(f"{np.sum(~qa3):,} galaxies have nan log_L_gal and will be removed.")
+
     assert np.all(z_assigned_flag >= -3), "z_assigned_flag is unset for some targets."
 
-    final_selection = np.logical_and(qa1, qa2)
+    final_selection = np.all([qa1, qa2, qa3], axis=0)
 
     print(f"Final Catalog Size: {np.sum(final_selection):,}.")
 

@@ -40,8 +40,8 @@ callable_list = [
     cat.mxxl_list, #5
     cat.bgs_sv3_list, #6
     cat.bgs_aux_list, #7
-    cat.bgs_main_list, #8
-    [] #9
+    cat.bgs_y1_list, #8
+    cat.bgs_y3_list, #9
 ]
 
 def process_gc(gc: GroupCatalog):
