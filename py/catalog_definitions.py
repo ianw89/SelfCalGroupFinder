@@ -12,7 +12,7 @@ _cat.color = get_color(4)
 _cat.marker = '-'
 _cat.GF_props = {
     'zmin':0,
-    'zmax':1.0, # BUG ?
+    'zmax':1.0,
     'frac_area':0.179,
     'fluxlim':1,
     'color':1,
@@ -24,7 +24,7 @@ _cat.color = get_color(4)
 _cat.marker = '--'
 _cat.GF_props = {
     'zmin':0,
-    'zmax':1.0, # BUG ?
+    'zmax':1.0,
     'frac_area':0.179,
     'fluxlim':1,
     'color':1,
@@ -46,7 +46,7 @@ _cat.color = get_color(4)
 _cat.marker = '.'
 _cat.GF_props = {
     'zmin':0,
-    'zmax':1.0, # BUG ?
+    'zmax':1.0,
     'frac_area':0.179,
     'fluxlim':1,
     'color':1,
@@ -72,7 +72,7 @@ _cat.color = get_color(4)
 _cat.marker = '-'
 _cat.GF_props = {
     'zmin':0,
-    'zmax':1.0, # BUG ?
+    'zmax':1.0,
     'frac_area':0.179,
     'fluxlim':1,
     'color':1,
@@ -84,7 +84,7 @@ _cat.color = get_color(4)
 _cat.marker = '--'
 _cat.GF_props = {
     'zmin':0,
-    'zmax':1.0, # BUG ?
+    'zmax':1.0, 
     'frac_area':0.128,
     'fluxlim':1,
     'color':1,

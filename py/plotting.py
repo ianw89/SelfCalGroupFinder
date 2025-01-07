@@ -830,32 +830,33 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
 
 
 def proj_clustering_plot(gc: GroupCatalog):
-
+    # TODO BUG I'm not sure the error bars are right on this
     NUM = 4
     imag = np.linspace(18,21,NUM,dtype='int')
 
-    fig,axes=plt.subplots(nrows=1, ncols=4, figsize=(12,3), dpi=DPI)
+    fig,axes=plt.subplots(nrows=1, ncols=4, figsize=(12,3.5), dpi=DPI)
+    fig.suptitle(gc.name)
 
     idx = 0
     for i in imag:
 
         # Data 
-        fname=PARAMS_FOLDER + 'wp_red_M'+"{:d}".format(i)+'.dat'
+        fname=PARAMS_FOLDER + f'wp_red_M{i:d}.dat'
         wp, wp_err, radius = read_wp_file(fname)
-        axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='r', capsize=2, ecolor='k', alpha=0.8)
+        axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='r', capsize=2, ecolor='k', alpha=1.0)
 
         fname=PARAMS_FOLDER + 'wp_blue_M'+"{:d}".format(i)+'.dat'
         wp, wp_err, radius = read_wp_file(fname)
-        axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='b', capsize=2, ecolor='k', alpha=0.8)
+        axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='b', capsize=2, ecolor='k', alpha=1.0)
 
         # Populated mock for GroupCatalog gc
         wp_mock = gc.__getattribute__(f'wp_mock_r_M{i}')[:,4]
         err_mock = gc.vfac[idx]*wp_err + gc.efac*wp_mock
-        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='r', alpha=0.8)
+        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='r', alpha=0.7)
 
         wp_mock = gc.__getattribute__(f'wp_mock_b_M{i}')[:,4]
         err_mock = gc.vfac[idx]*wp_err + gc.efac*wp_mock
-        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='b', alpha=0.8)
+        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='b', alpha=0.7)
 
         # Plot config
         axes[idx].set_xlabel('log $r_p$ [Mpc/h]')
@@ -910,7 +911,9 @@ def lsat_data_compare_plot(gc: GroupCatalog):
     axes[1].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
     axes[1].legend()
 
+    fig.suptitle(gc.name)
     fig.tight_layout()
+
 
     # TODO "lsat_groups_propx_red.out"
 
