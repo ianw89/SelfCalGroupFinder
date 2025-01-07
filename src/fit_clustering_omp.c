@@ -10,6 +10,7 @@
 #include "nrutil.h"
 #include "kdtree.h"
 #include "groups.h"
+#include <errno.h>
 
 // Definitions
 #define NBINS 5 // This is the number of magnitude bins we use. // TNG has 6 bins
@@ -538,14 +539,17 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
   if (imag < 0)
   {
     srand48(555);
-    if (!SILENT) fprintf(stderr, "popsim> reading halo data...\n");
-    // flag = 0;
-    // fp = openfile("/export/sirocco1/tinker/SIMULATIONS/BOLSHOI/hosthalo_z0.0_M1e10.dat");
-
-    if (!(fp = fopen("/export/sirocco2/tinker/SIMULATIONS/C250_2560/hosthalo_z0.0_M1e10_Lsat.dat", "r")))
+    if (!SILENT) fprintf(stderr, "popsim> reading mock halo data...\n");
+    fp = fopen(MOCK_FILE, "r");
+    //fp = fopen("/export/sirocco1/tinker/SIMULATIONS/BOLSHOI/hosthalo_z0.0_M1e10.dat", "r");
+    //fp = fopen("/export/sirocco2/tinker/SIMULATIONS/C250_2560/hosthalo_z0.0_M1e10_Lsat.dat", "r");
+    if (!fp)
     {
-      fp = fopen("/mount/sirocco2/tinker/SIMULATIONS/C250_2560/hosthalo_z0.0_M1e10_Lsat.dat", "r");
+      fprintf(stderr, "popsim> could not open mock halo file\n");
+      fflush(stderr);
+      exit(ENOENT);
     }
+
     NHALO = filesize(fp);
     HALO = calloc(NHALO, sizeof(struct halo));
     for (i = 0; i < NHALO; ++i)

@@ -36,6 +36,7 @@ WP_RADIAL_BINS_FILE = PARAMS_FOLDER + 'wp_rbins.dat'
 HALO_MASS_FUNC_FILE = REPO_FOLDER + 'halo_mass_function.dat'
 LSAT_LOOKUP_FILE = REPO_FOLDER + 'lsat_lookup.dat'
 LSAT_OBSERVATIONS_FILE = PARAMS_FOLDER + 'Lsat_SDSS_DnGMM.dat'
+MOCK_FILE_FOR_POPMOCK = DATA_FOLDER + 'POPMOCK/' + 'hosthalo_z0.0_M1e10_Lsat.dat'
 
 # SDSS Data Files
 #################

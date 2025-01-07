@@ -69,7 +69,7 @@ def chisqr(params):
     args.append(str(GF_props['zmax']))
     args.append(str(GF_props['frac_area']))
     if GF_props['fluxlim'] == 1:
-        args.append("-f")
+        args.append("--fluxlim=1") # TODO SDSS only
     if GF_props['color'] == 1:
         args.append("-c")
     args.append(f"--wcen={GF_props['omegaL_sf']},{GF_props['sigma_sf']},{GF_props['omegaL_q']},{GF_props['sigma_q']},{GF_props['omega0_sf']},{GF_props['omega0_q']}")

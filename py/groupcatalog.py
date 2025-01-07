@@ -42,18 +42,18 @@ Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
 
 CLUSTERING_MAG_BINS = [-16, -17, -18, -19, -20, -21, -22, -23]
 
-GF_PROPS_VANILLA = {
+GF_PROPS_BGS_VANILLA = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
-    'fluxlim':1,
+    'fluxlim':2,
     'color':1,
 }
-GF_PROPS_COLORS = {
+GF_PROPS_BGS_COLORS = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
-    'fluxlim':1,
+    'fluxlim':2,
     'color':1,
     'omegaL_sf':13.1,
     'sigma_sf':2.42,
@@ -71,7 +71,8 @@ class GroupCatalog:
 
     def __init__(self, name):
         self.name = name
-        self.output_folder = OUTPUT_FOLDER
+        folder_name = name.upper().replace(" ", "_").replace("<", "").replace(">", "") + "/"
+        self.output_folder = OUTPUT_FOLDER + folder_name  
         self.file_pattern = self.output_folder + self.name
         self.GF_outfile = self.file_pattern + ".out"
         self.results_file = self.file_pattern + ".pickle"
@@ -260,8 +261,8 @@ class GroupCatalog:
             return
         
         # Group Finder expects these files in working directory
-        #sp.run(["cp", HALO_MASS_FUNC_FILE , self.output_folder])
-        #sp.run(["cp", LSAT_LOOKUP_FILE , self.output_folder])
+        sp.run(["cp", HALO_MASS_FUNC_FILE , self.output_folder])
+        sp.run(["cp", LSAT_LOOKUP_FILE , self.output_folder])
 
         sys.stdout.flush()
         
@@ -270,8 +271,8 @@ class GroupCatalog:
             args.append(str(self.GF_props['zmin']))
             args.append(str(self.GF_props['zmax']))
             args.append(str(self.GF_props['frac_area']))
-            if self.GF_props.get('fluxlim') == 1:
-                args.append("-f")
+            if 'fluxlim' in self.GF_props:
+                args.append("--fluxlim=" + str(self.GF_props['fluxlim']))
             if self.GF_props.get('color') == 1:
                 args.append("-c")
             if 'iterations' in self.GF_props:
@@ -279,7 +280,7 @@ class GroupCatalog:
             if silent:
                 args.append("-s")
             if popmock:
-                args.append("--popmock")
+                args.append("--popmock="+MOCK_FILE_FOR_POPMOCK)
             if verbose:
                 args.append("-v")
             if 'omegaL_sf' in self.GF_props:
@@ -293,8 +294,9 @@ class GroupCatalog:
             # The galaxies are written to stdout, so send ot the GF_outfile file stream
             self.results = sp.run(args, cwd=self.output_folder, stdout=f)
             
-            #print(self.results.returncode)
-        
+            if self.results.returncode != 0:
+                print(f"ERROR: Group Finder failed with return code {self.results.returncode}.")
+                
         # TODO what about if there was an error? returncode for the GF doesn't seem useful right now
         if popmock:
             self.mock_b_M17 = np.loadtxt(f'{self.output_folder}mock_blue_M17.dat', skiprows=0, dtype='float')
@@ -463,9 +465,11 @@ class SDSSGroupCatalog(GroupCatalog):
         self.efac = 0.1 # let's just add a constant fractional error bar
 
     def postprocess(self):
+        origprops = pd.read_csv(self.preprocess_file, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
         galprops = pd.read_csv(self.galprops_file, delimiter=' ', names=('MAG_G', 'MAG_R', 'SIGMA_V', 'DN4000', 'CONCENTRATION', 'LOG_M_STAR', 'Z_ASSIGNED_FLAG'))
         galprops['G_R'] = galprops['MAG_G'] - galprops['MAG_R'] 
         galprops.rename(columns={'MAG_R': 'APP_MAG_R'}, inplace=True)
+        galprops['QUIESCENT'] = origprops['QUIESCENT'].astype(bool)
         self.all_data = read_and_combine_gf_output(self, galprops)
         self.all_data['MSTAR'] = np.power(10, self.all_data.LOG_M_STAR)
         self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['MSTAR'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
@@ -586,6 +590,8 @@ class MXXLGroupCatalog(GroupCatalog):
         
 
     def preprocess(self):
+        if not os.path.exists(self.output_folder):
+            os.makedirs(self.output_folder)
         fname, props = pre_process_mxxl(MXXL_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors)
         self.preprocess_file = fname
         for p in props:
@@ -635,6 +641,8 @@ class UchuuGroupCatalog(GroupCatalog):
         self.color = get_color(9)
 
     def preprocess(self):
+        if not os.path.exists(self.output_folder):
+            os.makedirs(self.output_folder)
         fname, props = pre_process_uchuu(UCHUU_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors)
         self.preprocess_file = fname
         for p in props:
@@ -694,7 +702,7 @@ class BGSGroupCatalog(GroupCatalog):
         print(f"Using MCMC parameters: {p}")
 
         gc = BGSGroupCatalog(f"BGS SV3 MCMC {mode_to_str(mode)}", mode, 19.5, 23.0, sdss_fill=False, num_passes=10, drop_passes=3, data_cut="sv3", extra_params=p)
-        gc.GF_props = GF_PROPS_VANILLA.copy()
+        gc.GF_props = GF_PROPS_BGS_VANILLA.copy()
         if mode.value == Mode.PHOTOZ_PLUS_v1.value:
             gc.color = 'g'
         elif mode.value == Mode.PHOTOZ_PLUS_v2.value:
@@ -707,6 +715,8 @@ class BGSGroupCatalog(GroupCatalog):
         return gc
 
     def preprocess(self):
+        if not os.path.exists(self.output_folder):
+            os.makedirs(self.output_folder)
         print("Pre-processing...")
         if self.data_cut == "Y1-Iron":
             infile = IAN_BGS_MERGED_FILE

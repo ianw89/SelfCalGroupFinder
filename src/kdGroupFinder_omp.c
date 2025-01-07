@@ -47,6 +47,7 @@ float MAXREDSHIFT;
 float FRAC_AREA;
 float GALAXY_DENSITY;
 int FLUXLIM = 0; // default is volume-limited
+int FLUXLIM_CORRECTION_MODEL = 0; // default is no correction, 1 for SDSS tuned, 2 for BGS tuned
 int COLOR = 0; // default is ignore color information (sometimes treating all as blue)
 int PERTURB = 0; // default is no perturbation
 int STELLAR_MASS = 0; // defaulit is luminosities
@@ -55,6 +56,7 @@ int SECOND_PARAMETER = 0; // default is no extra per-galaxy parameters
 int SILENT = 0; // TODO make this work
 int VERBOSE = 0; // TODO make this work
 int POPULATE_MOCK = 0; // default is do not populate mock
+char *MOCK_FILE;
 int MAX_ITER = 5; // default is 5 iterations
 
 // This is only called once right now. 
@@ -63,7 +65,7 @@ void groupfind()
 {
   FILE *fp;
   char aa[1000];
-  int i, i1, niter, j, ngrp_prev, icen_new;
+  int i, i1, niter, j, ngrp_prev, icen_new, k;
   float frac_area, nsat_tot, weight;
   double galden, pt[3], t_start_findsats, t_end_findsats, t_start_iter, t_end_iter; // galden (galaxy density) only includes centrals, because only they get halos
   long IDUM1 = -555;
@@ -300,7 +302,7 @@ void groupfind()
     }
 
   // Fix up orphaned satellites (satellites of centrals that became satellites)
-  for (int k = 0; k < NGAL; ++k) {
+  for (k = 0; k < NGAL; ++k) {
     if (GAL[k].psat > 0.5) {
       #ifndef OPTIMIZE
       if (GAL[k].igrp == k) { 
@@ -408,7 +410,7 @@ void groupfind()
   // Copy group properties to each member
   // Perform other sanity checks
   // **********************************
-  fprintf(stderr, "Group finding complete.\n");
+  if (!SILENT) fprintf(stderr, "Group finding complete.\n");
   for (j = 0; j < NGAL; ++j) {
     // Satellites
     if (GAL[j].psat > 0.5) {
@@ -584,21 +586,33 @@ void find_satellites(int icen, void *kd)
 }
 
 
-// These comments were old and Jeremy does not remember them
+// 
 
-/* This is calibrated from the MXXL BGS mock,
+/* 
+ * This is a luminosity correction for flux-limited samples that 
+ * is applied to the group luminosity for the purposes of the 
+ * inverse-sham. 
+ * 
+ * This comments are old and Jeremy does not remember them:
+ * 
+ * This is calibrated from the MXXL BGS mock,
  * from ratio of luminosity density in redshift
  * bins relative to total 1/Vmax-weighted luminosity
  * density. (SLightly different than Yang et al).
  *
  * luminosity_correction.py
  */
-float fluxlim_correction(float z)
-{
-  //return pow(10.0, pow(z / 0.18, 2.8) * 0.5); // rho_lum(z) for SDSS (r=17.77; MXXL) // This is very bad for BGS
-  //return 1;                                   // no correction
+float fluxlim_correction(float z) {
+  switch (FLUXLIM_CORRECTION_MODEL) {
+  case 0:
+    return 1; // no correction
+  case 1:
+    return pow(10.0, pow(z / 0.18, 2.8) * 0.5); // rho_lum(z) for SDSS (r=17.77; MXXL)
+  case 2:
+    return pow(10.0, pow(z / 0.40, 4.0) * 0.4); // from rho_lum(z) BGS
+  }
+
   //return pow(10.0, pow(z / 0.16, 2.5) * 0.6); // SDSS (sham mock)
-  return pow(10.0, pow(z / 0.40, 4.0) * 0.4); // from rho_lum(z) BGS
 }
 
 

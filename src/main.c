@@ -48,15 +48,15 @@ static char args_doc[] = "inputfile zmin zmax frac_area";
 
 static struct argp_option options[] = {
   {"halomassfunc", 'h', "FILE",                               0,  "File containing the halo mass function", 1},
-  {"fluxlim",      'f', 0,                                    0,  "Indicate a flux limited sample", 1},
+  {"fluxlim",      'f', "MODEL",                              0,  "Indicate a flux limited sample, and what model to use for correcting group luminosity for inverse-SHAM.", 1},
   {"stellarmass",  'm', 0,                                    0,  "Abundance match on stellar mass, not luminosity", 1},
-  {"popmock",      'o', 0,                                    0,  "Populate the mock catalog after group finding", 1},
+  {"popmock",      'p', "MOCKFILE",                           0,  "Populate a mock catalog after group finding; provide the filepath", 1},
   {"colors",       'c', 0,                                    0,  "Read in and use galaxy colors", 1},
   {"random",       'r', 0,                                    0,  "Randomly perturb luminosity/mstar for first group finding", 1 },
   {"iterations",   'i', "N",                                  0,  "Number of iterations for group finding", 1},
   {"wcen",         'w', "MASS,SIGMA,MASSR,SIGMAR,NORM,NORMR", 0,  "Six parameters for weighting the centrals", 2},
   {"bsat",         'b', "RED,XRED,BLUE,XBLUE",                0,  "Four parameters for the satellite probability", 2},
-  {"chi1",         'p', "WEIGHT_B,WEIGHT_R,SLOPE_B,SLOPE_R",  0,  "Four parameters per-galaxy extra property weighting", 2},
+  {"chi1",         'x', "WEIGHT_B,WEIGHT_R,SLOPE_B,SLOPE_R",  0,  "Four parameters per-galaxy extra property weighting", 2},
   {"verbose",      'v', 0,                                    0,  "Produce verbose output", 3},
   {"quiet",        'q', 0,                                    0,  "Don't produce any output", 3 },
   {"silent",       's', 0,                                    OPTION_ALIAS },
@@ -81,6 +81,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
   {
     case 'f':
       FLUXLIM = 1;
+      FLUXLIM_CORRECTION_MODEL = atoi(arg);
       break;
     case 'm':
       STELLAR_MASS = 1;
@@ -94,8 +95,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     case 'i':
       MAX_ITER = atoi(arg);
       break;
-    case 'o':
+    case 'p':
       POPULATE_MOCK = 1;
+      MOCK_FILE = arg;
       break;
     case 'v':
       VERBOSE = 1;
@@ -115,7 +117,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       sscanf(arg, "%f,%f,%f,%f", 
              &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE));
       break;
-    case 'p':
+    case 'x':
       arguments->chi1_set = 1;
       sscanf(arg, "%f,%f,%f,%f", 
              &(PROPX_WEIGHT_BLUE), &(PROPX_WEIGHT_RED), &(PROPX_SLOPE_BLUE), &(PROPX_SLOPE_RED));
