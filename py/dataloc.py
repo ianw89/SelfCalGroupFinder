@@ -21,9 +21,8 @@ SDSS_FOLDER = DATA_FOLDER + 'SDSS/'
 BGS_IMAGES_FOLDER = DATA_FOLDER + 'BGS_IMAGES/'
 BGS_Y1_FOLDER = DATA_FOLDER + 'BGS_IRON/'
 BGS_FUJI_FOLDER = DATA_FOLDER + 'BGS_FUJI/'
-BGS_Y3_FOLDER_JURA = DATA_FOLDER + 'BGS_JURA/'
 BGS_Y3_FOLDER_KIBO = DATA_FOLDER + 'BGS_KIBO/'
-BGS_Y3_FOLDER = DATA_FOLDER + 'BGS_LOA/'
+BGS_Y3_FOLDER_LOA = DATA_FOLDER + 'BGS_LOA/'
 #MXXL_DATA_DIR="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
 MXXL_DATA_DIR=DATA_FOLDER + "MXXL/"
 UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
@@ -116,23 +115,19 @@ IAN_BGS_MERGED_FILE_OLD = BGS_Y1_FOLDER + "ian_BGS_merged.fits~"
 ###################
 # TODO get fastspecfit when available
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v1.1/BGS_ANY_full.dat.fits
-BGS_Y3_ANY_FULL_FILE = BGS_Y3_FOLDER + "BGS_ANY_full.dat.fits"
+BGS_Y3_ANY_FULL_FILE = BGS_Y3_FOLDER_KIBO + "BGS_ANY_full.dat.fits"
 # File was acquried from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v1.1/nonkp/BGS_BRIGHT_0_full.ran.fits
-BGS_Y3_RAND_FILE = BGS_Y3_FOLDER + "BGS_BRIGHT_X_full.ran.fits"
-BGS_Y3_CLUSTERING_RAND_FILE = BGS_Y3_FOLDER + "BGS_BRIGHT_X_clustering.ran.fits"
+BGS_Y3_RAND_FILE = BGS_Y3_FOLDER_KIBO + "BGS_BRIGHT_X_full.ran.fits"
+BGS_Y3_CLUSTERING_RAND_FILE = BGS_Y3_FOLDER_KIBO + "BGS_BRIGHT_X_clustering.ran.fits"
 
 # File was acquired from https://data.desi.lbl.gov/desi/spectro/redux/loa/tiles-kibo.csv
-BGS_Y3_TILES_FILE = BGS_Y3_FOLDER + "tiles-loa.csv"
+BGS_Y3_TILES_FILE = BGS_Y3_FOLDER_KIBO + "tiles-kibo.csv"
 #
-BGS_Y3_CLUSTERING_FILE = BGS_Y3_FOLDER + "BGS_BRIGHT_clustering.dat.fits"
+BGS_Y3_CLUSTERING_FILE = BGS_Y3_FOLDER_KIBO + "BGS_BRIGHT_clustering.dat.fits"
 # This file is BUILT by running code in the BGS_study.ipynb notebook
 # It is a joined BGS file, with a filtered down set of rows and columns
-IAN_BGS_Y3_MERGED_FILE = BGS_Y3_FOLDER + "ian_BGS_Y3_merged.fits"
-
-
-# Older versions
-IAN_BGS_Y3_MERGED_FILE_JURA = BGS_Y3_FOLDER_JURA + "ian_BGS_Y3_merged.fits"
 IAN_BGS_Y3_MERGED_FILE_KIBO = BGS_Y3_FOLDER_KIBO + "ian_BGS_Y3_merged.fits"
+
 
 # DESI LEGACY IMAGING SURVEY FILES
 ##################################

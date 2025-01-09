@@ -98,14 +98,17 @@ def add_mag_columns(table):
         z_obs = table['Z'].data.data
     else:
         z_obs = table['Z']
-    
+
+    # nans for lost galaxies will propagate through the calculations as desired
     abs_mag_R = app_mag_to_abs_mag(app_mag_r, z_obs)
     abs_mag_R_k = k_correct(abs_mag_R, z_obs, g_r, band='r')
     abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_obs)
     abs_mag_G_k = k_correct(abs_mag_G, z_obs, g_r, band='g')
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k) 
-    G_R_k = abs_mag_G_k - abs_mag_R_k
-    quiescent = is_quiescent_BGS_smart(log_L_gal, dn4000, G_R_k)
+    G_R_k = abs_mag_G_k - abs_mag_R_k # based on the polynomial k-corr
+    G_R_k_fastspecfit = table['ABSMAG01_SDSS_G'] - table['ABSMAG01_SDSS_R'] # based on fastspecfit k-corr
+    G_R_BEST = np.where(np.isnan(G_R_k_fastspecfit), G_R_k, G_R_k_fastspecfit)
+    quiescent = is_quiescent_BGS_smart(log_L_gal, dn4000, G_R_BEST)
 
     table.add_column(app_mag_r, name='APP_MAG_R')
     table.add_column(app_mag_g, name='APP_MAG_G')
@@ -114,6 +117,7 @@ def add_mag_columns(table):
     table.add_column(abs_mag_G, name='ABS_MAG_G')
     table.add_column(abs_mag_G_k, name='ABS_MAG_G_K')
     table.add_column(log_L_gal, name='LOG_L_GAL')
+    table.add_column(G_R_BEST, name='G_R_BEST')
     table.add_column(quiescent, name='QUIESCENT')
 
 
@@ -267,7 +271,7 @@ def create_merged_file(orig_table_file : str, merged_file : str, year : str):
     print(f"Read {len(orig_table)} galaxies from {orig_table_file}")
 
     # The lost galaxies will not have fastspecfit rows I think
-    table = add_fastspecfit_columns(orig_table)
+    table = add_fastspecfit_columns(orig_table, year)
 
     del(orig_table)
 

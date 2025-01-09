@@ -852,11 +852,13 @@ def proj_clustering_plot(gc: GroupCatalog):
         # Populated mock for GroupCatalog gc
         wp_mock = gc.__getattribute__(f'wp_mock_r_M{i}')[:,4]
         err_mock = gc.vfac[idx]*wp_err + gc.efac*wp_mock
-        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='r', alpha=0.7)
+        #axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='r', alpha=0.7)
+        axes[idx].plot(np.log10(radius), np.log10(wp_mock), capsize=2, color='r', alpha=0.7)
 
         wp_mock = gc.__getattribute__(f'wp_mock_b_M{i}')[:,4]
         err_mock = gc.vfac[idx]*wp_err + gc.efac*wp_mock
-        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='b', alpha=0.7)
+        #axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='b', alpha=0.7)
+        axes[idx].plot(np.log10(radius), np.log10(wp_mock), capsize=2, color='b', alpha=0.7)
 
         # Plot config
         axes[idx].set_xlabel('log $r_p$ [Mpc/h]')
@@ -893,14 +895,16 @@ def lsat_data_compare_plot(gc: GroupCatalog):
     obs_err_b = data[:,4]
     obs_ratio = obs_lsat_r/obs_lsat_b
     obs_ratio_err = obs_ratio * ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
+    obs_ratio_err_log = obs_ratio_err/obs_ratio/np.log(10)
 
-    fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(9,4), dpi=DPI)
+    fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(8,4), dpi=DPI)
 
-    axes[0].errorbar(obs_lcen, obs_ratio, yerr=obs_ratio_err, fmt='o', color='k', capsize=2, ecolor='k', label='SDSS Data')
-    axes[0].plot(lcen, ratio, color='purple', label='Group Finder')
-    axes[0].set_ylabel('$L_{sat}^{q}/L_{sat}^{sf}$')
+    axes[0].errorbar(obs_lcen, np.log10(obs_ratio), yerr=obs_ratio_err_log, fmt='o', color='k', capsize=2, ecolor='k', label='SDSS Data')
+    #axes[0].plot(obs_lcen, obs_ratio, color='k', marker='o', label='SDSS Data')
+    axes[0].plot(lcen, np.log10(ratio), color='purple', label='Group Finder')
+    axes[0].set_ylabel('log $L_{sat}^{q}/L_{sat}^{sf}$')
     axes[0].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
-    #axes[0].set_ylim(-0.2, 0.5)
+    axes[0].set_ylim(-0.2, 0.5)
     axes[0].legend()
 
     axes[1].plot(lcen, np.log10(lsat_r), label='GF Quiescent', color='r')

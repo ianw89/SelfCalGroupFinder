@@ -346,7 +346,7 @@ def k_correct_bgs_v2(abs_mag, z_obs, gmr, band='r'):
     corrector  = desikc2.DESI_KCorrection(band=band, file='jmext', photsys='S')
     return abs_mag - corrector.k(z_obs, gmr)
 
-# TODO switch to new DESI version
+# TODO switch to new DESI version - but it is worse at recovering the fastspecfit distrubtion of colors...
 # This is what gets called in production code
 def k_correct(abs_mag, z_obs, gmr, band='r'):
     return k_correct_gama(abs_mag, z_obs, gmr, band)
@@ -1043,9 +1043,10 @@ def get_SDSS_Dcrit(logLgal):
     return 1.42 + (0.35 / 2) * (1 + special.erf((logLgal - 9.9) / 0.8))
 
 # A=1.411, B=0.171, C=9.795, D=0.777
+# Fitted parameters: A=1.411, B=0.171, C=9.795, D=0.775
 # Very similar fit comapred to SDSS, might as well keep it the same and just use SDSS_Dcrit
 def get_ian_Dcrit(logLgal):
-    return 1.411 + (0.171) * (1 + special.erf((logLgal - 9.795) / 0.777))
+    return 1.411 + (0.171) * (1 + special.erf((logLgal - 9.795) / 0.775))
 
 def is_quiescent_SDSS_Dn4000(logLgal, Dn4000):
     """
@@ -1064,7 +1065,7 @@ def is_quiescent_BGS_smart(logLgal, Dn4000, gmr):
     if Dn4000 is None:
         return is_quiescent_BGS_gmr(logLgal, gmr)
     Dcrit = get_SDSS_Dcrit(logLgal)
-    print(f"Dn4000 missing for {np.mean(np.isnan(Dn4000)):.1%}")
+    print(f"Dn4000 missing for {np.mean(np.isnan(Dn4000)):.1%}") # Broken?
     return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
 
 def is_quiescent_BGS_smart_hardvariant(logLgal, Dn4000, gmr):

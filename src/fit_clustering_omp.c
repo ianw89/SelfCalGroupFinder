@@ -340,7 +340,7 @@ void tabulate_hods()
   for (i = 0; i < 5; ++i)
   {
     volume[i] = 4. / 3. * PI * pow(distance_redshift(maxz[i]), 3.0) * FRAC_AREA;
-    fprintf(stderr, "Volume of bin %d is %f\n", i, volume[i]);
+    if (!SILENT) fprintf(stderr, "Volume of bin %d is %f\n", i, volume[i]);
     for (j = 0; j < 200; ++j)
       ncenr[i][j] = nsatr[i][j] = nhalo[i][j] = ncenb[i][j] = nsatb[i][j] = 0;
   }
