@@ -6,8 +6,12 @@ import concurrent.futures
 from multiprocessing import Pool
 
 # EXAMPLE USAGE
-# nohup python exec.py 6 8 &> exec.out &
+# nohup python exec.py 10 &> exec.out &
+# nohup python exec.py 10 x0 &> exec.out &
 
+execution_mode = 'once'
+mcmcnum = None # Will make a new folder
+mcmc_iter = 500
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -42,20 +46,29 @@ callable_list = [
     cat.bgs_aux_list, #7
     cat.bgs_y1_list, #8
     cat.bgs_y3_list, #9
+    [cat.sdss_colors_v2_mcmc], #10
 ]
 
 def process_gc(gc: GroupCatalog):
     name = gc.name
     print(f"***** process_gc({name}) start *****")
-    #gc = deserialize(gc)
-    gc.run_group_finder()
-    gc.postprocess()
-    #d.run_corrfunc()
-    #gc.calculate_projected_clustering(with_extra_randoms=True) # 15m
-    #gc.calculate_projected_clustering_in_magbins(with_extra_randoms=True) # 45m maybe?
-    
-    #if gc == cat.bgs_sv3_pz_2_4_10p:
-    #    gc.add_jackknife_err_to_proj_clustering(with_extra_randoms=True, for_mag_bins=True)
+
+    if execution_mode == 'once':
+        gc.run_group_finder(popmock=False)
+        gc.postprocess()
+
+    elif execution_mode == 'clustering':
+        gc.run_group_finder(popmock=False)
+        gc.postprocess()
+        gc.calculate_projected_clustering(with_extra_randoms=True)
+        gc.calculate_projected_clustering_in_magbins(with_extra_randoms=True) 
+        if gc == cat.bgs_sv3_pz_2_4_10p:
+            gc.add_jackknife_err_to_proj_clustering(with_extra_randoms=True, for_mag_bins=True)
+
+    elif execution_mode == 'mcmc':
+        gc.setup_GF_mcmc(mcmc_num=mcmcnum)
+        gc.run_GF_mcmc(mcmc_iter)
+
     gc.dump()
     del(gc)
     print(f"+++++ process_gc({name}) done +++++")
@@ -137,8 +150,19 @@ if __name__ == "__main__":
 
     if len(sys.argv[1]) > 0:
         for arg in sys.argv[1:]:
-            to_add = int(arg)
-            datasets_to_run.extend(callable_list[to_add])
+            if arg == 'mcmc':
+                execution_mode = 'mcmc'
+            elif arg == 'clustering':
+                execution_mode = 'clustering'
+            elif arg == 'once':
+                execution_mode = 'once'
+            elif arg.startswith('x'): # specify mcmc folder number
+                arg = arg[1:]
+                mcmcnum = int(arg)
+            # Otherwise we expect an int, which is the index of the catalogs definitions to run
+            else:
+                to_add = int(arg)
+                datasets_to_run.extend(callable_list[to_add])
 
     asyncio.run(main_serial())
     #asyncio.run(main_threaded_parallel())

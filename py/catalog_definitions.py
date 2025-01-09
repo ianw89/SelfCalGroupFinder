@@ -102,6 +102,15 @@ _cat.color = get_color(4)
 _cat.marker = '.'
 _cat.GF_props = sdss_colors_chi.GF_props.copy()
 
+sdss_colors_v2_mcmc = SDSSGroupCatalog("SDSS Colors v2 MCMC", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE)
+sdss_colors_v2_mcmc.GF_props = {
+    'zmin':0,
+    'zmax':1.0,
+    'frac_area':0.179,
+    'fluxlim':1,
+    'color':1,
+}
+
 sdss_published = SDSSPublishedGroupCatalog("SDSS Published")
 
 mxxl_all = MXXLGroupCatalog("All MXXL <19.5", Mode.ALL, 19.5, 20.0, False)

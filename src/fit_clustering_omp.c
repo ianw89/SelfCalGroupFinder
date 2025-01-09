@@ -536,6 +536,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
   // struct drand48_data drand_buf;
   double r;
 
+  // First time setup - read mock's halo file
   if (imag < 0)
   {
     srand48(555);

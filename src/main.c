@@ -167,7 +167,7 @@ static struct argp argp = { options, parse_opt, args_doc, doc };
 /* Entry point for the main group finding program. */
 int main(int argc, char **argv)
 {
-  double t0, t1;
+  double t0, t1, t2, t3;
   int istart, istep;
   int i;
   struct arguments arguments;
@@ -223,27 +223,31 @@ int main(int argc, char **argv)
   if (!SILENT && USE_WCEN && !COLOR) 
     fprintf(stderr, "Weighting centrals but not using galaxy colors. All galaxies will use blue wcen values.\n");
   if (!SILENT && USE_BSAT && !COLOR) 
-    fprintf(stderr, "Using cutom Bsat but not using galaxy colors. All galaxies will use blue Bsat values.\n");
+    fprintf(stderr, "Using custom Bsat but not using galaxy colors. All galaxies will use blue Bsat values.\n");
 
   // The primary method for group finding
   groupfind();
 
   if (POPULATE_MOCK)
   {
+    t0 = omp_get_wtime();
     lsat_model();
     tabulate_hods();
     populate_simulation_omp(-1, 0, 0);
+    t1 = omp_get_wtime();
+    if (!SILENT) fprintf(stderr, "lsat + hod + prep popsim: %.2f sec\n", t1 - t0);
+
     // lsat_model_scatter(); // This is crashing for some reason...
 
     if (!SILENT) fprintf(stderr, "Populating mock catalog\n");
-    t0 = omp_get_wtime();
-    for (i = 0; i < 10; i += 1)
-    {
-      populate_simulation_omp(i / 2, i % 2, 1);
-    }
 
-    /*
-    #pragma omp parallel private(i,istart,istep)
+    t2 = omp_get_wtime();
+    //for (i = 0; i < 10; i += 1)
+    //{
+    //  populate_simulation_omp(i / 2, i % 2, 1);
+    //}
+
+#pragma omp parallel private(i,istart,istep)
     {
       istart = omp_get_thread_num();
       istep = omp_get_num_threads();
@@ -252,12 +256,8 @@ int main(int argc, char **argv)
         populate_simulation_omp(i/2,i%2,istart);
       }
     }
-    */
-
-    t1 = omp_get_wtime();
-    if (!SILENT)
-    {
-      fprintf(stderr, "popsim> %.2f sec\n", t1 - t0);
-    }
+    
+    t3 = omp_get_wtime();
+    if (!SILENT) fprintf(stderr, "popsim> %.2f sec\n", t3 - t2);
   }
 }
