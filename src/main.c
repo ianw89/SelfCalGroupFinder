@@ -48,9 +48,9 @@ static char args_doc[] = "inputfile zmin zmax frac_area";
 
 static struct argp_option options[] = {
   {"halomassfunc", 'h', "FILE",                               0,  "File containing the halo mass function", 1},
-  {"fluxlim",      'f', "MODEL",                              0,  "Indicate a flux limited sample, and what model to use for correcting group luminosity for inverse-SHAM.", 1},
+  {"fluxlim",      'f', "MAG,MODEL",                          0,  "Indicate a flux limited sample, and what model to use for correcting group luminosity for inverse-SHAM.", 1},
   {"stellarmass",  'm', 0,                                    0,  "Abundance match on stellar mass, not luminosity", 1},
-  {"popmock",      'p', "MOCKFILE",                           0,  "Populate a mock catalog after group finding; provide the filepath", 1},
+  {"popmock",      'p', "MOCKFILE,BINSFILE",                  0,  "Populate a mock catalog after group finding, provide mock file path and bin definitions", 1},
   {"colors",       'c', 0,                                    0,  "Read in and use galaxy colors", 1},
   {"random",       'r', 0,                                    0,  "Randomly perturb luminosity/mstar for first group finding", 1 },
   {"iterations",   'i', "N",                                  0,  "Number of iterations for group finding", 1},
@@ -81,7 +81,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
   {
     case 'f':
       FLUXLIM = 1;
-      FLUXLIM_CORRECTION_MODEL = atoi(arg);
+      sscanf(arg, "%f,%d", &(FLUXLIM_MAG), &(FLUXLIM_CORRECTION_MODEL));
       break;
     case 'm':
       STELLAR_MASS = 1;
@@ -97,7 +97,16 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       break;
     case 'p':
       POPULATE_MOCK = 1;
-      MOCK_FILE = arg;
+      if (arg != NULL) {
+          char *token = strtok(arg, ",");
+          if (token != NULL) {
+            MOCK_FILE = strdup(token);
+            token = strtok(NULL, ",");
+            if (token != NULL) {
+              VOLUME_BINS_FILE = strdup(token);
+            }
+          }
+      }
       break;
     case 'v':
       VERBOSE = 1;

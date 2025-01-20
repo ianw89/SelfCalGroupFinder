@@ -59,6 +59,7 @@ extern int NGAL;
 
 /* Options and general purpose globals */
 extern int FLUXLIM;
+extern float FLUXLIM_MAG;
 extern int FLUXLIM_CORRECTION_MODEL;
 extern int COLOR;
 extern int PERTURB;
@@ -78,6 +79,7 @@ extern int POPULATE_MOCK;
 extern char *INPUTFILE;
 extern char *HALO_MASS_FUNC_FILE;
 extern char *MOCK_FILE;
+extern char *VOLUME_BINS_FILE;
 
 /* Variables for determining threshold if a galaxy is a satellite */
 extern const float BPROB_DEFAULT;

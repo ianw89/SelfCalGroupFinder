@@ -47,6 +47,7 @@ float MAXREDSHIFT;
 float FRAC_AREA;
 float GALAXY_DENSITY;
 int FLUXLIM = 0; // default is volume-limited
+float FLUXLIM_MAG = 0.0; 
 int FLUXLIM_CORRECTION_MODEL = 0; // default is no correction, 1 for SDSS tuned, 2 for BGS tuned
 int COLOR = 0; // default is ignore color information (sometimes treating all as blue)
 int PERTURB = 0; // default is no perturbation
@@ -57,6 +58,7 @@ int SILENT = 0; // TODO make this work
 int VERBOSE = 0; // TODO make this work
 int POPULATE_MOCK = 0; // default is do not populate mock
 char *MOCK_FILE;
+char *VOLUME_BINS_FILE;
 int MAX_ITER = 5; // default is 5 iterations
 
 // This is only called once right now. 
@@ -153,9 +155,9 @@ void groupfind()
     //  fprintf(stderr, "%d ", itmp[i]);
     //fprintf(stderr, "\n");
 
-    if (!SILENT) fprintf(stderr, "sorting galaxies...\n");
+    if (!SILENT) fprintf(stderr, "Sorting galaxies...\n");
     sort2(NGAL, xtmp, itmp);
-    if (!SILENT) fprintf(stderr, "done sorting galaxies.\n");
+    if (!SILENT) fprintf(stderr, "Done sorting galaxies.\n");
 
     //fprintf(stderr, "itmp after sort2 by LGAL: ");
     //for (i = 1; i <= NGAL; ++i)

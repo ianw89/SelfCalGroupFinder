@@ -371,6 +371,16 @@ def get_max_observable_z(abs_mags, m_cut):
 
     return z_at_value(_cosmo_h.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
 
+def get_max_observable_z_mxxlcosmo(abs_mags, m_cut):
+    # Use distance modulus
+    d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
+
+    return z_at_value(_cosmo_mxxl.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
+
+def get_volume_at_z(z, frac_area):
+    return (4/3*np.pi) * _cosmo_h.luminosity_distance(z).value**3 * frac_area
+
+
 def get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area):
     """
     Calculate the Vmax (max volume at which the galaxy could be seen) in comoving coords.

@@ -76,7 +76,8 @@ class GroupCatalog:
         self.set_output_folder(OUTPUT_FOLDER + folder_name)  
         self.color = 'k' # plotting color; nothing to do with galaxies
         self.marker = '-'
-        self.preprocess_file = None
+        self.preprocess_file: str = None
+        self.mag_cut: float = None
         self.GF_props = {} # Properties that are sent as command-line arguments to the group finder executable
         self.extra_params = None # Tuple of parameters values
         self.sampler: emcee.EnsembleSampler = None
@@ -90,6 +91,11 @@ class GroupCatalog:
         self.sats: pd.DataFrame = None
         self.L_gal_bins = L_gal_bins
         self.L_gal_labels = L_gal_labels
+
+        # Properties pertaining the popmock option
+        self.x_volume = None # of each bin
+        self.x_zmaxes = None # of each bin
+        self.x_magbins = None # for each bin
 
         self.wp_all = None # (rbins, wp_all, wp_r, wp_b)
         self.wp_all_extra = None # (rbins, wp_all, wp_r, wp_b)
@@ -289,7 +295,7 @@ class GroupCatalog:
             args.append(str(self.GF_props['zmax']))
             args.append(str(self.GF_props['frac_area']))
             if 'fluxlim' in self.GF_props:
-                args.append("--fluxlim=" + str(self.GF_props['fluxlim']))
+                args.append(f"--fluxlim={self.mag_cut},{self.GF_props['fluxlim']}")
             if self.GF_props.get('color') == 1:
                 args.append("-c")
             if 'iterations' in self.GF_props:
@@ -297,7 +303,13 @@ class GroupCatalog:
             if silent:
                 args.append("-s")
             if popmock:
-                args.append("--popmock="+MOCK_FILE_FOR_POPMOCK)
+                if self.x_magbins is None:
+                    self.x_magbins = [-17, -18, -19, -20, -21]
+                self.x_zmaxes = np.array([get_max_observable_z(m, self.mag_cut).value for m in self.x_magbins])
+                self.x_volume = np.array([get_volume_at_z(z, self.GF_props['frac_area']) for z in self.x_zmaxes])
+                np.savetxt(self.output_folder + "volume_bins.dat", np.column_stack((self.x_magbins, self.x_zmaxes, self.x_volume)), fmt='%f')
+                args.append(f"--popmock={MOCK_FILE_FOR_POPMOCK},volume_bins.dat")
+                
             if verbose:
                 args.append("-v")
             if 'omegaL_sf' in self.GF_props:
@@ -414,6 +426,140 @@ class GroupCatalog:
     def calculate_projected_clustering_in_magbins(self, with_extra_randoms=False):
         pass
 
+
+    def chisqr(self):
+        """ 
+        Evaluate the quality of the HOD implied by the group finder results
+        by comparing a mock populated with the HOD to the external datasets.
+        """
+        # TODO check that popmock was run
+
+        MOCK_LENGTH = 250.0 # Mpc 
+        vfac = (self.x_volume/MOCK_LENGTH**3)**.5 # factor by which to multiply errors
+        efac = 0.1  # let's just add a constant fractional error bar
+
+        with np.printoptions(precision=2, suppress=True):
+            #print(f'PARAMETERS {self.GF_props}')
+            chi = 0
+            chi_contributions = []
+
+            # PROJECTED CLUSTERING COMPARISON
+                
+            # read in the wp values from the results
+            mag_limits = np.linspace(18,21,4,dtype='int') # TODO let these vary
+            #imag = np.linspace(90,110,5,dtype='int')
+            volume_idx = 1 # index for vfac, we're skipping the -17 one
+
+            for mag in mag_limits:
+                fname = PARAMS_FOLDER + 'wp_red_M'+"{:d}".format(mag)+'.dat'
+                data = ascii.read(fname, delimiter='\s', format='no_header')
+                xid = np.array(data['col2'][...], dtype='float')
+                errd = np.array(data['col3'][...], dtype='float')
+                rad = np.array(data['col1'][...], dtype='float')
+
+                fname=self.output_folder + 'wp_mock_red_M'+"{:2}".format(mag)+'.dat'
+                data = ascii.read(fname, delimiter='\s', format='no_header')
+                xim = np.array(data['col5'][...], dtype='float')
+
+                # Model error is data error times vfac plus a constant error
+                errm = vfac[volume_idx]*errd + efac*xim
+                chivec = (xim-xid)**2/(errd**2 + errm**2) 
+                chi_contributions.append(np.sum(chivec))
+
+                fname = PARAMS_FOLDER + 'wp_blue_M'+"{:2}".format(mag)+'.dat'
+                data = ascii.read(fname, delimiter='\s', format='no_header')
+                xid = np.array(data['col2'][...], dtype='float')
+                errd = np.array(data['col3'][...], dtype='float')
+
+                fname = self.output_folder + 'wp_mock_blue_M'+"{:2}".format(mag)+'.dat'
+                data = ascii.read(fname, delimiter='\s', format='no_header')
+                xim = np.array(data['col5'][...], dtype='float')
+
+                errm = vfac[volume_idx]*errd + efac*xim
+                volume_idx = volume_idx + 1
+                chivec = (xim-xid)**2/(errd**2 + errm**2) 
+                chi_contributions.append(np.sum(chivec))
+            
+            print("Clustering chi squared: ", np.array(chi_contributions))
+
+
+            # LSAT COMPARISON
+
+            # Get Mean Lsat for r/b centrals from SDSS data
+            data = np.loadtxt(LSAT_OBSERVATIONS_FILE, skiprows=0, dtype='float')
+            #obs_lcen = data[:,0] # log10 already
+            obs_lsat_r = data[:,1] # fr
+            obs_err_r = data[:,2] # er
+            obs_lsat_b = data[:,3] # fb
+            obs_err_b = data[:,4] # eb
+            # 1
+            #obs_ratio = np.log10(obs_lsat_r/obs_lsat_b)
+            #obs_ratio_err = ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5 / np.log(10)
+            # 2
+            #obs_ratio = obs_lsat_r/obs_lsat_b
+            #obs_ratio_err = obs_ratio * ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
+            # 3
+            obs_ratio = np.log(obs_lsat_r/obs_lsat_b)
+            obs_ratio_err = ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
+    
+            # Get Lsat for r/b centrals from the group finder's output
+            #model_lcen = self.lsat_groups[:,0] # log10 already
+            model_lsat_r = np.power(10, self.lsat_groups[:,1])
+            model_lsat_b = np.power(10, self.lsat_groups[:,2])
+            # 1
+            #model_ratio = np.log10(model_lsat_r/model_lsat_b)
+            # 2
+            #model_ratio = model_lsat_r/model_lsat_b
+            # 3
+            model_ratio = np.log(model_lsat_r/model_lsat_b)
+
+            # Chi squared
+            chivec = (obs_ratio - model_ratio)**2 / obs_ratio_err**2 
+            print("LSat chi squared: ", chivec)
+            chi_contributions.append(np.sum(chivec))
+
+            # TODO automate whether this is on or off depending on GF parameters?
+            # This is for the second parameter (galaxy concentration)    
+            """
+            # now do lsat vs second parameter BLUE
+            fname = PARAMS_FOLDER + "lsat_sdss_con.dat"
+            data = ascii.read(fname, delimiter='\s', format='no_header')
+            y = np.array(data['col2'][...], dtype='float')
+            e = np.array(data['col3'][...], dtype='float')
+
+            fname = self.output_folder + "lsat_groups_propx_blue.out"
+            data = ascii.read(fname, delimiter='\s', format='no_header')
+            m = np.array(data['col2'][...], dtype='float')
+            
+            em = m*(e/y)
+            chivec = (y-m)**2/(e**2+em**2)
+            chi = chi + np.sum(chivec)
+                
+            # now do lsat vs second parameter RED
+            fname = PARAMS_FOLDER + "lsat_sdss_con.dat"
+            data = ascii.read(fname, delimiter='\s', format='no_header')
+            y = np.array(data['col4'][...], dtype='float')
+            e = np.array(data['col5'][...], dtype='float')
+
+            fname = self.output_folder + "lsat_groups_propx_red.out"
+            data = ascii.read(fname, delimiter='\s', format='no_header')
+            m = np.array(data['col2'][...], dtype='float')
+
+            em = m*(e/y)
+            chivec = (y-m)**2/(e**2+em**2)
+            chi = chi + np.sum(chivec)
+            """
+
+            chi = np.sum(chi_contributions)
+
+            # Print off the chi squared value and model info and return it 
+            #print(f'MODEL {ncount}')
+            print(f'CHI {chi:.2f}')
+            #os.system('date')
+            sys.stdout.flush()
+
+        return chi
+
     def get_true_z_from(self, truth_df: pd.DataFrame):
         """
         Adds a column to the catalog's all_data DataFrame with the true redshifts from the truth_df DataFrame 
@@ -495,6 +641,7 @@ class SDSSGroupCatalog(GroupCatalog):
         self.galprops_file = galprops_file
         self.L_gal_bins = self.L_gal_bins[15:]
         self.L_gal_labels = self.L_gal_labels[15:]
+        self.mag_cut = 17.7
 
         # TODO BUG right volumes?
         #Volume of bin 0 is 344276.781250
@@ -503,13 +650,13 @@ class SDSSGroupCatalog(GroupCatalog):
         #Volume of bin 3 is 18012528.000000
         #Volume of bin 4 is 62865016.000000
 
+        # Copied from Jeremy's groupfind_mcmc.py
         #volume = [ 3.181e+05, 1.209e+06, 4.486e+06, 1.609e+07, 5.517e+07 ] # if including -17
         #volume = [ 1.209e+06, 4.486e+06, 1.609e+07, 5.517e+07 ] #if starting at -18
         #volume = [  1.721e+06, 6.385e+06, 2.291e+07, 7.852e+07 ] # actual SDSS
 
-        self.volume = np.array([1321019, 4954508, 18012528, 62865016]) # Copied from Jeremy's groupfind_mcmc.py
-        self.vfac = (self.volume/250.0**3)**.5 # factor by which to multiply errors
-        self.efac = 0.1 # let's just add a constant fractional error bar
+        #self.x_volume = np.array([1321019, 4954508, 18012528, 62865016]) 
+        #vfac = (self.x_volume/250.0**3)**.5 # factor by which to multiply errors
 
     # --- log-likelihood
     def lnlike(self, theta):
@@ -696,128 +843,7 @@ class SDSSGroupCatalog(GroupCatalog):
         self.calc_wp_for_mock()
 
         return self.chisqr()
-    
 
-    def chisqr(self):
-        with np.printoptions(precision=2, suppress=True):
-            print(f'PARAMETERS {self.GF_props}')
-            chi = 0
-            chi_contributions = []
-
-            # PROJECTED CLUSTERING COMPARISON
-                
-            # read in the wp values from the results
-            imag = np.linspace(18,21,4,dtype='int')
-            #imag = np.linspace(90,110,5,dtype='int')
-            ii = 0 # index for vfac
-
-            for i in imag:
-                fname = PARAMS_FOLDER + 'wp_red_M'+"{:d}".format(i)+'.dat'
-                data = ascii.read(fname, delimiter='\s', format='no_header')
-                xid = np.array(data['col2'][...], dtype='float')
-                errd = np.array(data['col3'][...], dtype='float')
-                rad = np.array(data['col1'][...], dtype='float')
-
-                fname=self.output_folder + 'wp_mock_red_M'+"{:2}".format(i)+'.dat'
-                data = ascii.read(fname, delimiter='\s', format='no_header')
-                xim = np.array(data['col5'][...], dtype='float')
-
-                errm = self.vfac[ii]*errd + self.efac*xim
-                chivec = (xim-xid)**2/(errd**2 + errm**2) 
-                chi_contributions.append(np.sum(chivec))
-
-                fname = PARAMS_FOLDER + 'wp_blue_M'+"{:2}".format(i)+'.dat'
-                data = ascii.read(fname, delimiter='\s', format='no_header')
-                xid = np.array(data['col2'][...], dtype='float')
-                errd = np.array(data['col3'][...], dtype='float')
-
-                fname = self.output_folder + 'wp_mock_blue_M'+"{:2}".format(i)+'.dat'
-                data = ascii.read(fname, delimiter='\s', format='no_header')
-                xim = np.array(data['col5'][...], dtype='float')
-
-                errm = self.vfac[ii]*errd + self.efac*xim
-                ii = ii + 1
-                chivec = (xim-xid)**2/(errd**2 + errm**2) 
-                chi_contributions.append(np.sum(chivec))
-            
-            print("Clustering chi squared: ", np.array(chi_contributions))
-
-
-            # LSAT COMPARISON
-
-            # Get Mean Lsat for r/b centrals from SDSS data
-            data = np.loadtxt(LSAT_OBSERVATIONS_FILE, skiprows=0, dtype='float')
-            #obs_lcen = data[:,0] # log10 already
-            obs_lsat_r = data[:,1] # fr
-            obs_err_r = data[:,2] # er
-            obs_lsat_b = data[:,3] # fb
-            obs_err_b = data[:,4] # eb
-            # 1
-            #obs_ratio = np.log10(obs_lsat_r/obs_lsat_b)
-            #obs_ratio_err = ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5 / np.log(10)
-            # 2
-            #obs_ratio = obs_lsat_r/obs_lsat_b
-            #obs_ratio_err = obs_ratio * ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
-            # 3
-            obs_ratio = np.log(obs_lsat_r/obs_lsat_b)
-            obs_ratio_err = ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
-    
-            # Get Lsat for r/b centrals from the group finder's output
-            #model_lcen = self.lsat_groups[:,0] # log10 already
-            model_lsat_r = np.power(10, self.lsat_groups[:,1])
-            model_lsat_b = np.power(10, self.lsat_groups[:,2])
-            # 1
-            #model_ratio = np.log10(model_lsat_r/model_lsat_b)
-            # 2
-            #model_ratio = model_lsat_r/model_lsat_b
-            # 3
-            model_ratio = np.log(model_lsat_r/model_lsat_b)
-
-            # Chi squared
-            chivec = (obs_ratio - model_ratio)**2 / obs_ratio_err**2 
-            print("LSat chi squared: ", chivec)
-            chi_contributions.append(np.sum(chivec))
-
-            # This is for the second parameter (galaxy concentration)    
-            """
-            # now do lsat vs second parameter BLUE
-            fname = PARAMS_FOLDER + "lsat_sdss_con.dat"
-            data = ascii.read(fname, delimiter='\s', format='no_header')
-            y = np.array(data['col2'][...], dtype='float')
-            e = np.array(data['col3'][...], dtype='float')
-
-            fname = self.output_folder + "lsat_groups_propx_blue.out"
-            data = ascii.read(fname, delimiter='\s', format='no_header')
-            m = np.array(data['col2'][...], dtype='float')
-            
-            em = m*(e/y)
-            chivec = (y-m)**2/(e**2+em**2)
-            chi = chi + np.sum(chivec)
-                
-            # now do lsat vs second parameter RED
-            fname = PARAMS_FOLDER + "lsat_sdss_con.dat"
-            data = ascii.read(fname, delimiter='\s', format='no_header')
-            y = np.array(data['col4'][...], dtype='float')
-            e = np.array(data['col5'][...], dtype='float')
-
-            fname = self.output_folder + "lsat_groups_propx_red.out"
-            data = ascii.read(fname, delimiter='\s', format='no_header')
-            m = np.array(data['col2'][...], dtype='float')
-
-            em = m*(e/y)
-            chivec = (y-m)**2/(e**2+em**2)
-            chi = chi + np.sum(chivec)
-            """
-
-            chi = np.sum(chi_contributions)
-
-            # Print off the chi squared value and model info and return it 
-            #print(f'MODEL {ncount}')
-            print(f'CHI {chi:.2f}')
-            #os.system('date')
-            sys.stdout.flush()
-
-        return chi
 
     def postprocess(self):
         origprops = pd.read_csv(self.preprocess_file, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
@@ -1193,7 +1219,6 @@ class BGSGroupCatalog(GroupCatalog):
         print(f"  Min. # of Passes: {self.num_passes}")
         print(f"  Data Version: {self.data_cut}")
 
-
     def get_randoms(self):
         if self.data_cut == 'sv3' or self.data_cut == 'Y3-Kibo-SV3Cut' or self.data_cut == 'Y3-Loa-SV3Cut':
             return get_sv3_randoms_inner()
@@ -1231,21 +1256,19 @@ class BGSGroupCatalog(GroupCatalog):
 
         serialize(self)
 
-    
-
     def calculate_projected_clustering_in_magbins(self, with_extra_randoms=False):
         print("Calculating luminosity dependent clustering...")
 
-        #Mag-5log(h) > -14:  zmax theory=0.01650  zmax obs=0.015029
-        #Mag-5log(h) > -15:  zmax theory=0.02595  zmax obs=0.027139
-        #Mag-5log(h) > -16:  zmax theory=0.04067  zmax obs=0.043211
-        #Mag-5log(h) > -17:  zmax theory=0.06336  zmax obs=0.06597
-        #Mag-5log(h) > -18:  zmax theory=0.09792  zmax obs=0.101448
-        #Mag-5log(h) > -19:  zmax theory=0.14977  zmax obs=0.154458
-        #Mag-5log(h) > -20:  zmax theory=0.22620  zmax obs=0.231856
-        #Mag-5log(h) > -21:  zmax theory=0.33694  zmax obs=0.331995
-        #Mag-5log(h) > -22:  zmax theory=0.49523  zmax obs=0.459593
-        #Mag-5log(h) > -23:  zmax theory=0.72003  zmax obs=0.49971
+        #Mag-5log(h) < -14:  zmax theory=0.01650  zmax obs=0.015029
+        #Mag-5log(h) < -15:  zmax theory=0.02595  zmax obs=0.027139
+        #Mag-5log(h) < -16:  zmax theory=0.04067  zmax obs=0.043211
+        #Mag-5log(h) < -17:  zmax theory=0.06336  zmax obs=0.06597
+        #Mag-5log(h) < -18:  zmax theory=0.09792  zmax obs=0.101448
+        #Mag-5log(h) < -19:  zmax theory=0.14977  zmax obs=0.154458
+        #Mag-5log(h) < -20:  zmax theory=0.22620  zmax obs=0.231856
+        #Mag-5log(h) < -21:  zmax theory=0.33694  zmax obs=0.331995
+        #Mag-5log(h) < -22:  zmax theory=0.49523  zmax obs=0.459593
+        #Mag-5log(h) < -23:  zmax theory=0.72003  zmax obs=0.49971
         zmax = [0.04067, 0.06336, 0.09792, 0.14977, 0.22620, 0.331995, 0.459593, 0.49971]
         #Not doing zmin's for now; no need for indepdenent samples for this
 
@@ -1280,7 +1303,6 @@ class BGSGroupCatalog(GroupCatalog):
 
             serialize(self)
             
-    
     def add_jackknife_err_to_proj_clustering(self, with_extra_randoms=False, for_mag_bins=False):
 
         if self.data_cut != 'sv3' and self.data_cut != 'Y3-Kibo-SV3Cut' and self.data_cut != 'Y3-Loa-SV3Cut':

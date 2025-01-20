@@ -851,14 +851,16 @@ def proj_clustering_plot(gc: GroupCatalog):
 
         # Populated mock for GroupCatalog gc
         wp_mock = gc.__getattribute__(f'wp_mock_r_M{i}')[:,4]
-        err_mock = gc.vfac[idx]*wp_err + gc.efac*wp_mock
-        #axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='r', alpha=0.7)
-        axes[idx].plot(np.log10(radius), np.log10(wp_mock), capsize=2, color='r', alpha=0.7)
+        vfac = (gc.x_volume/250**3)**.5 # factor by which to multiply errors
+        efac = 0.1
+        err_mock = vfac[idx]*wp_err + efac*wp_mock
+        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='r', alpha=0.7)
+        #axes[idx].plot(np.log10(radius), np.log10(wp_mock), capsize=2, color='r', alpha=0.7)
 
         wp_mock = gc.__getattribute__(f'wp_mock_b_M{i}')[:,4]
-        err_mock = gc.vfac[idx]*wp_err + gc.efac*wp_mock
-        #axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='b', alpha=0.7)
-        axes[idx].plot(np.log10(radius), np.log10(wp_mock), capsize=2, color='b', alpha=0.7)
+        err_mock = vfac[idx]*wp_err + efac*wp_mock
+        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='b', alpha=0.7)
+        #axes[idx].plot(np.log10(radius), np.log10(wp_mock), capsize=2, color='b', alpha=0.7)
 
         # Plot config
         axes[idx].set_xlabel('log $r_p$ [Mpc/h]')
