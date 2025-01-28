@@ -69,7 +69,7 @@ void groupfind()
   char aa[1000];
   int i, i1, niter, j, ngrp_prev, icen_new, k;
   float frac_area, nsat_tot, weight;
-  double galden, pt[3], t_start_findsats, t_end_findsats, t_start_iter, t_end_iter; // galden (galaxy density) only includes centrals, because only they get halos
+  double galden, pt[3], t_start_findsats, t_end_findsats, t_start_iter, t_end_iter, t_alliter_s, t_alliter_e; // galden (galaxy density) only includes centrals, because only they get halos
   long IDUM1 = -555;
 
   // xtmp stores the values of what we sort by. itmp stores the index in the GAL array. It' gets sorted and we find sats in that order.
@@ -219,6 +219,7 @@ void groupfind()
   // test_centering(kd);
 
   // Start the group-finding iterations
+  t_alliter_s = omp_get_wtime();
   for (niter = 1; niter <= MAX_ITER; ++niter)
   {
     t_start_iter = omp_get_wtime();
@@ -406,13 +407,14 @@ void groupfind()
             niter, ngrp, nsat_tot / NGAL, t_end_findsats - t_start_findsats, t_end_iter - t_start_iter);
   } // end of main iteration loop
 
+  t_alliter_e = omp_get_wtime();
+  if (!SILENT) fprintf(stderr, "Group finding complete. All iterations took %.2fs.\n", t_alliter_e - t_alliter_s);
 
   // **********************************
   // End of group finding
   // Copy group properties to each member
   // Perform other sanity checks
   // **********************************
-  if (!SILENT) fprintf(stderr, "Group finding complete.\n");
   for (j = 0; j < NGAL; ++j) {
     // Satellites
     if (GAL[j].psat > 0.5) {

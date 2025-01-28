@@ -13,6 +13,7 @@ import pandas as pd
 import sys
 import multiprocessing as mp
 from scipy.special import erf
+import os
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -64,6 +65,15 @@ QUIESCENT_BINS = np.array([0.0, 1.0])
 ################################
 
 DEGREES_ON_SPHERE = 41253
+
+class SuppressPrint:
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stdout = self._original_stdout
 
 class Mode(Enum):
     ALL = 1 # include all galaxies

@@ -223,6 +223,11 @@ bgs_sv3_pz_2_4_10p = BGSGroupCatalog("Photo-z Plus v2.4 BGS sv3 10pass", Mode.PH
 bgs_sv3_pz_2_4_10p.GF_props = GF_PROPS_BGS_VANILLA.copy()
 bgs_sv3_pz_2_4_10p.color = 'k'
 
+bgs_sv3_10p_mcmc = BGSGroupCatalog("BGS SV3 PZPv2.4 10pass MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, data_cut='sv3', sdss_fill=True, extra_params=
+ (8, [1.2938, 1.5467, 3.0134], [1.2229, 0.8628, 2.5882], [0.8706, 0.6126, 2.4447], [1.1163, 1.2938, 3.1650]))
+bgs_sv3_10p_mcmc.GF_props = GF_PROPS_BGS_COLORS.copy()
+bgs_sv3_10p_mcmc.color = 'k'
+
 # From before a change in group finder itself where we change this luminosity correction function.
 bgs_sv3_pz_2_4_10p_old = BGSGroupCatalog("Photo-z Plus v2.4 BGS sv3 10pass OLD", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, data_cut='sv3', sdss_fill=True, extra_params=
  (8, [1.2938, 1.5467, 3.0134], [1.2229, 0.8628, 2.5882], [0.8706, 0.6126, 2.4447], [1.1163, 1.2938, 3.1650]))

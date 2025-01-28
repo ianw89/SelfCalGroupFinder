@@ -91,6 +91,8 @@ class GroupCatalog:
         self.sats: pd.DataFrame = None
         self.L_gal_bins = L_gal_bins
         self.L_gal_labels = L_gal_labels
+        self.Mr_gal_bins = Mr_gal_bins
+        self.Mr_gal_labels = Mr_gal_labels
 
         # Properties pertaining the popmock option
         self.x_volume = None # of each bin
@@ -103,16 +105,6 @@ class GroupCatalog:
         self.wp_slices_extra = np.array(len(CLUSTERING_MAG_BINS) * [None]) # Tuple of (rbins, wp) at each index
 
         # Geneated from popmock option in group finder
-        self.mock_b_M17 = None
-        self.mock_r_M17 = None
-        self.mock_b_M18 = None
-        self.mock_r_M18 = None
-        self.mock_b_M19 = None
-        self.mock_r_M19 = None
-        self.mock_b_M20 = None
-        self.mock_r_M20 = None
-        self.mock_b_M21 = None
-        self.mock_r_M21 = None
         self.lsat_groups = None # lsat_model
         self.lsat_groups2 = None # lsat_model_scatter
 
@@ -138,16 +130,153 @@ class GroupCatalog:
         self.results_file = self.file_pattern + ".pickle"
 
     def setup_GF_mcmc(self, mcmc_num: int = None):
-        print(f"No default MCMC setup for {self.name}. Override setup_GF_mcmc() in subclass.")
+
+        if not os.path.exists(self.output_folder):
+            os.makedirs(self.output_folder)
+
+        # If output folder is already an mcmc one, strip it off
+        last_folder = self.output_folder.split('/')[-2]
+        if last_folder.startswith('mcmc_'):
+            self.set_output_folder(self.output_folder.replace(last_folder + '/', ''))
+
+        # Change self.output_folder to be a new subfolder called mcmc_{mcmc_num}. If None, set to the next integer.
+        if mcmc_num is None:
+            mcmc_num = len([name for name in os.listdir(self.output_folder) if os.path.isdir(os.path.join(self.output_folder, name))])
+        self.set_output_folder(self.output_folder + f"mcmc_{mcmc_num}/")
+        if not os.path.exists(self.output_folder):
+            os.makedirs(self.output_folder)
+
+        # Setup emcee backend
+        backfile = self.output_folder + "gf_mcmc.h5"
+        if os.path.isfile(backfile):
+            print(f'BACKEND ALREADY EXISTS: {backfile}')
+            backend = emcee.backends.HDFBackend(backfile)
+            nwalkers = backend.get_chain().shape[1]
+            ndim = backend.get_chain().shape[2]
+        else:
+            print(f'CREATING BACKEND: {backfile}')
+            backend = emcee.backends.HDFBackend(backfile)
+            nwalkers = 30
+            ndim = 10
+
+        self.sampler = emcee.EnsembleSampler(nwalkers, ndim, self.lnprob, backend=backend)
 
     def run_GF_mcmc(self, niter: int):
-        print(f"No default MCMC run for {self.name}. Override run_GF_mcmc() in subclass.")
 
-    def get_mcmc_backend_for_run(self, mcmc_num: int):
-        print(f"No default MCMC backend for {self.name}. Override get_mcmc_backend_for_run() in subclass.")
+        if self.sampler is None:
+            print("Warning: run_GF_mcmc() called without sampler set. Call setup_GF_mcmc() first.")
+            return
+        
+        # If there is a state, continue from there
+        if self.sampler.backend.iteration > 0:
+            print(f"Resuming from iteration {self.sampler.backend.iteration}")
+            pos, prob, state = self.sampler.run_mcmc(None, niter, progress=True)
+        else:
+            print("Starting fresh")
+            # Start fresh using IC's centered around known good values
+            if self.sampler.ndim == 10:
+                initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00])
+            elif self.sampler.ndim == 14:
+                initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
+            
+            # These are the values mentioned on the webpage
+            #prev_best = np.array([13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04])
+
+            spread_factor = 0.2
+            p0 = initial + spread_factor * (np.random.randn(self.sampler.nwalkers, self.sampler.ndim) - 0.5)
+            # set the first few walkers to the initial one, though
+            p0[0] = initial
+            p0[1] = initial
+            p0[2] = initial
+            print(np.shape(p0))
+
+            pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
+
+        # Anything else to state before saving off?
+        self.dump()
+
+    # --- log-likelihood
+    def lnlike(self, theta):
+        return -0.5 * self.run_and_calc_chisqr(theta)
+
+    # --- set the priors (no priors right now)
+    def lnprior(self, theta):
+        return 0.0
+
+    # -- combine the two above
+    def lnprob(self, theta):
+        lp = self.lnprior(theta)
+        if np.isinf(lp): #check if lp is infinite
+            return -np.inf
+        return lp + self.lnlike(theta)
+
+    def get_mcmc_backend_for_run(self, mcmc_num: int, read_only=True):
+        
+        main_output = self.output_folder
+        last_folder = self.output_folder.split('/')[-2]
+        if last_folder.startswith('mcmc_'):
+            main_output = self.output_folder.replace(last_folder + '/', '')
+
+        backfile = main_output + f"mcmc_{mcmc_num}/gf_mcmc.h5"
+        backend = emcee.backends.HDFBackend(backfile, read_only=read_only)
+        return backend
 
     def load_best_params_across_mcmc_runs(self):
-        print(f"No default load_best_paramets_across_mcmc_runs() for {self.name}. Override in subclass.")
+        # Read in all subdirs of output_folder that start with mcmc_
+        main_output = self.output_folder
+        last_folder = self.output_folder.split('/')[-2]
+        if last_folder.startswith('mcmc_'):
+            main_output = self.output_folder.replace(last_folder + '/', '')
+            self.set_output_folder(main_output)
+
+        mcmc_folders = [name for name in os.listdir(main_output) if os.path.isdir(os.path.join(main_output, name)) and name.startswith('mcmc_')]
+        print(f"Found {len(mcmc_folders)} mcmc folders")
+
+        # Get the best parameters from each mcmc run and choose the best one
+        best_params = []
+        best_lnprob = -np.inf
+        for mcmc_folder in mcmc_folders:
+            backend = self.get_mcmc_backend_for_run(int(mcmc_folder.split('_')[1]), read_only=True)
+            idx = np.argmax(backend.get_log_prob(flat=True))
+            values = backend.get_chain(flat=True)[idx]
+            lnprob = backend.get_log_prob(flat=True)[idx]
+            print(f"Best lnprob for {mcmc_folder}: {lnprob}")
+            if lnprob > best_lnprob:
+                best_params = values
+                best_lnprob = lnprob
+
+        # Copy the best parameters into the GF_props
+        if len(best_params) != 10 and len(best_params) != 14:
+            print("Warning: reader has wrong number of parameters. Expected 10 or 14.")
+        self.GF_props = {
+            'zmin': self.GF_props['zmin'],
+            'zmax': self.GF_props['zmax'],
+            'frac_area': self.GF_props['frac_area'],
+            'fluxlim': self.GF_props['fluxlim'],
+            'color': self.GF_props['color'],
+            'omegaL_sf':best_params[0],
+            'sigma_sf':best_params[1],
+            'omegaL_q':best_params[2],
+            'sigma_q':best_params[3],
+            'omega0_sf':best_params[4],
+            'omega0_q':best_params[5],
+            'beta0q':best_params[6],
+            'betaLq':best_params[7],
+            'beta0sf':best_params[8],
+            'betaLsf':best_params[9],
+        }
+        if len(best_params) == 14:
+            self.GF_props['omega_chi_0_sf'] = best_params[10]
+            self.GF_props['omega_chi_0_q'] = best_params[11]
+            self.GF_props['omega_chi_L_sf'] = best_params[12]
+            self.GF_props['omega_chi_L_q'] = best_params[13]
+        
+        #self.run_group_finder(popmock=True, silent=True)
+        #self.calc_wp_for_mock()
+        #self.postprocess()
+
+        print(f"Best chi squared: {best_lnprob}")
+        return best_params
 
     def sanity_tests(self):
         print(f"Running sanity tests on {self.name}")
@@ -171,7 +300,6 @@ class GroupCatalog:
         if len(df) > 1000:
             bighalos = cens.loc[cens['Z'] < 0.2].sort_values('M_HALO', ascending=False).head(20)
             assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
-
 
     def write_sharable_output_file(self, name=None):
         if name is None:
@@ -288,39 +416,40 @@ class GroupCatalog:
         sp.run(["cp", LSAT_LOOKUP_FILE , self.output_folder])
 
         sys.stdout.flush()
+    
+        args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
+        args.append(str(self.GF_props['zmin']))
+        args.append(str(self.GF_props['zmax']))
+        args.append(str(self.GF_props['frac_area']))
+        if 'fluxlim' in self.GF_props:
+            args.append(f"--fluxlim={self.mag_cut},{self.GF_props['fluxlim']}")
+        if self.GF_props.get('color') == 1:
+            args.append("-c")
+        if 'iterations' in self.GF_props:
+            args.append("--iterations=" + str(self.GF_props['iterations']))
+        if silent:
+            args.append("-s")
+        if popmock:
+            if self.x_magbins is None:
+                self.x_magbins = [-17, -18, -19, -20, -21]
+            self.x_zmaxes = np.array([get_max_observable_z(m, self.mag_cut).value for m in self.x_magbins])
+            self.x_volume = np.array([get_volume_at_z(z, self.GF_props['frac_area']) for z in self.x_zmaxes])
+            np.savetxt(self.output_folder + "volume_bins.dat", np.column_stack((self.x_magbins, self.x_zmaxes, self.x_volume)), fmt='%f')
+            args.append(f"--popmock={MOCK_FILE_FOR_POPMOCK},volume_bins.dat")
+            
+        if verbose:
+            args.append("-v")
+        if 'omegaL_sf' in self.GF_props:
+            args.append(f"--wcen={self.GF_props['omegaL_sf']},{self.GF_props['sigma_sf']},{self.GF_props['omegaL_q']},{self.GF_props['sigma_q']},{self.GF_props['omega0_sf']},{self.GF_props['omega0_q']}")
+        if 'beta0q' in self.GF_props:
+            args.append(f"--bsat={self.GF_props['beta0q']},{self.GF_props['betaLq']},{self.GF_props['beta0sf']},{self.GF_props['betaLsf']}")
+        if 'omega_chi_0_sf' in self.GF_props:
+            args.append(f"--chi1={self.GF_props['omega_chi_0_sf']},{self.GF_props['omega_chi_0_q']},{self.GF_props['omega_chi_L_sf']},{self.GF_props['omega_chi_L_q']}")            
+
+        print(args)
+        # The galaxies are written to stdout, so send ot the GF_outfile file stream
         
         with open(self.GF_outfile, "w") as f:
-            args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
-            args.append(str(self.GF_props['zmin']))
-            args.append(str(self.GF_props['zmax']))
-            args.append(str(self.GF_props['frac_area']))
-            if 'fluxlim' in self.GF_props:
-                args.append(f"--fluxlim={self.mag_cut},{self.GF_props['fluxlim']}")
-            if self.GF_props.get('color') == 1:
-                args.append("-c")
-            if 'iterations' in self.GF_props:
-                args.append("--iterations=" + str(self.GF_props['iterations']))
-            if silent:
-                args.append("-s")
-            if popmock:
-                if self.x_magbins is None:
-                    self.x_magbins = [-17, -18, -19, -20, -21]
-                self.x_zmaxes = np.array([get_max_observable_z(m, self.mag_cut).value for m in self.x_magbins])
-                self.x_volume = np.array([get_volume_at_z(z, self.GF_props['frac_area']) for z in self.x_zmaxes])
-                np.savetxt(self.output_folder + "volume_bins.dat", np.column_stack((self.x_magbins, self.x_zmaxes, self.x_volume)), fmt='%f')
-                args.append(f"--popmock={MOCK_FILE_FOR_POPMOCK},volume_bins.dat")
-                
-            if verbose:
-                args.append("-v")
-            if 'omegaL_sf' in self.GF_props:
-                args.append(f"--wcen={self.GF_props['omegaL_sf']},{self.GF_props['sigma_sf']},{self.GF_props['omegaL_q']},{self.GF_props['sigma_q']},{self.GF_props['omega0_sf']},{self.GF_props['omega0_q']}")
-            if 'beta0q' in self.GF_props:
-                args.append(f"--bsat={self.GF_props['beta0q']},{self.GF_props['betaLq']},{self.GF_props['beta0sf']},{self.GF_props['betaLsf']}")
-            if 'omega_chi_0_sf' in self.GF_props:
-                args.append(f"--chi1={self.GF_props['omega_chi_0_sf']},{self.GF_props['omega_chi_0_q']},{self.GF_props['omega_chi_L_sf']},{self.GF_props['omega_chi_L_q']}")            
-
-            print(args)
-            # The galaxies are written to stdout, so send ot the GF_outfile file stream
             self.results = sp.run(args, cwd=self.output_folder, stdout=f)
             
             # TODO Group Finder does not consistently return >0 for errors.
@@ -328,23 +457,12 @@ class GroupCatalog:
                 print(f"ERROR: Group Finder failed with return code {self.results.returncode}.")
                 
         if popmock:
-            self.mock_b_M17 = np.loadtxt(f'{self.output_folder}mock_blue_M17.dat', skiprows=0, dtype='float')
-            self.mock_r_M17 = np.loadtxt(f'{self.output_folder}mock_red_M17.dat', skiprows=0, dtype='float')
-            self.mock_b_M18 = np.loadtxt(f'{self.output_folder}mock_blue_M18.dat', skiprows=0, dtype='float')
-            self.mock_r_M18 = np.loadtxt(f'{self.output_folder}mock_red_M18.dat', skiprows=0, dtype='float')
-            self.mock_b_M19 = np.loadtxt(f'{self.output_folder}mock_blue_M19.dat', skiprows=0, dtype='float')
-            self.mock_r_M19 = np.loadtxt(f'{self.output_folder}mock_red_M19.dat', skiprows=0, dtype='float')
-            self.mock_b_M20 = np.loadtxt(f'{self.output_folder}mock_blue_M20.dat', skiprows=0, dtype='float')
-            self.mock_r_M20 = np.loadtxt(f'{self.output_folder}mock_red_M20.dat', skiprows=0, dtype='float')
-            self.mock_b_M21 = np.loadtxt(f'{self.output_folder}mock_blue_M21.dat', skiprows=0, dtype='float')
-            self.mock_r_M21 = np.loadtxt(f'{self.output_folder}mock_red_M21.dat', skiprows=0, dtype='float')
-            
             self.lsat_groups = np.loadtxt(f'{self.output_folder}lsat_groups.out', skiprows=0, dtype='float')
             if os.path.exists(f'{self.output_folder}lsat_groups2.out'):
                 self.lsat_groups2 = np.loadtxt(f'{self.output_folder}lsat_groups2.out', skiprows=0, dtype='float')
 
         t2 = time.time()
-        print(f"run_group_finder() took {t2-t1:.2} seconds.")
+        print(f"run_group_finder() took {t2-t1:.1f} seconds.")
 
 
     def calc_wp_for_mock(self):
@@ -352,10 +470,11 @@ class GroupCatalog:
         Run corrfunc on the mock populated with an HOD built from this sample. 
         """
         print("Running Corrfunc on mock populated with HOD from this sample.")
+        t1 = time.time()
         if self.GF_outfile is None:
             print("Warning: calc_wp_for_mock() called without GF_outfile set.")
             return
-        if not os.path.exists(self.GF_outfile) or self.mock_b_M17 is None:
+        if not os.path.exists(self.GF_outfile):
             print(f"Warning: calc_wp_for_mock() should be called after run_group_finder().")
             return
         
@@ -374,12 +493,10 @@ class GroupCatalog:
         # Call corrfunc compiled executable to compute wp on the mock that was populated with the HOD extracted from this catalog
         for m in mass_range:
             for col in ["red", "blue"]:
-                cmd = f"{corrfunc_path}/wp {boxsize} mock_{col}_M{m}.dat a {WP_RADIAL_BINS_FILE} {pimax} {nthreads} > wp_mock_{col}_M{m}.dat"
-                processes.append(sp.Popen(cmd, cwd=self.output_folder, shell=True))
-
-        for p in processes:
-            p.wait()
-        processes.clear()
+                cmd = f"{corrfunc_path}/wp {boxsize} mock_{col}_M{m}.dat a {WP_RADIAL_BINS_FILE} {pimax} {nthreads} > wp_mock_{col}_M{m}.dat 2> wp_stderr.txt"
+                result = sp.run(cmd, cwd=self.output_folder, shell=True, check=True)
+                if result.returncode != 0:
+                    print(f"Error running command: {cmd}")
 
         # Load the wp results
         self.wp_mock_b_M17 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M17.dat', skiprows=0, dtype='float')
@@ -393,7 +510,8 @@ class GroupCatalog:
         self.wp_mock_b_M21 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M21.dat', skiprows=0, dtype='float')
         self.wp_mock_r_M21 = np.loadtxt(f'{self.output_folder}wp_mock_red_M21.dat', skiprows=0, dtype='float')
 
-        print("Done with wp on mock populated with HOD from this sample.")
+        t2 = time.time()
+        print(f"Done with wp on mock populated with HOD from this sample (time = {t2-t1:.1f}s).")
 
     def refresh_df_views(self):
         if self.all_data is not None:
@@ -426,7 +544,6 @@ class GroupCatalog:
     def calculate_projected_clustering_in_magbins(self, with_extra_randoms=False):
         pass
 
-
     def chisqr(self):
         """ 
         Evaluate the quality of the HOD implied by the group finder results
@@ -446,10 +563,11 @@ class GroupCatalog:
             # PROJECTED CLUSTERING COMPARISON
                 
             # read in the wp values from the results
-            mag_limits = np.linspace(18,21,4,dtype='int') # TODO let these vary
+            mag_limits = np.linspace(17,21,5,dtype='int') # TODO let these vary
             #imag = np.linspace(90,110,5,dtype='int')
-            volume_idx = 1 # index for vfac, we're skipping the -17 one
+            volume_idx = 0 # index for vfac, we're skipping the -17 one
 
+            # TODO switch to self.wp_mock_r_M17, etc.
             for mag in mag_limits:
                 fname = PARAMS_FOLDER + 'wp_red_M'+"{:d}".format(mag)+'.dat'
                 data = ascii.read(fname, delimiter='\s', format='no_header')
@@ -554,11 +672,44 @@ class GroupCatalog:
 
             # Print off the chi squared value and model info and return it 
             #print(f'MODEL {ncount}')
-            print(f'CHI {chi:.2f}')
+            print(f'CHI^2: {chi:.2f}')
             #os.system('date')
             sys.stdout.flush()
 
         return chi
+
+    def run_and_calc_chisqr(self, params):
+
+        if len(params) != 10 and len(params) != 14:
+            print("Warning: chisqr called with wrong number of parameters. Expected 10 or 14.")
+
+        self.GF_props = {
+            'zmin':self.GF_props['zmin'],
+            'zmax':self.GF_props['zmax'],
+            'frac_area':self.GF_props['frac_area'],
+            'fluxlim':self.GF_props['fluxlim'],
+            'color':self.GF_props['color'],
+            'omegaL_sf':params[0],
+            'sigma_sf':params[1],
+            'omegaL_q':params[2],
+            'sigma_q':params[3],
+            'omega0_sf':params[4],  
+            'omega0_q':params[5],    
+            'beta0q':params[6],    
+            'betaLq':params[7],
+            'beta0sf':params[8],
+            'betaLsf':params[9],
+        }
+        if len(params) == 14:
+            self.GF_props['omega_chi_0_sf'] = params[10]
+            self.GF_props['omega_chi_0_q'] = params[11]
+            self.GF_props['omega_chi_L_sf'] = params[12]
+            self.GF_props['omega_chi_L_q'] = params[13]
+
+        self.run_group_finder(popmock=True, silent=True)
+        self.calc_wp_for_mock()
+        score = self.chisqr()
+        return score
 
     def get_true_z_from(self, truth_df: pd.DataFrame):
         """
@@ -639,8 +790,10 @@ class SDSSGroupCatalog(GroupCatalog):
         super().__init__(name)
         self.preprocess_file = preprocessed_file
         self.galprops_file = galprops_file
-        self.L_gal_bins = self.L_gal_bins[15:]
+        self.L_gal_bins = self.L_gal_bins[15:] # Cutoff Sloan plots where the data falls off
         self.L_gal_labels = self.L_gal_labels[15:]
+        self.Mr_gal_bins = self.Mr_gal_bins[15:]
+        self.Mr_gal_labels = self.Mr_gal_labels[15:]
         self.mag_cut = 17.7
 
         # TODO BUG right volumes?
@@ -657,193 +810,6 @@ class SDSSGroupCatalog(GroupCatalog):
 
         #self.x_volume = np.array([1321019, 4954508, 18012528, 62865016]) 
         #vfac = (self.x_volume/250.0**3)**.5 # factor by which to multiply errors
-
-    # --- log-likelihood
-    def lnlike(self, theta):
-        LnLike = -0.5*self.chisqr(theta)
-        return LnLike
-
-    # --- set the priors (no priors right now)
-    def lnprior(self, theta):
-        if (1): 
-            return 0.0
-        else:
-            return -np.inf
-
-    # -- combine the two above
-    def lnprob(self, theta):
-        lp = self.lnprior(theta)
-        if np.isinf(lp): #check if lp is infinite
-            return -np.inf
-        return lp + self.lnlike(theta) #recall if lp not -inf, its 0, so this just returns likelihood
-
-    def setup_GF_mcmc(self, mcmc_num: int = None):
-
-        if not os.path.exists(self.output_folder):
-            os.makedirs(self.output_folder)
-
-        # If output folder is already an mcmc one, strip it off
-        last_folder = self.output_folder.split('/')[-2]
-        if last_folder.startswith('mcmc_'):
-            self.set_output_folder(self.output_folder.replace(last_folder + '/', ''))
-
-        # Change self.output_folder to be a new subfolder called mcmc_{mcmc_num}. If None, set to the next integer.
-        if mcmc_num is None:
-            mcmc_num = len([name for name in os.listdir(self.output_folder) if os.path.isdir(os.path.join(self.output_folder, name))])
-        self.set_output_folder(self.output_folder + f"mcmc_{mcmc_num}/")
-        if not os.path.exists(self.output_folder):
-            os.makedirs(self.output_folder)
-
-        # Setup emcee backend
-        backfile = self.output_folder + "gf_mcmc.h5"
-        if os.path.isfile(backfile):
-            print(f'BACKEND ALREADY EXISTS: {backfile}')
-            backend = emcee.backends.HDFBackend(backfile)
-            nwalkers = backend.get_chain().shape[1]
-            ndim = backend.get_chain().shape[2]
-        else:
-            print(f'CREATING BACKEND: {backfile}')
-            backend = emcee.backends.HDFBackend(backfile)
-            nwalkers = 30
-            ndim = 10
-
-        self.sampler = emcee.EnsembleSampler(nwalkers, ndim, self.lnprob, backend=backend)
-
-    def get_mcmc_backend_for_run(self, mcmc_num: int, read_only=True):
-        
-        main_output = self.output_folder
-        last_folder = self.output_folder.split('/')[-2]
-        if last_folder.startswith('mcmc_'):
-            main_output = self.output_folder.replace(last_folder + '/', '')
-
-        backfile = main_output + f"mcmc_{mcmc_num}/gf_mcmc.h5"
-        backend = emcee.backends.HDFBackend(backfile, read_only=read_only)
-        return backend
-
-    def load_best_params_across_mcmc_runs(self):
-        # Read in all subdirs of output_folder that start with mcmc_
-        main_output = self.output_folder
-        last_folder = self.output_folder.split('/')[-2]
-        if last_folder.startswith('mcmc_'):
-            main_output = self.output_folder.replace(last_folder + '/', '')
-            self.set_output_folder(main_output)
-
-        mcmc_folders = [name for name in os.listdir(main_output) if os.path.isdir(os.path.join(main_output, name)) and name.startswith('mcmc_')]
-        print(f"Found {len(mcmc_folders)} mcmc folders")
-
-        # Get the best parameters from each mcmc run and choose the best one
-        best_params = []
-        best_lnprob = -np.inf
-        for mcmc_folder in mcmc_folders:
-            backend = self.get_mcmc_backend_for_run(int(mcmc_folder.split('_')[1]), read_only=True)
-            idx = np.argmax(backend.get_log_prob(flat=True))
-            values = backend.get_chain(flat=True)[idx]
-            lnprob = backend.get_log_prob(flat=True)[idx]
-            print(f"Best lnprob for {mcmc_folder}: {lnprob}")
-            if lnprob > best_lnprob:
-                best_params = values
-                best_lnprob = lnprob
-
-        # Copy the best parameters into the GF_props
-        if len(best_params) != 10 and len(best_params) != 14:
-            print("Warning: reader has wrong number of parameters. Expected 10 or 14.")
-        self.GF_props = {
-            'zmin':0,
-            'zmax':1.0,
-            'frac_area':0.179,
-            'fluxlim':1,
-            'color':1,
-            'omegaL_sf':best_params[0],
-            'sigma_sf':best_params[1],
-            'omegaL_q':best_params[2],
-            'sigma_q':best_params[3],
-            'omega0_sf':best_params[4],
-            'omega0_q':best_params[5],
-            'beta0q':best_params[6],
-            'betaLq':best_params[7],
-            'beta0sf':best_params[8],
-            'betaLsf':best_params[9],
-        }
-        if len(best_params) == 14:
-            self.GF_props['omega_chi_0_sf'] = best_params[10]
-            self.GF_props['omega_chi_0_q'] = best_params[11]
-            self.GF_props['omega_chi_L_sf'] = best_params[12]
-            self.GF_props['omega_chi_L_q'] = best_params[13]
-        
-        #self.run_group_finder(popmock=True, silent=True)
-        #self.calc_wp_for_mock()
-        #self.postprocess()
-
-        print(f"Best chi squared: {best_lnprob}")
-        return best_params
-
-        
-
-    def run_GF_mcmc(self, niter: int):
-
-        if self.sampler is None:
-            print("Warning: run_GF_mcmc() called without sampler set. Call setup_GF_mcmc() first.")
-            return
-        
-        # If there is a state, continue from there
-        if self.sampler.backend.iteration > 0:
-            print(f"Resuming from iteration {self.sampler.backend.iteration}")
-            pos, prob, state = self.sampler.run_mcmc(None, niter, progress=True)
-        else:
-            print("Starting fresh")
-            # Start fresh using IC's centered around known good values
-            if self.sampler.ndim == 10:
-                initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00])
-            elif self.sampler.ndim == 14:
-                initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
-            
-            # These are the values mentioned on the webpage
-            #prev_best = np.array([13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04])
-
-            spread_factor = 0.2
-            p0 = initial + spread_factor * (np.random.randn(self.sampler.nwalkers, self.sampler.ndim) - 0.5)
-            # set the first few walker to the initial one, though
-            p0[0] = initial
-            print(np.shape(p0))
-
-            pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
-
-        # Anything else to state before saving off?
-        self.dump()
-
-    def run_and_calc_chisqr(self, params):
-
-        if len(params) != 10 and len(params) != 14:
-            print("Warning: chisqr called with wrong number of parameters. Expected 10 or 14.")
-
-        self.GF_props = {
-            'zmin':0,
-            'zmax':1.0,
-            'frac_area':0.179,
-            'fluxlim':1,
-            'color':1,
-            'omegaL_sf':params[0],
-            'sigma_sf':params[1],
-            'omegaL_q':params[2],
-            'sigma_q':params[3],
-            'omega0_sf':params[4],  
-            'omega0_q':params[5],    
-            'beta0q':params[6],    
-            'betaLq':params[7],
-            'beta0sf':params[8],
-            'betaLsf':params[9],
-        }
-        if len(params) == 14:
-            self.GF_props['omega_chi_0_sf'] = params[10]
-            self.GF_props['omega_chi_0_q'] = params[11]
-            self.GF_props['omega_chi_L_sf'] = params[12]
-            self.GF_props['omega_chi_L_q'] = params[13]
-
-        self.run_group_finder(popmock=True, silent=True)
-        self.calc_wp_for_mock()
-
-        return self.chisqr()
-
 
     def postprocess(self):
         origprops = pd.read_csv(self.preprocess_file, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
@@ -978,10 +944,10 @@ class MXXLGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False):
+    def run_group_finder(self, popmock=False, silent=False):
         if self.preprocess_file is None:
             self.preprocess()
-        super().run_group_finder(popmock=popmock)
+        super().run_group_finder(popmock=popmock, silent=silent)
 
 
     def postprocess(self):
@@ -1029,10 +995,10 @@ class UchuuGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False):
+    def run_group_finder(self, popmock=False, silent=False):
         if self.preprocess_file is None:
             self.preprocess()
-        super().run_group_finder(popmock=popmock)
+        super().run_group_finder(popmock=popmock, silent=silent)
 
 
     def postprocess(self):
@@ -1095,7 +1061,8 @@ class BGSGroupCatalog(GroupCatalog):
 
         return gc
 
-    def preprocess(self):
+    def preprocess(self, silent=False):
+        t1 = time.time()
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
         print("Pre-processing...")
@@ -1116,17 +1083,29 @@ class BGSGroupCatalog(GroupCatalog):
         else:
             raise ValueError("Unknown data_cut value")
         
-        fname, props = pre_process_BGS(infile, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.sdss_fill, self.num_passes, self.drop_passes, self.data_cut, self.extra_params)
+        if silent:
+            with SuppressPrint():
+                fname, props = pre_process_BGS(infile, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.sdss_fill, self.num_passes, self.drop_passes, self.data_cut, self.extra_params)
+        else:
+            fname, props = pre_process_BGS(infile, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.sdss_fill, self.num_passes, self.drop_passes, self.data_cut, self.extra_params)
+        
         self.preprocess_file = fname
         for p in props:
             self.GF_props[p] = props[p]
+        
+        t2 = time.time()
+        print(f"Pre-processing complete in {t2-t1:.2} seconds.")
 
-    def run_group_finder(self, popmock=False):
+    def setup_GF_mcmc(self, mcmc_num: int = None):
+        self.run_group_finder(popmock=True)
+        super().setup_GF_mcmc(mcmc_num)
+
+    def run_group_finder(self, popmock=False, silent=False):
         if self.preprocess_file is None:
-            self.preprocess()
+            self.preprocess(silent=silent)
         else:
             print("Skipping pre-processing")
-        super().run_group_finder(popmock=popmock)
+        super().run_group_finder(popmock=popmock, silent=silent)
 
     def add_bootstrapped_f_sat(self, N_ITERATIONS = 100):
 
@@ -2174,6 +2153,21 @@ def fsat_vmax_weighted(series):
     else:
         return np.average(series['IS_SAT'], weights=1/series['VMAX'])
 
+def Mhalo_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        return np.average(series['M_HALO'], weights=1/series['VMAX'])
+    
+def Mhalo_std_vmax_weighted(series):
+    if len(series) == 0:
+        return 0
+    else:
+        totweight = np.sum(1/series['VMAX'])
+        mu = np.log10(Mhalo_vmax_weighted(series))
+        values = np.log10(series['M_HALO'])
+        return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
+
 def Lgal_vmax_weighted(series):
     if len(series) == 0:
         return 0
@@ -2181,12 +2175,14 @@ def Lgal_vmax_weighted(series):
         return np.average(series['L_GAL'], weights=1/series['VMAX'])
 
 # TODO not sure right way to do std error for this sort of data
-def Lgal_std_vmax_weighted(series):
-    """Lognormal error on Lgal"""
+def LogLgal_std_vmax_weighted(series):
     if len(series) == 0:
         return 0
     else:
-        return np.power(10, np.sqrt(np.average((np.log(series['L_GAL']) - np.log(Lgal_vmax_weighted(series)))**2, weights=1/series['VMAX'])))
+        totweight = np.sum(1/series['VMAX'])
+        mu = np.log10(Lgal_vmax_weighted(series))
+        values = np.log10(series['L_GAL'])
+        return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
 
 def z_flag_is_spectro_z(arr):
     return np.logical_or(arr == AssignedRedshiftFlag.SDSS_SPEC.value, arr == AssignedRedshiftFlag.DESI_SPEC.value)

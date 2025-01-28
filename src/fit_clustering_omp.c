@@ -133,6 +133,9 @@ void lsat_model()
     im = (int)(log10(GAL[i].lum) / 0.1 + 0.5);
     // get x, the lsat value for this galaxy according to the lookup
     splint(mx, lx, m2x, nt, log10(GAL[i].mass), &x); 
+    if (x > 10.4) { // This is unrealisticly high so something went wrong with the interpolation in this case
+      fprintf(stderr, "lsat_model> WARNING: Gal %d, log10(M)=%e has log10(Lsat)=%f\n", i, log10(GAL[i].mass), x);
+    }
     if (GAL[i].color > 0.8)
     {
       nhr[im]++;
@@ -200,14 +203,14 @@ void lsat_model()
   if (STELLAR_MASS)
   {
     for (i = 91; i <= 113; ++i) // UniverseMachine ?
-      fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
+      fprintf(fp, "%e %e %e %e %d %e %d\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]), lsatr[i], nhr[i], lsatb[i], nhb[i]);
     fclose(fp);
   }
   else
   {
-    for (i = 88; i <= 107; ++i) // C250
+    for (i = 88; i <= 107; ++i) // C250  // i=88 means 10^8.8 solar masses
       // for(i=88;i<=119;++i) // TNG
-      fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
+      fprintf(fp, "%e %e %e %e %d %e %d\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]), lsatr[i], nhr[i], lsatb[i], nhb[i]);
     fclose(fp);
   }
   if (!SILENT) fprintf(stderr, "lsat_model> lsat_groups.out written\n");
@@ -520,7 +523,7 @@ void lsat_model_scatter()
   // (plus we knoe the limits of the data)
   // TODO this OVERWRITES the lsat_groups.out file the other method makes!
   fp = fopen("lsat_groups2.out", "w");
-  for (i = 88; i <= 106; ++i)
+  for (i = 88; i <= 106; ++i) // i=88 means 10^8.8 solar masses
     fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
   //for (i = 88; i <= 107; ++i) // C250
   //  fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));

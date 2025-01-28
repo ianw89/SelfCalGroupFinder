@@ -145,32 +145,111 @@ def completeness_comparison(*datasets):
     ax1.set_ylim(0.0,0.6)
     fig.tight_layout()
 
+def LHMR_plots_logerr(*catalogs):
+
+    # LHMR
+    plt.figure(dpi=DPI)
+    for f in catalogs:        
+        means = np.log10(f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted))
+        scatter = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
+        plt.errorbar(np.log10(f.labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
+    plt.xlabel('($log_{10}(M_{halo})~[M_\\odot]$')
+    plt.ylabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.title("Central Luminosity vs. Halo Mass")
+    legend(catalogs)
+    plt.xlim(10,15)
+    plt.ylim(7,12)
+    plt.draw()
+
+    # RED LHMR Inverted
+    plt.figure(dpi=DPI)
+    for f in catalogs:
+        means = np.log10(f.centrals[f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted))
+        scatter = f.centrals.loc[f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_std_vmax_weighted)
+        plt.errorbar(np.log10(f.L_gal_labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
+    plt.ylabel('($log_{10}(M_{halo})~[M_\\odot]$')
+    plt.xlabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.title("Red Central Luminosity vs. Halo Mass")
+    legend(catalogs)
+    plt.ylim(10,15)
+    plt.xlim(7,12)
+    plt.draw()
+
+    # BLUE LHMR Inverted
+    plt.figure(dpi=DPI)
+    for f in catalogs:
+        means = np.log10(f.centrals[~f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted))
+        scatter = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_std_vmax_weighted)
+        plt.errorbar(np.log10(f.L_gal_labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
+    plt.ylabel('($log_{10}(M_{halo})~[M_\\odot]$')
+    plt.xlabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.title("Blue Central Luminosity vs. Halo Mass")
+    legend(catalogs)
+    plt.ylim(10,15)
+    plt.xlim(7,12)
+    plt.draw()
+
+def LHMR_plots(*catalogs):
+
+    # Overall LHMR
+    plt.figure(dpi=DPI)
+    for f in catalogs:        
+        means = f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+        scatter = f.centrals.groupby('Mh_bin', observed=False)['L_GAL'].std()
+        plt.plot(f.labels, means, label=get_dataset_display_name(f), color=f.color)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('$M_{halo}$')
+    plt.ylabel('$L_{cen}~[L_\odot / h^2$')
+    plt.title("Central Luminosity vs. Halo Mass")
+    legend(catalogs)
+    plt.xlim(1E10,MHALO_MAX)
+    plt.ylim(3E7,2E12)
+    plt.draw()
+
+    # RED LHMR Inverted
+    plt.figure(dpi=DPI)
+    for f in catalogs:
+        means = f.centrals[f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted)
+        plt.plot(f.L_gal_labels, means, label=get_dataset_display_name(f), color=f.color)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.ylabel('$M_{halo}$')
+    plt.xlabel('$L_{cen}~[L_\odot / h^2$')
+    plt.title("Red Central Luminosity vs. Halo Mass")
+    legend(catalogs)
+    plt.ylim(1E10,MHALO_MAX)
+    plt.xlim(3E7,2E12)
+    plt.draw()
+
+    # BLUE LHMR Inverted
+    plt.figure(dpi=DPI)
+    for f in catalogs:
+        means = f.centrals[~f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted)
+        plt.plot(f.L_gal_labels, means, label=get_dataset_display_name(f), color=f.color)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.ylabel('$M_{halo}$')
+    plt.xlabel('$L_{cen}~[L_\odot / h^2$')
+    plt.title("Blue Central Luminosity vs. Halo Mass")
+    legend(catalogs)
+    plt.ylim(1E10,MHALO_MAX)
+    plt.xlim(3E7,2E12)
+    plt.draw()
+
 def plots(*catalogs, show_err=None, truth_on=False):
     catalogs = list(catalogs)
     if isinstance(show_err, GroupCatalog) and show_err not in catalogs:
         catalogs.append(show_err)
-    else:
+    elif not show_err == None:
         print("show_err must be a GroupCatalog")
 
     completeness_stats(catalogs)
 
     # TODO: I believe that Mh and Mstar don't have any h factors, but should double check.
     # Probably depends on what was given to the group finder?
-    # LHMR
-    plt.figure(dpi=DPI)
-    for f in catalogs:
-        lcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-        lcen_scatter = f.centrals.groupby('Mh_bin', observed=False)['L_GAL'].std() # TODO not right?
-        plt.errorbar(f.labels, lcen_means, yerr=lcen_scatter, label=get_dataset_display_name(f), color=f.color)
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel('$M_{halo}$')
-    plt.ylabel('$L_{cen}~[L_\odot / h^2$')
-    #plt.title("Central Luminosity vs. Halo Mass")
-    legend(catalogs)
-    plt.xlim(1E10,MHALO_MAX)
-    plt.ylim(3E7,2E12)
-    plt.draw()
+
+    LHMR_plots_logerr(*catalogs)
 
     """
     # SHMR
@@ -272,7 +351,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         ax1.set_xlim(xmin,X_MAX)
         ax1.set_ylim(0.0,0.6)
         ax2=ax1.twiny()
-        ax2.plot(Mr_gal_labels, catalogs[0].f_sat, ls="")
+        ax2.plot(catalogs[0].Mr_gal_labels, catalogs[0].f_sat, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
         ax2.set_xlabel("$M_r$ - 5log(h)")
         fig.tight_layout()
@@ -310,7 +389,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         ax1.set_xlim(xmin,X_MAX)
         ax1.set_ylim(0.0,0.5)
         ax2=ax1.twiny()
-        ax2.plot(Mr_gal_labels, catalogs[0].f_sat_sf, ls="")
+        ax2.plot(catalogs[0].Mr_gal_labels, catalogs[0].f_sat_sf, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
         ax2.set_xlabel("$M_r$ - 5log(h)")
         fig.tight_layout()
@@ -332,7 +411,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         ax1.set_xlim(xmin,X_MAX)
         ax1.set_ylim(0.0,1.0)
         ax2=ax1.twiny()
-        ax2.plot(Mr_gal_labels, catalogs[0].f_sat_q, ls="")
+        ax2.plot(catalogs[0].Mr_gal_labels, catalogs[0].f_sat_q, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
         ax2.set_xlabel("$M_r$ - 5log(h)")
         fig.tight_layout()
@@ -665,7 +744,7 @@ def plots_color_split(*datasets, truth_on=False, total_on=False):
         ax1.set_ylim(0.0,1.0)
 
         ax2=ax1.twiny()
-        ax2.plot(Mr_gal_labels, datasets[0].f_sat_q, ls="")
+        ax2.plot(datasets[0].Mr_gal_labels, datasets[0].f_sat_q, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
         ax2.set_xlabel("$M_r$ - 5log(h)")
 
@@ -707,7 +786,7 @@ def fsat_by_zbins_sv3_centers(*datasets, z_bins=np.array([0.0, 0.2, 1.0], dtype=
         ax1.set_xlim(LGAL_MIN,LGAL_MAX)
         ax1.set_ylim(0.0,0.6)
         ax2=ax1.twiny()
-        ax2.plot(Mr_gal_labels, datasets[0].f_sat, ls="")
+        ax2.plot(datasets[0].Mr_gal_labels, datasets[0].f_sat, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(LGAL_MIN)), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX)))
         ax2.set_xlabel("$M_r$ - 5log(h)")
         ax1.set_title(f"z: {z_low:.2} - {z_high:.2}")
@@ -779,7 +858,7 @@ def L_func_plot(datasets: list, values: list):
 
     # Twin axis for Mr
     ax2=ax1.twiny()
-    ax2.plot(Mr_gal_labels, values[0], ls="")
+    ax2.plot(datasets[0].Mr_gal_labels, values[0], ls="")
     ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(L_MIN)), log_solar_L_to_abs_mag_r(np.log10(L_MAX)))
     ax2.set_xlabel("$M_r$ - 5log(h)")
     
@@ -831,10 +910,10 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
 
 def proj_clustering_plot(gc: GroupCatalog):
     # TODO BUG I'm not sure the error bars are right on this
-    NUM = 4
-    imag = np.linspace(18,21,NUM,dtype='int')
+    NUM = 5
+    imag = np.linspace(17,21,NUM,dtype='int')
 
-    fig,axes=plt.subplots(nrows=1, ncols=4, figsize=(12,3.5), dpi=DPI)
+    fig,axes=plt.subplots(nrows=1, ncols=5, figsize=(17,4), dpi=DPI)
     fig.suptitle(gc.name)
 
     idx = 0
@@ -899,9 +978,9 @@ def lsat_data_compare_plot(gc: GroupCatalog):
     obs_ratio_err = obs_ratio * ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
     obs_ratio_err_log = obs_ratio_err/obs_ratio/np.log(10)
 
-    fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(8,4), dpi=DPI)
+    fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(10,5), dpi=DPI)
 
-    axes[0].errorbar(obs_lcen, np.log10(obs_ratio), yerr=obs_ratio_err_log, fmt='o', color='k', capsize=2, ecolor='k', label='SDSS Data')
+    axes[0].errorbar(obs_lcen, np.log10(obs_ratio), yerr=obs_ratio_err_log, fmt='o', color='k', markersize=3, capsize=2, ecolor='k', label='SDSS Data')
     #axes[0].plot(obs_lcen, obs_ratio, color='k', marker='o', label='SDSS Data')
     axes[0].plot(lcen, np.log10(ratio), color='purple', label='Group Finder')
     axes[0].set_ylabel('log $L_{sat}^{q}/L_{sat}^{sf}$')
@@ -911,8 +990,8 @@ def lsat_data_compare_plot(gc: GroupCatalog):
 
     axes[1].plot(lcen, np.log10(lsat_r), label='GF Quiescent', color='r')
     axes[1].plot(lcen, np.log10(lsat_b), label='GF Star-forming', color='b')
-    axes[1].errorbar(obs_lcen, np.log10(obs_lsat_r), yerr=obs_err_r/obs_lsat_r, label='SDSS Quiescent', fmt='o', color='r', capsize=2, ecolor='k')
-    axes[1].errorbar(obs_lcen, np.log10(obs_lsat_b), yerr=obs_err_b/obs_lsat_b, label='SDSS Star-Forming', fmt='o', color='b', capsize=2, ecolor='k')
+    axes[1].errorbar(obs_lcen, np.log10(obs_lsat_r), yerr=obs_err_r/obs_lsat_r, label='SDSS Quiescent', fmt='o', color='r', markersize=3, capsize=2, ecolor='k')
+    axes[1].errorbar(obs_lcen, np.log10(obs_lsat_b), yerr=obs_err_b/obs_lsat_b, label='SDSS Star-Forming', fmt='o', color='b', markersize=3, capsize=2, ecolor='k')
     axes[1].set_ylabel('log $L_{sat}~[L_\odot / h^2]$')
     axes[1].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
     axes[1].legend()

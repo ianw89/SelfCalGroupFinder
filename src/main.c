@@ -29,6 +29,7 @@
 // stdout is used for printing the output of the program; 1 galaxy per line
 // stderr is used for printing the progress of the program and errors
 
+void print_fsat();
 
 /* Standard GNU command-line program stuff */
 const char *argp_program_version =  "kdGroupFinder-2.0";
@@ -176,7 +177,7 @@ static struct argp argp = { options, parse_opt, args_doc, doc };
 /* Entry point for the main group finding program. */
 int main(int argc, char **argv)
 {
-  double t0, t1, t2, t3;
+  double t0, t1, t2, t3, t_grp_s, t_grp_e;
   int istart, istep;
   int i;
   struct arguments arguments;
@@ -235,7 +236,10 @@ int main(int argc, char **argv)
     fprintf(stderr, "Using custom Bsat but not using galaxy colors. All galaxies will use blue Bsat values.\n");
 
   // The primary method for group finding
+  t_grp_s = omp_get_wtime();
   groupfind();
+  t_grp_e = omp_get_wtime();
+  if (!SILENT) fprintf(stderr, "groupfind() took %.2f sec\n", t_grp_e - t_grp_s);
 
   if (POPULATE_MOCK)
   {
@@ -268,5 +272,59 @@ int main(int argc, char **argv)
     
     t3 = omp_get_wtime();
     if (!SILENT) fprintf(stderr, "popsim> %.2f sec\n", t3 - t2);
+
+    print_fsat();
   }
+}
+
+void print_fsat() {
+  // want L bins to be np.logspace(6, 12.5, 40) like in python postprocessing
+  float logbin_interval = (12.5 - 6.0) / 40;
+  float num[40], numr[40], numb[40], sats[40], satsr[40], satsb[40], fsat[40], fsatr[40], fsatb[40];
+  int ibin, i;
+  int nsats = 0;
+  for (i = 0; i < 40; ++i)
+  {
+    numr[i] = numb[i] = satsr[i] = satsb[i] = fsat[i] = fsatr[i] = fsatb[i] = 0;
+  }
+
+  for (i = 0; i < NGAL; ++i)
+  {
+    ibin = (int)((log10(GAL[i].lum) - 6.0) / logbin_interval);
+    //fprintf(stderr, "GAL %d L=%e bin=%d\n", i, GAL[i].lum, ibin);
+
+    if (ibin < 0 || ibin >= 40)
+      continue;
+    if (GAL[i].color > 0.8)
+    {
+      ++numr[ibin];
+      if (GAL[i].psat > 0.5) {
+        ++satsr[ibin];
+      }
+    }
+    else
+    {
+      ++numb[ibin];
+      if (GAL[i].psat > 0.5) {
+        ++satsb[ibin];
+      }
+    }
+  }
+
+  for (i = 0; i < 40; ++i)
+  {
+    fsat[i] = (satsr[i] + satsb[i]) / (numr[i] + numb[i] + 0.000001);
+    fsatr[i] = satsr[i] / (numr[i] + 0.000001);
+    fsatb[i] = satsb[i] / (numb[i] + 0.000001);
+    nsats += satsr[i] + satsb[i];
+  }
+
+  // Ignore SILENT here
+  fprintf(stderr, "fsat total: %d\n", sats);
+  fprintf(stderr, "fsat> bin fsat fsatr fsatb\n");
+  for (i = 0; i < 40; ++i)
+  {
+    fprintf(stderr, "fsat> %d %f %f %f\n", i, fsat[i], fsatr[i], fsatb[i]);
+  }
+      
 }

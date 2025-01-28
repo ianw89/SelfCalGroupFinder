@@ -6,12 +6,13 @@ import concurrent.futures
 from multiprocessing import Pool
 
 # EXAMPLE USAGE
-# nohup python exec.py 10 &> exec.out &
-# nohup python exec.py 10 x0 &> exec.out &
+# nohup python exec.py 6 7 8 9 &> exec.out &
+# nohup python exec.py mcmc 1 x0 &> exec.out &
+# nohup python exec.py mcmc 11 x0 &> exec.out &
 
-execution_mode = 'once'
+execution_mode = 'once' # or 'clustering' or 'mcmc'
 mcmcnum = None # Will make a new folder
-mcmc_iter = 500
+mcmc_iter = 1000
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -47,6 +48,7 @@ callable_list = [
     cat.bgs_y1_list, #8
     cat.bgs_y3_list, #9
     [cat.sdss_colors_v2_mcmc], #10
+    [cat.bgs_sv3_10p_mcmc], #11
 ]
 
 def process_gc(gc: GroupCatalog):
@@ -54,11 +56,13 @@ def process_gc(gc: GroupCatalog):
     print(f"***** process_gc({name}) start *****")
 
     if execution_mode == 'once':
-        gc.run_group_finder(popmock=False)
+        gc.run_group_finder(popmock=True)
+        gc.calc_wp_for_mock()
         gc.postprocess()
 
     elif execution_mode == 'clustering':
-        gc.run_group_finder(popmock=False)
+        gc.run_group_finder(popmock=True)
+        gc.calc_wp_for_mock()
         gc.postprocess()
         gc.calculate_projected_clustering(with_extra_randoms=True)
         gc.calculate_projected_clustering_in_magbins(with_extra_randoms=True) 
