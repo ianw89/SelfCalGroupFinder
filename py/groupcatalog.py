@@ -673,7 +673,7 @@ class GroupCatalog:
             # read in the wp values from the results
             mag_limits = np.linspace(18,21,4,dtype='int') # TODO let these vary
             #imag = np.linspace(90,110,5,dtype='int')
-            volume_idx = 0 # index for vfac, we're skipping the -17 one
+            volume_idx = 1 # index for vfac, we're skipping the -17 one
 
             # TODO switch to self.wp_mock_r_M17, etc.
             for mag in mag_limits:
