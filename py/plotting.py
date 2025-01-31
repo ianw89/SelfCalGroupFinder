@@ -910,11 +910,15 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
 
 def proj_clustering_plot(gc: GroupCatalog):
     # TODO BUG I'm not sure the error bars are right on this
-    NUM = 5
-    imag = np.linspace(17,21,NUM,dtype='int')
+    NUM = 4
+    MAG_START = 18
+    MAG_END = 21
+    imag = np.linspace(MAG_START,MAG_END,NUM,dtype='int')
 
-    fig,axes=plt.subplots(nrows=1, ncols=5, figsize=(17,4), dpi=DPI)
+    fig,axes=plt.subplots(nrows=1, ncols=NUM, figsize=(2+3*NUM,4), dpi=DPI)
     fig.suptitle(gc.name)
+
+    overall, clust_r, clust_b, lsat = gc.chisqr()
 
     idx = 0
     for i in imag:
@@ -941,6 +945,10 @@ def proj_clustering_plot(gc: GroupCatalog):
         axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='b', alpha=0.7)
         #axes[idx].plot(np.log10(radius), np.log10(wp_mock), capsize=2, color='b', alpha=0.7)
 
+        # Put text of the chisqr value in plot
+        axes[idx].text(0.7, 0.9, f"$\chi^2_r$: {clust_r[i-MAG_START]:.1f}", transform=axes[idx].transAxes)
+        axes[idx].text(0.7, 0.8, f"$\chi^2_b$: {clust_b[i-MAG_START]:.1f}", transform=axes[idx].transAxes)
+
         # Plot config
         axes[idx].set_xlabel('log $r_p$ [Mpc/h]')
         axes[idx].set_ylabel('log $w_p(r_p)$')
@@ -960,6 +968,9 @@ def read_wp_file(fname):
     return wp,wp_err,radius
 
 def lsat_data_compare_plot(gc: GroupCatalog):
+
+    overall, clust_r, clust_b, lsat = gc.chisqr()
+    print(f"Lsat Chi^2 {np.sum(lsat):.1f}")
 
     # Get Lsat for r/b centrals from the group finder's output
     lcen = gc.lsat_groups[:,0] # log10 already
@@ -988,6 +999,9 @@ def lsat_data_compare_plot(gc: GroupCatalog):
     axes[0].set_ylim(-0.2, 0.5)
     axes[0].legend()
 
+    # Put text of the chisqr value in plot
+    #axes[0].text(.5,.5, f"$\chi^2_r$: {np.sum(lsat):.1f}"),
+
     axes[1].plot(lcen, np.log10(lsat_r), label='GF Quiescent', color='r')
     axes[1].plot(lcen, np.log10(lsat_b), label='GF Star-forming', color='b')
     axes[1].errorbar(obs_lcen, np.log10(obs_lsat_r), yerr=obs_err_r/obs_lsat_r, label='SDSS Quiescent', fmt='o', color='r', markersize=3, capsize=2, ecolor='k')
@@ -995,6 +1009,7 @@ def lsat_data_compare_plot(gc: GroupCatalog):
     axes[1].set_ylabel('log $L_{sat}~[L_\odot / h^2]$')
     axes[1].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
     axes[1].legend()
+
 
     fig.suptitle(gc.name)
     fig.tight_layout()

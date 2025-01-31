@@ -15,6 +15,7 @@ import sys
 import math
 from multiprocessing import Pool
 from joblib import Parallel, delayed
+import optuna
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -182,7 +183,7 @@ class GroupCatalog:
             # These are the values mentioned on the webpage
             #prev_best = np.array([13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04])
 
-            spread_factor = 0.2
+            spread_factor = 0.5
             p0 = initial + spread_factor * (np.random.randn(self.sampler.nwalkers, self.sampler.ndim) - 0.5)
             # set the first few walkers to the initial one, though
             p0[0] = initial
@@ -194,6 +195,79 @@ class GroupCatalog:
 
         # Anything else to state before saving off?
         self.dump()
+
+    def run_optuna(self, mcmc_num, trials):
+        
+        if not os.path.exists(self.output_folder):
+            os.makedirs(self.output_folder)
+
+        # If output folder is already an mcmc one, strip it off
+        last_folder = self.output_folder.split('/')[-2]
+        if last_folder.startswith('mcmc_'):
+            self.set_output_folder(self.output_folder.replace(last_folder + '/', ''))
+
+        # Change self.output_folder to be a new subfolder called mcmc_{mcmc_num}. If None, set to the next integer.
+        if mcmc_num is None:
+            mcmc_num = len([name for name in os.listdir(self.output_folder) if os.path.isdir(os.path.join(self.output_folder, name))])
+        self.set_output_folder(self.output_folder + f"mcmc_{mcmc_num}/")
+        if not os.path.exists(self.output_folder):
+            os.makedirs(self.output_folder)
+
+        # Setup optuna
+        backfile = self.output_folder + "gf_optuna.db"
+        storage = f"sqlite:///{backfile}"
+
+        def objective(trial: optuna.Trial) -> float:
+            params = [
+                trial.suggest_float('omegaL_sf', 5, 20),
+                trial.suggest_float('sigma_sf', -5, 10),
+                trial.suggest_float('omegaL_q', 5, 20),
+                trial.suggest_float('sigma_q', -5, 10),
+                trial.suggest_float('omega0_sf', -10, 20),
+                trial.suggest_float('omega0_q', -10, 20),
+                trial.suggest_float('beta0q', -20, 20),
+                trial.suggest_float('betaLq', -20, 20),
+                trial.suggest_float('beta0sf', -20, 20),
+                trial.suggest_float('betaLsf', -20, 20)
+            ]
+            return self.run_and_calc_chisqr(params)
+
+        # Pruner is the hyper-hyper param
+        if mcmc_num == 0:
+            sampler = optuna.samplers.TPESampler(
+                n_startup_trials=512)
+        if mcmc_num == 1:
+            sampler = optuna.samplers.QMCSampler()
+        else:
+            sampler = optuna.samplers.GPSampler(
+                independent_sampler=optuna.samplers.RandomSampler(),
+                n_startup_trials=512,
+                deterministic_objective=True)
+            
+        study = optuna.create_study(
+            storage=storage, 
+            study_name=f"gf_{self.name}", 
+            direction='minimize', 
+            load_if_exists=True,
+            sampler=sampler
+            #pruner=optuna.pruners.SuccessiveHalvingPruner() # Don't think pruner in use automatically
+            )
+        known_good = np.array([13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04])
+        study.enqueue_trial({'omegaL_sf':known_good[0], 'sigma_sf':known_good[1], 'omegaL_q':known_good[2], 'sigma_q':known_good[3], 'omega0_sf':known_good[4], 'omega0_q':known_good[5], 'beta0q':known_good[6], 'betaLq':known_good[7], 'beta0sf':known_good[8], 'betaLsf':known_good[9]})
+        study.enqueue_trial({'omegaL_sf': 13.03086801, 'sigma_sf': 1.85056851, 'omegaL_q': 8.92398122, 'sigma_q': -0.27906515, 'omega0_sf': 15.34144908, 'omega0_q': -1.27133105, 'beta0q': -0.59290738, 'betaLq': 14.81630656, 'beta0sf': 12.17260624, 'betaLsf': -6.73894304})
+
+        N=20
+        # Enqueue some trials near known good values
+        for i in range(N):
+            values = known_good * (1 + 0.1 * np.random.randn(len(known_good)))
+            study.enqueue_trial({'omegaL_sf':values[0], 'sigma_sf':values[1], 'omegaL_q':values[2], 'sigma_q':values[3], 'omega0_sf':values[4], 'omega0_q':values[5], 'beta0q':values[6], 'betaLq':values[7], 'beta0sf':values[8], 'betaLsf':values[9]})
+
+        study.optimize(objective, n_trials=trials)
+
+        print(study.best_params)  # E.g. {'x': 2.002108042}
+
+       # self.sampler = emcee.EnsembleSampler(nwalkers, ndim, self.lnprob, backend=backend)
+            
 
     # --- log-likelihood
     def lnlike(self, theta):
@@ -210,7 +284,7 @@ class GroupCatalog:
             return -np.inf
         return lp + self.lnlike(theta)
 
-    def get_mcmc_backend_for_run(self, mcmc_num: int, read_only=True):
+    def get_backend_for_run(self, mcmc_num: int, read_only=True) -> emcee.backends.Backend|optuna.Study:
         
         main_output = self.output_folder
         last_folder = self.output_folder.split('/')[-2]
@@ -218,10 +292,30 @@ class GroupCatalog:
             main_output = self.output_folder.replace(last_folder + '/', '')
 
         backfile = main_output + f"mcmc_{mcmc_num}/gf_mcmc.h5"
-        backend = emcee.backends.HDFBackend(backfile, read_only=read_only)
+        if not os.path.exists(backfile):
+            backfile = main_output + f"mcmc_{mcmc_num}/gf_optuna.db"
+            storage = f"sqlite:///{backfile}"
+            if not os.path.exists(backfile):
+                return None
+            else:
+                backend = optuna.load_study(study_name=f"gf_{self.name}", storage=storage)
+        else:
+            backend = emcee.backends.HDFBackend(backfile, read_only=read_only)
+        
         return backend
+    
+    def load_best_params_from_run(self, run):
+        backend = self.get_backend_for_run(run, read_only=True)
+        if backend is None:
+            return None
+        if isinstance(backend, emcee.backends.Backend):
+            idx = np.argmax(backend.get_log_prob(flat=True))
+            return backend.get_chain(flat=True)[idx]
+        elif isinstance(backend, optuna.Study):
+            return backend.best_trial.params.values
 
-    def load_best_params_across_mcmc_runs(self):
+
+    def load_best_params_across_runs(self, save=False):
         # Read in all subdirs of output_folder that start with mcmc_
         main_output = self.output_folder
         last_folder = self.output_folder.split('/')[-2]
@@ -230,62 +324,74 @@ class GroupCatalog:
             self.set_output_folder(main_output)
 
         mcmc_folders = [name for name in os.listdir(main_output) if os.path.isdir(os.path.join(main_output, name)) and name.startswith('mcmc_')]
-        print(f"Found {len(mcmc_folders)} mcmc folders")
+        print(f"Found {len(mcmc_folders)} mcmc/optuna folders")
 
-        # Get the best parameters from each mcmc run and choose the best one
-        best_params = []
-        best_lnprob = -np.inf
+        # Get the best parameters from each mcmc run and choose the best ones
+        best_params_list = []
         for mcmc_folder in mcmc_folders:
-            backend = self.get_mcmc_backend_for_run(int(mcmc_folder.split('_')[1]), read_only=True)
-            idx = np.argmax(backend.get_log_prob(flat=True))
-            values = backend.get_chain(flat=True)[idx]
-            lnprob = backend.get_log_prob(flat=True)[idx]
-            print(f"Best lnprob for {mcmc_folder}: {lnprob}")
-            if lnprob > best_lnprob:
-                best_params = values
-                best_lnprob = lnprob
+            backend = self.get_backend_for_run(int(mcmc_folder.split('_')[1]), read_only=True)
+            if backend is None:
+                continue
+            if isinstance(backend, emcee.backends.Backend):
+                idx = np.argmax(backend.get_log_prob(flat=True))
+                values = backend.get_chain(flat=True)[idx]
+                chisqr = (-2) * backend.get_log_prob(flat=True)[idx]
+                print(f"Best chi^2 for {mcmc_folder} (N={len(backend.get_log_prob(flat=True))}) (emcee): {chisqr}")
+                best_params_list.append((chisqr, values))
+            elif isinstance(backend, optuna.Study):
+                print(f"Best chi^2 for {mcmc_folder} (N={len(backend.trials)}) (optuna): {backend.best_trial.value}")
+                best_params_list.append((backend.best_trial.value, list(backend.best_trial.params.values()))) # The order is correct
+
+        best_params_list.sort(key=lambda x: x[0])
+
+        if save:
+            with open(os.path.join(main_output, 'best_params_list.pkl'), 'wb') as f:
+                pickle.dump(best_params_list, f)
 
         # Copy the best parameters into the GF_props
-        if len(best_params) != 10 and len(best_params) != 14:
-            print("Warning: reader has wrong number of parameters. Expected 10 or 14.")
-        self.GF_props = {
-            'zmin': self.GF_props['zmin'],
-            'zmax': self.GF_props['zmax'],
-            'frac_area': self.GF_props['frac_area'],
-            'fluxlim': self.GF_props['fluxlim'],
-            'color': self.GF_props['color'],
-            'omegaL_sf':best_params[0],
-            'sigma_sf':best_params[1],
-            'omegaL_q':best_params[2],
-            'sigma_q':best_params[3],
-            'omega0_sf':best_params[4],
-            'omega0_q':best_params[5],
-            'beta0q':best_params[6],
-            'betaLq':best_params[7],
-            'beta0sf':best_params[8],
-            'betaLsf':best_params[9],
-        }
-        if len(best_params) == 14:
-            self.GF_props['omega_chi_0_sf'] = best_params[10]
-            self.GF_props['omega_chi_0_q'] = best_params[11]
-            self.GF_props['omega_chi_L_sf'] = best_params[12]
-            self.GF_props['omega_chi_L_q'] = best_params[13]
-        
-        #self.run_group_finder(popmock=True, silent=True)
-        #self.calc_wp_for_mock()
-        #self.postprocess()
+        if len(best_params_list) > 0:
+            best_params = best_params_list[0][1]
+            if len(best_params) != 10 and len(best_params) != 14:
+                print(f"Warning: reader has wrong number of parameters. Expected 10 or 14 but got {len(best_params)}")
+            self.GF_props = {
+                'zmin': self.GF_props['zmin'],
+                'zmax': self.GF_props['zmax'],
+                'frac_area': self.GF_props['frac_area'],
+                'fluxlim': self.GF_props['fluxlim'],
+                'color': self.GF_props['color'],
+                'omegaL_sf': best_params[0],
+                'sigma_sf': best_params[1],
+                'omegaL_q': best_params[2],
+                'sigma_q': best_params[3],
+                'omega0_sf': best_params[4],
+                'omega0_q': best_params[5],
+                'beta0q': best_params[6],
+                'betaLq': best_params[7],
+                'beta0sf': best_params[8],
+                'betaLsf': best_params[9],
+            }
+            if len(best_params) == 14:
+                self.GF_props['omega_chi_0_sf'] = best_params[10]
+                self.GF_props['omega_chi_0_q'] = best_params[11]
+                self.GF_props['omega_chi_L_sf'] = best_params[12]
+                self.GF_props['omega_chi_L_q'] = best_params[13]
 
-        print(f"Best chi squared: {best_lnprob}")
-        return best_params
+        print(f"Best chi squared: {best_params_list[0][0] if len(best_params_list) > 0 else 'N/A'}")
+        if len(best_params_list) > 0:
+            return best_params_list[0][1]
+        return None
 
     def sanity_tests(self):
         print(f"Running sanity tests on {self.name}")
         df = self.all_data
 
         good_ltot = df.loc[:, 'L_TOT'] >= 0.9999*df.loc[:, 'L_GAL']
-        assert np.all(good_ltot), f"Total luminosity should be greater than galaxy luminosity, but {df.loc[~good_ltot, 'TARGETID'].to_numpy()} are not."
-
-        assert np.all(df['N_SAT'] >= 0), f"Number of satellites should be >= 0, but {df.loc[df['N_SAT'] < 0, 'TARGETID'].to_numpy()} have negative NSAT."
+        if 'TARGETID' in df.columns:
+            assert np.all(good_ltot), f"Total luminosity should be greater than galaxy luminosity, but {df.loc[~good_ltot, 'TARGETID'].to_numpy()} are not."
+            assert np.all(df['N_SAT'] >= 0), f"Number of satellites should be >= 0, but {df.loc[df['N_SAT'] < 0, 'TARGETID'].to_numpy()} have negative NSAT."
+        else:
+            assert np.all(good_ltot), f"Total luminosity should be greater than galaxy luminosity, but {np.sum(~good_ltot)} are not."
+            assert np.all(df['N_SAT'] >= 0), f"Number of satellites should be >= 0, but {np.sum(df['N_SAT'] < 0)} have negative NSAT."
 
         sats = df.loc[df['IS_SAT']]
         assert np.all(sats['P_SAT'] > 0.499999), f"Everything marked as a sat should have P_sat > 0.5, but {np.sum(sats['P_SAT'] < 0.5)} do not."
@@ -298,7 +404,7 @@ class GroupCatalog:
         assert len(cens) == len(df['IGRP'].unique()), f"Counts of centrals should be count of unique groups, but {len(df.loc[~df['IS_SAT']])} != {len(df['IGRP'].unique())}"
 
         if len(df) > 1000:
-            bighalos = cens.loc[cens['Z'] < 0.2].sort_values('M_HALO', ascending=False).head(20)
+            bighalos = cens.loc[cens['Z'] < 0.1].sort_values('M_HALO', ascending=False).head(20)
             assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
 
     def write_sharable_output_file(self, name=None):
@@ -558,12 +664,14 @@ class GroupCatalog:
         with np.printoptions(precision=2, suppress=True):
             #print(f'PARAMETERS {self.GF_props}')
             chi = 0
-            chi_contributions = []
+            clustering_chisqr_r = []
+            clustering_chisqr_b = []
+            lsat_chisqr = []
 
             # PROJECTED CLUSTERING COMPARISON
                 
             # read in the wp values from the results
-            mag_limits = np.linspace(17,21,5,dtype='int') # TODO let these vary
+            mag_limits = np.linspace(18,21,4,dtype='int') # TODO let these vary
             #imag = np.linspace(90,110,5,dtype='int')
             volume_idx = 0 # index for vfac, we're skipping the -17 one
 
@@ -582,7 +690,7 @@ class GroupCatalog:
                 # Model error is data error times vfac plus a constant error
                 errm = vfac[volume_idx]*errd + efac*xim
                 chivec = (xim-xid)**2/(errd**2 + errm**2) 
-                chi_contributions.append(np.sum(chivec))
+                clustering_chisqr_r.append(np.sum(chivec))
 
                 fname = PARAMS_FOLDER + 'wp_blue_M'+"{:2}".format(mag)+'.dat'
                 data = ascii.read(fname, delimiter='\s', format='no_header')
@@ -596,10 +704,10 @@ class GroupCatalog:
                 errm = vfac[volume_idx]*errd + efac*xim
                 volume_idx = volume_idx + 1
                 chivec = (xim-xid)**2/(errd**2 + errm**2) 
-                chi_contributions.append(np.sum(chivec))
+                clustering_chisqr_b.append(np.sum(chivec))
             
-            print("Clustering chi squared: ", np.array(chi_contributions))
-
+            print("Red Clustering chi squared: ", np.array(clustering_chisqr_r))
+            print("Blue Clustering chi squared: ", np.array(clustering_chisqr_b))
 
             # LSAT COMPARISON
 
@@ -632,9 +740,8 @@ class GroupCatalog:
             model_ratio = np.log(model_lsat_r/model_lsat_b)
 
             # Chi squared
-            chivec = (obs_ratio - model_ratio)**2 / obs_ratio_err**2 
-            print("LSat chi squared: ", chivec)
-            chi_contributions.append(np.sum(chivec))
+            lsat_chisqr = (obs_ratio - model_ratio)**2 / obs_ratio_err**2 
+            print("LSat chi squared: ", lsat_chisqr)
 
             # TODO automate whether this is on or off depending on GF parameters?
             # This is for the second parameter (galaxy concentration)    
@@ -668,7 +775,7 @@ class GroupCatalog:
             chi = chi + np.sum(chivec)
             """
 
-            chi = np.sum(chi_contributions)
+            chi = np.sum(lsat_chisqr) + np.sum(clustering_chisqr_r) + np.sum(clustering_chisqr_b)
 
             # Print off the chi squared value and model info and return it 
             #print(f'MODEL {ncount}')
@@ -676,7 +783,7 @@ class GroupCatalog:
             #os.system('date')
             sys.stdout.flush()
 
-        return chi
+        return chi, clustering_chisqr_r, clustering_chisqr_b, lsat_chisqr
 
     def run_and_calc_chisqr(self, params):
 
@@ -708,8 +815,8 @@ class GroupCatalog:
 
         self.run_group_finder(popmock=True, silent=True)
         self.calc_wp_for_mock()
-        score = self.chisqr()
-        return score
+        overall, clust_r, clust_b, lsat = self.chisqr()
+        return overall
 
     def get_true_z_from(self, truth_df: pd.DataFrame):
         """
@@ -2101,9 +2208,9 @@ def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_m
 def read_and_combine_gf_output(gc: GroupCatalog, galprops_df):
     # TODO instead of reading GF output from disk, have option to just keep in memory
     main_df = pd.read_csv(gc.GF_outfile, delimiter=' ', names=
-                          ('RA', 'DEC', 'Z', 'L_GAL', 'VMAX', 'P_SAT', 'M_HALO', 'N_SAT', 'L_TOT', 'IGRP', 'WEIGHT'),
+                          ('RA', 'DEC', 'Z', 'L_GAL', 'VMAX', 'P_SAT', 'M_HALO', 'N_SAT', 'L_TOT', 'IGRP', 'WEIGHT', 'CHI1_WEIGHT'),
                           dtype={'RA': np.float64, 'DEC': np.float64, 'Z': np.float64, 'L_GAL': np.float64, 'VMAX': np.float64,
-                                 'P_SAT': np.float64, 'M_HALO': np.float64, 'N_SAT': np.int32, 'L_TOT': np.float64, 'IGRP': np.int64, 'WEIGHT': np.float64})
+                                 'P_SAT': np.float64, 'M_HALO': np.float64, 'N_SAT': np.int32, 'L_TOT': np.float64, 'IGRP': np.int64, 'WEIGHT': np.float64, 'CHI1_WEIGHT': np.float64})
     df = pd.merge(main_df, galprops_df, left_index=True, right_index=True, validate='1:1')
 
     # Drop bad data, should have been cleaned up earlier though!

@@ -21,8 +21,10 @@ int NGAL;
 /* Local functions */
 void find_satellites(int icen, void *kd);
 float fluxlim_correction(float z);
+float get_wcen(int idx);
 float get_chi_weight(int idx);
 float get_bprob(int idx);
+float lgrp_to_matching_rank(int idx);
 
 /* Variables for determining if a galaxy is a satellite */
 int USE_BSAT = 0; // off by default
@@ -121,6 +123,7 @@ void groupfind()
         fscanf(fp, "%f", &GAL[i].propx);
       if (SECOND_PARAMETER == 2)
         fscanf(fp, "%f", &GAL[i].propx2);
+      GAL[i].weight = get_wcen(i);
       GAL[i].chiweight = get_chi_weight(i);
       GAL[i].bprob = get_bprob(i);
       fgets(aa, 1000, fp);
@@ -142,7 +145,8 @@ void groupfind()
     permanent_id = ivector(1, NGAL);
     for (i = 1; i <= NGAL; ++i)
     {
-      xtmp[i] = -(GAL[i-1].lum) * GAL[i-1].chiweight; // Used to not multiply by chiweight here and only in main iterations. But why not? TODO
+      // Used to not multiply by chiweight here. (only in main iterations). But why not? Seems reasonable here too.
+      xtmp[i] = -(GAL[i-1].lum) * GAL[i-1].chiweight; 
       itmp[i] = i-1;
 
       // just for kicks, give each galaxy a random luminosity 
@@ -231,20 +235,7 @@ void groupfind()
       GAL[j].igrp = -1;
       GAL[j].psat = 0;
       GAL[j].nsat = 0;
-      GAL[j].lgrp = GAL[j].lum * GAL[j].chiweight;
-
-      // Color-dependent weighting of centrals luminosities/stellar masses
-      weight = 1.0;
-      if (USE_WCEN)
-      {
-        if (GAL[j].color < 0.8)
-          // If colors not provided, this is what will be used
-          weight = 1 / pow(10.0, 0.5 * (1 + erf((log10(GAL[j].lum) - WCEN_MASS) / WCEN_SIG)) * WCEN_NORM);
-        else
-          weight = 1 / pow(10.0, 0.5 * (1 + erf((log10(GAL[j].lum) - WCEN_MASSR) / WCEN_SIGR)) * WCEN_NORMR);
-      }
-      GAL[j].weight = weight;
-
+      GAL[j].lgrp = GAL[j].lum; //* GAL[j].chiweight;
       flag[j] = 1;
     }
 
@@ -270,12 +261,9 @@ void groupfind()
       {
         GAL[i].igrp = i;
         ngrp++;
-        GAL[i].lgrp *= GAL[i].weight;
-        xtmp[ngrp] = -GAL[i].lgrp;
+        xtmp[ngrp] = lgrp_to_matching_rank(i);
         itmp[ngrp] = i;
         GAL[i].listid = ngrp;
-        if (FLUXLIM)
-          xtmp[ngrp] *= fluxlim_correction(GAL[i].redshift); // TODO Why apply correction to order but not lgrp entirely?
       }
     }
 
@@ -295,12 +283,9 @@ void groupfind()
       {
         ngrp++;
         GAL[j].igrp = j;
-        GAL[j].lgrp *= GAL[j].weight;
-        xtmp[ngrp] = -GAL[j].lgrp;
+        xtmp[ngrp] = lgrp_to_matching_rank(j);
         itmp[ngrp] = j;
         GAL[j].listid = ngrp;
-        if (FLUXLIM)
-          xtmp[ngrp] *= fluxlim_correction(GAL[j].redshift);
       }
     }
 
@@ -321,12 +306,9 @@ void groupfind()
         GAL[k].psat = 0.0;
         GAL[k].nsat = 0;
         GAL[k].lgrp = GAL[k].lum;      
-        GAL[k].lgrp *= GAL[k].weight;
-        xtmp[ngrp] = -GAL[k].lgrp;
+        xtmp[ngrp] = lgrp_to_matching_rank(k);
         itmp[ngrp] = k;
         GAL[k].listid = ngrp;
-        if (FLUXLIM)
-          xtmp[ngrp] *= fluxlim_correction(GAL[k].redshift);
       }
     }
     #ifndef OPTIMIZE
@@ -449,10 +431,10 @@ void groupfind()
     // the weight printed off here is only the color-dependent centrals weight
     // not the chi properties affected weight
     // TODO: should we change that?
-    printf("%d %f %f %f %e %e %f %e %d %e %d %e\n",
+    printf("%d %f %f %f %e %e %f %e %d %e %d %f %f\n",
             i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
             GAL[i].lum, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
-            GAL[i].nsat, GAL[i].lgrp, GAL[i].igrp, GAL[i].weight);
+            GAL[i].nsat, GAL[i].lgrp, GAL[i].igrp, GAL[i].weight, GAL[i].chiweight);
   }
   fflush(stdout);
   
@@ -619,6 +601,19 @@ float fluxlim_correction(float z) {
   //return pow(10.0, pow(z / 0.16, 2.5) * 0.6); // SDSS (sham mock)
 }
 
+// Color-dependent weighting of centrals luminosities/stellar masses
+float get_wcen(int idx) {
+  float weight = 1.0;
+  if (USE_WCEN)
+  {
+    if (GAL[idx].color < 0.8)
+      // If colors not provided, this is what will be used
+      weight = 1.0 / pow(10.0, 0.5 * (1 + erf((log10(GAL[idx].lum) - WCEN_MASS) / WCEN_SIG)) * WCEN_NORM);
+    else
+      weight = 1.0 / pow(10.0, 0.5 * (1 + erf((log10(GAL[idx].lum) - WCEN_MASSR) / WCEN_SIGR)) * WCEN_NORMR);
+  }
+  return weight;
+}
 
 float get_chi_weight(int idx) {
   float weight = 1.0;
@@ -657,4 +652,14 @@ float get_bprob(int idx) {
     bprob = 0.001;
 
   return bprob;
+}
+
+float lgrp_to_matching_rank(int idx) {
+  // Lgrp sums all unweighted luminosities (or stellar mass) in the group.
+  // For the abundance matching, we want the chi weight to be applied to the central only.
+  // The wcen weight is applied to the entire group luminosity.
+  float value = - (GAL[idx].lgrp - GAL[idx].lum + GAL[idx].lum*GAL[idx].chiweight) * GAL[idx].weight;
+  if (FLUXLIM)
+    value *= fluxlim_correction(GAL[idx].redshift);
+  return value;
 }

@@ -320,7 +320,7 @@ void print_fsat() {
   }
 
   // Ignore SILENT here
-  fprintf(stderr, "fsat total: %d\n", sats);
+  fprintf(stderr, "fsat total: %f\n", (float)nsats / (float)NGAL);
   fprintf(stderr, "fsat> bin fsat fsatr fsatb\n");
   for (i = 0; i < 40; ++i)
   {
