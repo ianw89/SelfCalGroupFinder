@@ -161,6 +161,34 @@ def LHMR_plots_logerr(*catalogs):
     plt.ylim(7,12)
     plt.draw()
 
+    # RED LHMR
+    plt.figure(dpi=DPI)
+    for f in catalogs:  
+        means = np.log10(f.centrals[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted))
+        scatter = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
+        plt.errorbar(np.log10(f.labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
+    plt.xlabel('($log_{10}(M_{halo})~[M_\\odot]$')
+    plt.ylabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.title("Red Central Luminosity vs. Halo Mass")
+    legend(catalogs)
+    plt.xlim(10,15)
+    plt.ylim(7,12)
+    plt.draw()
+
+    # BLUE LHMR
+    plt.figure(dpi=DPI)
+    for f in catalogs:
+        means = np.log10(f.centrals[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted))
+        scatter = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
+        plt.errorbar(np.log10(f.labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
+    plt.xlabel('($log_{10}(M_{halo})~[M_\\odot]$')
+    plt.ylabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.title("Blue Central Luminosity vs. Halo Mass")
+    legend(catalogs)
+    plt.xlim(10,15)
+    plt.ylim(7,12)
+    plt.draw()
+
     # RED LHMR Inverted
     plt.figure(dpi=DPI)
     for f in catalogs:

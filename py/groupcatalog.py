@@ -220,9 +220,11 @@ class GroupCatalog:
         def objective(trial: optuna.Trial) -> float:
             params = [
                 trial.suggest_float('omegaL_sf', 5, 20),
-                trial.suggest_float('sigma_sf', -5, 10),
+                #trial.suggest_float('sigma_sf', -5, 10), 
+                trial.suggest_float('sigma_sf', 0.1, 10),
                 trial.suggest_float('omegaL_q', 5, 20),
-                trial.suggest_float('sigma_q', -5, 10),
+                #trial.suggest_float('sigma_q', -5, 10),
+                trial.suggest_float('sigma_q', 0.1, 10),
                 trial.suggest_float('omega0_sf', -10, 20),
                 trial.suggest_float('omega0_q', -10, 20),
                 trial.suggest_float('beta0q', -20, 20),
@@ -235,13 +237,13 @@ class GroupCatalog:
         # Pruner is the hyper-hyper param
         if mcmc_num == 0:
             sampler = optuna.samplers.TPESampler(
-                n_startup_trials=512)
+                n_startup_trials=64)
         if mcmc_num == 1:
             sampler = optuna.samplers.QMCSampler()
         else:
             sampler = optuna.samplers.GPSampler(
                 independent_sampler=optuna.samplers.RandomSampler(),
-                n_startup_trials=512,
+                n_startup_trials=64,
                 deterministic_objective=True)
             
         study = optuna.create_study(
@@ -253,14 +255,14 @@ class GroupCatalog:
             #pruner=optuna.pruners.SuccessiveHalvingPruner() # Don't think pruner in use automatically
             )
         known_good = np.array([13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04])
-        study.enqueue_trial({'omegaL_sf':known_good[0], 'sigma_sf':known_good[1], 'omegaL_q':known_good[2], 'sigma_q':known_good[3], 'omega0_sf':known_good[4], 'omega0_q':known_good[5], 'beta0q':known_good[6], 'betaLq':known_good[7], 'beta0sf':known_good[8], 'betaLsf':known_good[9]})
-        study.enqueue_trial({'omegaL_sf': 13.03086801, 'sigma_sf': 1.85056851, 'omegaL_q': 8.92398122, 'sigma_q': -0.27906515, 'omega0_sf': 15.34144908, 'omega0_q': -1.27133105, 'beta0q': -0.59290738, 'betaLq': 14.81630656, 'beta0sf': 12.17260624, 'betaLsf': -6.73894304})
+        study.enqueue_trial({'omegaL_sf':known_good[0], 'sigma_sf':known_good[1], 'omegaL_q':known_good[2], 'sigma_q':known_good[3], 'omega0_sf':known_good[4], 'omega0_q':known_good[5], 'beta0q':known_good[6], 'betaLq':known_good[7], 'beta0sf':known_good[8], 'betaLsf':known_good[9]}, skip_if_exists=True)
+        #study.enqueue_trial({'omegaL_sf': 13.03086801, 'sigma_sf': 1.85056851, 'omegaL_q': 8.92398122, 'sigma_q': -0.27906515, 'omega0_sf': 15.34144908, 'omega0_q': -1.27133105, 'beta0q': -0.59290738, 'betaLq': 14.81630656, 'beta0sf': 12.17260624, 'betaLsf': -6.73894304})
 
         N=20
         # Enqueue some trials near known good values
         for i in range(N):
             values = known_good * (1 + 0.1 * np.random.randn(len(known_good)))
-            study.enqueue_trial({'omegaL_sf':values[0], 'sigma_sf':values[1], 'omegaL_q':values[2], 'sigma_q':values[3], 'omega0_sf':values[4], 'omega0_q':values[5], 'beta0q':values[6], 'betaLq':values[7], 'beta0sf':values[8], 'betaLsf':values[9]})
+            study.enqueue_trial({'omegaL_sf':values[0], 'sigma_sf':values[1], 'omegaL_q':values[2], 'sigma_q':values[3], 'omega0_sf':values[4], 'omega0_q':values[5], 'beta0q':values[6], 'betaLq':values[7], 'beta0sf':values[8], 'betaLsf':values[9]}, skip_if_exists=True)
 
         study.optimize(objective, n_trials=trials)
 
@@ -561,14 +563,20 @@ class GroupCatalog:
             # TODO Group Finder does not consistently return >0 for errors.
             if self.results.returncode != 0:
                 print(f"ERROR: Group Finder failed with return code {self.results.returncode}.")
-                
+                return False
+            
         if popmock:
-            self.lsat_groups = np.loadtxt(f'{self.output_folder}lsat_groups.out', skiprows=0, dtype='float')
+            if os.path.exists(f'{self.output_folder}lsat_groups.out'):
+                self.lsat_groups = np.loadtxt(f'{self.output_folder}lsat_groups.out', skiprows=0, dtype='float')
+            else:
+                print("Warning: popmock option was set, but lsat_groups.out was not found. Considering the run a failure.")
+                return False
             if os.path.exists(f'{self.output_folder}lsat_groups2.out'):
                 self.lsat_groups2 = np.loadtxt(f'{self.output_folder}lsat_groups2.out', skiprows=0, dtype='float')
 
         t2 = time.time()
         print(f"run_group_finder() took {t2-t1:.1f} seconds.")
+        return True
 
 
     def calc_wp_for_mock(self):
@@ -661,7 +669,7 @@ class GroupCatalog:
         vfac = (self.x_volume/MOCK_LENGTH**3)**.5 # factor by which to multiply errors
         efac = 0.1  # let's just add a constant fractional error bar
 
-        with np.printoptions(precision=2, suppress=True):
+        with np.printoptions(precision=0, suppress=True, linewidth=300):
             #print(f'PARAMETERS {self.GF_props}')
             chi = 0
             clustering_chisqr_r = []
@@ -706,8 +714,8 @@ class GroupCatalog:
                 chivec = (xim-xid)**2/(errd**2 + errm**2) 
                 clustering_chisqr_b.append(np.sum(chivec))
             
-            print("Red Clustering chi squared: ", np.array(clustering_chisqr_r))
-            print("Blue Clustering chi squared: ", np.array(clustering_chisqr_b))
+            print("Red Clustering χ^2: ", np.array(clustering_chisqr_r))
+            print("Blue Clustering χ^2: ", np.array(clustering_chisqr_b))
 
             # LSAT COMPARISON
 
@@ -741,7 +749,7 @@ class GroupCatalog:
 
             # Chi squared
             lsat_chisqr = (obs_ratio - model_ratio)**2 / obs_ratio_err**2 
-            print("LSat chi squared: ", lsat_chisqr)
+            print("LSat χ^2: ", lsat_chisqr)
 
             # TODO automate whether this is on or off depending on GF parameters?
             # This is for the second parameter (galaxy concentration)    
@@ -779,7 +787,7 @@ class GroupCatalog:
 
             # Print off the chi squared value and model info and return it 
             #print(f'MODEL {ncount}')
-            print(f'CHI^2: {chi:.2f}')
+            print(f'χ^2: {chi:.1f}')
             #os.system('date')
             sys.stdout.flush()
 
@@ -813,7 +821,10 @@ class GroupCatalog:
             self.GF_props['omega_chi_L_sf'] = params[12]
             self.GF_props['omega_chi_L_q'] = params[13]
 
-        self.run_group_finder(popmock=True, silent=True)
+        noerror = self.run_group_finder(popmock=True, silent=True)
+        if not noerror:
+            return np.inf
+        
         self.calc_wp_for_mock()
         overall, clust_r, clust_b, lsat = self.chisqr()
         return overall
@@ -1054,7 +1065,7 @@ class MXXLGroupCatalog(GroupCatalog):
     def run_group_finder(self, popmock=False, silent=False):
         if self.preprocess_file is None:
             self.preprocess()
-        super().run_group_finder(popmock=popmock, silent=silent)
+        return super().run_group_finder(popmock=popmock, silent=silent)
 
 
     def postprocess(self):
@@ -1105,7 +1116,7 @@ class UchuuGroupCatalog(GroupCatalog):
     def run_group_finder(self, popmock=False, silent=False):
         if self.preprocess_file is None:
             self.preprocess()
-        super().run_group_finder(popmock=popmock, silent=silent)
+        return super().run_group_finder(popmock=popmock, silent=silent)
 
 
     def postprocess(self):
@@ -1212,7 +1223,7 @@ class BGSGroupCatalog(GroupCatalog):
             self.preprocess(silent=silent)
         else:
             print("Skipping pre-processing")
-        super().run_group_finder(popmock=popmock, silent=silent)
+        return super().run_group_finder(popmock=popmock, silent=silent)
 
     def add_bootstrapped_f_sat(self, N_ITERATIONS = 100):
 
@@ -2281,7 +2292,6 @@ def Lgal_vmax_weighted(series):
     else:
         return np.average(series['L_GAL'], weights=1/series['VMAX'])
 
-# TODO not sure right way to do std error for this sort of data
 def LogLgal_std_vmax_weighted(series):
     if len(series) == 0:
         return 0

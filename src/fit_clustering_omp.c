@@ -566,6 +566,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
     }
 
     NHALO = filesize(fp);
+    if (!SILENT) fprintf(stderr, "popsim> NHALO=%d\n", NHALO);
     HALO = calloc(NHALO, sizeof(struct halo));
     for (i = 0; i < NHALO; ++i)
     {
@@ -661,6 +662,12 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
     }
     nsat = N_sat(mass, imag, blue_flag);
     n1 = poisson_deviate(nsat, thisTask);
+    // For a really bad set of parameters, we can get a huge number of satellites for some halos.
+    // Cap it so we don't print off a 10 Teraybyte file! Any MCMC or whatever will move on hopefully.
+    if (n1>1000) {
+      fprintf(stderr, "popsim> WARNING: giving %d sats as poisson deviation from nsat=%f for halo %d\n", n1, nsat, i);
+      n1 = 1000;
+    }
     for (j = 1; j <= n1; ++j)
     {
       NFW_position(mass, xg, thisTask);
