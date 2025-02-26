@@ -966,13 +966,13 @@ def proj_clustering_plot(gc: GroupCatalog, datafolder=PARAMS_SDSS_FOLDER):
         vfac = (gc.x_volume/250**3)**.5 # factor by which to multiply errors
         efac = 0.1
         err_mock = vfac[idx]*wp_err + efac*wp_mock
-        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='r', alpha=0.7)
-        #axes[idx].plot(np.log10(radius), np.log10(wp_mock), capsize=2, color='r', alpha=0.7)
+        #axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='r', alpha=0.7)
+        axes[idx].plot(np.log10(radius), np.log10(wp_mock), color='r', alpha=0.7)
 
         wp_mock = gc.__getattribute__(f'wp_mock_b_M{i}')[:,4]
         err_mock = vfac[idx]*wp_err + efac*wp_mock
-        axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='b', alpha=0.7)
-        #axes[idx].plot(np.log10(radius), np.log10(wp_mock), capsize=2, color='b', alpha=0.7)
+        #axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='b', alpha=0.7)
+        axes[idx].plot(np.log10(radius), np.log10(wp_mock), color='b', alpha=0.7)
 
         # Put text of the chisqr value in plot
         axes[idx].text(0.7, 0.9, f"$\chi^2_r$: {clust_r[i-MAG_START]:.1f}", transform=axes[idx].transAxes)
@@ -1819,8 +1819,81 @@ def write_z(galaxy):
     else:
         plt.text(galaxy.RA, galaxy['DEC'], "{0:.3f}".format(galaxy['Z']), size=textsize, color='k')
 
-def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord.Angle('7m'), zfilt=False):
+
+
+def examine_groups_near(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord.Angle('7m'), zfilt=None):
+
+    buffer_angle = coord.Angle('1m')
+    ra_map_max = (coord.Angle(target.RA*u.degree) + nearby_angle).value
+    ra_map_min = (coord.Angle(target.RA*u.degree) - nearby_angle).value
+    dec_map_max = (coord.Angle(target['DEC']*u.degree) + nearby_angle).value
+    dec_map_min = (coord.Angle(target['DEC']*u.degree) - nearby_angle).value
+
+    ra_max = (coord.Angle(target.RA*u.degree) + nearby_angle + buffer_angle).value
+    ra_min = (coord.Angle(target.RA*u.degree) - nearby_angle - buffer_angle).value
+    dec_max = (coord.Angle(target['DEC']*u.degree) + nearby_angle + buffer_angle).value
+    dec_min = (coord.Angle(target['DEC']*u.degree) - nearby_angle - buffer_angle).value
+
+    if zfilt:
+        z_min = target['Z'] - zfilt
+        z_max = target['Z'] + zfilt
+        nearby = data.query('RA < @ra_max and RA > @ra_min and DEC < @dec_max and DEC > @dec_min and Z > @z_min and Z < @z_max')
+
+        # Get rid of satellites whose central aren't in nearby
+        centrals = nearby.loc[~nearby['IS_SAT']]    
+        sats = nearby.loc[nearby['IS_SAT']]
+        prev_nsats = len(sats)
+        sats = sats.loc[sats['IGRP'].isin(centrals['IGRP'])]
+        #print(f"Removed {prev_nsats - len(sats)} satellites whose central wasn't in the nearby group")
+        nearby = pd.concat([centrals, sats])
+    else:
+        nearby = data.query('RA < @ra_max and RA > @ra_min and DEC < @dec_max and DEC > @dec_min')
+
+    # Generate a unique color for each group
+    unique_groups = nearby['IGRP'].unique()
+    group_colors = {group: plt.cm.tab20(i / len(unique_groups)) for i, group in enumerate(unique_groups)}
+
+    if len(nearby) <= 0:
+        print(f"Skipping empty plot")
+        return
     
+    sats = nearby.loc[nearby['IS_SAT']]
+    centrals = nearby.loc[~nearby['IS_SAT']]
+
+    fig, ax = plt.subplots(1)
+    fig.set_size_inches(10, 10)
+    ax.set_aspect('equal')
+
+    # Draw Halos
+    for k in range(len(centrals)):
+        current = centrals.iloc[k]
+        radius = current.halo_radius_arcsec / 3600  # arcsec to degrees, like the plot
+        circ = Circle((current.RA, current['DEC']), radius, color=group_colors[current['IGRP']], alpha=0.16)
+        ax.add_patch(circ)
+
+    scattered = plt.scatter(centrals.RA, centrals['DEC'], s=list(map(_getsize, centrals['Z'])), color=[group_colors[grp] for grp in centrals['IGRP']])
+    scattered = plt.scatter(sats.RA, sats['DEC'], s=list(map(_getsize, sats['Z'])), color=[group_colors[grp] for grp in sats['IGRP']], marker='s')
+
+    # Add redshift labels and M_HALO for centrals
+    for k in range(len(nearby)):
+        plt.text(nearby.iloc[k].RA, nearby.iloc[k]['DEC'], "{0:.3f}".format(nearby.iloc[k]['Z']), size=textsize)
+        plt.text(nearby.iloc[k].RA, nearby.iloc[k]['DEC'] - 0.004, "$B_s$={0:.3f}".format(nearby.iloc[k]['BSAT']), size=textsize)
+        if not nearby.iloc[k]['IS_SAT']:
+            plt.text(nearby.iloc[k].RA, nearby.iloc[k]['DEC'] - 0.0080, "$M_h$={0:.1f}".format(np.log10(nearby.iloc[k]['M_HALO'])), size=textsize)
+
+    plt.xlim(ra_map_min, ra_map_max)
+    plt.ylim(dec_map_min, dec_map_max)
+    plt.xlabel('RA')
+    plt.ylabel('DEC')
+    ax.set_xticks(np.linspace(ra_min, ra_max, num=7))
+    ax.set_xticklabels([f"{tick:.3f}°" for tick in ax.get_xticks()])
+    ax.set_yticks(np.linspace(dec_min, dec_max, num=7))
+    ax.set_yticklabels([f"{tick:.3f}°" for tick in ax.get_yticks()])
+    #plt.legend()
+    plt.draw()
+
+
+def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord.Angle('7m'), zfilt=False):
 
     z_eff = target['Z']
     #target_dist_true = z_to_ldist(target.z_obs)

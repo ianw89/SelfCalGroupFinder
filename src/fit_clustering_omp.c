@@ -15,6 +15,7 @@
 // Definitions
 #define NBINS 5 // This is the number of magnitude bins we use. // TNG has 6 bins
 #define NRANDOM 1000000
+#define MAX_SATELLITES 1000
 
 /* Global for the random numbers
  */
@@ -43,7 +44,6 @@ float REDSHIFT = 0.0,
 float NFW_position(float mass, float x[], int thisTask);
 float NFW_velocity(float mass, float v[], int thisTask);
 float NFW_density(float r, float rs, float ps);
-double poisson_prob(int n, float nave);
 int poisson_deviate(float nave, int thisTask);
 float halo_concentration(float mass);
 float N_sat(float m, int imag, int blue_flag);
@@ -545,10 +545,11 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
   long IDUM3 = -555, iseed = 555;
   FILE *outf;
   char fname[1000];
-  int j, n1, imag_offset, imag_mult, istart, iend;
+  int j, nsat_rand, imag_offset, imag_mult, istart, iend;
   float nsat, ncen, mass, xg[3], vg[3], xh[3], logm, bfit;
   // struct drand48_data drand_buf;
   double r;
+  int warned = 0;
 
   // First time setup - read mock's halo file
   if (imag < 0)
@@ -661,14 +662,19 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
               HALO[i].vx, HALO[i].vy, HALO[i].vz, 0, logm);
     }
     nsat = N_sat(mass, imag, blue_flag);
-    n1 = poisson_deviate(nsat, thisTask);
+    nsat_rand = poisson_deviate(nsat, thisTask);
+
     // For a really bad set of parameters, we can get a huge number of satellites for some halos.
     // Cap it so we don't print off a 10 Teraybyte file! Any MCMC or whatever will move on hopefully.
-    if (n1>1000) {
-      fprintf(stderr, "popsim> WARNING: giving %d sats as poisson deviation from nsat=%f for halo %d\n", n1, nsat, i);
-      n1 = 1000;
+    if (nsat_rand > MAX_SATELLITES) {
+      if (!warned) {
+        fprintf(stderr, "popsim> WARNING: giving %d sats for halo %d\n", nsat_rand, i);
+        warned = 1;
+      }
+      nsat_rand = MAX_SATELLITES;
     }
-    for (j = 1; j <= n1; ++j)
+
+    for (j = 1; j <= nsat_rand; ++j)
     {
       NFW_position(mass, xg, thisTask);
       NFW_velocity(mass, vg, thisTask);
@@ -702,6 +708,10 @@ void boxwrap_galaxy(float xh[], float xg[])
   }
 }
 
+/**
+ * Return the number of central galaxies for a halo of mass m
+ * in the magnitude bin imag and color. Uses the tabulated HOD.
+ */
 float N_cen(float m, int imag, int blue_flag)
 {
   int im;
@@ -727,6 +737,11 @@ float N_cen(float m, int imag, int blue_flag)
     return 0;
   return pow(10.0, yp);
 }
+
+/**
+ * Return the number of satellites for a halo of mass m in the given 
+ * magnitude bin and color. Uses the tabulated HOD.
+ */
 float N_sat(float m, int imag, int blue_flag)
 {
   int im;
@@ -749,36 +764,6 @@ float N_sat(float m, int imag, int blue_flag)
   if (yp <= -10)
     return 0;
   return pow(10.0, yp);
-}
-
-int poisson_deviate_old(float nave, int thisTask)
-{
-  // struct drand48_data drand_buf;
-  double p, pp;
-  double r;
-  int n;
-
-  if (nave > 50)
-  {
-    r = tabulated_uniform_random(thisTask);
-    return (int)(r * sqrt(nave) + nave);
-  }
-
-  p = 0;
-  pp = 1;
-
-  while (p < pp)
-  {
-    r = tabulated_uniform_random(thisTask);
-    if (nave < 1)
-      n = (int)(r * 20);
-    else
-      n = (int)(r * 30 * nave);
-    p = poisson_prob(n, nave);
-    pp = tabulated_uniform_random(thisTask);
-    // drand48_r(&drand_buf, &pp);
-  }
-  return (n);
 }
 
 //===========================================================================
@@ -810,20 +795,6 @@ int poisson_deviate(float x, int thisTask)
   }
 
   return (poi_value);
-}
-
-/* Poisson probability of n given n_average
- */
-double poisson_prob(int n, float nave)
-{
-  int i;
-  double fac = 1;
-
-  if (n > 0)
-    for (i = 1; i <= n; ++i)
-      fac *= nave / i;
-
-  return ((double)(fac * exp(-nave)));
 }
 
 float tabulated_gaussian_random(int thisTask)

@@ -6,6 +6,7 @@ import astropy.io.fits as fits
 from astropy.table import Table,join,vstack,unique,QTable
 import sys
 import pickle
+import subprocess
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -205,6 +206,37 @@ def read_fastspecfit_y1_reduced():
     hdul.close()
     return fastspecfit_table
 
+def add_photometric_columns(existing_table, version: str):
+    print(f"Adding extra photometric columns.")
+    if version == 'sv3':
+        photo_table = Table.read(BGS_SV3_COMBINED_PHOTOMETRIC_CATALOG, format='fits') # Contains SV3
+        photo_table = photo_table[photo_table['SURVEY'] == 'sv3']
+    elif version == '1':  
+        photo_table = Table.read(BGS_Y1_COMBINED_PHOTOMETRIC_CATALOG, format='fits') 
+    elif version == '3':
+        photo_table = Table.read(BGS_Y3_COMBINED_PHOTOMETRIC_CATALOG, format='fits')
+    else:
+        print("No other photometric tables available yet")
+    
+    final_table = join(existing_table, photo_table, join_type='inner', keys="TARGETID")
+
+    # Check if each rows that have some TARGETID have the same values in the columns 
+    #cols_to_check = ['TARGETID', 'FRACFLUX_G', 'FRACFLUX_R', 'FRACFLUX_Z', 'SHAPE_E1', 'SHAPE_E2', 'SHAPE_R_IVAR', 'SHAPE_E1_IVAR', 'SHAPE_E2_IVAR', 'SERSIC', 'SERSIC_IVAR']
+    #test_set = final_table[0:100000]
+    #test_set = test_set[test_set['PROGRAM'] == 'bright']
+    #test_set.keep_columns(cols_to_check)
+    #results = test_set.group_by('TARGETID').groups.aggregate(lambda x: np.all(np.isclose(x, x[0])))
+    #for c in cols_to_check[1:]:
+    #    print(f"Checking column {c}")
+    #    assert np.all(results[c])
+
+    # There are duplicates in photometric table as it combined all surveys and potential / observed tables. 
+    final_table = unique(final_table, 'TARGETID')
+    
+    print(f"  Original len={len(existing_table):,}, photometric len={len(photo_table):,}, final len={len(final_table):,}.")
+
+    return final_table
+
 def add_fastspecfit_columns(main_table, version:str):
     if version == 'sv3':
         fastspecfit_table = read_fastspecfit_sv3()
@@ -267,17 +299,18 @@ def add_NTILE_MINE_to_table(table_file :str|Table, year: str):
 
 
 def create_merged_file(orig_table_file : str, merged_file : str, year : str):
-    orig_table = Table.read(orig_table_file, format='fits')
-    print(f"Read {len(orig_table)} galaxies from {orig_table_file}")
+    table = Table.read(orig_table_file, format='fits')
+    print(f"Read {len(table)} galaxies from {orig_table_file}")
 
-    # The lost galaxies will not have fastspecfit rows I think
-    table = add_fastspecfit_columns(orig_table, year)
-
-    del(orig_table)
+    # The lost galaxies will not have fastspecfit rows as they have no spectra
+    table = add_fastspecfit_columns(table, year)
 
     # Filter to needed columns only and save
     table.keep_columns(['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'MASKBITS'])
     table.rename_column('Z_not4clus', 'Z')
+    table.write(merged_file, format='fits', overwrite='True')
+
+    table = add_photometric_columns(table, year)
     table.write(merged_file, format='fits', overwrite='True')
 
     add_mag_columns(table)

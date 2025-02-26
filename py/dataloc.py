@@ -79,6 +79,7 @@ UCHUU_FILE = UCHUU_FILES_FOLDER + "BGS_LC_Uchuu.fits"
 
 # BGS SV3 DATA FILES
 ###################
+BGS_SV3_COMBINED_PHOTOMETRIC_CATALOG = BGS_FUJI_FOLDER + "targetphot-fuji-combined.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/SV3/LSS/fuji/LSScats/3.1/BGS_ANY_full.dat.fits
 BGS_SV3_ANY_FULL_FILE = BGS_FUJI_FOLDER + "BGS_ANY_full.dat.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/SV3/LSS/fuji/LSScats/3.1/BGS_ANY_X_full.ran.fits where X is 0 to 17
@@ -99,6 +100,10 @@ BGS_SV3_CLUSTERING_RAND_FILE = BGS_FUJI_FOLDER + "BGS_BRIGHT_N_X_clustering.ran.
 
 # BGS Y1 DATA FILES
 ###################
+# File was acquired from /global/cfs/cdirs/desi/public/dr1/vac/dr1/lsdr9-photometry/iron/v1.1/observed-targets/targetphot-iron.fits
+# Files were acquired from /global/cfs/cdirs/desi/public/dr1/vac/dr1/lsdr9-photometry/iron/v1.1/potential-targets/...
+# Combination and reduce version of the previous files. See fetch_build_photometric_catalog.py
+BGS_Y1_COMBINED_PHOTOMETRIC_CATALOG = BGS_Y1_FOLDER + "targetphot-iron-combined.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.5/BGS_ANY_full.dat.fits
 BGS_ANY_FULL_FILE = BGS_Y1_FOLDER + "BGS_ANY_full.dat.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.2/BGS_ANY_full.dat.fits
@@ -120,6 +125,7 @@ IAN_BGS_MERGED_FILE_OLD = BGS_Y1_FOLDER + "ian_BGS_merged.fits~"
 # BGS Y3 DATA FILES
 ###################
 # TODO get fastspecfit when available
+BGS_Y3_COMBINED_PHOTOMETRIC_CATALOG = BGS_Y3_FOLDER_LOA + "targetphot-loa-combined.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v1.1/BGS_ANY_full.dat.fits
 BGS_Y3_ANY_FULL_FILE = BGS_Y3_FOLDER_KIBO + "BGS_ANY_full.dat.fits"
 # File was acquried from https://data.desi.lbl.gov/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v1.1/nonkp/BGS_BRIGHT_0_full.ran.fits
