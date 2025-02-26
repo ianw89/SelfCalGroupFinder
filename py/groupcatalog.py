@@ -607,7 +607,7 @@ class GroupCatalog:
         # Call corrfunc compiled executable to compute wp on the mock that was populated with the HOD extracted from this catalog
         for m in mass_range:
             for col in ["red", "blue"]:
-                cmd = f"{corrfunc_path}/wp {boxsize} mock_{col}_M{m}.dat a {WP_RADIAL_BINS_FILE} {pimax} {nthreads} > wp_mock_{col}_M{m}.dat 2> wp_stderr.txt"
+                cmd = f"{corrfunc_path}/wp {boxsize} mock_{col}_M{m}.dat a {WP_RADIAL_BINS_SDSS_FILE} {pimax} {nthreads} > wp_mock_{col}_M{m}.dat 2> wp_stderr.txt"
                 result = sp.run(cmd, cwd=self.output_folder, shell=True, check=True)
                 if result.returncode != 0:
                     print(f"Error running command: {cmd}")
@@ -658,7 +658,7 @@ class GroupCatalog:
     def calculate_projected_clustering_in_magbins(self, with_extra_randoms=False):
         pass
 
-    def chisqr(self):
+    def chisqr(self, datafolder=PARAMS_SDSS_FOLDER):
         """ 
         Evaluate the quality of the HOD implied by the group finder results
         by comparing a mock populated with the HOD to the external datasets.
@@ -685,7 +685,7 @@ class GroupCatalog:
 
             # TODO switch to self.wp_mock_r_M17, etc.
             for mag in mag_limits:
-                fname = PARAMS_FOLDER + 'wp_red_M'+"{:d}".format(mag)+'.dat'
+                fname = datafolder + 'wp_red_M'+"{:d}".format(mag)+'.dat'
                 data = ascii.read(fname, delimiter='\s', format='no_header')
                 xid = np.array(data['col2'][...], dtype='float')
                 errd = np.array(data['col3'][...], dtype='float')
@@ -700,7 +700,7 @@ class GroupCatalog:
                 chivec = (xim-xid)**2/(errd**2 + errm**2) 
                 clustering_chisqr_r.append(np.sum(chivec))
 
-                fname = PARAMS_FOLDER + 'wp_blue_M'+"{:2}".format(mag)+'.dat'
+                fname = datafolder + 'wp_blue_M'+"{:2}".format(mag)+'.dat'
                 data = ascii.read(fname, delimiter='\s', format='no_header')
                 xid = np.array(data['col2'][...], dtype='float')
                 errd = np.array(data['col3'][...], dtype='float')
@@ -755,7 +755,7 @@ class GroupCatalog:
             # This is for the second parameter (galaxy concentration)    
             """
             # now do lsat vs second parameter BLUE
-            fname = PARAMS_FOLDER + "lsat_sdss_con.dat"
+            fname = datafolder + "lsat_sdss_con.dat"
             data = ascii.read(fname, delimiter='\s', format='no_header')
             y = np.array(data['col2'][...], dtype='float')
             e = np.array(data['col3'][...], dtype='float')
@@ -769,7 +769,7 @@ class GroupCatalog:
             chi = chi + np.sum(chivec)
                 
             # now do lsat vs second parameter RED
-            fname = PARAMS_FOLDER + "lsat_sdss_con.dat"
+            fname = datafolder + "lsat_sdss_con.dat"
             data = ascii.read(fname, delimiter='\s', format='no_header')
             y = np.array(data['col4'][...], dtype='float')
             e = np.array(data['col5'][...], dtype='float')

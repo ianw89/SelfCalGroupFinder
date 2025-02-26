@@ -1,3 +1,5 @@
+import os
+
 ###################################################
 # Information on where files are located
 ###################################################
@@ -6,13 +8,15 @@
 
 # This is the root folder of this repository; update it to your own path
 #BASE_FOLDER = '/Users/ianw89/Repos/SelfCalGroupFinder/'
-BASE_FOLDER = '/mount/sirocco1/imw2293/GROUP_CAT/'
+BASE_FOLDER = os.environ["HOME"] + '/'
 REPO_FOLDER = BASE_FOLDER + 'SelfCalGroupFinder/'
 
 # Subfolders
 BIN_FOLDER = REPO_FOLDER + 'bin/'
 PY_SRC_FOLDER = REPO_FOLDER + 'py/'
 PARAMS_FOLDER = PY_SRC_FOLDER + 'parameters/'
+PARAMS_SDSS_FOLDER = PARAMS_FOLDER + 'sdss/'
+PARAMS_BGSY1_FOLDER = PARAMS_FOLDER + 'bgs_y1/'
 OUTPUT_FOLDER = BASE_FOLDER + 'OUTPUT/'
 #OUTPUT_FOLDER = "/Volumes/Seagate Backup Plus Drive/galaxy-groups-data/OUTPUT/"
 DATA_FOLDER = BASE_FOLDER + 'DATA/'
@@ -31,10 +35,12 @@ K_CORR_PARAMETERS = PY_SRC_FOLDER + 'kcorr/parameters'
 
 # Parameter Files
 #################
-WP_RADIAL_BINS_FILE = PARAMS_FOLDER + 'wp_rbins.dat'
+WP_RADIAL_BINS_SDSS_FILE = PARAMS_SDSS_FOLDER + 'sdss/wp_rbins.dat'
+WP_RADIAL_BINS_DESI_FILE = PARAMS_BGSY1_FOLDER + 'bgs_y1/wp_rbins_desi.dat'
+WP_RADIAL_EDGE_DESI_FILE = PARAMS_BGSY1_FOLDER + 'bgs_y1/wp_redges_desi.dat'
 HALO_MASS_FUNC_FILE = REPO_FOLDER + 'halo_mass_function.dat'
 LSAT_LOOKUP_FILE = REPO_FOLDER + 'lsat_lookup.dat'
-LSAT_OBSERVATIONS_FILE = PARAMS_FOLDER + 'Lsat_SDSS_DnGMM.dat'
+LSAT_OBSERVATIONS_FILE = PARAMS_SDSS_FOLDER + 'Lsat_SDSS_DnGMM.dat'
 MOCK_FILE_FOR_POPMOCK = DATA_FOLDER + 'POPMOCK/' + 'hosthalo_z0.0_M1e10_Lsat.dat'
 
 # SDSS Data Files
@@ -101,7 +107,7 @@ BGS_ANY_FULL_FILE_OLD = BGS_Y1_FOLDER + "BGS_ANY_full.dat.fits~"
 BGS_Y1_RAND_FILE = BGS_Y1_FOLDER + "BGS_ANY_X_full.ran.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/survey/catalogs/Y1/LSS/iron/LSScats/mainbw-bright-allTiles_v1.fits
 BGS_PROB_OBS_FILE = BGS_Y1_FOLDER + "mainbw-bright-allTiles_v1.fits"
-# File was acquired from Index of /public/dr1/vac/dr1/fastspecfit/iron/v2.1/catalogs/fastspec-iron-main-bright.fits
+# File was acquired from Index of /global/cfs/cdirs/desi/public/dr1/vac/dr1/fastspecfit/iron/v2.1/catalogs/fastspec-iron-main-bright.fits
 BGS_FASTSPEC_FILE = BGS_Y1_FOLDER + "fastspec-iron-main-bright.fits"
 # File was acquired from https://data.desi.lbl.gov/desi/spectro/redux/iron/tiles-iron.csv
 BGS_TILES_FILE = BGS_Y1_FOLDER + "tiles-iron.csv"
@@ -188,3 +194,10 @@ MY_RANDOMS_Y3_LIKESV3_CLUSTERING_MINI_20 = OUTPUT_FOLDER + "randoms_df_y3likesv3
 MY_RANDOMS_Y1_MINI = OUTPUT_FOLDER + "randoms_df_y1iron_mini.pkl"
 
 MY_RANDOMS_Y3_MINI = OUTPUT_FOLDER + "randoms_df_y3loa_mini.pkl"
+
+
+
+# CUSTOM CLUSTERING RESULTS DIRECTORY
+#######################################################
+
+CUSTOM_CLUSTERING_RESULTS_FOLDER = "/global/cfs/cdirs/desi/users/ianw89/clustering/"

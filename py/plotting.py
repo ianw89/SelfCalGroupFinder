@@ -936,8 +936,9 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     ax1.legend()
 
 
-def proj_clustering_plot(gc: GroupCatalog):
+def proj_clustering_plot(gc: GroupCatalog, datafolder=PARAMS_SDSS_FOLDER):
     # TODO BUG I'm not sure the error bars are right on this
+    # Yep they are wrong, my nersc one is right. See https://arxiv.org/pdf/1005.2413
     NUM = 4
     MAG_START = 18
     MAG_END = 21
@@ -952,11 +953,11 @@ def proj_clustering_plot(gc: GroupCatalog):
     for i in imag:
 
         # Data 
-        fname=PARAMS_FOLDER + f'wp_red_M{i:d}.dat'
+        fname=datafolder + f'wp_red_M{i:d}.dat'
         wp, wp_err, radius = read_wp_file(fname)
         axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='r', capsize=2, ecolor='k', alpha=1.0)
 
-        fname=PARAMS_FOLDER + 'wp_blue_M'+"{:d}".format(i)+'.dat'
+        fname=datafolder + 'wp_blue_M'+"{:d}".format(i)+'.dat'
         wp, wp_err, radius = read_wp_file(fname)
         axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='b', capsize=2, ecolor='k', alpha=1.0)
 
