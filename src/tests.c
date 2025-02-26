@@ -52,9 +52,9 @@ void test_psat() {
     gal.redshift = 0.1;
     gal.rco = distance_redshift(gal.redshift);
     update_galaxy_halo_props(&gal);
-    float arcmin = 0.5; // like 50kpc out
+    float arcmin = 0.5; // ~54kpc out at z=0.1, ~134 at z=0.3
     float delta_z = 0.001;
-    float bprob = 10;
+    float bsat = 10;
     float p0,p1,p2,p3,p4,p5,p6,p7 = 0.0;
     float ang_sep = angular_separation(0.0, 0.0, 0.0, (arcmin/60.0)*(PI/180.0)); 
     float result, result2 = 0.0;
@@ -64,7 +64,7 @@ void test_psat() {
     printf("Test 1: mass=%e, proj_dist=%f', delta_z=%f\n", gal.mass, arcmin, delta_z);
     result = compute_p_proj_g(&gal, ang_sep);
     result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
-    p0 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bprob);
+    p0 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
     printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p0);
     assert(p0 < 0.5 && "psat should be less than 0.5");
 
@@ -73,7 +73,7 @@ void test_psat() {
     update_galaxy_halo_props(&gal);
     result = compute_p_proj_g(&gal, ang_sep);
     result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
-    p1 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bprob);
+    p1 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
     printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p1);
     assert(p1 > 0.5 && "psat should be greater than 0.5");
 
@@ -82,7 +82,7 @@ void test_psat() {
     update_galaxy_halo_props(&gal);
     result = compute_p_proj_g(&gal, ang_sep);
     result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
-    p2 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bprob);
+    p2 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
     printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p2);
     assert(p2 > p1 && "psat should be greater than previous");
 
@@ -91,7 +91,7 @@ void test_psat() {
     update_galaxy_halo_props(&gal);
     result = compute_p_proj_g(&gal, ang_sep);
     result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
-    p3 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bprob);
+    p3 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
     printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p3);
     assert(p3 > p2 && "psat should be greater than previous");
 
@@ -102,7 +102,7 @@ void test_psat() {
     printf("Test 5: mass=%e, proj_dist=%f', delta_z=%f\n", gal.mass, arcmin, delta_z);
     result = compute_p_proj_g(&gal, ang_sep);
     result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
-    p4 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bprob);    
+    p4 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);    
     printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p4);
     assert(p4 < p3 && "psat should go down compared to equivalent test at closer redshift");
     
@@ -111,7 +111,7 @@ void test_psat() {
     printf("Test 6: mass=%e, proj_dist=%f', delta_z=%f\n", gal.mass, arcmin, delta_z);
     result = compute_p_proj_g(&gal, ang_sep);
     result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
-    p5 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bprob);    
+    p5 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);    
     printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p5);
     assert(p5 > p4 && "psat should up compared to previous since small angular separation");  
 
@@ -119,9 +119,21 @@ void test_psat() {
     printf("Test 7: mass=%e, proj_dist=%f', delta_z=%f\n", gal.mass, arcmin, delta_z);
     result = compute_p_proj_g(&gal, ang_sep);
     result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);    
-    p6 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bprob);
+    p6 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
     printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p6);
     assert(p6 < p5 && "psat should go down compared to previous since larger delta_z");  
+
+    delta_z = 0.01;
+    arcmin = 7.5; // a Mpc or so
+    gal.mass = 1E12;
+    ang_sep = angular_separation(0.0, 0.0, 0.0, (arcmin/60.0)*(PI/180.0));
+    bsat = 0.001; // Min value in formula for Bsat
+    printf("Test 8: mass=%e, proj_dist=%f', delta_z=%f, bsat=%f\n", gal.mass, arcmin, delta_z, bsat);
+    result = compute_p_proj_g(&gal, ang_sep);
+    result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
+    p7 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
+    printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p7);
+    assert(p7 < 0.5 && "even for very small bsat, it shouldn't be a satellite, when so far away");
 
     printf(" *** All psat tests passed.\n\n");
 }

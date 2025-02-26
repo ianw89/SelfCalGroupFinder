@@ -322,6 +322,12 @@ def get_app_mag(FLUX):
     """This converts nanomaggies into Pogson magnitudes"""
     return 22.5 - 2.5*np.log10(FLUX)
 
+    #g = 22.5 - 2.5*np.log10(gflux.clip(1e-16))
+    #r = 22.5 - 2.5*np.log10(rflux.clip(1e-16))
+    #z = 22.5 - 2.5*np.log10(zflux.clip(1e-16))
+    #w1 = 22.5 - 2.5*np.log10(w1flux.clip(1e-16))
+    #rfib = 22.5 - 2.5*np.log10(rfiberflux.clip(1e-16))
+
 def z_to_ldist(zs):
     """
     Gets the luminosity distance of the provided redshifts in Mpc.

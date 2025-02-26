@@ -51,23 +51,33 @@ GF_PROPS_BGS_VANILLA = {
     'fluxlim':2,
     'color':1,
 }
+
+GOOD_TEN_PARAMETERS = np.array([
+    [19.737870,6.394322,24.657218,11.571343,33.116540,9.403598,-3.755194,16.879988,9.941906,0.958446],
+    [13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04],
+    [20.266485,6.981479,20.417991,9.467296,30.750261,6.597792,-1.896981,16.674611,10.527099,1.341537],
+    ])
+
 GF_PROPS_BGS_COLORS = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
     'fluxlim':2,
     'color':1,
-    'omegaL_sf':13.1,
-    'sigma_sf':2.42,
-    'omegaL_q':12.9,
-    'sigma_q':4.84,
-    'omega0_sf':17.4,  
-    'omega0_q':2.67,    
-    'beta0q':-0.92,    
-    'betaLq':10.25,
-    'beta0sf':12.993,
-    'betaLsf':-8.04,
+    'omegaL_sf':GOOD_TEN_PARAMETERS[0][0],
+    'sigma_sf':GOOD_TEN_PARAMETERS[0][1],
+    'omegaL_q':GOOD_TEN_PARAMETERS[0][2],
+    'sigma_q':GOOD_TEN_PARAMETERS[0][3],
+    'omega0_sf':GOOD_TEN_PARAMETERS[0][4],
+    'omega0_q':GOOD_TEN_PARAMETERS[0][5],
+    'beta0q':GOOD_TEN_PARAMETERS[0][6],
+    'betaLq':GOOD_TEN_PARAMETERS[0][7],
+    'beta0sf':GOOD_TEN_PARAMETERS[0][8],
+    'betaLsf':GOOD_TEN_PARAMETERS[0][9]
 }
+
+# Weird other good one
+#({'omegaL_sf': 13.03086801, 'sigma_sf': 1.85056851, 'omegaL_q': 8.92398122, 'sigma_q': -0.27906515, 'omega0_sf': 15.34144908, 'omega0_q': -1.27133105, 'beta0q': -0.59290738, 'betaLq': 14.81630656, 'beta0sf': 12.17260624, 'betaLsf': -6.73894304})
 
 class GroupCatalog:
 
@@ -176,7 +186,7 @@ class GroupCatalog:
             print("Starting fresh")
             # Start fresh using IC's centered around known good values
             if self.sampler.ndim == 10:
-                initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00])
+                initial = GOOD_TEN_PARAMETERS[1]
             elif self.sampler.ndim == 14:
                 initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
             
@@ -186,9 +196,9 @@ class GroupCatalog:
             spread_factor = 0.5
             p0 = initial + spread_factor * (np.random.randn(self.sampler.nwalkers, self.sampler.ndim) - 0.5)
             # set the first few walkers to the initial one, though
-            p0[0] = initial
-            p0[1] = initial
-            p0[2] = initial
+            p0[0] = GOOD_TEN_PARAMETERS[0]
+            p0[1] = GOOD_TEN_PARAMETERS[1]
+            p0[2] = GOOD_TEN_PARAMETERS[1]
             print(np.shape(p0))
 
             pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
@@ -233,7 +243,7 @@ class GroupCatalog:
                 trial.suggest_float('betaLsf', -20, 20)
             ]
             return self.run_and_calc_chisqr(params)
-
+        # 
         # Pruner is the hyper-hyper param
         if mcmc_num == 0:
             sampler = optuna.samplers.TPESampler(
@@ -252,24 +262,21 @@ class GroupCatalog:
             direction='minimize', 
             load_if_exists=True,
             sampler=sampler
-            #pruner=optuna.pruners.SuccessiveHalvingPruner() # Don't think pruner in use automatically
             )
-        known_good = np.array([13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04])
-        study.enqueue_trial({'omegaL_sf':known_good[0], 'sigma_sf':known_good[1], 'omegaL_q':known_good[2], 'sigma_q':known_good[3], 'omega0_sf':known_good[4], 'omega0_q':known_good[5], 'beta0q':known_good[6], 'betaLq':known_good[7], 'beta0sf':known_good[8], 'betaLsf':known_good[9]}, skip_if_exists=True)
-        #study.enqueue_trial({'omegaL_sf': 13.03086801, 'sigma_sf': 1.85056851, 'omegaL_q': 8.92398122, 'sigma_q': -0.27906515, 'omega0_sf': 15.34144908, 'omega0_q': -1.27133105, 'beta0q': -0.59290738, 'betaLq': 14.81630656, 'beta0sf': 12.17260624, 'betaLsf': -6.73894304})
+        # Enqueue some known good values from past experiments
+        for i in np.shape(GOOD_TEN_PARAMETERS)[0]:
+            study.enqueue_trial({'omegaL_sf':GOOD_TEN_PARAMETERS[i][0], 'sigma_sf':GOOD_TEN_PARAMETERS[i][1], 'omegaL_q':GOOD_TEN_PARAMETERS[i][2], 'sigma_q':GOOD_TEN_PARAMETERS[i][3], 'omega0_sf':GOOD_TEN_PARAMETERS[i][4], 'omega0_q':GOOD_TEN_PARAMETERS[i][5], 'beta0q':GOOD_TEN_PARAMETERS[i][6], 'betaLq':GOOD_TEN_PARAMETERS[i][7], 'beta0sf':GOOD_TEN_PARAMETERS[i][8], 'betaLsf':GOOD_TEN_PARAMETERS[i][9]}, skip_if_exists=True)
 
         N=20
         # Enqueue some trials near known good values
         for i in range(N):
-            values = known_good * (1 + 0.1 * np.random.randn(len(known_good)))
-            study.enqueue_trial({'omegaL_sf':values[0], 'sigma_sf':values[1], 'omegaL_q':values[2], 'sigma_q':values[3], 'omega0_sf':values[4], 'omega0_q':values[5], 'beta0q':values[6], 'betaLq':values[7], 'beta0sf':values[8], 'betaLsf':values[9]}, skip_if_exists=True)
+            for j in np.shape(GOOD_TEN_PARAMETERS)[0]:
+                values = GOOD_TEN_PARAMETERS[j] * (1 + 0.1 * np.random.randn(len(GOOD_TEN_PARAMETERS)))
+                study.enqueue_trial({'omegaL_sf':values[0], 'sigma_sf':values[1], 'omegaL_q':values[2], 'sigma_q':values[3], 'omega0_sf':values[4], 'omega0_q':values[5], 'beta0q':values[6], 'betaLq':values[7], 'beta0sf':values[8], 'betaLsf':values[9]}, skip_if_exists=True)
 
         study.optimize(objective, n_trials=trials)
 
-        print(study.best_params)  # E.g. {'x': 2.002108042}
-
-       # self.sampler = emcee.EnsembleSampler(nwalkers, ndim, self.lnprob, backend=backend)
-            
+        print(study.best_params)  # E.g. {'x': 2.002108042}            
 
     # --- log-likelihood
     def lnlike(self, theta):
@@ -1607,6 +1614,19 @@ def drop_SV3_passes(drop_passes: int, tileid: np.ndarray, unobserved: np.ndarray
                     unobserved = np.logical_or(unobserved, observed_by_this_tile)
     
     return unobserved
+
+def add_bsat_column(catalog: GroupCatalog):
+    bprob = 10
+    if 'beta0q' in catalog.GF_props:
+        beta0q = catalog.GF_props['beta0q']
+        beta0sf = catalog.GF_props['beta0sf']
+        betaLq = catalog.GF_props['betaLq']
+        betaLsf = catalog.GF_props['betaLsf']
+        bprob = np.zeros(len(catalog.all_data))
+        bprob = np.where(catalog.all_data['QUIESCENT'], beta0q + betaLq*(catalog.all_data['LOGLGAL']-9.5), beta0sf + betaLsf*(catalog.all_data['LOGLGAL']-9.5))
+        bprob = np.where(bprob < 0.001, 0.001, bprob)
+
+    catalog.all_data['BSAT'] = bprob
 
 
 def add_halo_columns(catalog: GroupCatalog):

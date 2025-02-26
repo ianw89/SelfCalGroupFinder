@@ -111,6 +111,12 @@ sdss_colors_v2_mcmc.GF_props = {
     'color':1,
 }
 
+sdss_colors_v2_desiparams_v1 = SDSSGroupCatalog("SDSS Colors v2 MCMC", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE)
+sdss_colors_v2_desiparams_v1.GF_props = GF_PROPS_BGS_COLORS
+sdss_colors_v2_desiparams_v1.GF_props['zmin'] = 0
+sdss_colors_v2_desiparams_v1.GF_props['zmax'] = 1.0
+sdss_colors_v2_desiparams_v1.GF_props['frac_area'] = 0.179
+
 sdss_published = SDSSPublishedGroupCatalog("SDSS Published")
 
 mxxl_all = MXXLGroupCatalog("All MXXL <19.5", Mode.ALL, 19.5, 20.0, False)
@@ -188,19 +194,33 @@ _cat = bgs_nn_sdsslike
 _cat.marker = '-'
 _cat.GF_props = GF_PROPS_BGS_VANILLA.copy()
 
-bgs_y1_pzp_2_4 = BGSGroupCatalog("Photo-z Plus v2.4 BGS Y1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=
+bgs_y1_pzp_2_4 = BGSGroupCatalog("BGS Y1 PZP v2.4 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=
  (8, [1.2938, 1.5467, 3.0134], [1.2229, 0.8628, 2.5882], [0.8706, 0.6126, 2.4447], [1.1163, 1.2938, 3.1650]))
 _cat = bgs_y1_pzp_2_4
 _cat.marker = '-'
-_cat.color = 'k'
+_cat.color = 'darkgreen'
 _cat.GF_props = GF_PROPS_BGS_VANILLA.copy()
 
-bgs_y3_pzp_2_4 = BGSGroupCatalog("Photo-z Plus v2.4 BGS Y3", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Kibo', extra_params=
+bgs_y1_pzp_2_4_c1 = BGSGroupCatalog("BGS Y1 PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=
+ (8, [1.2938, 1.5467, 3.0134], [1.2229, 0.8628, 2.5882], [0.8706, 0.6126, 2.4447], [1.1163, 1.2938, 3.1650]))
+_cat = bgs_y1_pzp_2_4_c1
+_cat.marker = '--'
+_cat.color = 'darkgreen'
+_cat.GF_props = GF_PROPS_BGS_COLORS.copy()
+
+bgs_y3_pzp_2_4 = BGSGroupCatalog("BGS Y3 PZP v2.4 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Kibo', extra_params=
 (8, [1.2938, 1.5467, 3.0134], [1.2229, 0.8628, 2.5882], [0.8706, 0.6126, 2.4447], [1.1163, 1.2938, 3.1650]))
-_cat.color = 'k'
-_cat.marker = '-'
-_cat.GF_props = GF_PROPS_BGS_VANILLA.copy()
+bgs_y3_pzp_2_4.color = 'darkorange'
+bgs_y3_pzp_2_4.marker = '-'
+bgs_y3_pzp_2_4.GF_props = GF_PROPS_BGS_VANILLA.copy()
 bgs_y3_pzp_2_4.GF_props['iterations'] = 7
+
+bgs_y3_pzp_2_4_c1 = BGSGroupCatalog("BGS Y3 PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Kibo', extra_params=
+(8, [1.2938, 1.5467, 3.0134], [1.2229, 0.8628, 2.5882], [0.8706, 0.6126, 2.4447], [1.1163, 1.2938, 3.1650]))
+bgs_y3_pzp_2_4_c1.color = 'darkorange'
+bgs_y3_pzp_2_4_c1.marker = '--'
+bgs_y3_pzp_2_4_c1.GF_props = GF_PROPS_BGS_COLORS.copy()
+bgs_y3_pzp_2_4_c1.GF_props['iterations'] = 7
 
 bgs_y3_fiberonly = BGSGroupCatalog("Observed BGS Y3 <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, data_cut='Y3-Kibo')
 _cat = bgs_y3_fiberonly
@@ -362,6 +382,7 @@ sdss_list : list[GroupCatalog] = [
     sdss_colors_v2,
     sdss_colors_chi_v2,
     sdss_bgscut,
+    sdss_colors_v2_desiparams_v1,
 ]
 uchuu_list : list[GroupCatalog] = [
     uchuu_all,
@@ -405,7 +426,9 @@ bgs_aux_list : list[GroupCatalog] = [
 ]
 bgs_y1_list : list[GroupCatalog] = [
     bgs_y1_pzp_2_4,
+    bgs_y1_pzp_2_4_c1,
 ]
 bgs_y3_list : list[GroupCatalog] = [
     bgs_y3_pzp_2_4,
+    bgs_y3_pzp_2_4_c1,
 ]
