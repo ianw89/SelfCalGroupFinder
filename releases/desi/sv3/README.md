@@ -26,7 +26,7 @@ Each row in the table is a single galaxy. The columns are:
 - **L_GAL (float64)**: luminosity in [solar luminosities / h^2] as converted from r-band absolute Mag.
 - **VMAX (float64)**: max volume this galaxy could be observed in based on L_GAL; intended for 1/VMAX corrections for this flux-limited sample.
 - **P_SAT (float64)**: a number between 0 and 1 indicating how likely this galaxy is to be a satellite as per the group finding algorithm. It is not a true probability; See the Tinker papers for details. When greater than 0.5 the galaxy is considered a satellite, and IS_SAT will be marked True.
-- **M_HALO (float64)**: group property - assigned halo mass (of entire group) in [solar masses] (Unsure about /h factor).
+- **M_HALO (float64)**: group property - assigned halo mass (of entire group) in [solar masses / h]
 - **N_SAT (int32)**: group property - the number of satellites in the group which this galaxy is part of.
 - **L_TOT (float64)**: group property - the total observed luminosity of the group in which this galaxy is part of [solar luminosities / h^2].
 - **IGRP (int64)**: group property - unique group identifier. All members of a group share this number.
@@ -46,10 +46,8 @@ plt.hist(df.loc[~df.IS_SAT, 'M_HALO'], bins=np.logspace(11, 15, 50))
 plt.loglog()
 ```
 
-Note that when converting redshifts to distances we use LCDM cosmology with Omega_M=0.25 and H=100.
+Note that when converting redshifts to distances we use flat LCDM cosmology with Omega_M=0.25 and H=100.
 
-**KNOWN BUGS**
+**KNOWN ISSUE**
 
-1. In a very small number of edge cases, `L_TOT` < `L_GAL` due to an undiagnosed issue.
-2. In a very small number of edge cases, `N_SAT` = -1 due to an undiagnosed issue. This may be related to #1.
-3. Though the number of groups (unique values of `IGRP`) should exact match the number of centrals galaxies (`IS_SAT==False`), they are slightly off from each other due to an undiagnosed issue that may be related to #1 and #2.
+1. There is some contamination of non-galaxy objects in the catalog. This is primarilly from the unobserved targets (no DESI spectra), which would have been filtered out due to a poor spectral fitting. 

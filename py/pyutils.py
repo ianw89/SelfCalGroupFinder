@@ -186,6 +186,7 @@ def mode_to_color(mode: Mode):
 
 # using _h one makes distances Mpc / h instead
 _cosmo_h = FlatLambdaCDM(H0=100, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
+_cosmo_h_m30 = FlatLambdaCDM(H0=100, Om0=0.30, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 _cosmo_mxxl = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 
 def get_cosmology():
@@ -386,6 +387,10 @@ def get_max_observable_z(abs_mags, m_cut):
     d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
 
     return z_at_value(_cosmo_h.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
+
+def get_max_observable_z_m30(abs_mags, m_cut):
+    d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
+    return z_at_value(_cosmo_h_m30.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
 
 def get_max_observable_z_mxxlcosmo(abs_mags, m_cut):
     # Use distance modulus

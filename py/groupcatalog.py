@@ -1192,9 +1192,9 @@ class BGSGroupCatalog(GroupCatalog):
             os.makedirs(self.output_folder)
         print("Pre-processing...")
         if self.data_cut == "Y1-Iron":
-            infile = IAN_BGS_MERGED_FILE
+            infile = IAN_BGS_Y1_MERGED_FILE
         elif self.data_cut == "Y1-Iron-v1.2":
-            infile = IAN_BGS_MERGED_FILE_OLD
+            infile = IAN_BGS_Y1_MERGED_FILE_OLD
         elif self.data_cut == "Y3-Kibo":
             infile = IAN_BGS_Y3_MERGED_FILE_KIBO
         elif self.data_cut == "Y3-Kibo-SV3Cut":
@@ -1336,6 +1336,7 @@ class BGSGroupCatalog(GroupCatalog):
             print("Randoms not available for this data cut.")
 
     def calculate_projected_clustering(self, with_extra_randoms=False):
+        raise NotImplemented("This code is old and likely wrong!")
 
         # TODO weights for fiber collisions corrections
 
@@ -1362,7 +1363,9 @@ class BGSGroupCatalog(GroupCatalog):
 
     def calculate_projected_clustering_in_magbins(self, with_extra_randoms=False):
         print("Calculating luminosity dependent clustering...")
-
+        raise NotImplemented("This code is old and likely wrong!")
+    
+        # BUG Wrong zmax per bin?
         #Mag-5log(h) < -14:  zmax theory=0.01650  zmax obs=0.015029
         #Mag-5log(h) < -15:  zmax theory=0.02595  zmax obs=0.027139
         #Mag-5log(h) < -16:  zmax theory=0.04067  zmax obs=0.043211
@@ -1408,6 +1411,7 @@ class BGSGroupCatalog(GroupCatalog):
             serialize(self)
             
     def add_jackknife_err_to_proj_clustering(self, with_extra_randoms=False, for_mag_bins=False):
+        raise NotImplemented("This code is old and likely wrong!")
 
         if self.data_cut != 'sv3' and self.data_cut != 'Y3-Kibo-SV3Cut' and self.data_cut != 'Y3-Loa-SV3Cut':
             print("Warning: add_jackknife_err_to_proj_clustering called for non-SV3 data cut. Skipping.")
@@ -1778,6 +1782,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             print("Extra parameters not provided for PHOTOZ_PLUS mode; will MCMC them.")
             NEIGHBORS = 10
             wants_MCMC = True
+    else:
+        print("Invalid mode. Exiting.")
+        exit(2)
 
 
     # Some versions of the LSS Catalogs use astropy's Table used masked arrays for unobserved spectral targets    

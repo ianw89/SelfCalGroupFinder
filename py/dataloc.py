@@ -8,7 +8,8 @@ import os
 
 # This is the root folder of this repository; update it to your own path
 #BASE_FOLDER = '/Users/ianw89/Repos/SelfCalGroupFinder/'
-BASE_FOLDER = os.environ["HOME"] + '/'
+#BASE_FOLDER = os.environ["HOME"] + '/'
+BASE_FOLDER = '/mount/sirocco1/imw2293/GROUP_CAT/'
 REPO_FOLDER = BASE_FOLDER + 'SelfCalGroupFinder/'
 
 # Subfolders
@@ -118,8 +119,8 @@ BGS_FASTSPEC_FILE = BGS_Y1_FOLDER + "fastspec-iron-main-bright.fits"
 BGS_TILES_FILE = BGS_Y1_FOLDER + "tiles-iron.csv"
 # This file is BUILT by running code in the BGS_study.ipynb notebook
 # It is a joined BGS file, with a filtered down set of rows and columns
-IAN_BGS_MERGED_FILE = BGS_Y1_FOLDER + "ian_BGS_merged.fits"
-IAN_BGS_MERGED_FILE_OLD = BGS_Y1_FOLDER + "ian_BGS_merged.fits~"
+IAN_BGS_Y1_MERGED_FILE = BGS_Y1_FOLDER + "ian_BGS_merged.fits"
+IAN_BGS_Y1_MERGED_FILE_OLD = BGS_Y1_FOLDER + "ian_BGS_merged.fits~"
 
 
 # BGS Y3 DATA FILES

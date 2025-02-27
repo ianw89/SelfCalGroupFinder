@@ -211,14 +211,17 @@ def add_photometric_columns(existing_table, version: str):
     if version == 'sv3':
         photo_table = Table.read(BGS_SV3_COMBINED_PHOTOMETRIC_CATALOG, format='fits') # Contains SV3
         photo_table = photo_table[photo_table['SURVEY'] == 'sv3']
+        jointype = 'left' # Just for SV3, because we have supplementary Y3 galaxies without rows in this...
     elif version == '1':  
         photo_table = Table.read(BGS_Y1_COMBINED_PHOTOMETRIC_CATALOG, format='fits') 
+        jointype = 'inner'
     elif version == '3':
         photo_table = Table.read(BGS_Y3_COMBINED_PHOTOMETRIC_CATALOG, format='fits')
+        jointype = 'inner'
     else:
         print("No other photometric tables available yet")
     
-    final_table = join(existing_table, photo_table, join_type='inner', keys="TARGETID")
+    final_table = join(existing_table, photo_table, join_type=jointype, keys="TARGETID")
 
     # Check if each rows that have some TARGETID have the same values in the columns 
     #cols_to_check = ['TARGETID', 'FRACFLUX_G', 'FRACFLUX_R', 'FRACFLUX_Z', 'SHAPE_E1', 'SHAPE_E2', 'SHAPE_R_IVAR', 'SHAPE_E1_IVAR', 'SHAPE_E2_IVAR', 'SERSIC', 'SERSIC_IVAR']
