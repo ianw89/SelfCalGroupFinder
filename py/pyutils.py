@@ -66,6 +66,23 @@ QUIESCENT_BINS = np.array([0.0, 1.0])
 
 DEGREES_ON_SPHERE = 41253
 
+MASKBITS = dict(
+    NPRIMARY   = 0x1,   # not PRIMARY
+    BRIGHT     = 0x2,
+    SATUR_G    = 0x4,
+    SATUR_R    = 0x8,
+    SATUR_Z    = 0x10,
+    ALLMASK_G  = 0x20,
+    ALLMASK_R  = 0x40,
+    ALLMASK_Z  = 0x80,
+    WISEM1     = 0x100, # WISE masked
+    WISEM2     = 0x200,
+    BAILOUT    = 0x400, # bailed out of processing
+    MEDIUM     = 0x800, # medium-bright star                  NOTHING has this at this point anyway
+    GALAXY     = 0x1000, # SGA large galaxy
+    CLUSTER    = 0x2000, # Cluster catalog source
+)
+
 class SuppressPrint:
     def __enter__(self):
         self._original_stdout = sys.stdout

@@ -1800,6 +1800,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     obj_type = get_tbl_column(table, 'SPECTYPE')
     deltachi2 = get_tbl_column(table, 'DELTACHI2')
+    ff_g = get_tbl_column(table, 'FRACFLUX_G')
+    ff_r = get_tbl_column(table, 'FRACFLUX_R')
+    ff_z = get_tbl_column(table, 'FRACFLUX_Z')
     dec = get_tbl_column(table, 'DEC', required=True)
     ra = get_tbl_column(table, 'RA', required=True)
     maskbits = get_tbl_column(table, 'MASKBITS')
@@ -1879,8 +1882,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     # Roughly remove HII regions of low z, high angular size galaxies (SGA catalog)
     if maskbits is not None and ref_cat is not None:
-        BITMASK_SGA = 0x1000 
-        sga_collision = (maskbits & BITMASK_SGA) != 0
+        sga_collision = (maskbits & MASKBITS['GALAXY']) != 0
         sga_central = ref_cat == b'L3'
         to_remove_blue = sga_collision & ~sga_central & (g_r_apparent < 0.8)
         print(f"{np.sum(to_remove_blue):,} galaxies ({np.sum(to_remove_blue) / len(dec) * 100:.2f}%) have a SGA collision, are not SGA centrals, and are blue enough to remove.")
@@ -1888,10 +1890,19 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     else:
         no_SGA_Issues = np.ones(len(dec), dtype=bool)
 
-    observed_requirements = np.all([galaxy_observed_filter, app_mag_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, no_SGA_Issues], axis=0)
+    ff_req = np.ones(len(dec), dtype=bool)
+    if ff_g is not None and ff_r is not None and ff_z is not None:
+        FF_CUT = 0.5 # LOW Z folks used 0.35 for this in target selection. LSSCats don't cut on it at all. 
+        ff_g_req = np.logical_or(ff_g < FF_CUT, np.isnan(ff_g))
+        ff_r_req = np.logical_or(ff_r < FF_CUT, np.isnan(ff_r))
+        ff_z_req = np.logical_or(ff_z < FF_CUT, np.isnan(ff_z))
+        ff_req = np.sum([ff_g_req, ff_r_req, ff_z_req], axis=0) >= 2 # Two+ bands with low enough fracflux required
+        print(f"{np.sum(~ff_req):,} galaxies ({np.sum(~ff_req) / len(dec) * 100:.2f}%) have fracflux in two bands too high to keep.")
 
-    # treat low deltachi2 as unobserved
-    treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, no_SGA_Issues, np.invert(deltachi2_filter)], axis=0)
+    observed_requirements = np.all([galaxy_observed_filter, app_mag_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, no_SGA_Issues, ff_req], axis=0)
+
+    # treat low deltachi2 as unobserved. Must pass the photometric quality control still.
+    treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, no_SGA_Issues, ff_req, np.invert(deltachi2_filter)], axis=0)
     #print(f"We have {np.count_nonzero(treat_as_unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
     unobserved = np.all([app_mag_filter, np.logical_or(unobserved, treat_as_unobserved)], axis=0)
 

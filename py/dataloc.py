@@ -36,9 +36,9 @@ K_CORR_PARAMETERS = PY_SRC_FOLDER + 'kcorr/parameters'
 
 # Parameter Files
 #################
-WP_RADIAL_BINS_SDSS_FILE = PARAMS_SDSS_FOLDER + 'sdss/wp_rbins.dat'
-WP_RADIAL_BINS_DESI_FILE = PARAMS_BGSY1_FOLDER + 'bgs_y1/wp_rbins_desi.dat'
-WP_RADIAL_EDGE_DESI_FILE = PARAMS_BGSY1_FOLDER + 'bgs_y1/wp_redges_desi.dat'
+WP_RADIAL_BINS_SDSS_FILE = PARAMS_SDSS_FOLDER + 'wp_rbins.dat'
+WP_RADIAL_BINS_DESI_FILE = PARAMS_BGSY1_FOLDER + 'wp_rbins_desi.dat'
+WP_RADIAL_EDGE_DESI_FILE = PARAMS_BGSY1_FOLDER + 'wp_redges_desi.dat'
 HALO_MASS_FUNC_FILE = REPO_FOLDER + 'halo_mass_function.dat'
 LSAT_LOOKUP_FILE = REPO_FOLDER + 'lsat_lookup.dat'
 LSAT_OBSERVATIONS_FILE = PARAMS_SDSS_FOLDER + 'Lsat_SDSS_DnGMM.dat'
