@@ -1687,16 +1687,16 @@ def get_footprint_fraction(data_cut, mode, num_passes_required):
     # These are calculated from randoms in BGS_study.ipynb
     if data_cut == "Y1-Iron" or data_cut == "Y1-Iron-v1.2":
         # For Y1-Iron  
-        FOOTPRINT_FRAC_1pass = 0.1876002 # 7739 degrees
-        FOOTPRINT_FRAC_2pass = 0.1153344 # 4758 degrees
-        FOOTPRINT_FRAC_3pass = 0.0649677 # 2680 degrees
-        FOOTPRINT_FRAC_4pass = 0.0228093 # 940 degrees
+        FOOTPRINT_FRAC_1pass = 0.1876002 # 7739 deg^2
+        FOOTPRINT_FRAC_2pass = 0.1153344 # 4758 deg^2
+        FOOTPRINT_FRAC_3pass = 0.0649677 # 2680 deg^2
+        FOOTPRINT_FRAC_4pass = 0.0228093 # 940 deg^2
         # 0% 5pass coverage
     elif data_cut == "Y3-Kibo" or data_cut == "Y3-Loa":
-        FOOTPRINT_FRAC_1pass = 0.30968189465008605 # 12775 degrees
-        FOOTPRINT_FRAC_2pass = 0.2859776210215015 # 11797 degrees
-        FOOTPRINT_FRAC_3pass = 0.23324031706784962 # 9621 degrees
-        FOOTPRINT_FRAC_4pass = 0.1148695997866822 # 4738 degrees
+        FOOTPRINT_FRAC_1pass = 0.30968189465008605 # 12775 deg^2
+        FOOTPRINT_FRAC_2pass = 0.2859776210215015 # 11797 deg^2
+        FOOTPRINT_FRAC_3pass = 0.23324031706784962 # 9621 deg^2
+        FOOTPRINT_FRAC_4pass = 0.1148695997866822 # 4738 deg^2
     elif data_cut == "sv3":
         # These are for the 18/20 patches being used. We dropped two due to poor Y3 overlap.
         FOOTPRINT_FRAC_1pass =  156.2628 / DEGREES_ON_SPHERE 
@@ -1892,12 +1892,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     ff_req = np.ones(len(dec), dtype=bool)
     if ff_g is not None and ff_r is not None and ff_z is not None:
-        FF_CUT = 0.5 # LOW Z folks used 0.35 for this in target selection. LSSCats don't cut on it at all. 
-        ff_g_req = np.logical_or(ff_g < FF_CUT, np.isnan(ff_g))
-        ff_r_req = np.logical_or(ff_r < FF_CUT, np.isnan(ff_r))
-        ff_z_req = np.logical_or(ff_z < FF_CUT, np.isnan(ff_z))
-        ff_req = np.sum([ff_g_req, ff_r_req, ff_z_req], axis=0) >= 2 # Two+ bands with low enough fracflux required
-        print(f"{np.sum(~ff_req):,} galaxies ({np.sum(~ff_req) / len(dec) * 100:.2f}%) have fracflux in two bands too high to keep.")
+       FF_CUT = 0.5 # LOW Z folks used 0.35 for this in target selection. LSSCats don't cut on it at all. 
+       ff_g_req = np.logical_or(ff_g < FF_CUT, np.isnan(ff_g))
+       ff_r_req = np.logical_or(ff_r < FF_CUT, np.isnan(ff_r))
+       ff_z_req = np.logical_or(ff_z < FF_CUT, np.isnan(ff_z))
+       ff_req = np.sum([ff_g_req, ff_r_req, ff_z_req], axis=0) >= 2 # Two+ bands with low enough fracflux required
+       print(f"{np.sum(~ff_req):,} galaxies ({np.sum(~ff_req) / len(dec) * 100:.2f}%) have fracflux in two bands too high to keep.")
 
     observed_requirements = np.all([galaxy_observed_filter, app_mag_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, no_SGA_Issues, ff_req], axis=0)
 

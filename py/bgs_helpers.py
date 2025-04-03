@@ -190,8 +190,26 @@ def read_fastspecfit_sv3():
     hdul.close()
     return fastspecfit_table
 
+# TODO Halpha, Hbeta
 def read_fastspecfit_y1_reduced():
     hdul = fits.open(BGS_FASTSPEC_FILE, memmap=True)
+    data = hdul[1].data
+    fastspecfit_table = Table([
+        data['TARGETID'], 
+        data['DN4000'], 
+        data['DN4000_MODEL'], 
+        data['ABSMAG01_SDSS_G'], 
+        data['ABSMAG01_SDSS_R'], 
+        data['SFR'], 
+        data['LOGMSTAR']
+        ], 
+        names=('TARGETID', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'SFR', 'LOGMSTAR'))
+    hdul.close()
+    return fastspecfit_table
+
+# TODO Halpha, Hbeta
+def read_fastspecfit_y3_reduced():
+    hdul = fits.open(BGS_Y3_FASTSPEC_FILE, memmap=True)
     data = hdul[1].data
     fastspecfit_table = Table([
         data['TARGETID'], 
@@ -243,8 +261,10 @@ def add_photometric_columns(existing_table, version: str):
 def add_fastspecfit_columns(main_table, version:str):
     if version == 'sv3':
         fastspecfit_table = read_fastspecfit_sv3()
-    else:
+    elif version == '1':
         fastspecfit_table = read_fastspecfit_y1_reduced()
+    elif version == '3':
+        fastspecfit_table = read_fastspecfit_y3_reduced()
     final_table = join(main_table, fastspecfit_table, join_type='left', keys="TARGETID")
     return final_table
 
