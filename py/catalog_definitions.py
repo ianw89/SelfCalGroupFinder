@@ -287,6 +287,10 @@ bgs_y3_like_sv3_pz_2_4 = BGSGroupCatalog("Photo-z Plus v2.4 BGS Y3 like-sv3", Mo
 bgs_y3_like_sv3_pz_2_4.GF_props = GF_PROPS_BGS_VANILLA.copy()
 bgs_y3_like_sv3_pz_2_4.color ='slateblue'
 
+bgs_y3_like_sv3_pz_2_4_c1 = BGSGroupCatalog("Photo-z Plus v2.4 BGS Y3 like-sv3 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=1, data_cut='Y3-Kibo-SV3Cut', sdss_fill=False, extra_params= PZP_PARAMS_V24)
+bgs_y3_like_sv3_pz_2_4_c1.GF_props = GF_PROPS_BGS_COLORS.copy()
+bgs_y3_like_sv3_pz_2_4_c1.color ='slateblue'
+
 bgs_y3_like_sv3_pz_2_5 = BGSGroupCatalog("Photo-z Plus v2.5 BGS Y3 like-sv3", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=1, data_cut='Y3-Kibo-SV3Cut', sdss_fill=False, extra_params=
  (10, [1.10, 1.5467, 3.0134], [1.2229, 0.8628, 2.5882], [0.8706, 0.6126, 2.4447], [1.1163, 1.2938, 3.1650]))
 bgs_y3_like_sv3_pz_2_5.GF_props = GF_PROPS_BGS_VANILLA.copy()
@@ -410,6 +414,7 @@ bgs_sv3_list : list[GroupCatalog] = [
     #bgs_sv3_pz_2_5_7p,
     #bgs_sv3_pz_3_1_7p,
     bgs_y3_like_sv3_pz_2_4,
+    bgs_y3_like_sv3_pz_2_4_c1,
     bgs_y3_like_sv3_fiberonly,
     bgs_y3_like_sv3_pz_2_0,
     bgs_y3_like_sv3_nn,
