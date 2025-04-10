@@ -5,25 +5,21 @@ import numpy as np
 import astropy.table as t
 import sys
 
-FUJI_VAC_ROOT = "/global/cfs/cdirs/desi/public/edr/vac/edr/lsdr9-photometry/fuji/v2.1/"
-IRON_PHOTO_VAC_ROOT = "/global/cfs/cdirs/desi/public/dr1/vac/dr1/lsdr9-photometry/iron/v1.1/"
-LOA_PHOTO_VAC_ROOT = "/pscratch/sd/i/ioannis/lsdr9/loa/"
 
-def main(reduction):
+def prepare_photo_vac(reduction):
     
     #################################
     # Setting up paths and variables #
     #################################
 
     if reduction == "fuji":
-        root = FUJI_VAC_ROOT
+        root = FUJI_PHOTO_VAC_ROOT
         todir = BGS_FUJI_FOLDER
         combined_fname = BGS_SV3_COMBINED_PHOTOMETRIC_CATALOG
         filelist = {
             f"{root}observed-targets/targetphot-{reduction}.fits": f"{todir}targetphot-{reduction}.fits",
             f"{root}potential-targets/targetphot-potential-fuji.fits": f"{todir}targetphot-potential-fuji.fits"
         }
-
 
     elif reduction == "iron":
         root = IRON_PHOTO_VAC_ROOT
@@ -38,7 +34,6 @@ def main(reduction):
             filelist[f"{root}potential-targets/targetphot-potential-nside2-hp{e:02d}-main-{reduction}.fits"] = f"{todir}targetphot-potential-nside2-hp{e:02d}-main-{reduction}.fits"
         #for i in [1, 2, 3]:
         #    filelist[f"{root}potential-targets/targetphot-potential-sv{i}-{reduction}.fits"] = f"{todir}targetphot-potential-sv{i}-{reduction}.fits"
-    
     
     elif reduction == "loa":
         root = LOA_PHOTO_VAC_ROOT
@@ -72,19 +67,22 @@ def main(reduction):
     # Fetching catalogs #
     #################################
 
-    for f in filelist:
-        frompath = f
-        topath = filelist[f]
-        if not os.path.exists(topath):
-            print(f"Fetching {frompath}")
-            try:
-                subprocess.run(f"scp -o ControlPath=bgconn ianw89@perlmutter.nersc.gov:{frompath} {topath}", shell=True, check=True)
-            except subprocess.CalledProcessError as e:
-                print(f"Error fetching {frompath}")
-                print(e)
-                exit(1)
-        else:
-            print(f"File already exists: {topath}")
+    if not ON_NERSC:
+        for f in filelist:
+            frompath = f
+            topath = filelist[f]
+            if not os.path.exists(topath):
+                print(f"Fetching {frompath}")
+                try:
+                    subprocess.run(f"scp -o ControlPath=bgconn ianw89@perlmutter.nersc.gov:{frompath} {topath}", shell=True, check=True)
+                except subprocess.CalledProcessError as e:
+                    print(f"Error fetching {frompath}")
+                    print(e)
+                    exit(1)
+            else:
+                print(f"File already exists: {topath}")
+    else:
+        print("On NERSC, so building here instead of copying.")
         
     """
     ##### Get Observed Photometric Catalog #####
@@ -145,7 +143,7 @@ def main(reduction):
     """
 
     #################################
-    # Combine all catalogs #
+    # Combine and reduce catalogs #
     #################################
     print("Combining BGS targets files")
 
@@ -153,7 +151,8 @@ def main(reduction):
         'SHAPE_E1', 'SHAPE_E2', 'SERSIC', 'SHAPE_R_IVAR', 'SHAPE_E1_IVAR', 'SHAPE_E2_IVAR', 'SERSIC_IVAR']
     
     main_tbl = None
-    for f in filelist.values():
+    lst = filelist.values() if not ON_NERSC else filelist.keys()
+    for f in lst:
         print("Processing ", f)
         tbl = t.Table.read(f)
         tbl.keep_columns(cols)
@@ -167,8 +166,7 @@ def main(reduction):
     print(f"Writing combined BGS targets file with {len(main_tbl)} entries")
     main_tbl.write(combined_fname, overwrite=True)
     
-    
-
+    return main_tbl
 
 
 
@@ -179,4 +177,4 @@ if __name__ == "__main__":
         exit(1)
     reduction = sys.argv[1]
 
-    main(reduction)
+    prepare_photo_vac(reduction)

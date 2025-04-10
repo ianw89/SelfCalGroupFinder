@@ -6,12 +6,12 @@ import astropy.io.fits as fits
 from astropy.table import Table,join,vstack,unique,QTable
 import sys
 import pickle
-import subprocess
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from pyutils import *
 from dataloc import *
+from fetch_build_photometric_catalog import prepare_photo_vac
 
 # I built this list of tiles by looking at https://www.legacysurvey.org/viewer-desi and viewing DESI EDR tiles (look for SV3)
 sv3_regions = [
@@ -152,10 +152,7 @@ def add_photz_columns(table_file :str, phot_z_file):
     final_table.remove_columns(['RA_2', 'DEC_2'])
     print(final_table.columns)
 
-    # TODO I should switch to having the merged file be pickle.dump of a DataFrame. 
-    # Only thing is NEAREST_TILEIDS cannot be a lit
-    final_table.write(table_file, format='fits', overwrite=True)
-
+    return final_table
 
 
 def table_to_df(table: Table):
@@ -173,67 +170,122 @@ def table_to_df(table: Table):
         })
 
     return df
-
+ 
 def read_fastspecfit_sv3():
+    # Small data, no need to reduce it a priori
     hdul = fits.open(BGS_SV3_FASTSPEC_FILE, memmap=True)
-    data = hdul[1].data
     fastspecfit_table = Table([
-        data['TARGETID'], 
-        data['DN4000'], 
-        data['DN4000_MODEL'], 
-        data['ABSMAG01_SDSS_G'], 
-        data['ABSMAG01_SDSS_R'], 
-        data['SFR'], 
-        data['LOGMSTAR']
+        hdul[1].data['TARGETID'], 
+        hdul[1].data['DN4000'], 
+        hdul[1].data['DN4000_MODEL'], 
+        hdul[1].data['ABSMAG01_SDSS_G'], 
+        hdul[1].data['ABSMAG01_IVAR_SDSS_G'], 
+        hdul[1].data['ABSMAG01_SDSS_R'], 
+        hdul[1].data['ABSMAG01_IVAR_SDSS_R'], 
+        hdul[1].data['SFR'], 
+        hdul[1].data['LOGMSTAR'],
+        hdul[1].data['HALPHA_EW'],
+        hdul[1].data['HALPHA_EW_IVAR'],
+        hdul[1].data['HBETA_EW'],
+        hdul[1].data['HBETA_EW_IVAR'],
         ], 
-        names=('TARGETID', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'SFR', 'LOGMSTAR'))
+        names=('TARGETID', 'DN4000','DN4000_MODEL','ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
     hdul.close()
     return fastspecfit_table
 
-# TODO Halpha, Hbeta
 def read_fastspecfit_y1_reduced():
-    hdul = fits.open(BGS_FASTSPEC_FILE, memmap=True)
-    data = hdul[1].data
-    fastspecfit_table = Table([
-        data['TARGETID'], 
-        data['DN4000'], 
-        data['DN4000_MODEL'], 
-        data['ABSMAG01_SDSS_G'], 
-        data['ABSMAG01_SDSS_R'], 
-        data['SFR'], 
-        data['LOGMSTAR']
-        ], 
-        names=('TARGETID', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'SFR', 'LOGMSTAR'))
-    hdul.close()
-    return fastspecfit_table
+    if not os.path.exists(BGS_Y1_FASTSPEC_FILE):
+        print (f"BGS_Y1_FASTSPEC_FILE does not exist. Building from '{NERSC_BGS_IRON_FASTSPECFIT_DIR}'")
+        orig = NERSC_BGS_IRON_FASTSPECFIT_DIR + "fastspec-iron-main-bright.fits"
+        hdul = fits.open(orig, memmap=True)
+        fastspecfit_table = Table([
+            hdul[1].data['TARGETID'], 
+            hdul[1].data['DN4000'], 
+            hdul[1].data['DN4000_MODEL'], 
+            hdul[1].data['ABSMAG01_SDSS_G'], 
+            hdul[1].data['ABSMAG01_IVAR_SDSS_G'], 
+            hdul[1].data['ABSMAG01_SDSS_R'], 
+            hdul[1].data['ABSMAG01_IVAR_SDSS_R'], 
+            hdul[1].data['SFR'], 
+            hdul[1].data['LOGMSTAR'],
+            hdul[1].data['HALPHA_EW'],
+            hdul[1].data['HALPHA_EW_IVAR'],
+            hdul[1].data['HBETA_EW'],
+            hdul[1].data['HBETA_EW_IVAR'],
+            ], 
+            names=('TARGETID', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
+        hdul.close()
+        fastspecfit_table.write(BGS_Y1_FASTSPEC_FILE, format='fits', overwrite=True)
+        return fastspecfit_table
 
-# TODO Halpha, Hbeta
+    return Table.read(BGS_Y1_FASTSPEC_FILE, format='fits')
+
 def read_fastspecfit_y3_reduced():
-    hdul = fits.open(BGS_Y3_FASTSPEC_FILE, memmap=True)
-    data = hdul[1].data
-    fastspecfit_table = Table([
-        data['TARGETID'], 
-        data['DN4000'], 
-        data['DN4000_MODEL'], 
-        data['ABSMAG01_SDSS_G'], 
-        data['ABSMAG01_SDSS_R'], 
-        data['SFR'], 
-        data['LOGMSTAR']
-        ], 
-        names=('TARGETID', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'SFR', 'LOGMSTAR'))
-    hdul.close()
-    return fastspecfit_table
+    if not os.path.exists(BGS_Y3_FASTSPEC_FILE):
+        print(f"BGS_Y3_FASTSPEC_FILE does not exist. Building from '{NERSC_BGS_LOA_FASTSPECFIT_DIR}'")
+        hp = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11']
+        filepattern = os.path.join(NERSC_BGS_LOA_FASTSPECFIT_DIR, "fastspec-loa-main-bright-nside1-hpXX.fits")
+        for h in hp:
+            filename = filepattern.replace("XX", h)
+            if os.path.exists(filename):
+                print(f"  Found {filename}")
+                hdul = fits.open(filename, memmap=True)
+                fastspecfit_table = Table([
+                    hdul[2].data['TARGETID'], 
+                    hdul[2].data['DN4000'], 
+                    hdul[2].data['DN4000_IVAR'], 
+                    hdul[2].data['DN4000_MODEL'], 
+                    hdul[2].data['DN4000_MODEL_IVAR'], 
+                    hdul[2].data['ABSMAG01_SDSS_G'], 
+                    hdul[2].data['ABSMAG01_IVAR_SDSS_G'], 
+                    hdul[2].data['ABSMAG01_SDSS_R'], 
+                    hdul[2].data['ABSMAG01_IVAR_SDSS_R'], 
+                    hdul[2].data['SFR'], 
+                    hdul[2].data['SFR_IVAR'], 
+                    hdul[2].data['LOGMSTAR'],
+                    hdul[2].data['LOGMSTAR_IVAR'],
+                    hdul[3].data['HALPHA_EW'],
+                    hdul[3].data['HALPHA_EW_IVAR'],
+                    hdul[3].data['HBETA_EW'],
+                    hdul[3].data['HBETA_EW_IVAR'],
+                    ], 
+                    names=('TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
+                hdul.close()
+                if h == hp[0]:
+                    all_fastspecfit_table = fastspecfit_table
+                else:
+                    all_fastspecfit_table = vstack([all_fastspecfit_table, fastspecfit_table])
+        
+        all_fastspecfit_table.write(BGS_Y3_FASTSPEC_FILE, format='fits', overwrite=True)
+        print(f"  Saved {len(all_fastspecfit_table)} rows to {BGS_Y3_FASTSPEC_FILE}")
+        return all_fastspecfit_table
+
+    return Table.read(BGS_Y3_FASTSPEC_FILE, format='fits')
 
 def add_photometric_columns(existing_table, version: str):
     print(f"Adding extra photometric columns.")
     if version == 'sv3':
-        photo_table = Table.read(BGS_SV3_COMBINED_PHOTOMETRIC_CATALOG, format='fits') # Contains SV3
+        if os.path.exists(BGS_SV3_COMBINED_PHOTOMETRIC_CATALOG):
+            photo_table = Table.read(BGS_SV3_COMBINED_PHOTOMETRIC_CATALOG, format='fits') # Contains SV3
+        else:
+            print(f"BGS_SV3_COMBINED_PHOTOMETRIC_CATALOG does not exist. Building...")
+            photo_table = prepare_photo_vac('fuji')
         photo_table = photo_table[photo_table['SURVEY'] == 'sv3']
         jointype = 'left' # Just for SV3, because we have supplementary Y3 galaxies without rows in this...
     elif version == '1':  
+        if os.path.exists(BGS_Y1_COMBINED_PHOTOMETRIC_CATALOG):
+            photo_table = Table.read(BGS_Y1_COMBINED_PHOTOMETRIC_CATALOG, format='fits')
+        else:
+            print(f"BGS_Y1_COMBINED_PHOTOMETRIC_CATALOG does not exist. Building...")
+            photo_table = prepare_photo_vac('iron')
         photo_table = Table.read(BGS_Y1_COMBINED_PHOTOMETRIC_CATALOG, format='fits') 
         jointype = 'inner'
     elif version == '3':
+        if os.path.exists(BGS_Y3_COMBINED_PHOTOMETRIC_CATALOG):
+            photo_table = Table.read(BGS_Y3_COMBINED_PHOTOMETRIC_CATALOG, format='fits')
+        else: 
+            print(f"BGS_Y3_COMBINED_PHOTOMETRIC_CATALOG does not exist. Building...")
+            photo_table = prepare_photo_vac('loa')
         photo_table = Table.read(BGS_Y3_COMBINED_PHOTOMETRIC_CATALOG, format='fits')
         jointype = 'inner'
     else:
@@ -269,7 +321,7 @@ def add_fastspecfit_columns(main_table, version:str):
     return final_table
 
 def read_tiles_Y1_main():
-    tiles_table = Table.read(BGS_TILES_FILE, format='csv')
+    tiles_table = Table.read(BGS_Y1_TILES_FILE, format='csv')
     tiles_table.keep_columns(['TILEID', 'FAFLAVOR', 'TILERA', 'TILEDEC'])
     tiles_df = pd.DataFrame({'RA': tiles_table['TILERA'].astype("<f8"), 'DEC': tiles_table['TILEDEC'].astype("<f8"), 'FAFLAVOR': tiles_table['FAFLAVOR'], 'TILEID': tiles_table['TILEID']})
     tiles_df = tiles_df[tiles_df.FAFLAVOR == 'mainbright']
@@ -321,28 +373,111 @@ def add_NTILE_MINE_to_table(table_file :str|Table, year: str):
     return table
 
 
-def create_merged_file(orig_table_file : str, merged_file : str, year : str):
+def create_merged_file(orig_table_file : str, merged_file : str, year : str, photoz_wspec=True):
     table = Table.read(orig_table_file, format='fits')
     print(f"Read {len(table)} galaxies from {orig_table_file}")
 
+    # Select required columned from LSS catalog 
+    table.keep_columns(['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS'])
+    table.rename_column('Z_not4clus', 'Z')
+
+    # Add additional derived columns from fastspecfit
     # The lost galaxies will not have fastspecfit rows as they have no spectra
     table = add_fastspecfit_columns(table, year)
 
-    # Filter to needed columns only and save
-    table.keep_columns(['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_R', 'MASKBITS'])
-    table.rename_column('Z_not4clus', 'Z')
+    # Save off progress so far
     table.write(merged_file, format='fits', overwrite='True')
 
+    # Add extra columns that were cut from LSS Catalogs from the photometric VAC
     table = add_photometric_columns(table, year)
     table.write(merged_file, format='fits', overwrite='True')
 
+    # Derive some luminosity / color related properties
     add_mag_columns(table)
     table.write(merged_file, format='fits', overwrite='True')
 
+    # Add information on the nearest tiles to each target for Npass filtering later
     add_NTILE_MINE_to_table(table, year)
     table.write(merged_file, format='fits', overwrite='True')
 
-    add_photz_columns(merged_file, IAN_PHOT_Z_FILE_WSPEC)
+    # Add photo-zs
+    if photoz_wspec:
+        table = add_photz_columns(merged_file, IAN_PHOT_Z_FILE_WSPEC)
+    else:
+        table = add_photz_columns(merged_file, IAN_PHOT_Z_FILE_NOSPEC)
+    table.write(merged_file, format='fits', overwrite=True)
+
+def get_objects_near_sv3_regions(gals_coord, radius_deg):
+    """
+    Returns a true/false array of len(gals_coord) that is True for objects within radius_deg 
+    of an SV3 region.
+    """
+    SV3_tiles = pd.read_csv(BGS_Y3_TILES_FILE, delimiter=',', usecols=['TILEID', 'FAFLAVOR', 'TILERA', 'TILEDEC', 'TILERA', 'TILEDEC'])
+    SV3_tiles = SV3_tiles.loc[SV3_tiles.FAFLAVOR == 'sv3bright']
+    SV3_tiles.reset_index(inplace=True)
+
+    # Cut to the regions of interest
+    center_ra = []
+    center_dec = []
+    for region in sv3_regions_sorted:
+        tiles = SV3_tiles.loc[SV3_tiles.TILEID.isin(region)]
+        center_ra.append(np.mean(tiles.TILERA))
+        center_dec.append(np.mean(tiles.TILEDEC))
+    
+    tiles_coord = coord.SkyCoord(ra=center_ra*u.degree, dec=center_dec*u.degree, frame='icrs')
+    idx, d2d, d3d = coord.match_coordinates_sky(gals_coord, tiles_coord, nthneighbor=1, storekdtree='kdtree_sv3_tiles')
+    ang_distances = d2d.to(u.degree).value
+
+    return ang_distances < radius_deg
+
+def supplement_sv3_merged_file_with_y3(orig_path, supplemental_path, combined_path):
+    sv3_table: Table = Table.read(orig_path, format='fits')
+    y3_table: Table = Table.read(supplemental_path, format='fits')
+
+    # Let's cut Y3 data down to targets somewhat close to SV3 regions
+    # No point in keeping rest and slowing down code
+    gals_coord = coord.SkyCoord(ra=y3_table['RA']*u.degree, dec=y3_table['DEC']*u.degree, frame='icrs')
+    close_array = get_objects_near_sv3_regions(gals_coord, 2.5) # 2.5 deg radius is generously around the center of each SV3 region
+    y3_table = y3_table[close_array]
+
+    print(f"{len(y3_table)} galaxies will be added for SV3 NN catalog")
+    assert (y3_table['NTILE_MINE'] > 9).sum() == 0, "Y3 shouldn't add any galaxies that will go into the catalog"
+
+    # if the y3 table doesn't have prob_obs as is the case in JURA, add a prob_obs with 0.5 for everything
+    #if 'PROB_OBS' not in y3_table.columns:
+    #    print("PROB_OBS column missing from Y3")
+    #    y3_table.add_column(np.full(len(y3_table), 0.5), name="PROB_OBS")
+
+    # Find targets in Y3 that are already in SV3
+    y3_in_sv3 = np.isin(y3_table['TARGETID'], sv3_table['TARGETID'])
+    sv3_in_y3 = np.isin(sv3_table['TARGETID'], y3_table['TARGETID'])
+    assert y3_in_sv3.sum() == sv3_in_y3.sum()
+    print(f"Common targets between Y3 and SV3: {y3_in_sv3.sum()}; {y3_in_sv3.sum() / len(y3_table):.2%} of Y3 cut and {sv3_in_y3.sum() / len(sv3_table):.2%} of SV3")
+
+    # Steal p_obs from SV3 for Y3 galaxies that are already in SV3
+    print(f"Stealing {y3_in_sv3.sum()} p_obs values from  Y3 galaxies for SV3")
+    sv3_table['PROB_OBS'][sv3_in_y3] = y3_table['PROB_OBS'][y3_in_sv3]
+    sv3_table['PROB_OBS'][~sv3_in_y3] = np.nan #0.689
+
+    # Remove rows from y3_table that have TARGETID already in sv3_table
+    print(f"Removing {y3_in_sv3.sum()} (of {len(y3_table)}) Y3 galaxies that are already in SV3 catalog")
+    y3_table.remove_rows(y3_in_sv3)
+
+    #colname = 'NEAREST_TILEIDS'
+    #print(sv3_table[colname].shape)
+    #print(y3_table[colname].shape)
+
+    sv3_table.remove_column('TILES')
+    y3_table.remove_column('TILES')
+
+    combined = vstack([sv3_table, y3_table], join_type='outer')
+
+    # Ensure resultant data is what we want
+    print(sv3_table.columns)
+    print(y3_table.columns)
+    print(combined.columns)
+
+    combined.write(combined_path, format='fits', overwrite=True)
 
 
 def fix_columns_in_phot_z_file(f):

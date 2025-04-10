@@ -2,16 +2,13 @@ import numpy as np
 import astropy.units as u
 import matplotlib as plt
 from astropy.cosmology import FlatLambdaCDM
-import astropy.coordinates as coord
 import time
 from enum import Enum
 from scipy import special
 import matplotlib.pyplot as plt
 import math
-from matplotlib.patches import Circle
 import pandas as pd
 import sys
-import multiprocessing as mp
 from scipy.special import erf
 import os
 

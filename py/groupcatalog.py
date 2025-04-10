@@ -1513,7 +1513,7 @@ def get_extra_bgs_fastspectfit_data():
     if os.path.isfile(fname):
         return pickle.load(open(fname, 'rb'))
     else:
-        hdul = fits.open(BGS_FASTSPEC_FILE, memmap=True)
+        hdul = fits.open(BGS_Y1_FASTSPEC_FILE, memmap=True)
         data = hdul[1].data
         fastspecfit_id = data['TARGETID']
         log_mstar = data['LOGMSTAR'].astype("<f8")
@@ -1525,30 +1525,6 @@ def get_extra_bgs_fastspectfit_data():
         pickle.dump(df, open(fname, 'wb'))
         return df
 
-
-def get_objects_near_sv3_regions(gals_coord, radius_deg):
-    """
-    Returns a true/false array of len(gals_coord) that is True for objects within radius_deg 
-    of an SV3 region.
-    """
-
-    SV3_tiles = pd.read_csv(BGS_Y3_TILES_FILE, delimiter=',', usecols=['TILEID', 'FAFLAVOR', 'TILERA', 'TILEDEC', 'TILERA', 'TILEDEC'])
-    SV3_tiles = SV3_tiles.loc[SV3_tiles.FAFLAVOR == 'sv3bright']
-    SV3_tiles.reset_index(inplace=True)
-
-    # Cut to the regions of interest
-    center_ra = []
-    center_dec = []
-    for region in sv3_regions_sorted:
-        tiles = SV3_tiles.loc[SV3_tiles.TILEID.isin(region)]
-        center_ra.append(np.mean(tiles.TILERA))
-        center_dec.append(np.mean(tiles.TILEDEC))
-    
-    tiles_coord = coord.SkyCoord(ra=center_ra*u.degree, dec=center_dec*u.degree, frame='icrs')
-    idx, d2d, d3d = coord.match_coordinates_sky(gals_coord, tiles_coord, nthneighbor=1, storekdtree='kdtree_sv3_tiles')
-    ang_distances = d2d.to(u.degree).value
-
-    return ang_distances < radius_deg
 
 def filter_SV3_to_avoid_edges(gc: GroupCatalog, INNER_RADIUS = 1.3):
     """
