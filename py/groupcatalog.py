@@ -1196,13 +1196,13 @@ class BGSGroupCatalog(GroupCatalog):
         elif self.data_cut == "Y1-Iron-v1.2":
             infile = IAN_BGS_Y1_MERGED_FILE_OLD
         elif self.data_cut == "Y3-Kibo":
-            infile = IAN_BGS_Y3_MERGED_FILE_KIBO
+            raise ValueError("Y3 Kibo no longer supported")
         elif self.data_cut == "Y3-Kibo-SV3Cut":
-            infile = IAN_BGS_Y3_MERGED_FILE_KIBO
+            raise ValueError("Y3 Kibo no longer supported")
         elif self.data_cut == "Y3-Loa":
-            raise ValueError("Loa not available yet")
+            infile = IAN_BGS_Y3_MERGED_FILE_LOA
         elif self.data_cut == "Y3-Loa-SV3Cut":
-            raise ValueError("Loa not available yet")
+            infile = IAN_BGS_Y3_MERGED_FILE_LOA_SV3CUT
         elif self.data_cut == "sv3":
             infile = IAN_BGS_SV3_MERGED_FILE
         else:
