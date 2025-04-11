@@ -123,6 +123,7 @@ BGS_Y3_FASTSPEC_FILE = BGS_Y3_FOLDER_LOA + "fastspec-loa-main-bright-ian.fits"
 BGS_Y3_COMBINED_PHOTOMETRIC_CATALOG = BGS_Y3_FOLDER_LOA + "targetphot-loa-combined.fits"
 IAN_BGS_Y3_MERGED_FILE_KIBO = BGS_Y3_FOLDER_KIBO + "ian_BGS_Y3_merged.fits"
 IAN_BGS_Y3_MERGED_FILE_LOA = BGS_Y3_FOLDER_LOA + "ian_BGS_Y3_merged.fits"
+IAN_BGS_Y3_MERGED_FILE_LOA_SV3CUT = BGS_Y3_FOLDER_LOA + "ian_BGS_Y3_merged-sv3cut.fits"
 
 # DESI LEGACY SURVEY PHOTOZ SWEEPS FILES
 ##################################
