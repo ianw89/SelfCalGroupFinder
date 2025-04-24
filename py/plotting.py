@@ -14,7 +14,7 @@ from groupcatalog import *
 
 
 DPI = 400
-FONT_SIZE_DEFAULT = 12
+FONT_SIZE_DEFAULT = 13
 
 LGAL_XMINS = [6E7]#[6E7, 3E8]
 

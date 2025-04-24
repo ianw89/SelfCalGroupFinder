@@ -1093,6 +1093,15 @@ def get_SDSS_Dcrit(logLgal):
 def get_ian_Dcrit(logLgal):
     return 1.411 + (0.171) * (1 + special.erf((logLgal - 9.795) / 0.775))
 
+def get_halpha_crit(logLgal):
+    # See BGS_Study.ipynb Halpha section
+    # This is for LOG10(HALPHA_EW)
+    A=0.959
+    B=-0.590
+    C=10.728
+    D=1.203
+    return A + B*(1 + erf((logLgal - C) / D))
+
 def is_quiescent_SDSS_Dn4000(logLgal, Dn4000):
     """
     Takes in two arrays of log Lgal and Dn4000 and returns an array 
