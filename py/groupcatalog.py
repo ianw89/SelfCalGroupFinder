@@ -2362,27 +2362,27 @@ def qf_Dn4000_1_6_vmax_weighted(series):
     if len(series) == 0:
         return 0
     else:
-        return np.average(is_quiescent_BGS_smart_hardvariant(series['LOGLGAL'], series['DN4000'], series['G_R']), weights=1/series['VMAX'])
+        return np.average(is_quiescent_BGS_dn4000_hardvariant(series['LOGLGAL'], series['DN4000'], series['G_R']), weights=1/series['VMAX'])
 
 def qf_Dn4000MODEL_1_6_vmax_weighted(series):
     if len(series) == 0:
         return 0
     else:
-        return np.average(is_quiescent_BGS_smart_hardvariant(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
+        return np.average(is_quiescent_BGS_dn4000_hardvariant(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
 
 
 def qf_Dn4000MODEL_smart_eq_vmax_weighted(series):
     if len(series) == 0:
         return 0
     else:
-        return np.average(is_quiescent_BGS_smart(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
+        return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
 
 
 def qf_Dn4000_smart_eq_vmax_weighted(series):
     if len(series) == 0:
         return 0
     else:
-        return np.average(is_quiescent_BGS_smart(series['LOGLGAL'], series['DN4000'], series.G_R), weights=1/series['VMAX'])
+        return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000'], series.G_R), weights=1/series['VMAX'])
 
 def qf_BGS_gmr_vmax_weighted(series):
     if len(series) == 0:

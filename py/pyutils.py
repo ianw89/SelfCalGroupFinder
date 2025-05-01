@@ -11,6 +11,8 @@ import pandas as pd
 import sys
 from scipy.special import erf
 import os
+from sklearn.mixture import GaussianMixture
+from sklearn.cluster import KMeans
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -1084,23 +1086,120 @@ def write_dat_files_v2(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_ba
 # Color Cuts
 ######################################
 
+# Function to fit a 2-component Gaussian Mixture Model to a property and plot the results
+def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_init=None):
+    def find_intersection(mean1, cov1, mean2, cov2):
+        # Coefficients of the quadratic equation (a*x^2 + b*x + c = 0)
+        a = 1 / cov1 - 1 / cov2
+        b = -2 * (mean1 / cov1 - mean2 / cov2)
+        c = (mean1**2 / cov1 - mean2**2 / cov2) - 2 * np.log(np.sqrt(cov2 / cov1))
+        
+        # Solve the quadratic equation
+        roots = np.roots([a, b, c])
+        return roots
+    
+    midpoints = []
+
+    for i in range(1, num_bins + 1):
+        galaxy_idx_for_this_bin = logLgal_bin_idx == i
+        binned_values = values[galaxy_idx_for_this_bin]
+
+        if len(binned_values) == 0:
+            continue
+
+        # Fit a Gaussian Mixture Model with 2 components
+        
+        gmm = GaussianMixture(n_components=2, tol=1e-4, max_iter=3000, means_init=means_init)
+        binned_values_reshaped = binned_values.reshape(-1, 1)
+        gmm.fit(binned_values_reshaped)
+
+        # Get the parameters of the fitted Gaussians
+        means = gmm.means_.flatten()
+        covariances = gmm.covariances_.flatten()
+        weights = gmm.weights_.flatten()
+
+        # Sort the means, covariances, and weights from smallest to largest mean
+        sorted_indices = np.argsort(means)
+        means = means[sorted_indices]
+        covariances = covariances[sorted_indices]
+        weights = weights[sorted_indices]
+
+        x = np.linspace(min, max, 1000)
+        model1 = weights[0] * np.exp(-0.5 * ((x - means[0]) ** 2) / covariances[0]) / np.sqrt(2 * np.pi * covariances[0])
+        model2 = weights[1] * np.exp(-0.5 * ((x - means[1]) ** 2) / covariances[1]) / np.sqrt(2 * np.pi * covariances[1])
+        #model3 = weights[2] * np.exp(-0.5 * ((x - means[2]) ** 2) / covariances[2]) / np.sqrt(2 * np.pi * covariances[2])
+
+        # Find the intersection points between the bluest and reddest gaussian, not the middle one
+        intersections = find_intersection(means[0], covariances[0], means[len(means)-1], covariances[len(means)-1])
+
+        # Plot the histogram and the fitted Gaussians
+        plt.figure(dpi=80, figsize=(10, 5))
+        bins = np.arange(min, max, (max-min)/200)
+        plt.hist(binned_values, bins=bins, density=True, alpha=0.6, label=f"Values")
+        plt.plot(x, model1 + model2, label='Gaussian Mixture Model')
+        plt.plot(x, model1, label='Gaussian 1')
+        plt.plot(x, model2, label='Gaussian 2')
+        #plt.plot(x, model3, label='Gaussian 3')
+        for intersection in intersections:
+            buffer = (max-min) * 0.2
+            if min+buffer <= intersection <= max-buffer:
+                midpoints.append(intersection)
+                plt.axvline(intersection, color='r', linestyle='--', label=f'Intersection at {intersection:.2f}')
+        plt.legend()
+        plt.xlabel('Value')
+        plt.ylabel('Density')
+        plt.title(f'{name} GMM for L {BGS_LOGLGAL_BINS[i-1]} - {BGS_LOGLGAL_BINS[i]}')
+        plt.show()
+
+        print(f"Bin {i}:")
+        print(f"Means: {means}")
+        print(f"Covariances: {covariances}")
+        print(f"Weights: {weights}")
+        print(f"Intersections: {intersections}")
+
+    if len(midpoints) != num_bins:
+        print("WARNING: Not all bins had easily identifiable good intersections.")
+    return midpoints
+
 def get_SDSS_Dcrit(logLgal):
+    # From Jeremy's Paper based on Sloan MGS
     return 1.42 + (0.35 / 2) * (1 + special.erf((logLgal - 9.9) / 0.8))
 
-# A=1.411, B=0.171, C=9.795, D=0.777
-# Fitted parameters: A=1.411, B=0.171, C=9.795, D=0.775
-# Very similar fit comapred to SDSS, might as well keep it the same and just use SDSS_Dcrit
-def get_ian_Dcrit(logLgal):
+def get_Dn4000_crit(logLgal):
+    # See BGS_Study.ipynb Ian's Dn4000 section
+    # This is for Dn4000_MODEL
+    # OLD: 1.411 B=0.171    C=9.795    D=0.775
+    A=1.377
+    B=0.181
+    C=9.881
+    D=1.108
     return 1.411 + (0.171) * (1 + special.erf((logLgal - 9.795) / 0.775))
 
 def get_halpha_crit(logLgal):
     # See BGS_Study.ipynb Halpha section
     # This is for LOG10(HALPHA_EW)
-    A=0.959
-    B=-0.590
-    C=10.728
-    D=1.203
-    return A + B*(1 + erf((logLgal - C) / D))
+    #Fitted parameters: A=0.959, B=-0.228, C=10.254, D=0.791
+    # Old: A=0.959, B=-0.228, C=10.254, D=0.791
+    #A=0.959
+    #B=-0.228
+    #C=10.254
+    #D=0.791
+    #return A + B*(1 + erf((logLgal - C) / D))
+    return np.repeat(np.log10(2.0), len(logLgal))
+
+def get_gmr_crit(logLgal):
+    # See BGS_Study.ipynb g-r section
+    # This is for k-corrected G-R
+    # Old: A=0.741 B=0.062 C=9.647 D=0.412
+    # Fitted parameters: A=0.760, B=0.052, C=9.707, D=0.342
+    if logLgal is None:
+        return GLOBAL_RED_COLOR_CUT
+    A=0.760
+    B=0.052
+    C=9.707
+    D=0.342
+    missing = np.isnan(logLgal)
+    return np.where(missing, GLOBAL_RED_COLOR_CUT, A + B*(1 + erf((logLgal - C) / D)))
 
 def is_quiescent_SDSS_Dn4000(logLgal, Dn4000):
     """
@@ -1110,7 +1209,7 @@ def is_quiescent_SDSS_Dn4000(logLgal, Dn4000):
     Dcrit = get_SDSS_Dcrit(logLgal)
     return Dn4000 > Dcrit
 
-def is_quiescent_BGS_smart(logLgal, Dn4000, gmr):
+def is_quiescent_BGS_dn4000(logLgal, Dn4000, gmr):
     """
     Takes in two arrays of log Lgal and Dn4000 and returns an array 
     indicating if the galaxies are quiescent using 2010.02946 eq 1
@@ -1122,7 +1221,7 @@ def is_quiescent_BGS_smart(logLgal, Dn4000, gmr):
     print(f"Dn4000 missing for {np.mean(np.isnan(Dn4000)):.1%}") # Broken?
     return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
 
-def is_quiescent_BGS_smart_hardvariant(logLgal, Dn4000, gmr):
+def is_quiescent_BGS_dn4000_hardvariant(logLgal, Dn4000, gmr):
     """
     Takes in two arrays of log Lgal and Dn4000 and returns an array 
     indicating if the galaxies are quiescent using Dn4000 < 1.6 
@@ -1134,16 +1233,80 @@ def is_quiescent_BGS_smart_hardvariant(logLgal, Dn4000, gmr):
     print(f"Dn4000 missing for {np.mean(np.isnan(Dn4000)):.1%}")
     return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
 
+def is_quiescent_BGS_kmeans(logLgal, Dn4000, halpha, ssfr, gmr):
+
+    if halpha is None or ssfr is None:
+        print("WARNING: Completely missing Halpha or SSFR; using the Dn4000 or G-R cuts instead of KMeans.")
+        return is_quiescent_BGS_dn4000(logLgal, gmr)
+        
+    results = np.zeros(len(logLgal), dtype=bool)
+
+    # Deal with missing spectroscopic data
+    missing = np.logical_or(np.isnan(Dn4000), np.isnan(halpha), np.isnan(ssfr))
+    results[missing] = is_quiescent_BGS_gmr(logLgal[missing], gmr[missing])
+    print(f"Missing SSFR, Halpha, or Dn4000 data for {np.mean(missing):.3%}")
+
+    # Extreme low Halpha and SSFR cuts
+    no_halpha = np.logical_or(halpha < 0.001, np.isnan(halpha))
+    no_ssfr = np.logical_or(np.log10(ssfr) < -14, np.isnan(ssfr))
+    dead = np.logical_or(no_halpha, no_ssfr)
+    results[dead] = True
+
+    c_halpha = np.log10(halpha[~dead])
+    # Already has a low cut from above
+    c_halpha = np.where(c_halpha > 3, 3, c_halpha)
+    #c_halpha = c_halpha - get_halpha_crit(df['LOG_L_GAL'][~dead])
+    c_halpha = c_halpha - np.log10(2.0) # 2 Angstrom cut
+
+    c_dn4000 = Dn4000[~dead]
+    c_dn4000 = np.where(c_dn4000 < 1.0, 1.0, c_dn4000)
+    c_dn4000 = np.where(c_dn4000 > 2.5, 2.5, c_dn4000)
+    c_dn4000 = c_dn4000 - get_Dn4000_crit(logLgal[~dead])
+
+    c_ssfr = np.log10(ssfr[~dead])
+    # Already has a low cut from above
+    c_ssfr = np.where(c_ssfr > -9, -9, c_ssfr)
+    c_ssfr = c_ssfr + 11 # -11 is the cut
+
+    c_gmr = gmr[~dead]
+    c_gmr = np.where(c_gmr < 0.0, 0.0, c_gmr)
+    c_gmr = np.where(c_gmr > 1.3, 1.3, c_gmr)
+    c_gmr = c_gmr - get_gmr_crit(logLgal[~dead])
+
+    # TODO Intelligent weighting: These are ~ad-hoc choices that put them in the same range and make sense to me
+    x = c_dn4000 * 1.0
+    y = c_halpha * 0.25
+    z = c_ssfr * 0.25
+    zz = c_gmr * 0.6
+    data = list(zip(x, y, z, zz))
+
+    # Print off 95% ranges of values, and the difference between the 2.5 and 97.5 percentiles
+    print(f"DN4000: {np.percentile(x, 2.5):.3f} to {np.percentile(x, 97.5):.3f} ({np.percentile(x, 97.5) - np.percentile(x, 2.5):.3f})")
+    print(f"Halpha: {np.percentile(y, 2.5):.3f} to {np.percentile(y, 97.5):.3f} ({np.percentile(y, 97.5) - np.percentile(y, 2.5):.3f})")
+    print(f"SSFR: {np.percentile(z, 2.5):.3f} to {np.percentile(z, 97.5):.3f} ({np.percentile(z, 97.5) - np.percentile(z, 2.5):.3f})")
+    print(f"G-R: {np.percentile(zz, 2.5):.3f} to {np.percentile(zz, 97.5):.3f} ({np.percentile(zz, 97.5) - np.percentile(zz, 2.5):.3f})")
+    # We want these to all be similar to weight equally in the classification
+
+    kmeans = KMeans(n_clusters=2)
+    kmeans.fit(data)
+
+    classification = kmeans.labels_
+    # Each run will give 0 or 1 a different meaning. Let's standardize it so 1 meads red and 0 is blue
+    if kmeans.cluster_centers_[0][0] > kmeans.cluster_centers_[1][0]:
+        classification = 1 - classification
+        
+    results[~dead] = classification
+
+    return results
+
 # This is read off of a 0.1^G-R plot I made using GAMA polynomial k-corr
 # This also works well for MXXL
 # TODO check this value after switching to DESI k-corr
 GLOBAL_RED_COLOR_CUT = 0.76 
 GLOBAL_RED_COLOR_CUT_NO_KCORR = 1.008
 
-# Turns out binning by logLGal doesn't change much
-# TODO after swithcing to DESI k-corrections, ensure this is still true
 BGS_LOGLGAL_BINS = [6.9, 9.0, 9.4, 9.7, 9.9, 10.1, 10.3, 10.7, 13.5]
-BINWISE_RED_COLOR_CUT = [0.76, 0.76, 0.77, 0.79, 0.77, 0.76, 0.76, 0.76, 0.76, 0.76]
+BGS_LOGLGAL_BINS = [6.9, 8.7, 9.1, 9.4, 9.7, 9.9, 10.1, 10.3, 10.7, 13.5]
 
 def is_quiescent_lost_gal_guess(gmr):
     # This better midpoint for g-r without k-corr. 
@@ -1160,11 +1323,11 @@ def is_quiescent_BGS_gmr(logLgal, G_R_k):
     """
 
     # This is the alternative implementation for using bins
-    #logLgal_idx = np.digitize(logLgal, BGS_LOGLGAL_BINS)
-    #per_galaxy_red_cut = BINWISE_RED_COLOR_CUT[logLgal_idx]
-    #return gmr < per_galaxy_red_cut
+
+    crit = get_gmr_crit(logLgal)
+    return G_R_k > crit
 
     # g-r: both are in mags, so more negative values of each are greater fluxes in those bands
     # So a more positive g-r means a redder galaxy
-    return G_R_k > GLOBAL_RED_COLOR_CUT
+    #return G_R_k > GLOBAL_RED_COLOR_CUT
 

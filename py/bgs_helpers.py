@@ -109,7 +109,7 @@ def add_mag_columns(table):
     G_R_k = abs_mag_G_k - abs_mag_R_k # based on the polynomial k-corr
     G_R_k_fastspecfit = table['ABSMAG01_SDSS_G'] - table['ABSMAG01_SDSS_R'] # based on fastspecfit k-corr
     G_R_BEST = np.where(np.isnan(G_R_k_fastspecfit), G_R_k, G_R_k_fastspecfit)
-    quiescent = is_quiescent_BGS_smart(log_L_gal, dn4000, G_R_BEST)
+    quiescent = is_quiescent_BGS_dn4000(log_L_gal, dn4000, G_R_BEST)
 
     table.add_column(app_mag_r, name='APP_MAG_R')
     table.add_column(app_mag_g, name='APP_MAG_G')
