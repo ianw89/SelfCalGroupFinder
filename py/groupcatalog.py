@@ -1646,7 +1646,7 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     np.put(abs_mag_G_k, idx, k_correct(abs_mag_G[idx], z_eff[idx], g_r_apparent[idx], band='g'))
     np.put(log_L_gal, idx, abs_mag_r_to_log_solar_L(abs_mag_R_k[idx]))
     G_R_k = abs_mag_G_k - abs_mag_R_k
-    np.put(quiescent, idx, is_quiescent_BGS_gmr(None, G_R_k[idx])) # We don't have DN4000_MODEL for lost galaxies anyway
+    np.put(quiescent, idx, is_quiescent_BGS_gmr(log_L_gal, G_R_k[idx])) # We don't have DN4000_MODEL for lost galaxies anyway
     return G_R_k
 
 def get_tbl_column(tbl, colname, required=False):

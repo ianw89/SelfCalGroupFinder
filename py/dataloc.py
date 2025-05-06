@@ -44,6 +44,8 @@ LSAT_LOOKUP_FILE = REPO_FOLDER + 'lsat_lookup.dat'
 LSAT_OBSERVATIONS_FILE = PARAMS_SDSS_FOLDER + 'Lsat_SDSS_DnGMM.dat'
 MOCK_FILE_FOR_POPMOCK = DATA_FOLDER + 'POPMOCK/' + 'hosthalo_z0.0_M1e10_Lsat.dat'
 
+QUIESCENT_MODEL = BIN_FOLDER + "kmeans_quiescent_model.pkl"
+
 # OTHER NERSC PATHS
 ######################
 NERSC_BGS_IRON_FASTSPECFIT_DIR = "/global/cfs/cdirs/desi/public/dr1/vac/dr1/fastspecfit/iron/v2.1/catalogs/"

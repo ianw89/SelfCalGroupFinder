@@ -82,14 +82,26 @@ def find_tiles_for_galaxies(tiles_df, gals_df, num_tiles_to_find):
     return ntiles_inside, nearest_tile_ids
 
 def add_mag_columns(table):
-    print("Adding magnitude columns to table.")
+    print("Adding magnitude and quiescent classification columns to table.")
     
+    # if the table doesn't have HALPHA or SFR, print a warning
+    if 'HALPHA_EW' not in table.columns or 'SFR' not in table.columns or 'LOGMSTAR' not in table.columns:
+        halpha = None
+        ssfr = None
+    else:
+        halpha = table['HALPHA_EW']
+        ssfr = table['SFR'] / np.power(10, table['LOGMSTAR'])
+
     # if the table doesn't have DN4000_MODEL, print a warning
     if 'DN4000_MODEL' not in table.columns:
-        print("Warning: DN4000_MODEL not in table. Color cut will only be based on g-r.")
         dn4000 = None
     else:
         dn4000 = table['DN4000_MODEL']
+
+    # If photo-z are not present, print a warning
+    if 'Z_PHOT' not in table.columns:
+        print("No photo-z present in table.")
+        return
 
     app_mag_r = get_app_mag(table['FLUX_R'])
     app_mag_g = get_app_mag(table['FLUX_G'])
@@ -100,6 +112,13 @@ def add_mag_columns(table):
     else:
         z_obs = table['Z']
 
+    # Where z_obs is nan, use the photo-z
+    speczcount = (~np.isnan(z_obs)).sum()
+    z_obs = np.where(np.isnan(z_obs), table['Z_PHOT'], z_obs)
+    stillmissing = np.isnan(z_obs).sum()
+    photozcount = (~np.isnan(z_obs)).sum() - speczcount
+    print(f"For absolute magnitude conversions, we have {speczcount} using spec-z, {photozcount} using photo-z, and {stillmissing} with neither.")
+
     # nans for lost galaxies will propagate through the calculations as desired
     abs_mag_R = app_mag_to_abs_mag(app_mag_r, z_obs)
     abs_mag_R_k = k_correct(abs_mag_R, z_obs, g_r, band='r')
@@ -109,11 +128,10 @@ def add_mag_columns(table):
     G_R_k = abs_mag_G_k - abs_mag_R_k # based on the polynomial k-corr
     G_R_k_fastspecfit = table['ABSMAG01_SDSS_G'] - table['ABSMAG01_SDSS_R'] # based on fastspecfit k-corr
     G_R_BEST = np.where(np.isnan(G_R_k_fastspecfit), G_R_k, G_R_k_fastspecfit)
-    quiescent = is_quiescent_BGS_dn4000(log_L_gal, dn4000, G_R_BEST)
-
-    table.add_column(app_mag_r, name='APP_MAG_R')
-    table.add_column(app_mag_g, name='APP_MAG_G')
-    table.add_column(abs_mag_R, name='ABS_MAG_R')
+    x, y, z, zz, quiescent, missing = is_quiescent_BGS_kmeans(log_L_gal, dn4000,halpha, ssfr, G_R_BEST, model=QUIESCENT_MODEL)
+    table.add_column(app_mag_r, name='APP_MAG_R') 
+    table.add_column(app_mag_g, name='APP_MAG_G') 
+    table.add_column(abs_mag_R, name='ABS_MAG_R') 
     table.add_column(abs_mag_R_k, name='ABS_MAG_R_K')
     table.add_column(abs_mag_G, name='ABS_MAG_G')
     table.add_column(abs_mag_G_k, name='ABS_MAG_G_K')
@@ -392,6 +410,13 @@ def create_merged_file(orig_table_file : str, merged_file : str, year : str, pho
     table = add_photometric_columns(table, year)
     table.write(merged_file, format='fits', overwrite='True')
 
+    # Add photo-zs
+    if photoz_wspec:
+        table = add_photz_columns(merged_file, IAN_PHOT_Z_FILE_WSPEC)
+    else:
+        table = add_photz_columns(merged_file, IAN_PHOT_Z_FILE_NOSPEC)
+    table.write(merged_file, format='fits', overwrite=True)
+
     # Derive some luminosity / color related properties
     add_mag_columns(table)
     table.write(merged_file, format='fits', overwrite='True')
@@ -400,12 +425,7 @@ def create_merged_file(orig_table_file : str, merged_file : str, year : str, pho
     add_NTILE_MINE_to_table(table, year)
     table.write(merged_file, format='fits', overwrite='True')
 
-    # Add photo-zs
-    if photoz_wspec:
-        table = add_photz_columns(merged_file, IAN_PHOT_Z_FILE_WSPEC)
-    else:
-        table = add_photz_columns(merged_file, IAN_PHOT_Z_FILE_NOSPEC)
-    table.write(merged_file, format='fits', overwrite=True)
+
 
 def get_objects_near_sv3_regions(gals_coord, radius_deg):
     """

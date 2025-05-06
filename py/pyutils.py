@@ -13,6 +13,8 @@ from scipy.special import erf
 import os
 from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
+import astropy.coordinates as coord
+import pickle
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -1087,17 +1089,9 @@ def write_dat_files_v2(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_ba
 ######################################
 
 # Function to fit a 2-component Gaussian Mixture Model to a property and plot the results
-def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_init=None):
-    def find_intersection(mean1, cov1, mean2, cov2):
-        # Coefficients of the quadratic equation (a*x^2 + b*x + c = 0)
-        a = 1 / cov1 - 1 / cov2
-        b = -2 * (mean1 / cov1 - mean2 / cov2)
-        c = (mean1**2 / cov1 - mean2**2 / cov2) - 2 * np.log(np.sqrt(cov2 / cov1))
-        
-        # Solve the quadratic equation
-        roots = np.roots([a, b, c])
-        return roots
-    
+def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_init=None, manual_thresholds=None):
+    from scipy.optimize import fsolve
+
     midpoints = []
 
     for i in range(1, num_bins + 1):
@@ -1108,8 +1102,7 @@ def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_in
             continue
 
         # Fit a Gaussian Mixture Model with 2 components
-        
-        gmm = GaussianMixture(n_components=2, tol=1e-4, max_iter=3000, means_init=means_init)
+        gmm = GaussianMixture(n_components=2, tol=1e-5, max_iter=1000, means_init=means_init)
         binned_values_reshaped = binned_values.reshape(-1, 1)
         gmm.fit(binned_values_reshaped)
 
@@ -1124,27 +1117,31 @@ def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_in
         covariances = covariances[sorted_indices]
         weights = weights[sorted_indices]
 
-        x = np.linspace(min, max, 1000)
-        model1 = weights[0] * np.exp(-0.5 * ((x - means[0]) ** 2) / covariances[0]) / np.sqrt(2 * np.pi * covariances[0])
-        model2 = weights[1] * np.exp(-0.5 * ((x - means[1]) ** 2) / covariances[1]) / np.sqrt(2 * np.pi * covariances[1])
-        #model3 = weights[2] * np.exp(-0.5 * ((x - means[2]) ** 2) / covariances[2]) / np.sqrt(2 * np.pi * covariances[2])
-
-        # Find the intersection points between the bluest and reddest gaussian, not the middle one
-        intersections = find_intersection(means[0], covariances[0], means[len(means)-1], covariances[len(means)-1])
+        x = np.linspace(min, max, 400)
+        def model1(_x):
+            return weights[0] * np.exp(-0.5 * ((_x - means[0]) ** 2) / covariances[0]) / np.sqrt(2 * np.pi * covariances[0])
+        def model2(_x):
+            return weights[1] * np.exp(-0.5 * ((_x - means[1]) ** 2) / covariances[1]) / np.sqrt(2 * np.pi * covariances[1])
+        #def model3(_x):
+        #    return weights[2] * np.exp(-0.5 * ((_x - means[2]) ** 2) / covariances[2]) / np.sqrt(2 * np.pi * covariances[2])
+        def equations(_x):
+            return model1(_x) - model2(_x)
+        intersection = fsolve(equations, (means[0]+means[1])/2)[0]
 
         # Plot the histogram and the fitted Gaussians
         plt.figure(dpi=80, figsize=(10, 5))
         bins = np.arange(min, max, (max-min)/200)
         plt.hist(binned_values, bins=bins, density=True, alpha=0.6, label=f"Values")
-        plt.plot(x, model1 + model2, label='Gaussian Mixture Model')
-        plt.plot(x, model1, label='Gaussian 1')
-        plt.plot(x, model2, label='Gaussian 2')
-        #plt.plot(x, model3, label='Gaussian 3')
-        for intersection in intersections:
-            buffer = (max-min) * 0.2
-            if min+buffer <= intersection <= max-buffer:
-                midpoints.append(intersection)
-                plt.axvline(intersection, color='r', linestyle='--', label=f'Intersection at {intersection:.2f}')
+        plt.plot(x, model1(x) + model2(x), label='Gaussian Mixture Model')
+        plt.plot(x, model1(x), label='Gaussian 1')
+        plt.plot(x, model2(x), label='Gaussian 2')
+        #plt.plot(x, model3(x), label='Gaussian 3')
+        buffer = (max-min) * 0.15
+        midpoints.append(intersection)
+        if min+buffer <= intersection <= max-buffer:
+            plt.axvline(intersection, color='r', linestyle='--', label=f'Intersection at {intersection:.2f}')
+        if manual_thresholds is not None:
+            plt.axvline(manual_thresholds[i-1], color='g', linestyle='--', label=f'Chosen Threshold {manual_thresholds[i-1]:.2f}')
         plt.legend()
         plt.xlabel('Value')
         plt.ylabel('Density')
@@ -1155,7 +1152,7 @@ def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_in
         print(f"Means: {means}")
         print(f"Covariances: {covariances}")
         print(f"Weights: {weights}")
-        print(f"Intersections: {intersections}")
+        print(f"Intersection: {intersection}")
 
     if len(midpoints) != num_bins:
         print("WARNING: Not all bins had easily identifiable good intersections.")
@@ -1169,11 +1166,12 @@ def get_Dn4000_crit(logLgal):
     # See BGS_Study.ipynb Ian's Dn4000 section
     # This is for Dn4000_MODEL
     # OLD: 1.411 B=0.171    C=9.795    D=0.775
-    A=1.377
-    B=0.181
-    C=9.881
-    D=1.108
-    return 1.411 + (0.171) * (1 + special.erf((logLgal - 9.795) / 0.775))
+    # OLD 2: A=1.377 B=0.181 C=9.881 D=1.108
+    A=1.433
+    B=0.150
+    C=9.639
+    D=1.070
+    return A + B*(1 + special.erf((logLgal - C) / D))
 
 def get_halpha_crit(logLgal):
     # See BGS_Study.ipynb Halpha section
@@ -1185,19 +1183,19 @@ def get_halpha_crit(logLgal):
     #C=10.254
     #D=0.791
     #return A + B*(1 + erf((logLgal - C) / D))
-    return np.repeat(np.log10(2.0), len(logLgal))
+    return np.repeat(0.55, len(logLgal)) # ~ 3.5 Angstrom EW
 
 def get_gmr_crit(logLgal):
     # See BGS_Study.ipynb g-r section
     # This is for k-corrected G-R
-    # Old: A=0.741 B=0.062 C=9.647 D=0.412
-    # Fitted parameters: A=0.760, B=0.052, C=9.707, D=0.342
+    # Old: A=0.760 B=0.052 C=9.707 D=0.342
+    # Fitted parameters: A=0.718, B=0.066, C=9.461, D=0.628
     if logLgal is None:
         return GLOBAL_RED_COLOR_CUT
-    A=0.760
-    B=0.052
-    C=9.707
-    D=0.342
+    A=0.718
+    B=0.066
+    C=9.461
+    D=0.628
     missing = np.isnan(logLgal)
     return np.where(missing, GLOBAL_RED_COLOR_CUT, A + B*(1 + erf((logLgal - C) / D)))
 
@@ -1217,8 +1215,7 @@ def is_quiescent_BGS_dn4000(logLgal, Dn4000, gmr):
     """
     if Dn4000 is None:
         return is_quiescent_BGS_gmr(logLgal, gmr)
-    Dcrit = get_SDSS_Dcrit(logLgal)
-    print(f"Dn4000 missing for {np.mean(np.isnan(Dn4000)):.1%}") # Broken?
+    Dcrit = get_Dn4000_crit(logLgal)
     return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
 
 def is_quiescent_BGS_dn4000_hardvariant(logLgal, Dn4000, gmr):
@@ -1233,51 +1230,58 @@ def is_quiescent_BGS_dn4000_hardvariant(logLgal, Dn4000, gmr):
     print(f"Dn4000 missing for {np.mean(np.isnan(Dn4000)):.1%}")
     return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
 
-def is_quiescent_BGS_kmeans(logLgal, Dn4000, halpha, ssfr, gmr):
+def is_quiescent_BGS_kmeans(logLgal, Dn4000, halpha, ssfr, gmr, model=None):
 
     if halpha is None or ssfr is None:
         print("WARNING: Completely missing Halpha or SSFR; using the Dn4000 or G-R cuts instead of KMeans.")
-        return is_quiescent_BGS_dn4000(logLgal, gmr)
+        return is_quiescent_BGS_dn4000(logLgal, Dn4000, gmr)
         
     results = np.zeros(len(logLgal), dtype=bool)
 
     # Deal with missing spectroscopic data
-    missing = np.logical_or(np.isnan(Dn4000), np.isnan(halpha), np.isnan(ssfr))
+    print(f"Missing LOGLGAL data for {np.sum(np.isnan(logLgal))} ({np.mean(np.isnan(logLgal)):.2%})")
+    print(f"Missing Dn4000 data for {np.sum(np.isnan(Dn4000))} ({np.mean(np.isnan(Dn4000)):.2%})")
+    print(f"Missing Halpha data for {np.sum(np.isnan(halpha))} ({np.mean(np.isnan(halpha)):.2%})")
+    print(f"Missing SSFR data for {np.sum(np.isnan(ssfr))} ({np.mean(np.isnan(ssfr)):.2%})")
+    missing = np.isnan(logLgal) | np.isnan(Dn4000) | np.isnan(halpha) | np.isnan(ssfr)
     results[missing] = is_quiescent_BGS_gmr(logLgal[missing], gmr[missing])
-    print(f"Missing SSFR, Halpha, or Dn4000 data for {np.mean(missing):.3%}")
+    print(f"Quiescent Fraction for missing: {np.mean(results[missing]):.2%}")
 
-    # Extreme low Halpha and SSFR cuts
-    no_halpha = np.logical_or(halpha < 0.001, np.isnan(halpha))
-    no_ssfr = np.logical_or(np.log10(ssfr) < -14, np.isnan(ssfr))
-    dead = np.logical_or(no_halpha, no_ssfr)
-    results[dead] = True
+    # You'd think these extremal ones should be classified as quiescent, but it's more an indicator
+    # that the spectra may have issues and we should rely on photometry only. We get a high quiescent
+    # fraction for these galaxies using g-r cut anyway.
+    extremal =  (halpha < 1E-10) | (ssfr < 1E-15)
+    print(f"Extremal SSFR or Halpha data for {np.mean(extremal):.2%}")
+    #results[missing] = is_quiescent_BGS_gmr(logLgal[missing], gmr[missing])
+    results[extremal] = is_quiescent_BGS_dn4000(logLgal[extremal], Dn4000[extremal], gmr[extremal])
+    print(f"Quiescent Fraction for extremal: {np.mean(results[extremal]):.2%}")
 
-    c_halpha = np.log10(halpha[~dead])
-    # Already has a low cut from above
+    missing  = missing | extremal
+
+    c_halpha = np.log10(halpha[~missing])
     c_halpha = np.where(c_halpha > 3, 3, c_halpha)
-    #c_halpha = c_halpha - get_halpha_crit(df['LOG_L_GAL'][~dead])
-    c_halpha = c_halpha - np.log10(2.0) # 2 Angstrom cut
+    c_halpha = np.where(c_halpha < -3, -3, c_halpha)
+    c_halpha = c_halpha - get_halpha_crit(logLgal[~missing])
 
-    c_dn4000 = Dn4000[~dead]
+    c_dn4000 = Dn4000[~missing]
     c_dn4000 = np.where(c_dn4000 < 1.0, 1.0, c_dn4000)
     c_dn4000 = np.where(c_dn4000 > 2.5, 2.5, c_dn4000)
-    c_dn4000 = c_dn4000 - get_Dn4000_crit(logLgal[~dead])
+    c_dn4000 = c_dn4000 - get_Dn4000_crit(logLgal[~missing])
 
-    c_ssfr = np.log10(ssfr[~dead])
-    # Already has a low cut from above
+    c_ssfr = np.log10(ssfr[~missing])
+    c_ssfr = np.where(c_ssfr < -13, -13, c_ssfr)
     c_ssfr = np.where(c_ssfr > -9, -9, c_ssfr)
     c_ssfr = c_ssfr + 11 # -11 is the cut
 
-    c_gmr = gmr[~dead]
+    c_gmr = gmr[~missing]
     c_gmr = np.where(c_gmr < 0.0, 0.0, c_gmr)
     c_gmr = np.where(c_gmr > 1.3, 1.3, c_gmr)
-    c_gmr = c_gmr - get_gmr_crit(logLgal[~dead])
+    c_gmr = c_gmr - get_gmr_crit(logLgal[~missing])
 
-    # TODO Intelligent weighting: These are ~ad-hoc choices that put them in the same range and make sense to me
     x = c_dn4000 * 1.0
-    y = c_halpha * 0.25
-    z = c_ssfr * 0.25
-    zz = c_gmr * 0.6
+    y = c_halpha * 0.27
+    z = c_ssfr * 0.1
+    zz = c_gmr * 1.5
     data = list(zip(x, y, z, zz))
 
     # Print off 95% ranges of values, and the difference between the 2.5 and 97.5 percentiles
@@ -1287,17 +1291,110 @@ def is_quiescent_BGS_kmeans(logLgal, Dn4000, halpha, ssfr, gmr):
     print(f"G-R: {np.percentile(zz, 2.5):.3f} to {np.percentile(zz, 97.5):.3f} ({np.percentile(zz, 97.5) - np.percentile(zz, 2.5):.3f})")
     # We want these to all be similar to weight equally in the classification
 
-    kmeans = KMeans(n_clusters=2)
-    kmeans.fit(data)
+    kmeans : KMeans = None
+    classification : np.ndarray = None
 
-    classification = kmeans.labels_
-    # Each run will give 0 or 1 a different meaning. Let's standardize it so 1 meads red and 0 is blue
+    print(f"Data size: {len(data)}")
+
+    if model is not None:
+        # Load the model
+        print(f"Loading KMeans model from {model}")
+        with open(model, 'rb') as f:
+            kmeans = pickle.load(f) 
+        # Use the model
+        classification = kmeans.predict(data)
+    else:
+        print(f"Fitting KMeans model")
+        kmeans = KMeans(n_clusters=2)
+        kmeans.fit(data)
+        classification = kmeans.labels_
+
+    # Each run will give 0 or 1 a different meaning. Let's standardize it so 1 means red and 0 is blue
     if kmeans.cluster_centers_[0][0] > kmeans.cluster_centers_[1][0]:
         classification = 1 - classification
-        
-    results[~dead] = classification
 
-    return results
+    print(f"Classifications: {len(classification)}")
+    print(f"results[~missing]: {len(results[~missing])}")
+        
+    results[~missing] = classification
+    print(f"Quiescent Fraction for Kmeans: {np.mean(results[~missing]):.2%}")
+    print(f"Quiescent Fraction Overall: {np.mean(results):.2%}")
+
+    # Save off the model
+    if model is None:
+        with open(QUIESCENT_MODEL, 'wb') as f:
+            pickle.dump(kmeans, f)
+
+    return x, y, z, zz, results, missing
+
+def compare_df_quiescence_to_sdss(df: pd.DataFrame, quiescent_col: str):
+    sdss = pd.read_csv(SDSS_v1_DAT_FILE, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'chi'), index_col=False)
+    sdss_galprops = pd.read_csv(SDSS_v1_1_GALPROPS_FILE, delimiter=' ', names=('MAG_G', 'MAG_R', 'SIGMA_V', 'DN4000', 'CONCENTRATION', 'LOG_M_STAR', 'Z_ASSIGNED_FLAG'))
+    sdss = pd.merge(sdss, sdss_galprops, left_index=True, right_index=True)
+
+    sdss_catalog = coord.SkyCoord(ra=sdss['RA'].to_numpy()*u.degree, dec=sdss['DEC'].to_numpy()*u.degree, frame='icrs')
+    BGS_catalog = coord.SkyCoord(ra=df['RA'].to_numpy()*u.degree, dec=df['DEC'].to_numpy()*u.degree, frame='icrs')
+
+    neighbor_indexes, d2d, d3d = coord.match_coordinates_sky(BGS_catalog, sdss_catalog)
+    ang_distances = d2d.to(u.arcsec).value
+
+    matched = np.logical_and(ang_distances < 1.0, ~np.isnan(df['DN4000_MODEL']))
+    bgs_matches = df.loc[matched,'DN4000_MODEL'].to_numpy()
+    sdss_indexes = neighbor_indexes[matched]
+    sdss_matches = sdss.iloc[sdss_indexes].DN4000.to_numpy()
+
+    # DN4000 Comparison
+    print(f"Dn4000 Value Comparison")
+    print(f"{len(bgs_matches)} matches found (with Dn4000 available)")
+    print(f"{np.isclose(bgs_matches, sdss_matches, atol=0.05).sum() / len(bgs_matches)} of the matches are within 0.05 of each other.")
+    print(f"{np.isclose(bgs_matches, sdss_matches, atol=0.1).sum() / len(bgs_matches)} of the matches are within 0.1 of each other.")
+    print(f"{np.isclose(bgs_matches, sdss_matches, atol=0.2).sum() / len(bgs_matches)} of the matches are within 0.2 of each other.")
+    print(f"{np.isclose(bgs_matches, sdss_matches, atol=0.3).sum() / len(bgs_matches)} of the matches are within 0.3 of each other.")
+    
+    difference = np.array(bgs_matches) - np.array(sdss_matches)
+
+    # bin by sdss_matches
+    bins = np.linspace(0.8, 2.5, 30)
+    digitized = np.digitize(sdss_matches, bins)
+    bin_means = [difference[digitized == i].mean() for i in range(1, len(bins))]
+    #bin_stds = np.array([difference[digitized == i].std() for i in range(1, len(bins))])
+    bin_counts = [np.sum(digitized == i) for i in range(1, len(bins))]
+
+    # Calculate 1 sigma error bars
+    bin_intervals1 = [np.percentile(difference[digitized == i], [16, 84]) for i in range(1, len(bins))]
+    bin_lows1 = np.array([interval[0] for interval in bin_intervals1])
+    bin_highs1 = np.array([interval[1] for interval in bin_intervals1])
+    # Calculate 2 sigma error bars
+    bin_intervals = [np.percentile(difference[digitized == i], [2.5, 97.5]) for i in range(1, len(bins))]
+    bin_lows = np.array([interval[0] for interval in bin_intervals])
+    bin_highs = np.array([interval[1] for interval in bin_intervals])
+    # Convert yerr to a format that plt.errorbar can handle
+    yerr_1sigma = np.array([bin_means - bin_lows1, bin_highs1 - bin_means])
+    yerr_2sigma = np.array([bin_means - bin_lows, bin_highs - bin_means])
+
+    plt.errorbar(bins[1:], bin_means, yerr=yerr_1sigma, fmt='o', label='Mean Difference (1 sigma)', color='k')
+    plt.errorbar(bins[1:], bin_means, yerr=yerr_2sigma, fmt='o', label='Mean Difference (2 sigma)', alpha=0.5)
+    plt.xlabel('SDSS Dn4000')
+    plt.ylabel('BGS - SDSS Dn4000')
+    plt.legend()
+    plt.title("Shared Targets: Dn4000 Comparison")
+    #draw horizontal line at 0.0
+    plt.axhline(0.0, color='r', linestyle='--')
+    
+
+    # Compare quescient evaluation to SDSS for matched ones
+    bgs_quiescent_matched = df.loc[matched, quiescent_col].to_numpy()
+    print(len(bgs_quiescent_matched))
+
+    sdss_indexes_q = neighbor_indexes[matched]
+    sdss_quiescent_matched = sdss.iloc[sdss_indexes_q]['QUIESCENT'].to_numpy()
+
+    # Percent that agree on quiescent classification
+    print(f"\nQuiescent Classification Comparison")
+    print(f"{np.sum(bgs_quiescent_matched == sdss_quiescent_matched) / len(bgs_quiescent_matched):.1%} of the matched galaxies agree on quiescent classification using production methods (what was saved in the merged file).")
+
+    # Percent that agree as a function of L
+
 
 # This is read off of a 0.1^G-R plot I made using GAMA polynomial k-corr
 # This also works well for MXXL
@@ -1321,13 +1418,11 @@ def is_quiescent_BGS_gmr(logLgal, G_R_k):
 
     True for quiescent, False for star-forming.
     """
-
-    # This is the alternative implementation for using bins
+    # g-r: both are in mags, so more negative values of each are greater fluxes in those bands
+    # So a more positive g-r means a redder galaxy
 
     crit = get_gmr_crit(logLgal)
     return G_R_k > crit
 
-    # g-r: both are in mags, so more negative values of each are greater fluxes in those bands
-    # So a more positive g-r means a redder galaxy
     #return G_R_k > GLOBAL_RED_COLOR_CUT
 
