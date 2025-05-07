@@ -1235,8 +1235,20 @@ def is_quiescent_BGS_kmeans(logLgal, Dn4000, halpha, ssfr, gmr, model=None):
     if halpha is None or ssfr is None:
         print("WARNING: Completely missing Halpha or SSFR; using the Dn4000 or G-R cuts instead of KMeans.")
         return is_quiescent_BGS_dn4000(logLgal, Dn4000, gmr)
-        
+    
     results = np.zeros(len(logLgal), dtype=bool)
+
+    # For masked tables, go to inner data so the masked values are nan.
+    if np.ma.is_masked(logLgal):
+        logLgal = logLgal.data.data
+    if np.ma.is_masked(Dn4000):
+        Dn4000 = Dn4000.data.data
+    if np.ma.is_masked(halpha):
+        halpha = halpha.data.data
+    if np.ma.is_masked(ssfr):
+        ssfr = ssfr.data.data
+    if np.ma.is_masked(gmr):
+        gmr = gmr.data.data
 
     # Deal with missing spectroscopic data
     print(f"Missing LOGLGAL data for {np.sum(np.isnan(logLgal))} ({np.mean(np.isnan(logLgal)):.2%})")
@@ -1252,7 +1264,7 @@ def is_quiescent_BGS_kmeans(logLgal, Dn4000, halpha, ssfr, gmr, model=None):
     # fraction for these galaxies using g-r cut anyway.
     extremal =  (halpha < 1E-10) | (ssfr < 1E-15)
     print(f"Extremal SSFR or Halpha data for {np.mean(extremal):.2%}")
-    #results[missing] = is_quiescent_BGS_gmr(logLgal[missing], gmr[missing])
+    #results[extremal] = is_quiescent_BGS_gmr(logLgal[extremal], gmr[extremal])
     results[extremal] = is_quiescent_BGS_dn4000(logLgal[extremal], Dn4000[extremal], gmr[extremal])
     print(f"Quiescent Fraction for extremal: {np.mean(results[extremal]):.2%}")
 
@@ -1279,7 +1291,7 @@ def is_quiescent_BGS_kmeans(logLgal, Dn4000, halpha, ssfr, gmr, model=None):
     c_gmr = c_gmr - get_gmr_crit(logLgal[~missing])
 
     x = c_dn4000 * 1.0
-    y = c_halpha * 0.27
+    y = c_halpha * 0.33 # 0.27
     z = c_ssfr * 0.1
     zz = c_gmr * 1.5
     data = list(zip(x, y, z, zz))

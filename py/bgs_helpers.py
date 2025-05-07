@@ -61,6 +61,27 @@ NO_PHOTO_Z = -99.0
 
 NTILE_MIN_TO_FIND = 10
 
+def determine_unobserved_from_z(column):
+    """
+    Determine if a galaxy is unobserved based on the Z column.
+    """
+    # Check if the column is a pandas Series or a numpy ndarray
+    if np.ma.is_masked(column):
+        unobserved = column.mask # the masked values are what is unobserved
+    else:
+        unobserved = column.astype("<i8") == 999999
+
+    return unobserved
+
+def get_tbl_column(tbl, colname, required=False):
+    if colname in tbl.columns:
+        if np.ma.is_masked(tbl[colname]):
+            return tbl[colname].data.data
+        return tbl[colname]
+    else:
+        if required:
+            raise ValueError(f"Required column {colname} not found in table.")
+        return None
 
 def find_tiles_for_galaxies(tiles_df, gals_df, num_tiles_to_find):
     num_galaxies = len(gals_df.RA)
@@ -86,6 +107,7 @@ def add_mag_columns(table):
     
     # if the table doesn't have HALPHA or SFR, print a warning
     if 'HALPHA_EW' not in table.columns or 'SFR' not in table.columns or 'LOGMSTAR' not in table.columns:
+        print("WARNING: Missing HALPHA_EW, SFR, or LOGMSTAR columns in table.")
         halpha = None
         ssfr = None
     else:
@@ -94,30 +116,33 @@ def add_mag_columns(table):
 
     # if the table doesn't have DN4000_MODEL, print a warning
     if 'DN4000_MODEL' not in table.columns:
+        print("WARNING: Missing DN4000_MODEL column in table..")
         dn4000 = None
     else:
         dn4000 = table['DN4000_MODEL']
 
     # If photo-z are not present, print a warning
     if 'Z_PHOT' not in table.columns:
-        print("No photo-z present in table.")
+        print("ERROR: No photo-z present in table.")
         return
 
     app_mag_r = get_app_mag(table['FLUX_R'])
     app_mag_g = get_app_mag(table['FLUX_G'])
     g_r = app_mag_g - app_mag_r
 
+    # Should I Convert all masked coluns here? Look at later code.
     if np.ma.is_masked(table['Z']):
         z_obs = table['Z'].data.data
     else:
         z_obs = table['Z']
+        z_obs = np.where(z_obs.astype("<i8") == 999999, np.nan, z_obs)
 
     # Where z_obs is nan, use the photo-z
     speczcount = (~np.isnan(z_obs)).sum()
     z_obs = np.where(np.isnan(z_obs), table['Z_PHOT'], z_obs)
     stillmissing = np.isnan(z_obs).sum()
     photozcount = (~np.isnan(z_obs)).sum() - speczcount
-    print(f"For absolute magnitude conversions, we have {speczcount} using spec-z, {photozcount} using photo-z, and {stillmissing} with neither.")
+    print(f"For absolute magnitude conversions, we have {speczcount:,} using spec-z, {photozcount:,} using photo-z, and {stillmissing:,} with neither.")
 
     # nans for lost galaxies will propagate through the calculations as desired
     abs_mag_R = app_mag_to_abs_mag(app_mag_r, z_obs)
@@ -128,7 +153,8 @@ def add_mag_columns(table):
     G_R_k = abs_mag_G_k - abs_mag_R_k # based on the polynomial k-corr
     G_R_k_fastspecfit = table['ABSMAG01_SDSS_G'] - table['ABSMAG01_SDSS_R'] # based on fastspecfit k-corr
     G_R_BEST = np.where(np.isnan(G_R_k_fastspecfit), G_R_k, G_R_k_fastspecfit)
-    x, y, z, zz, quiescent, missing = is_quiescent_BGS_kmeans(log_L_gal, dn4000,halpha, ssfr, G_R_BEST, model=QUIESCENT_MODEL)
+    x, y, z, zz, quiescent, missing = is_quiescent_BGS_kmeans(log_L_gal, dn4000, halpha, ssfr, G_R_BEST, model=QUIESCENT_MODEL)
+    quiescent_alt = is_quiescent_BGS_dn4000(log_L_gal, dn4000, G_R_BEST)
     table.add_column(app_mag_r, name='APP_MAG_R') 
     table.add_column(app_mag_g, name='APP_MAG_G') 
     table.add_column(abs_mag_R, name='ABS_MAG_R') 
@@ -137,7 +163,9 @@ def add_mag_columns(table):
     table.add_column(abs_mag_G_k, name='ABS_MAG_G_K')
     table.add_column(log_L_gal, name='LOG_L_GAL')
     table.add_column(G_R_BEST, name='G_R_BEST')
-    table.add_column(quiescent, name='QUIESCENT')
+    table.add_column(quiescent, name='QUIESCENT') # KMeans Version
+    table.add_column(quiescent_alt, name='QUIESCENT_SIMPLE') # Dn4000(L) Version
+    
 
 
 def add_photz_columns(table_file :str, phot_z_file):
@@ -160,15 +188,12 @@ def add_photz_columns(table_file :str, phot_z_file):
 
     final_table = join(table, QTable.from_pandas(phot_z_table), join_type='left', keys="TARGETID")
 
-    print(len(table))
-    print(len(phot_z_table))
-    print(len(final_table))
+    print(f"  Original len={len(table):,}, photometric len={len(phot_z_table):,}, final len={len(final_table):,}.")
 
     final_table.rename_column('Z_LEGACY_BEST', 'Z_PHOT')
     final_table.rename_column('RA_1', 'RA')
     final_table.rename_column('DEC_1', 'DEC')
     final_table.remove_columns(['RA_2', 'DEC_2'])
-    print(final_table.columns)
 
     return final_table
 
@@ -211,7 +236,7 @@ def read_fastspecfit_sv3():
     hdul.close()
     return fastspecfit_table
 
-def read_fastspecfit_y1_reduced():
+def read_fastspecfit_y1():
     if not os.path.exists(BGS_Y1_FASTSPEC_FILE):
         print (f"BGS_Y1_FASTSPEC_FILE does not exist. Building from '{NERSC_BGS_IRON_FASTSPECFIT_DIR}'")
         orig = NERSC_BGS_IRON_FASTSPECFIT_DIR + "fastspec-iron-main-bright.fits"
@@ -238,7 +263,7 @@ def read_fastspecfit_y1_reduced():
 
     return Table.read(BGS_Y1_FASTSPEC_FILE, format='fits')
 
-def read_fastspecfit_y3_reduced():
+def read_fastspecfit_y3():
     if not os.path.exists(BGS_Y3_FASTSPEC_FILE):
         print(f"BGS_Y3_FASTSPEC_FILE does not exist. Building from '{NERSC_BGS_LOA_FASTSPECFIT_DIR}'")
         hp = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11']
@@ -332,9 +357,9 @@ def add_fastspecfit_columns(main_table, version:str):
     if version == 'sv3':
         fastspecfit_table = read_fastspecfit_sv3()
     elif version == '1':
-        fastspecfit_table = read_fastspecfit_y1_reduced()
+        fastspecfit_table = read_fastspecfit_y1()
     elif version == '3':
-        fastspecfit_table = read_fastspecfit_y3_reduced()
+        fastspecfit_table = read_fastspecfit_y3()
     final_table = join(main_table, fastspecfit_table, join_type='left', keys="TARGETID")
     return final_table
 
