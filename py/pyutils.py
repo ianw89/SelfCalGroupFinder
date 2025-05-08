@@ -15,6 +15,7 @@ from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
 import astropy.coordinates as coord
 import pickle
+from numpy.polynomial.polynomial import Polynomial
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -362,7 +363,14 @@ def bgs_mag_to_sdsslike_mag(mag, band='r'):
     observed in both surveys. Assumes the BGS mag is already k-corrected to z=0.1.
     """
     if band == 'r':
-        return mag - 0.2 # TODO
+        # [-5.09354483 -0.64446931 -0.01922993]
+        # Fit in post_plots, see ## BGS and SDSS Target Overlap Analysis
+        A = -5.09354483
+        B = -0.64446931
+        C = -0.01922993
+        correction = np.where(mag > -17.0, 0.3, Polynomial([A, B, C]).__call__(mag))
+        correction = np.where(mag < -23.75, -0.65, correction)
+        return mag + correction
     else:
         raise NotImplementedError(f"Band {band} not implemented")
 
