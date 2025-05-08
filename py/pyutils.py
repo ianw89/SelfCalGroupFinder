@@ -1102,7 +1102,7 @@ def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_in
             continue
 
         # Fit a Gaussian Mixture Model with 2 components
-        gmm = GaussianMixture(n_components=2, tol=1e-5, max_iter=1000, means_init=means_init)
+        gmm = GaussianMixture(n_components=2, tol=1e-5, max_iter=1500, means_init=means_init)
         binned_values_reshaped = binned_values.reshape(-1, 1)
         gmm.fit(binned_values_reshaped)
 
@@ -1163,14 +1163,15 @@ def get_SDSS_Dcrit(logLgal):
     return 1.42 + (0.35 / 2) * (1 + special.erf((logLgal - 9.9) / 0.8))
 
 def get_Dn4000_crit(logLgal):
-    # See BGS_Study.ipynb Ian's Dn4000 section
-    # This is for Dn4000_MODEL
-    # OLD: 1.411 B=0.171    C=9.795    D=0.775
+    # See BGS_Study.ipynb Dn4000 section
+    # This is for DN4000_MODEL! Don't use Dn4000 column, it's noiser.
+    # OLD 1: A=1.411 B=0.171 C=9.795 D=0.775
     # OLD 2: A=1.377 B=0.181 C=9.881 D=1.108
-    A=1.433
-    B=0.150
-    C=9.639
-    D=1.070
+    # Old 3: A=1.433 B=0.150 C=9.639 D=1.070
+    A=1.452
+    B=0.123
+    C=9.275
+    D=1.186
     return A + B*(1 + special.erf((logLgal - C) / D))
 
 def get_halpha_crit(logLgal):
@@ -1210,13 +1211,22 @@ def is_quiescent_SDSS_Dn4000(logLgal, Dn4000):
 def is_quiescent_BGS_dn4000(logLgal, Dn4000, gmr):
     """
     Takes in two arrays of log Lgal and Dn4000 and returns an array 
-    indicating if the galaxies are quiescent using 2010.02946 eq 1
-    when Dn4000 is available and using g-r color cut when it is not.
+    indicating if the galaxies are quiescent using Dn4000 < Dcrit,
+    or using g-r color cut when Dn4000 is not available. Also includes
+    a very blue cut.
     """
     if Dn4000 is None:
         return is_quiescent_BGS_gmr(logLgal, gmr)
     Dcrit = get_Dn4000_crit(logLgal)
-    return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
+    missing = np.isnan(Dn4000)
+    results = np.where(missing, is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
+    print(f"Quiescent Fraction for Dn4000: {np.mean(results[~missing]):.2%} (N={np.sum(~missing)})")
+    print(f"Quiescent Fraction for missing: {np.mean(results[missing]):.2%} (N={np.sum(missing)})")
+    very_blue = gmr < EXTREMAL_BLUE_COLOR_CUT
+    results = np.where(very_blue, False, results)
+    print(f"Overall Quiescent Fraction after very blue cut: {np.mean(results):.2%}")
+    return results
+
 
 def is_quiescent_BGS_dn4000_hardvariant(logLgal, Dn4000, gmr):
     """
@@ -1259,16 +1269,23 @@ def is_quiescent_BGS_kmeans(logLgal, Dn4000, halpha, ssfr, gmr, model=None):
     results[missing] = is_quiescent_BGS_gmr(logLgal[missing], gmr[missing])
     print(f"Quiescent Fraction for missing: {np.mean(results[missing]):.2%}")
 
-    # You'd think these extremal ones should be classified as quiescent, but it's more an indicator
-    # that the spectra may have issues and we should rely on photometry only. We get a high quiescent
-    # fraction for these galaxies using g-r cut anyway.
+    # You'd think these extremal ones should be classified as quiescent, but it may just mean the spectra
+    # was taken in a location where no Halpha / other SFR indicators were detected. Fall back on Dn4000 method.
     extremal =  (halpha < 1E-10) | (ssfr < 1E-15)
     print(f"Extremal SSFR or Halpha data for {np.mean(extremal):.2%}")
     #results[extremal] = is_quiescent_BGS_gmr(logLgal[extremal], gmr[extremal])
     results[extremal] = is_quiescent_BGS_dn4000(logLgal[extremal], Dn4000[extremal], gmr[extremal])
     print(f"Quiescent Fraction for extremal: {np.mean(results[extremal]):.2%}")
 
-    missing  = missing | extremal
+    # Very blue handling. If the g-r color is very blue, call it star-forming regardless of the other properties 
+    # which are subject to variance from the location of the fiber.
+    if model is not None:
+        veryblue = gmr < EXTREMAL_BLUE_COLOR_CUT
+        print(f"Very blue data for {np.mean(veryblue):.2%}")
+        results[veryblue] = False
+        missing  = missing | extremal | veryblue
+    else:
+        missing  = missing | extremal
 
     c_halpha = np.log10(halpha[~missing])
     c_halpha = np.where(c_halpha > 3, 3, c_halpha)
@@ -1291,9 +1308,9 @@ def is_quiescent_BGS_kmeans(logLgal, Dn4000, halpha, ssfr, gmr, model=None):
     c_gmr = c_gmr - get_gmr_crit(logLgal[~missing])
 
     x = c_dn4000 * 1.0
-    y = c_halpha * 0.33 # 0.27
+    y = c_halpha * 0.35 # Trained with 0.27 I believe
     z = c_ssfr * 0.1
-    zz = c_gmr * 1.5
+    zz = c_gmr * 1.1 # Trained with 1.5 I believe
     data = list(zip(x, y, z, zz))
 
     # Print off 95% ranges of values, and the difference between the 2.5 and 97.5 percentiles
@@ -1403,7 +1420,7 @@ def compare_df_quiescence_to_sdss(df: pd.DataFrame, quiescent_col: str):
 
     # Percent that agree on quiescent classification
     print(f"\nQuiescent Classification Comparison")
-    print(f"{np.sum(bgs_quiescent_matched == sdss_quiescent_matched) / len(bgs_quiescent_matched):.1%} of the matched galaxies agree on quiescent classification using production methods (what was saved in the merged file).")
+    print(f"{np.sum(bgs_quiescent_matched == sdss_quiescent_matched) / len(bgs_quiescent_matched):.1%} of the matched galaxies agree on quiescent classification using {quiescent_col}.")
 
     # Percent that agree as a function of L
 
@@ -1413,9 +1430,11 @@ def compare_df_quiescence_to_sdss(df: pd.DataFrame, quiescent_col: str):
 # TODO check this value after switching to DESI k-corr
 GLOBAL_RED_COLOR_CUT = 0.76 
 GLOBAL_RED_COLOR_CUT_NO_KCORR = 1.008
+EXTREMAL_BLUE_COLOR_CUT = 0.65
 
-BGS_LOGLGAL_BINS = [6.9, 9.0, 9.4, 9.7, 9.9, 10.1, 10.3, 10.7, 13.5]
-BGS_LOGLGAL_BINS = [6.9, 8.7, 9.1, 9.4, 9.7, 9.9, 10.1, 10.3, 10.7, 13.5]
+#BGS_LOGLGAL_BINS = [6.9, 9.0, 9.4, 9.7, 9.9, 10.1, 10.3, 10.7, 13.5]
+#BGS_LOGLGAL_BINS = [6.9, 8.7, 9.1, 9.4, 9.7, 9.9, 10.1, 10.3, 10.7, 13.5]
+BGS_LOGLGAL_BINS = [6.5, 8.4, 8.8, 9.1, 9.4, 9.7, 9.9, 10.1, 10.3, 10.7, 13.5]
 
 def is_quiescent_lost_gal_guess(gmr):
     # This better midpoint for g-r without k-corr. 
