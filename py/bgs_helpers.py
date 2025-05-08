@@ -69,7 +69,12 @@ def determine_unobserved_from_z(column):
     if np.ma.is_masked(column):
         unobserved = column.mask # the masked values are what is unobserved
     else:
-        unobserved = column.astype("<i8") == 999999
+        if np.isnan(column).any():
+            # If there are NaN values, we need to check for them
+            unobserved = np.isnan(column)
+        else:
+            # Some older versions have sentinal value instead.
+            unobserved = column.astype("<i8") == 999999
 
     return unobserved
 
@@ -106,13 +111,13 @@ def add_mag_columns(table):
     print("Adding magnitude and quiescent classification columns to table.")
     
     # if the table doesn't have HALPHA or SFR, print a warning
-    if 'HALPHA_EW' not in table.columns or 'SFR' not in table.columns or 'LOGMSTAR' not in table.columns:
-        print("WARNING: Missing HALPHA_EW, SFR, or LOGMSTAR columns in table.")
-        halpha = None
-        ssfr = None
-    else:
-        halpha = table['HALPHA_EW']
-        ssfr = table['SFR'] / np.power(10, table['LOGMSTAR'])
+    #if 'HALPHA_EW' not in table.columns or 'SFR' not in table.columns or 'LOGMSTAR' not in table.columns:
+    #    print("WARNING: Missing HALPHA_EW, SFR, or LOGMSTAR columns in table.")
+    #    halpha = None
+    #    ssfr = None
+    #else:
+    #    halpha = table['HALPHA_EW']
+    #    ssfr = table['SFR'] / np.power(10, table['LOGMSTAR'])
 
     # if the table doesn't have DN4000_MODEL, print a warning
     if 'DN4000_MODEL' not in table.columns:
@@ -153,8 +158,8 @@ def add_mag_columns(table):
     G_R_k = abs_mag_G_k - abs_mag_R_k # based on the polynomial k-corr
     G_R_k_fastspecfit = table['ABSMAG01_SDSS_G'] - table['ABSMAG01_SDSS_R'] # based on fastspecfit k-corr
     G_R_BEST = np.where(np.isnan(G_R_k_fastspecfit), G_R_k, G_R_k_fastspecfit)
-    x, y, z, zz, quiescent, missing = is_quiescent_BGS_kmeans(log_L_gal, dn4000, halpha, ssfr, G_R_BEST, model=QUIESCENT_MODEL)
-    quiescent_alt = is_quiescent_BGS_dn4000(log_L_gal, dn4000, G_R_BEST)
+    #x, y, z, zz, quiescent_kmeans, missing = is_quiescent_BGS_kmeans(log_L_gal, dn4000, halpha, ssfr, G_R_BEST, model=QUIESCENT_MODEL_V2)
+    quiescent = is_quiescent_BGS_dn4000(log_L_gal, dn4000, G_R_BEST)
     table.add_column(app_mag_r, name='APP_MAG_R') 
     table.add_column(app_mag_g, name='APP_MAG_G') 
     table.add_column(abs_mag_R, name='ABS_MAG_R') 
@@ -163,8 +168,8 @@ def add_mag_columns(table):
     table.add_column(abs_mag_G_k, name='ABS_MAG_G_K')
     table.add_column(log_L_gal, name='LOG_L_GAL')
     table.add_column(G_R_BEST, name='G_R_BEST')
-    table.add_column(quiescent, name='QUIESCENT') # KMeans Version
-    table.add_column(quiescent_alt, name='QUIESCENT_SIMPLE') # Dn4000(L) Version
+    table.add_column(quiescent, name='QUIESCENT') 
+    #table.add_column(quiescent_alt, name='QUIESCENT_KMEANS')
     
 
 

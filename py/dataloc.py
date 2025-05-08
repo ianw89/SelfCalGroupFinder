@@ -42,8 +42,9 @@ LSAT_LOOKUP_FILE = REPO_FOLDER + 'lsat_lookup.dat'
 LSAT_OBSERVATIONS_FILE = PARAMS_SDSS_FOLDER + 'Lsat_SDSS_DnGMM.dat'
 MOCK_FILE_FOR_POPMOCK = DATA_FOLDER + 'POPMOCK/' + 'hosthalo_z0.0_M1e10_Lsat.dat'
 
-QUIESCENT_MODEL = PARAMS_BGSY1_FOLDER + "kmeans_quiescent_model.pkl" # made from SV3 
+QUIESCENT_MODEL = PARAMS_BGSY1_FOLDER + "kmeans_quiescent_model.pkl" # made from Y1
 QUIESCENT_MODEL_V1 = PARAMS_BGSY1_FOLDER + "kmeans_quiescent_model-v1.pkl" # made from Y1, but older analysis
+QUIESCENT_MODEL_V2 = PARAMS_BGSY1_FOLDER + "kmeans_quiescent_model-v2.pkl" # made from SV3 
 
 # OTHER NERSC PATHS
 ######################
