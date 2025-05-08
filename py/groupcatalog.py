@@ -15,7 +15,6 @@ import sys
 import math
 from multiprocessing import Pool
 from joblib import Parallel, delayed
-import optuna
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -204,79 +203,7 @@ class GroupCatalog:
             pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
 
         # Anything else to state before saving off?
-        self.dump()
-
-    def run_optuna(self, mcmc_num, trials):
-        
-        if not os.path.exists(self.output_folder):
-            os.makedirs(self.output_folder)
-
-        # If output folder is already an mcmc one, strip it off
-        last_folder = self.output_folder.split('/')[-2]
-        if last_folder.startswith('mcmc_'):
-            self.set_output_folder(self.output_folder.replace(last_folder + '/', ''))
-
-        # Change self.output_folder to be a new subfolder called mcmc_{mcmc_num}. If None, set to the next integer.
-        if mcmc_num is None:
-            mcmc_num = len([name for name in os.listdir(self.output_folder) if os.path.isdir(os.path.join(self.output_folder, name))])
-        self.set_output_folder(self.output_folder + f"mcmc_{mcmc_num}/")
-        if not os.path.exists(self.output_folder):
-            os.makedirs(self.output_folder)
-
-        # Setup optuna
-        backfile = self.output_folder + "gf_optuna.db"
-        storage = f"sqlite:///{backfile}"
-
-        def objective(trial: optuna.Trial) -> float:
-            params = [
-                trial.suggest_float('omegaL_sf', 5, 20),
-                #trial.suggest_float('sigma_sf', -5, 10), 
-                trial.suggest_float('sigma_sf', 0.1, 10),
-                trial.suggest_float('omegaL_q', 5, 20),
-                #trial.suggest_float('sigma_q', -5, 10),
-                trial.suggest_float('sigma_q', 0.1, 10),
-                trial.suggest_float('omega0_sf', -10, 20),
-                trial.suggest_float('omega0_q', -10, 20),
-                trial.suggest_float('beta0q', -20, 20),
-                trial.suggest_float('betaLq', -20, 20),
-                trial.suggest_float('beta0sf', -20, 20),
-                trial.suggest_float('betaLsf', -20, 20)
-            ]
-            return self.run_and_calc_chisqr(params)
-        # 
-        # Pruner is the hyper-hyper param
-        if mcmc_num == 0:
-            sampler = optuna.samplers.TPESampler(
-                n_startup_trials=64)
-        if mcmc_num == 1:
-            sampler = optuna.samplers.QMCSampler()
-        else:
-            sampler = optuna.samplers.GPSampler(
-                independent_sampler=optuna.samplers.RandomSampler(),
-                n_startup_trials=64,
-                deterministic_objective=True)
-            
-        study = optuna.create_study(
-            storage=storage, 
-            study_name=f"gf_{self.name}", 
-            direction='minimize', 
-            load_if_exists=True,
-            sampler=sampler
-            )
-        # Enqueue some known good values from past experiments
-        for i in np.shape(GOOD_TEN_PARAMETERS)[0]:
-            study.enqueue_trial({'omegaL_sf':GOOD_TEN_PARAMETERS[i][0], 'sigma_sf':GOOD_TEN_PARAMETERS[i][1], 'omegaL_q':GOOD_TEN_PARAMETERS[i][2], 'sigma_q':GOOD_TEN_PARAMETERS[i][3], 'omega0_sf':GOOD_TEN_PARAMETERS[i][4], 'omega0_q':GOOD_TEN_PARAMETERS[i][5], 'beta0q':GOOD_TEN_PARAMETERS[i][6], 'betaLq':GOOD_TEN_PARAMETERS[i][7], 'beta0sf':GOOD_TEN_PARAMETERS[i][8], 'betaLsf':GOOD_TEN_PARAMETERS[i][9]}, skip_if_exists=True)
-
-        N=20
-        # Enqueue some trials near known good values
-        for i in range(N):
-            for j in np.shape(GOOD_TEN_PARAMETERS)[0]:
-                values = GOOD_TEN_PARAMETERS[j] * (1 + 0.1 * np.random.randn(len(GOOD_TEN_PARAMETERS)))
-                study.enqueue_trial({'omegaL_sf':values[0], 'sigma_sf':values[1], 'omegaL_q':values[2], 'sigma_q':values[3], 'omega0_sf':values[4], 'omega0_q':values[5], 'beta0q':values[6], 'betaLq':values[7], 'beta0sf':values[8], 'betaLsf':values[9]}, skip_if_exists=True)
-
-        study.optimize(objective, n_trials=trials)
-
-        print(study.best_params)  # E.g. {'x': 2.002108042}            
+        self.dump()      
 
     # --- log-likelihood
     def lnlike(self, theta):
@@ -293,7 +220,7 @@ class GroupCatalog:
             return -np.inf
         return lp + self.lnlike(theta)
 
-    def get_backend_for_run(self, mcmc_num: int, read_only=True) -> emcee.backends.Backend|optuna.Study:
+    def get_backend_for_run(self, mcmc_num: int, read_only=True) -> emcee.backends.Backend:
         
         main_output = self.output_folder
         last_folder = self.output_folder.split('/')[-2]
@@ -301,16 +228,7 @@ class GroupCatalog:
             main_output = self.output_folder.replace(last_folder + '/', '')
 
         backfile = main_output + f"mcmc_{mcmc_num}/gf_mcmc.h5"
-        if not os.path.exists(backfile):
-            backfile = main_output + f"mcmc_{mcmc_num}/gf_optuna.db"
-            storage = f"sqlite:///{backfile}"
-            if not os.path.exists(backfile):
-                return None
-            else:
-                backend = optuna.load_study(study_name=f"gf_{self.name}", storage=storage)
-        else:
-            backend = emcee.backends.HDFBackend(backfile, read_only=read_only)
-        
+        backend = emcee.backends.HDFBackend(backfile, read_only=read_only)
         return backend
     
     def load_best_params_from_run(self, run):
@@ -320,8 +238,8 @@ class GroupCatalog:
         if isinstance(backend, emcee.backends.Backend):
             idx = np.argmax(backend.get_log_prob(flat=True))
             return backend.get_chain(flat=True)[idx]
-        elif isinstance(backend, optuna.Study):
-            return backend.best_trial.params.values
+        else: 
+            raise Exception("Unknown backend type")
 
 
     def load_best_params_across_runs(self, save=False):
@@ -347,9 +265,6 @@ class GroupCatalog:
                 chisqr = (-2) * backend.get_log_prob(flat=True)[idx]
                 print(f"Best chi^2 for {mcmc_folder} (N={len(backend.get_log_prob(flat=True))}) (emcee): {chisqr}")
                 best_params_list.append((chisqr, values))
-            elif isinstance(backend, optuna.Study):
-                print(f"Best chi^2 for {mcmc_folder} (N={len(backend.trials)}) (optuna): {backend.best_trial.value}")
-                best_params_list.append((backend.best_trial.value, list(backend.best_trial.params.values()))) # The order is correct
 
         best_params_list.sort(key=lambda x: x[0])
 

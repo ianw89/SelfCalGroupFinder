@@ -9,7 +9,7 @@ conda create -n "my-env"
 conda activate my-env
 conda install python=3.11 jupyter astropy scipy aiohttp pandas matplotlib h5py gsl 
 python --version
-python -m pip install --user emcee corner tqdm torch gpytorch corrfunc joblib scikit-learn
+python -m pip install --user emcee corner tqdm torch gpytorch corrfunc joblib scikit-learn seaborn
 ```
 
 The dataloc.py file is for updating the paths to both the code and data files.

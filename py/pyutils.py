@@ -356,6 +356,16 @@ def z_to_ldist(zs):
 def distmod(zs):
     return 5 * (np.log10(_cosmo_h.luminosity_distance(zs).value * 1E6) - 1)
 
+def bgs_mag_to_sdsslike_mag(mag, band='r'):
+    """
+    Converts BGS magnitudes to SDSS-like magnitudes using an emperical relation found from galaxies
+    observed in both surveys. Assumes the BGS mag is already k-corrected to z=0.1.
+    """
+    if band == 'r':
+        return mag - 0.2 # TODO
+    else:
+        raise NotImplementedError(f"Band {band} not implemented")
+
 def app_mag_to_abs_mag(app_mag, zs):
     """
     Converts apparent mags to absolute mags using h=1 cosmology and provided observed redshifts.

@@ -10,10 +10,9 @@ from multiprocessing import Pool
 # nohup python exec.py mcmc 1 x0 &> exec.out &
 # nohup python exec.py mcmc 11 x0 &> exec.out &
 
-execution_mode = 'once' # or 'clustering' or 'mcmc' or 'optuna'
+execution_mode = 'once' # or 'clustering' or 'mcmc'
 mcmcnum = None # Will make a new folder
 mcmc_iter = 300 # x 30 walkers
-optuna_iter = 9000
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -73,10 +72,7 @@ def process_gc(gc: GroupCatalog):
     elif execution_mode == 'mcmc':
         gc.setup_GF_mcmc(mcmc_num=mcmcnum)
         gc.run_GF_mcmc(mcmc_iter)
-    
-    elif execution_mode == 'optuna':
-        gc.run_group_finder(popmock=True)
-        gc.run_optuna(mcmcnum, optuna_iter)
+
 
     gc.dump()
     del(gc)
@@ -165,9 +161,7 @@ if __name__ == "__main__":
                 execution_mode = 'clustering'
             elif arg == 'once':
                 execution_mode = 'once'
-            elif arg == 'optuna':
-                execution_mode = 'optuna'
-            elif arg.startswith('x'): # specify mcmc / optuna folder number
+            elif arg.startswith('x'): # specify mcmc folder number
                 arg = arg[1:]
                 mcmcnum = int(arg)
             # Otherwise we expect an int, which is the index of the catalogs definitions to run
