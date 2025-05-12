@@ -699,6 +699,32 @@ def build_app_mag_to_z_map_4(app_mag, z_phot, z_obs):
 
     return app_mag_bins, z_phot_bins, the_map
 
+class dn4000lookup:
+    """
+    This is a lookup table for dn4000 values based on absolute magnitude and g-r color.
+    It uses a KDTree for fast nearest neighbor search.
+    """
+    def __init__(self, file = BGS_Y3_DN4000_LOOKUP_FILE):
+        self.METRIC_MAG = 1
+        self.METRIC_GMR = 5
+        if file is None or os.path.isfile(file) is False:
+            raise ValueError(f"File {file} does not exist. The Dn4000 lookup table must be built first; see BGS_study.ipynb.")
+        self.tree, self.dn4000_lookup = pickle.load(open(file, 'rb'))
+
+    def query(self, abs_mag_array, gmr_array, k=100):
+        query_points = np.vstack((abs_mag_array * self.METRIC_MAG, gmr_array * self.METRIC_GMR)).T  # Scale the query points
+        distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points
+        print(np.shape(distances), np.shape(indices))
+
+        # Pick random neighbors for each query point, weighted by distance
+        values = []
+        for i in range(len(query_points)):
+            p = (1 / distances[i]) / np.sum(1 / distances[i])
+            values.append(np.random.choice(self.dn4000_lookup[indices[i]], p=p, size=1)[0])
+        
+        return np.array(values)
+    
+
 
 ###############################################
 # Lost Galaxy Redshift Assignment

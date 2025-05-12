@@ -154,6 +154,7 @@ MXXL_ABS_MAG_R_FILE = OUTPUT_FOLDER + "mxxl_abs_mag_r_mine.npy"
 ###############################
 BGS_Y3_LOST_APP_TO_Z_FILE = BGS_Y1_FOLDER + "bgsy3_lost_appmag_to_z_map.dat"
 BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE = BGS_Y1_FOLDER + "bgsy3_lost_appmag_zphot_to_z_map.dat"
+BGS_Y3_DN4000_LOOKUP_FILE = BGS_Y3_FOLDER_LOA + "bgsy3_dn4000_lookup.pkl"
 
 # RANDOMS FILES MATCHING OUR FOOTPRINTS
 #######################################
