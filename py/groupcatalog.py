@@ -1547,12 +1547,10 @@ def add_halo_columns(catalog: GroupCatalog):
     # Luminosity distance to z_obs
     #df.loc[:, 'ldist_true'] = z_to_ldist(df.z_obs.to_numpy())
 
-def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, log_L_gal, quiescent):
+def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, gmr_best, dn4000_model, log_L_gal, quiescent):
     """
     Updates the properties for the given indices in the arrays. This is used for lost galaxies when we assigned
     redshifts to them generally.
-
-    Returns the new k-corrected G-R color.
     """
     np.put(abs_mag_R, idx, app_mag_to_abs_mag(app_mag_r[idx], z_eff[idx]))
     np.put(abs_mag_R_k, idx, k_correct(abs_mag_R[idx], z_eff[idx], g_r_apparent[idx], band='r'))
@@ -1560,9 +1558,10 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     np.put(abs_mag_G_k, idx, k_correct(abs_mag_G[idx], z_eff[idx], g_r_apparent[idx], band='g'))
     np.put(log_L_gal, idx, abs_mag_r_to_log_solar_L(abs_mag_R_k[idx]))
     G_R_k = abs_mag_G_k - abs_mag_R_k
-    # TODO Instead of doing gmr, estimate Dn4000 emprically based on a map of (L, gmr) => Dn4000 built from observed data
-    np.put(quiescent, idx, is_quiescent_BGS_gmr(log_L_gal[idx], G_R_k[idx])) # We don't have DN4000_MODEL for lost galaxies anyway
-    return G_R_k
+    np.put(gmr_best, idx, G_R_k[idx])
+    lookup = dn4000lookup()
+    np.put(dn4000_model, idx, lookup.query(abs_mag_R_k[idx], G_R_k[idx]))
+    np.put(quiescent, idx, is_quiescent_BGS_dn4000(log_L_gal[idx], dn4000_model[idx], G_R_k[idx]))
 
 def get_footprint_fraction(data_cut, mode, num_passes_required):
     # These are calculated from randoms in BGS_study.ipynb
@@ -1700,6 +1699,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     abs_mag_R_k = get_tbl_column(table, 'ABS_MAG_R_K', required=True)
     abs_mag_G = get_tbl_column(table, 'ABS_MAG_G', required=True)
     abs_mag_G_k = get_tbl_column(table, 'ABS_MAG_G_K', required=True)
+    gmr_best = get_tbl_column(table, 'G_R_BEST', required=True) # absolute G-R using fastspecfit k-corr when possible or polynomial for unobserved
     log_L_gal = get_tbl_column(table, 'LOG_L_GAL', required=True)
     quiescent = get_tbl_column(table, 'QUIESCENT', required=True)
     p_obs = get_tbl_column(table, 'PROB_OBS')
@@ -1711,16 +1711,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         print(f"WARNING: {np.sum(nan_pobs)} galaxies have nan p_obs. Setting those to 0.689, the mean of Y3.")
         p_obs[nan_pobs] = 0.689
     z_phot = get_tbl_column(table, 'Z_PHOT')
-    have_z_phot = True
     if z_phot is None:
         print("WARNING: Z_PHOT column not found in FITS file. Will be set to nan for all.")
         z_phot = np.ones(len(z_obs)) * np.nan
-        have_z_phot = False
-    dn4000 = get_tbl_column(table, 'DN4000')
-    if dn4000 is None:
-        dn4000 = np.zeros(len(z_obs))
     dn4000_model = get_tbl_column(table, 'DN4000_MODEL')
     if dn4000_model is None:
+        print("WARNING: DN4000_MODEL column not found in FITS file. Will be set to 0 for all.")
         dn4000_model = np.zeros(len(z_obs))
 
     # A manually curated list of bad targets, usually from visual inspection of images
@@ -1819,9 +1815,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     abs_mag_R_k = abs_mag_R_k[keep]
     abs_mag_G = abs_mag_G[keep]
     abs_mag_G_k = abs_mag_G_k[keep]
+    gmr_best = gmr_best[keep]
     log_L_gal = log_L_gal[keep]
     quiescent = quiescent[keep]
-    dn4000 = dn4000[keep]
     dn4000_model = dn4000_model[keep]
     ntid = ntid[keep]
     z_phot = z_phot[keep]
@@ -1865,14 +1861,18 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
             # If sloan z is very different from z_phot, we should probably not use it
             # This is a bit of a hack to avoid using the SDSS z for galaxies that are likely to be wrong
+            # TODO but what if it's just a really bad photo-z? Spot check some of these...
             matched = np.logical_and(matched, np.abs(z_phot[idx_unobserved] - sdss_z) < 0.1)
             print(f"{matched.sum():,} are reasonable matches given the photo-z.")
             
             z_eff[idx_unobserved] = np.where(matched, sdss_z, np.nan) # Set to SDSS redshift of nan if not matched
             z_assigned_flag[idx_unobserved] = np.where(matched, AssignedRedshiftFlag.SDSS_SPEC.value, -4) 
             
+            # Take Dn4000 and QUIESCENT from SDSS, keep the magnitude related things as DESI calculations
             idx_from_sloan = idx_unobserved[matched]
-            update_properties_for_indices(idx_from_sloan, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, log_L_gal, quiescent)
+            update_properties_for_indices(idx_from_sloan, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, gmr_best, dn4000_model, log_L_gal, quiescent)
+            np.put(dn4000_model, idx_from_sloan, observed_sdss.iloc[idx]['DN4000'].to_numpy())
+            np.put(quiescent, idx_from_sloan, observed_sdss.iloc[idx]['QUIESCENT'].to_numpy())
             unobserved[idx_unobserved] = np.where(matched, False, unobserved[idx_unobserved])
             observed = np.invert(unobserved)
             idx_unobserved = np.flatnonzero(unobserved)
@@ -1895,21 +1895,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         z_assigned_flag[idx_unobserved] = 1
         print("Copying over nearest neighbor properties complete.")
 
-    # We need to guess a color (target_quiescent) for the unobserved galaxies to help the redshift guesser
-    if Mode.is_simple(mode) or Mode.is_photoz_plus(mode):
-        # Use the lost galaxies' photometric redshift to k-correct
-        if have_z_phot:
-            lost_abs_mag_R = app_mag_to_abs_mag(app_mag_r[idx_unobserved], z_phot[idx_unobserved])
-            lost_abs_mag_R_k = k_correct(lost_abs_mag_R, z_phot[idx_unobserved], g_r_apparent[idx_unobserved])
-            lost_abs_mag_G = app_mag_to_abs_mag(app_mag_g[idx_unobserved], z_phot[idx_unobserved])
-            lost_abs_mag_G_k = k_correct(lost_abs_mag_G, z_phot[idx_unobserved], g_r_apparent[idx_unobserved], band='g')
-            #lost_log_L_gal = abs_mag_r_to_log_solar_L(lost_abs_mag_R_k)
-            lost_G_R_k = lost_abs_mag_G_k - lost_abs_mag_R_k
-            target_quiescent = is_quiescent_BGS_gmr(None, lost_G_R_k)
-        else:
-            # Use an uncorrected apparent g-r color cut to guess if the galaxy is quiescent or not
-            target_quiescent = is_quiescent_lost_gal_guess(app_mag_g[idx_unobserved] - app_mag_r[idx_unobserved]).astype(int)
-        
+    target_quiescent = quiescent[idx_unobserved]
+    q_missing = np.isnan(target_quiescent)
+    if np.any(q_missing):
+        print(f"WARNING: Quiescent missing for {np.sum(q_missing):,} galaxies. Using g-r color without k-corrections to guess.")
+        target_quiescent = np.where(np.isnan(target_quiescent), is_quiescent_lost_gal_guess(app_mag_g[idx_unobserved] - app_mag_r[idx_unobserved]).astype(int), target_quiescent)
+
     if Mode.is_simple(mode):
         if mode == Mode.SIMPLE.value:
             ver = '2.0'
@@ -1991,12 +1982,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     # Now that we have redshifts for lost galaxies, we can calculate the rest of the properties
     if len(idx_unobserved) > 0:
-        G_R_k = update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, log_L_gal, quiescent)
-    else:
-        G_R_k = abs_mag_G_k - abs_mag_R_k
+        update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, gmr_best, dn4000_model, log_L_gal, quiescent)
 
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
-     #print(f"Quiescent agreement between g-r and Dn4000 for observed galaxies: {np.sum(quiescent_gmr[observed] == quiescent[observed]) / np.sum(observed)}")
 
     # the vmax should be calculated from un-k-corrected magnitudes
     V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
@@ -2034,8 +2022,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         'APP_MAG_R': app_mag_r[final_selection].astype("<f8"),
         'TARGETID': target_id[final_selection].astype("<i8"),
         'Z_ASSIGNED_FLAG': z_assigned_flag[final_selection].astype("<i4"),
-        'G_R': G_R_k[final_selection].astype("<f8"), # this is k corrected to z=0.1
-        'DN4000': dn4000[final_selection].astype("<f8"),
+        'G_R': gmr_best[final_selection].astype("<f8"), # this is k corrected to z=0.1
         'DN4000_MODEL': dn4000_model[final_selection].astype("<f8"),
         'NTID': ntid[final_selection].astype("<i8"),
         'Z_PHOT': z_phot[final_selection].astype("<f8"),
@@ -2159,12 +2146,6 @@ def read_and_combine_gf_output(gc: GroupCatalog, galprops_df):
     df['LGAL_BIN'] = pd.cut(x = df['L_GAL'], bins = gc.L_gal_bins, labels = gc.L_gal_labels, include_lowest = True)
 
     return df # TODO update callers
-
-
-
-# TODO might be wise to double check that my manual calculation of q vs sf matches what the group finder was fed by
-# checking the input data. I think for now it should be exactly the same, but maybe we want it to be different for
-# apples to apples comparison between BGS and SDSS
 
 
 
