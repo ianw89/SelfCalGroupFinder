@@ -608,32 +608,31 @@ class GroupCatalog:
             # TODO switch to self.wp_mock_r_M17, etc.
             for mag in mag_limits:
                 fname = datafolder + 'wp_red_M'+"{:d}".format(mag)+'.dat'
-                data = ascii.read(fname, delimiter='\s', format='no_header')
-                xid = np.array(data['col2'][...], dtype='float')
-                errd = np.array(data['col3'][...], dtype='float')
-                rad = np.array(data['col1'][...], dtype='float')
+                data = np.loadtxt(fname, dtype=float, delimiter=' ')
+                wp_data = data[:,1]
+                wp_err_data = data[:,2]
 
                 fname=self.output_folder + 'wp_mock_red_M'+"{:2}".format(mag)+'.dat'
                 data = ascii.read(fname, delimiter='\s', format='no_header')
-                xim = np.array(data['col5'][...], dtype='float')
+                wp_model = np.array(data['col5'][...], dtype='float')
 
                 # Model error is data error times vfac plus a constant error
-                errm = vfac[volume_idx]*errd + efac*xim
-                chivec = (xim-xid)**2/(errd**2 + errm**2) 
+                wp_err_model = vfac[volume_idx]*wp_err_data + efac*wp_model
+                chivec = (wp_model-wp_data)**2/(wp_err_data**2 + wp_err_model**2) 
                 clustering_chisqr_r.append(np.sum(chivec))
 
                 fname = datafolder + 'wp_blue_M'+"{:2}".format(mag)+'.dat'
-                data = ascii.read(fname, delimiter='\s', format='no_header')
-                xid = np.array(data['col2'][...], dtype='float')
-                errd = np.array(data['col3'][...], dtype='float')
+                data = np.loadtxt(fname, dtype=float, delimiter=' ')
+                wp_data = data[:,1]
+                wp_err_data = data[:,2]
 
                 fname = self.output_folder + 'wp_mock_blue_M'+"{:2}".format(mag)+'.dat'
                 data = ascii.read(fname, delimiter='\s', format='no_header')
-                xim = np.array(data['col5'][...], dtype='float')
+                wp_model = np.array(data['col5'][...], dtype='float')
 
-                errm = vfac[volume_idx]*errd + efac*xim
+                wp_err_model = vfac[volume_idx]*wp_err_data + efac*wp_model
                 volume_idx = volume_idx + 1
-                chivec = (xim-xid)**2/(errd**2 + errm**2) 
+                chivec = (wp_model-wp_data)**2/(wp_err_data**2 + wp_err_model**2) 
                 clustering_chisqr_b.append(np.sum(chivec))
             
             print("Red Clustering χ^2: ", np.array(clustering_chisqr_r))

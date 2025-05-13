@@ -8,3 +8,6 @@ figs/
 MCMC/mcmc_*/
 conda_env
 .vscode/settings.json
+py/parameters/bgs_y1/wp_red*
+py/parameters/bgs_y1/wp_blue*
+py/parameters/bgs_y1/wp_all*
