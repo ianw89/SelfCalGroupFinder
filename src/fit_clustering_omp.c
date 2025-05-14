@@ -13,7 +13,7 @@
 #include <errno.h>
 
 // Definitions
-#define NBINS 5 // This is the number of magnitude bins we use. // TNG has 6 bins
+#define MAXBINS 10 // This is the number of magnitude bins we use. // TNG has 6 bins
 #define NRANDOM 1000000
 #define MAX_SATELLITES 1000
 
@@ -32,9 +32,9 @@ float BOX_EPSILON = 0.01;
 
 /* Globals for the tabulated HODs
  */
-double ncenr[NBINS][200], nsatr[NBINS][200],
-    ncenb[NBINS][200], nsatb[NBINS][200], nhalo[NBINS][200];
-int IMAG, BLUE_FLAG;
+double ncenr[MAXBINS][200], nsatr[MAXBINS][200], ncenb[MAXBINS][200], nsatb[MAXBINS][200], nhalo[MAXBINS][200];
+int NVOLUME_BINS;
+float maglim[MAXBINS];
 
 float REDSHIFT = 0.0,
       CVIR_FAC = 1.0;
@@ -318,41 +318,39 @@ void tabulate_hods()
   float mag;
   // TODO switch to giving hte fluxlimit and calculate these.
   // these are for MXXL-BGS
-  // float maxz[NBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158 };
+  // float maxz[MAXBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158 };
   // these are for MXXL-SDSS
-  // float maxz[NBINS] = { 0.0292367, 0.0458043, 0.0713047, 0.110097, 0.16823 };
+  // float maxz[MAXBINS] = { 0.0292367, 0.0458043, 0.0713047, 0.110097, 0.16823 };
   // these are for SHAM-SDSS (r=17.5)
-  //float maxz[NBINS] = {0.02586, 0.0406, 0.06336, 0.0981, 0.1504}; // TODO check these...
-  float maglim[NBINS];
-  float maxz[NBINS]; 
-  float volume[NBINS]; // volume of the mag bin in [Mpc/h]^3
+  //float maxz[MAXBINS] = {0.02586, 0.0406, 0.06336, 0.0981, 0.1504}; // TODO check these...
+  float maxz[MAXBINS]; 
+  float volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
   // these are for TNG300
   // float maxz[NBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158, 0.5 };
   float w0 = 1.0, w1 = w1 = 0.0;
+  int nbins = 0;
 
   if (!SILENT)
     fprintf(stderr, "Reading Volume Bins...\n");
 
-  if (FLUXLIM) {
-    bins_fp = fopen(VOLUME_BINS_FILE, "r");
-    for (i = 0; i < NBINS; ++i)
+  bins_fp = fopen(VOLUME_BINS_FILE, "r");
+  while (fscanf(bins_fp, "%f %f %f", &maglim[nbins], &maxz[nbins], &volume[nbins]) == 3) 
+  {
+    nbins++;
+    if (nbins >= MAXBINS)
     {
-      fscanf(bins_fp, "%f %f %f", &maglim[i], &maxz[i], &volume[i]);
-    }
-    fclose(bins_fp);
-  }
-  else {
-    for (i = 0; i < NBINS; ++i)
-    {
-      maxz[i] = MAXREDSHIFT;
-      volume[i] = 4. / 3. * PI * pow(distance_redshift(MAXREDSHIFT), 3.0) * FRAC_AREA;
+      fprintf(stderr, "ERROR: More lines in volume bins file than maximum of %d\n", MAXBINS);
+      fclose(bins_fp);
+      exit(EINVAL);
     }
   }
+  fclose(bins_fp);
+  NVOLUME_BINS = nbins;
   
   if (!SILENT)
     fprintf(stderr, "Tabulating HODs...\n");
 
-  for (i = 0; i < NBINS; ++i)
+  for (i = 0; i < nbins; ++i)
   {
     // Initialize the arrays that hold the HODs to 0
     for (j = 0; j < 200; ++j)
@@ -372,7 +370,7 @@ void tabulate_hods()
     {
       // For centrals, count this halo in nhalo for the relevant redshift bins
       im = log10(GAL[i].mass) / 0.1;
-      for (j = 0; j < NBINS; ++j)
+      for (j = 0; j < nbins; ++j)
         if (maxz[j] > GAL[i].redshift)
         {
           w0 = 1 / volume[j];
@@ -393,20 +391,16 @@ void tabulate_hods()
       }
     }*/
 
-    // TODO use the magbins read in instead of these assumptions
-
-    // check the magnitude of the galaxy
+    // Get it's bin
     mag = -2.5 * log10(GAL[i].lum) + 4.65;
-    ibin = (int)(fabs(mag)) - 17;
-    // printf("BOO %f %f %d\n",log10(GAL[i].lum),mag,ibin);
-    //  check if we are using stellar mass
+    ibin = (int)(fabs(mag) + maglim[0]); // So if first bin is -17, mag=-17.5, ibin=0
     if (STELLAR_MASS)
     {
       mag = log10(GAL[i].lum) * 2;
-      ibin = (int)(mag)-18;
+      ibin = (int)(mag - maglim[0]); // They will both be positive
     }
 
-    if (ibin < 0 || ibin >= NBINS)
+    if (ibin < 0 || ibin >= nbins)
       continue; // skip if not in the magnitude range
     if (GAL[i].redshift > maxz[ibin])
       continue; // skip if not in the redshift range; peculiar velocities can push galaxies out of the bin...
@@ -440,14 +434,14 @@ void tabulate_hods()
   for (i = 90; i < 155; ++i)
   {
     fprintf(fp, "HOD %f ", i / 10.0);
-    for (j = 0; j < NBINS; ++j)
+    for (j = 0; j < nbins; ++j)
       fprintf(fp, "%e %e ", ncenr[j][i] * 1. / (nhalo[j][i] + 1.0E-20),
               nsatr[j][i] * 1. / (nhalo[j][i] + 1.0E-20));
-    for (j = 0; j < NBINS; ++j)
+    for (j = 0; j < nbins; ++j)
       fprintf(fp, "%e %e ", ncenb[j][i] * 1. / (nhalo[j][i] + 1.0E-20),
               nsatb[j][i] * 1. / (nhalo[j][i] + 1.0E-20));
     fprintf(fp, "MF %f ", i / 10.0);
-    for (j = 0; j < NBINS; ++j)
+    for (j = 0; j < nbins; ++j)
       fprintf(fp, "%e ", nhalo[j][i]);
     fprintf(fp, "\n");
   }
@@ -456,7 +450,7 @@ void tabulate_hods()
 
   for (i = 90; i < 200; ++i)
   {
-    for (j = 0; j < NBINS; ++j)
+    for (j = 0; j < nbins; ++j)
     {
       ncenr[j][i] = log10(ncenr[j][i] * 1. / (nhalo[j][i] + 1.0E-20) + 1.0E-10);
       nsatr[j][i] = log10(nsatr[j][i] * 1. / (nhalo[j][i] + 1.0E-20) + 1.0E-10);
@@ -539,13 +533,15 @@ void lsat_model_scatter()
  */
 void populate_simulation_omp(int imag, int blue_flag, int thisTask)
 {
+  // TODO BUG something from the last change broke this and caused it to make way more satellites
+  // That is why it is now running way slower, and the clustering is way higher than it should be
   // static int flag=1;
   int i;
   FILE *fp;
   long IDUM3 = -555, iseed = 555;
   FILE *outf;
   char fname[1000];
-  int j, nsat_rand, imag_offset, imag_mult, istart, iend;
+  int j, nsat_rand, imag_offset, imag_mult, istart, iend, mag;
   float nsat, ncen, mass, xg[3], vg[3], xh[3], logm, bfit;
   // struct drand48_data drand_buf;
   double r;
@@ -596,21 +592,22 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
   /* Put this in a global so that we know which HOD
    * to use.
    */
-  if (!SILENT) fprintf(stderr, "popsim> starting population for imag=%d, blue=%d\n", imag, blue_flag);
-
-  imag_offset = 17;
+  imag_offset = (int)fabs(maglim[0]);
   imag_mult = 1;
   if (STELLAR_MASS)
   {
     imag_offset = 90;
     imag_mult = 5;
   }
+  mag = imag * imag_mult + imag_offset;
+  if (!SILENT) fprintf(stderr, "popsim> starting population for imag=%d, blue=%d, mag=%d\n", imag, blue_flag, mag);
+
   /* We'll do simple linear interpolation for the HOD
    */
   if (blue_flag)
-    sprintf(fname, "mock_blue_M%d.dat", imag * imag_mult + imag_offset);
+    sprintf(fname, "mock_blue_M%d.dat", mag);
   else
-    sprintf(fname, "mock_red_M%d.dat", imag * imag_mult + imag_offset);
+    sprintf(fname, "mock_red_M%d.dat", mag);
   outf = fopen(fname, "w");
 
   // srand48_r (iseed, &drand_buf);

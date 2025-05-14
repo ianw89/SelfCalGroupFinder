@@ -80,6 +80,7 @@ extern char *INPUTFILE;
 extern char *HALO_MASS_FUNC_FILE;
 extern char *MOCK_FILE;
 extern char *VOLUME_BINS_FILE;
+extern int NVOLUME_BINS;
 
 /* Variables for determining threshold if a galaxy is a satellite */
 extern const float BPROB_DEFAULT;

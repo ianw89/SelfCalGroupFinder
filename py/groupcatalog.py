@@ -24,6 +24,7 @@ from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
 from bgs_helpers import *
 import wp
+from calibrationdata import *
 
 # Sentinal value for no truth redshift
 NO_TRUTH_Z = -99.99
@@ -57,7 +58,8 @@ GOOD_TEN_PARAMETERS = np.array([
     [20.266485,6.981479,20.417991,9.467296,30.750261,6.597792,-1.896981,16.674611,10.527099,1.341537],
     ])
 
-GF_PROPS_BGS_COLORS = {
+# A 10 Parameter set found from MCMC SV3 with SDSS data.
+GF_PROPS_BGS_COLORS_C1 = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
@@ -105,30 +107,23 @@ class GroupCatalog:
         self.Mr_gal_labels = Mr_gal_labels
 
         # Properties pertaining the popmock option
-        self.x_volume = None # of each bin
-        self.x_zmaxes = None # of each bin
+        self.caldata: CalibrationData = None
+        self.mockfile = MOCK_FILE_FOR_POPMOCK
+        self.mocksize = 250.0 # Mpc/h
         self.x_magbins = None # for each bin
-
-        self.wp_all = None # (rbins, wp_all, wp_r, wp_b)
-        self.wp_all_extra = None # (rbins, wp_all, wp_r, wp_b)
-        self.wp_slices = np.array(len(CLUSTERING_MAG_BINS) * [None]) # Tuple of (rbins, wp) at each index
-        self.wp_slices_extra = np.array(len(CLUSTERING_MAG_BINS) * [None]) # Tuple of (rbins, wp) at each index
 
         # Geneated from popmock option in group finder
         self.lsat_groups = None # lsat_model
         self.lsat_groups2 = None # lsat_model_scatter
 
         # Generated from run_corrfunc
-        self.wp_mock_b_M17 = None
-        self.wp_mock_r_M17 = None
-        self.wp_mock_b_M18 = None
-        self.wp_mock_r_M18 = None
-        self.wp_mock_b_M19 = None
-        self.wp_mock_r_M19 = None
-        self.wp_mock_b_M20 = None
-        self.wp_mock_r_M20 = None
-        self.wp_mock_b_M21 = None
-        self.wp_mock_r_M21 = None
+        self.wp_mock = {}
+
+        # These are direct wp measurements, not on the mock. This code doesn't work BUG
+        self.wp_all = None # (rbins, wp_all, wp_r, wp_b)
+        self.wp_all_extra = None # (rbins, wp_all, wp_r, wp_b)
+        self.wp_slices = np.array(len(CLUSTERING_MAG_BINS) * [None]) # Tuple of (rbins, wp) at each index
+        self.wp_slices_extra = np.array(len(CLUSTERING_MAG_BINS) * [None]) # Tuple of (rbins, wp) at each index
 
         self.f_sat = None # per Lgal bin 
         self.Lgal_counts = None # size of Lgal bins 
@@ -138,6 +133,26 @@ class GroupCatalog:
         self.file_pattern = self.output_folder + self.name
         self.GF_outfile = self.file_pattern + ".out"
         self.results_file = self.file_pattern + ".pickle"
+
+    def get_mock_wp(self, mag: int, color: str, wp_err):
+        """
+        Get the wp and estimate of wp error from the mock populated with this group catalog's HOD. 
+        Returns the wp and the error, which is an ad-hoc construction.
+
+        :param mag: mass bin without the - sign. e.g. 17
+        :param color: 'r' or 'b'
+        :param wp_err: the wp error from the matching data, which is used in creating the error for the mock
+        :return: wp_mock and wp_mock_error
+        """
+        mag = abs(mag)
+        idx = self.caldata.mag_to_idx(mag)
+
+        wp_mock = self.wp_mock[(color, mag)][:,4] # the wp values
+        vfac = (self.caldata.volumes[idx]/250.0**3)**.5 # factor by which to multiply errors
+        efac = 0.1
+        wp_mock_error = vfac*wp_err + efac*wp_mock
+        return wp_mock, wp_mock_error
+
 
     def setup_GF_mcmc(self, mcmc_num: int = None):
 
@@ -460,13 +475,9 @@ class GroupCatalog:
         if silent:
             args.append("-s")
         if popmock:
-            if self.x_magbins is None:
-                self.x_magbins = [-17, -18, -19, -20, -21]
-            self.x_zmaxes = np.array([get_max_observable_z(m, self.mag_cut).value for m in self.x_magbins])
-            self.x_volume = np.array([get_volume_at_z(z, self.GF_props['frac_area']) for z in self.x_zmaxes])
-            np.savetxt(self.output_folder + "volume_bins.dat", np.column_stack((self.x_magbins, self.x_zmaxes, self.x_volume)), fmt='%f')
+            # Save a file with the volume bin info, which the C code will read
+            np.savetxt(self.output_folder + "volume_bins.dat", np.column_stack((self.caldata.magbins, self.caldata.zmaxes, self.caldata.volumes)), fmt='%f')
             args.append(f"--popmock={MOCK_FILE_FOR_POPMOCK},volume_bins.dat")
-            
         if verbose:
             args.append("-v")
         if 'omegaL_sf' in self.GF_props:
@@ -519,8 +530,7 @@ class GroupCatalog:
         if not os.path.exists(os.path.join(corrfunc_path, "wp")):
             corrfunc_path = "/mount/sirocco1/tinker/src/Corrfunc/bin/"
         
-        processes = []
-        mass_range = range(17, 22)
+        mass_range = self.caldata.magbins
 
         nthreads = os.cpu_count()
         pimax = 40
@@ -528,23 +538,14 @@ class GroupCatalog:
 
         # Call corrfunc compiled executable to compute wp on the mock that was populated with the HOD extracted from this catalog
         for m in mass_range:
+            m = abs(m)
             for col in ["red", "blue"]:
-                cmd = f"{corrfunc_path}/wp {boxsize} mock_{col}_M{m}.dat a {WP_RADIAL_BINS_SDSS_FILE} {pimax} {nthreads} > wp_mock_{col}_M{m}.dat 2> wp_stderr.txt"
+                outf = f"wp_mock_{col}_M{m}.dat"
+                cmd = f"{corrfunc_path}/wp {boxsize} mock_{col}_M{m}.dat a {self.caldata.rpbinsfile} {pimax} {nthreads} > wp_mock_{col}_M{m}.dat 2> wp_stderr.txt"
                 result = sp.run(cmd, cwd=self.output_folder, shell=True, check=True)
                 if result.returncode != 0:
                     print(f"Error running command: {cmd}")
-
-        # Load the wp results
-        self.wp_mock_b_M17 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M17.dat', skiprows=0, dtype='float')
-        self.wp_mock_r_M17 = np.loadtxt(f'{self.output_folder}wp_mock_red_M17.dat', skiprows=0, dtype='float')
-        self.wp_mock_b_M18 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M18.dat', skiprows=0, dtype='float')
-        self.wp_mock_r_M18 = np.loadtxt(f'{self.output_folder}wp_mock_red_M18.dat', skiprows=0, dtype='float')
-        self.wp_mock_b_M19 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M19.dat', skiprows=0, dtype='float')
-        self.wp_mock_r_M19 = np.loadtxt(f'{self.output_folder}wp_mock_red_M19.dat', skiprows=0, dtype='float')
-        self.wp_mock_b_M20 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M20.dat', skiprows=0, dtype='float')
-        self.wp_mock_r_M20 = np.loadtxt(f'{self.output_folder}wp_mock_red_M20.dat', skiprows=0, dtype='float')
-        self.wp_mock_b_M21 = np.loadtxt(f'{self.output_folder}wp_mock_blue_M21.dat', skiprows=0, dtype='float')
-        self.wp_mock_r_M21 = np.loadtxt(f'{self.output_folder}wp_mock_red_M21.dat', skiprows=0, dtype='float')
+                self.wp_mock[(col, m)] = np.loadtxt(f'{self.output_folder}{outf}', skiprows=0, dtype='float')
 
         t2 = time.time()
         print(f"Done with wp on mock populated with HOD from this sample (time = {t2-t1:.1f}s).")
@@ -580,63 +581,40 @@ class GroupCatalog:
     def calculate_projected_clustering_in_magbins(self, with_extra_randoms=False):
         pass
 
-    def chisqr(self, datafolder=PARAMS_SDSS_FOLDER):
+    def chisqr(self):
         """ 
         Evaluate the quality of the HOD implied by the group finder results
         by comparing a mock populated with the HOD to the external datasets.
         """
-        # TODO check that popmock was run
-
-        MOCK_LENGTH = 250.0 # Mpc 
-        vfac = (self.x_volume/MOCK_LENGTH**3)**.5 # factor by which to multiply errors
-        efac = 0.1  # let's just add a constant fractional error bar
+        if len(self.wp_mock) == 0:
+            print("WARNING: chisqr() called without having populated the mock.")
+            return
 
         with np.printoptions(precision=0, suppress=True, linewidth=300):
-            #print(f'PARAMETERS {self.GF_props}')
             chi = 0
             clustering_chisqr_r = []
             clustering_chisqr_b = []
             lsat_chisqr = []
 
             # PROJECTED CLUSTERING COMPARISON
-                
-            # read in the wp values from the results
-            mag_limits = np.linspace(18,21,4,dtype='int') # TODO let these vary
-            #imag = np.linspace(90,110,5,dtype='int')
-            volume_idx = 1 # index for vfac, we're skipping the -17 one
+            mag_limits = self.caldata.magbins[:-1]
 
-            # TODO switch to self.wp_mock_r_M17, etc.
             for mag in mag_limits:
-                fname = datafolder + 'wp_red_M'+"{:d}".format(mag)+'.dat'
-                data = np.loadtxt(fname, dtype=float, delimiter=' ')
-                wp_data = data[:,1]
-                wp_err_data = data[:,2]
+                wp, wp_err, radius = self.caldata.get_wp_red(mag)
+                wp_model, wp_err_model = self.get_mock_wp(mag, 'red', wp_err)
 
-                fname=self.output_folder + 'wp_mock_red_M'+"{:2}".format(mag)+'.dat'
-                data = ascii.read(fname, delimiter='\s', format='no_header')
-                wp_model = np.array(data['col5'][...], dtype='float')
-
-                # Model error is data error times vfac plus a constant error
-                wp_err_model = vfac[volume_idx]*wp_err_data + efac*wp_model
-                chivec = (wp_model-wp_data)**2/(wp_err_data**2 + wp_err_model**2) 
+                chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
                 clustering_chisqr_r.append(np.sum(chivec))
 
-                fname = datafolder + 'wp_blue_M'+"{:2}".format(mag)+'.dat'
-                data = np.loadtxt(fname, dtype=float, delimiter=' ')
-                wp_data = data[:,1]
-                wp_err_data = data[:,2]
+                wp, wp_err, radius = self.caldata.get_wp_blue(mag)
+                wp_model, wp_err_model = self.get_mock_wp(mag, 'blue', wp_err)
 
-                fname = self.output_folder + 'wp_mock_blue_M'+"{:2}".format(mag)+'.dat'
-                data = ascii.read(fname, delimiter='\s', format='no_header')
-                wp_model = np.array(data['col5'][...], dtype='float')
-
-                wp_err_model = vfac[volume_idx]*wp_err_data + efac*wp_model
-                volume_idx = volume_idx + 1
-                chivec = (wp_model-wp_data)**2/(wp_err_data**2 + wp_err_model**2) 
+                chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
                 clustering_chisqr_b.append(np.sum(chivec))
             
             print("Red Clustering χ^2: ", np.array(clustering_chisqr_r))
             print("Blue Clustering χ^2: ", np.array(clustering_chisqr_b))
+
 
             # LSAT COMPARISON
 
@@ -825,7 +803,7 @@ class SDSSGroupCatalog(GroupCatalog):
         
         return gc
 
-    def __init__(self, name: str, preprocessed_file: str, galprops_file: str):
+    def __init__(self, name: str, preprocessed_file: str, galprops_file: str, gfprops: dict):
         super().__init__(name)
         self.preprocess_file = preprocessed_file
         self.galprops_file = galprops_file
@@ -834,6 +812,8 @@ class SDSSGroupCatalog(GroupCatalog):
         self.Mr_gal_bins = self.Mr_gal_bins[15:]
         self.Mr_gal_labels = self.Mr_gal_labels[15:]
         self.mag_cut = 17.7
+        self.GF_props = gfprops
+        self.caldata = CalibrationData.SDSS_4bin(self.mag_cut, self.GF_props['frac_area'])
 
         # TODO BUG right volumes?
         #Volume of bin 0 is 344276.781250
@@ -939,6 +919,8 @@ class TestGroupCatalog(GroupCatalog):
             'fluxlim':1,
             'color':0,
         }
+        self.mag_cut = 17.7
+        self.caldata = CalibrationData.SDSS_4bin(self.mag_cut, self.GF_props['frac_area'])
 
     def create_test_dat_files(self):
         gals = pd.read_csv(SDSS_v1_DAT_FILE, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
@@ -966,13 +948,14 @@ class TestGroupCatalog(GroupCatalog):
 
 class MXXLGroupCatalog(GroupCatalog):
 
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool):
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool, gfprops: dict):
         super().__init__(name)
         self.mode = mode
         self.mag_cut = mag_cut
         self.catalog_mag_cut = catalog_mag_cut
         self.use_colors = use_colors
         self.color = mode_to_color(mode)
+        self.GF_props = gfprops
         
 
     def preprocess(self):
@@ -1018,13 +1001,14 @@ class MXXLGroupCatalog(GroupCatalog):
 
 class UchuuGroupCatalog(GroupCatalog):
    
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool):
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool, gfprops: dict):
         super().__init__(name)
         self.mode = mode
         self.mag_cut = mag_cut
         self.catalog_mag_cut = catalog_mag_cut
         self.use_colors = use_colors
         self.color = get_color(9)
+        self.GF_props = gfprops
 
     def preprocess(self):
         if not os.path.exists(self.output_folder):
@@ -1063,7 +1047,7 @@ class BGSGroupCatalog(GroupCatalog):
     
     extra_prop_df: pd.DataFrame = None
 
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, drop_passes: int = 0, data_cut: str = "Y1-Iron", extra_params = None):
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, drop_passes: int = 0, data_cut: str = "Y1-Iron", gfprops=None, extra_params = None):
         super().__init__(name)
         self.mode = mode
         self.mag_cut = mag_cut
@@ -1076,6 +1060,8 @@ class BGSGroupCatalog(GroupCatalog):
         self.is_centered_version = False
         self.centered = None # SV3 Centered version shortcut.
         self.extra_params = extra_params
+        self.GF_props = gfprops
+        self.caldata = CalibrationData.BGS_Y1_6bin(self.mag_cut, self.GF_props['frac_area'])
 
     @staticmethod
     def from_MCMC(reader: emcee.backends.HDFBackend, mode: Mode):
@@ -1839,7 +1825,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # If a lost galaxy matches the SDSS catalog, grab it's redshift and use that
     ############################################################################
     if unobserved.sum() > 0 and sdss_fill:
-        sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla v2", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE))
+        sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla v2", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE, {'frac_area': 0.179}))
         if sdss_vanilla.all_data is not None:
             sdss_has_specz = z_flag_is_spectro_z(sdss_vanilla.all_data.Z_ASSIGNED_FLAG)
             observed_sdss = sdss_vanilla.all_data.loc[sdss_has_specz]

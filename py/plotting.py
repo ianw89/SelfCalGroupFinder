@@ -10,6 +10,7 @@ if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from pyutils import *
 from groupcatalog import *
+from calibrationdata import *
 # np.array(zip(*[line.split() for line in f])[1], dtype=float)
 
 
@@ -378,6 +379,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         legend_ax(ax1, catalogs)
         ax1.set_xlim(xmin,X_MAX)
         ax1.set_ylim(0.0,0.6)
+        ax1.grid(True)
         ax2=ax1.twiny()
         ax2.plot(catalogs[0].Mr_gal_labels, catalogs[0].f_sat, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
@@ -416,6 +418,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         legend_ax(ax1, catalogs)
         ax1.set_xlim(xmin,X_MAX)
         ax1.set_ylim(0.0,0.5)
+        ax1.grid(True)
         ax2=ax1.twiny()
         ax2.plot(catalogs[0].Mr_gal_labels, catalogs[0].f_sat_sf, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
@@ -438,6 +441,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         legend_ax(ax1, catalogs)
         ax1.set_xlim(xmin,X_MAX)
         ax1.set_ylim(0.0,1.0)
+        ax1.grid(True)
         ax2=ax1.twiny()
         ax2.plot(catalogs[0].Mr_gal_labels, catalogs[0].f_sat_q, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(xmin)), log_solar_L_to_abs_mag_r(np.log10(X_MAX)))
@@ -936,65 +940,48 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     ax1.legend()
 
 
-def proj_clustering_plot(gc: GroupCatalog, datafolder=PARAMS_SDSS_FOLDER):
-    # TODO BUG I'm not sure the error bars are right on this
-    # Yep they are wrong, my nersc one is right. See https://arxiv.org/pdf/1005.2413
-    NUM = 4
-    MAG_START = 18
-    MAG_END = 21
-    imag = np.linspace(MAG_START,MAG_END,NUM,dtype='int')
+def proj_clustering_plot(gc: GroupCatalog):
+    caldata = gc.caldata
+    num = caldata.bincount
+    mag_start = caldata.magbins[0]
+    mag_end = caldata.magbins[-2]
 
-    fig,axes=plt.subplots(nrows=1, ncols=NUM, figsize=(2+3*NUM,4), dpi=DPI)
+    imag = np.linspace(mag_start,mag_end,num,dtype='int')
+
+    fig,axes=plt.subplots(nrows=1, ncols=num, figsize=(2+3*num,4), dpi=DPI)
     fig.suptitle(gc.name)
 
     overall, clust_r, clust_b, lsat = gc.chisqr()
 
     idx = 0
-    for i in imag:
+    for i in caldata.magbins:
+        wp, wp_err, radius = caldata.get_wp_red(i)
+        axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkred', capsize=3, ecolor='k')
 
-        # Data 
-        fname=datafolder + f'wp_red_M{i:d}.dat'
-        wp, wp_err, radius = read_wp_file(fname)
-        axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='r', capsize=2, ecolor='k', alpha=1.0)
+        wp_mock, wp_mock_err = gc.get_mock_wp(i, 'red', wp_err)
+        axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='r', alpha=0.6)
 
-        fname=datafolder + 'wp_blue_M'+"{:d}".format(i)+'.dat'
-        wp, wp_err, radius = read_wp_file(fname)
-        axes[idx].errorbar(np.log10(radius), np.log10(wp), yerr=wp_err/wp, fmt='.', color='b', capsize=2, ecolor='k', alpha=1.0)
+        wp, wp_err, radius = caldata.get_wp_blue(i)
+        axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkblue', capsize=3, ecolor='k')
 
-        # Populated mock for GroupCatalog gc
-        wp_mock = gc.__getattribute__(f'wp_mock_r_M{i}')[:,4]
-        vfac = (gc.x_volume/250**3)**.5 # factor by which to multiply errors
-        efac = 0.1
-        err_mock = vfac[idx]*wp_err + efac*wp_mock
-        #axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='r', alpha=0.7)
-        axes[idx].plot(np.log10(radius), np.log10(wp_mock), color='r', alpha=0.7)
-
-        wp_mock = gc.__getattribute__(f'wp_mock_b_M{i}')[:,4]
-        err_mock = vfac[idx]*wp_err + efac*wp_mock
-        #axes[idx].errorbar(np.log10(radius), np.log10(wp_mock), yerr=err_mock/wp_mock, capsize=2, color='b', alpha=0.7)
-        axes[idx].plot(np.log10(radius), np.log10(wp_mock), color='b', alpha=0.7)
+        wp_mock, wp_mock_err = gc.get_mock_wp(i, 'blue', wp_err)
+        axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='b', alpha=0.6)
 
         # Put text of the chisqr value in plot
-        axes[idx].text(0.7, 0.9, f"$\chi^2_r$: {clust_r[i-MAG_START]:.1f}", transform=axes[idx].transAxes)
-        axes[idx].text(0.7, 0.8, f"$\chi^2_b$: {clust_b[i-MAG_START]:.1f}", transform=axes[idx].transAxes)
+        axes[idx].text(0.7, 0.9, f"$\chi^2_r$: {clust_r[i-mag_start]:.1f}", transform=axes[idx].transAxes)
+        axes[idx].text(0.7, 0.8, f"$\chi^2_b$: {clust_b[i-mag_start]:.1f}", transform=axes[idx].transAxes)
 
         # Plot config
-        axes[idx].set_xlabel('log $r_p$ [Mpc/h]')
-        axes[idx].set_ylabel('log $w_p(r_p)$')
-        axes[idx].set_xlim(-1,1)
-        axes[idx].set_ylim(0,4)
+        axes[idx].set_xscale('log')
+        axes[idx].set_yscale('log')
+        axes[idx].set_xlabel('$r_p$ [Mpc/h]')
+        axes[idx].set_ylabel('$w_p(r_p)$')
+        axes[idx].set_ylim(2,4000)
         axes[idx].set_title(f'[-{i}, -{i+1}]')
 
         idx = idx + 1
     
     fig.tight_layout()
-
-def read_wp_file(fname):
-    data = np.loadtxt(fname, skiprows=0, dtype='float')
-    wp = data[:,1]
-    wp_err = data[:,2]
-    radius = data[:,0]
-    return wp,wp_err,radius
 
 def lsat_data_compare_plot(gc: GroupCatalog):
 
@@ -1029,7 +1016,7 @@ def lsat_data_compare_plot(gc: GroupCatalog):
     axes[0].legend()
 
     # Put text of the chisqr value in plot
-    #axes[0].text(.5,.5, f"$\chi^2_r$: {np.sum(lsat):.1f}"),
+    axes[0].text(.4,.93, f"$\chi^2$: {np.sum(lsat):.1f}", transform=axes[0].transAxes)
 
     axes[1].plot(lcen, np.log10(lsat_r), label='GF Quiescent', color='r')
     axes[1].plot(lcen, np.log10(lsat_b), label='GF Star-forming', color='b')

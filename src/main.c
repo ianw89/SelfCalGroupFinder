@@ -255,7 +255,8 @@ int main(int argc, char **argv)
     if (!SILENT) fprintf(stderr, "Populating mock catalog\n");
 
     t2 = omp_get_wtime();
-    for (i = 0; i < 10; i += 1)
+
+    for (i = 0; i < NVOLUME_BINS*2; i += 1)
     {
       populate_simulation_omp(i / 2, i % 2, 1);
     }
