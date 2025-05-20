@@ -944,9 +944,6 @@ def proj_clustering_plot(gc: GroupCatalog):
     caldata = gc.caldata
     num = caldata.bincount
     mag_start = caldata.magbins[0]
-    mag_end = caldata.magbins[-2]
-
-    imag = np.linspace(mag_start,mag_end,num,dtype='int')
 
     fig,axes=plt.subplots(nrows=1, ncols=num, figsize=(2+3*num,4), dpi=DPI)
     fig.suptitle(gc.name)
@@ -954,7 +951,8 @@ def proj_clustering_plot(gc: GroupCatalog):
     overall, clust_r, clust_b, lsat = gc.chisqr()
 
     idx = 0
-    for i in caldata.magbins:
+    for idx in range(len(caldata.magbins)-1):
+        i = caldata.magbins[idx]
         wp, wp_err, radius = caldata.get_wp_red(i)
         axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkred', capsize=3, ecolor='k')
 
@@ -968,16 +966,16 @@ def proj_clustering_plot(gc: GroupCatalog):
         axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='b', alpha=0.6)
 
         # Put text of the chisqr value in plot
-        axes[idx].text(0.7, 0.9, f"$\chi^2_r$: {clust_r[i-mag_start]:.1f}", transform=axes[idx].transAxes)
-        axes[idx].text(0.7, 0.8, f"$\chi^2_b$: {clust_b[i-mag_start]:.1f}", transform=axes[idx].transAxes)
+        axes[idx].text(0.6, 0.9, f"$\chi^2_r$: {clust_r[i-mag_start]:.1f}", transform=axes[idx].transAxes)
+        axes[idx].text(0.6, 0.8, f"$\chi^2_b$: {clust_b[i-mag_start]:.1f}", transform=axes[idx].transAxes)
 
         # Plot config
         axes[idx].set_xscale('log')
         axes[idx].set_yscale('log')
         axes[idx].set_xlabel('$r_p$ [Mpc/h]')
         axes[idx].set_ylabel('$w_p(r_p)$')
-        axes[idx].set_ylim(2,4000)
-        axes[idx].set_title(f'[-{i}, -{i+1}]')
+        axes[idx].set_ylim(3,4000)
+        axes[idx].set_title(f'[{i}, {caldata.magbins[idx+1]}]')
 
         idx = idx + 1
     

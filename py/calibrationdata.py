@@ -24,9 +24,9 @@ class CalibrationData:
         self.magbins = magbins # absolute magnitude bin definitions (edges)
         self.magcut = magcut # apparent magnitude cut to use when calculating the volumes
         self.frac_area = frac_area # fraction of the area of the sky that is covered by the survey, multiplies into the volume
-        self.zmaxes = np.array([get_max_observable_z(m, self.magcut).value for m in self.magbins])
+        self.zmaxes = np.array([get_max_observable_z(m, self.magcut).value for m in self.magbins[:-1]])
         self.volumes = np.array([get_volume_at_z(z, frac_area) for z in self.zmaxes])
-        self.bincount = len(self.magbins)
+        self.bincount = len(self.magbins) - 1
     
     def get_wp_red(self, mag: int):
         mag = abs(mag)
@@ -49,12 +49,12 @@ class CalibrationData:
 
     @staticmethod
     def SDSS_4bin(magcut: float, frac_area: float):
-        return CalibrationData(PARAMS_SDSS_FOLDER, WP_RADIAL_BINS_SDSS_FILE, np.array([-18, -19, -20, -21]), magcut, frac_area)
+        return CalibrationData(PARAMS_SDSS_FOLDER, WP_RADIAL_BINS_SDSS_FILE, np.array([-18, -19, -20, -21, -22]), magcut, frac_area)
     
     @staticmethod
     def SDSS_5bin(magcut: float, frac_area: float):
-        return CalibrationData(PARAMS_SDSS_FOLDER, WP_RADIAL_BINS_SDSS_FILE, np.array([-17, -18, -19, -20, -21]), magcut, frac_area)
+        return CalibrationData(PARAMS_SDSS_FOLDER, WP_RADIAL_BINS_SDSS_FILE, np.array([-17, -18, -19, -20, -21, -22]), magcut, frac_area)
 
     @staticmethod
     def BGS_Y1_6bin(magcut: float, frac_area: float):
-        return CalibrationData(PARAMS_BGSY1_FOLDER, WP_RADIAL_BINS_DESI_FILE, np.array([-17, -18, -19, -20, -21, -22]), magcut, frac_area)
+        return CalibrationData(PARAMS_BGSY1_FOLDER, WP_RADIAL_BINS_DESI_FILE, np.array([-17, -18, -19, -20, -21, -22, -23]), magcut, frac_area)

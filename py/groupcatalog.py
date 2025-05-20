@@ -110,7 +110,6 @@ class GroupCatalog:
         self.caldata: CalibrationData = None
         self.mockfile = MOCK_FILE_FOR_POPMOCK
         self.mocksize = 250.0 # Mpc/h
-        self.x_magbins = None # for each bin
 
         # Geneated from popmock option in group finder
         self.lsat_groups = None # lsat_model
@@ -476,7 +475,7 @@ class GroupCatalog:
             args.append("-s")
         if popmock:
             # Save a file with the volume bin info, which the C code will read
-            np.savetxt(self.output_folder + "volume_bins.dat", np.column_stack((self.caldata.magbins, self.caldata.zmaxes, self.caldata.volumes)), fmt='%f')
+            np.savetxt(self.output_folder + "volume_bins.dat", np.column_stack((self.caldata.magbins[:-1], self.caldata.zmaxes, self.caldata.volumes)), fmt='%f')
             args.append(f"--popmock={MOCK_FILE_FOR_POPMOCK},volume_bins.dat")
         if verbose:
             args.append("-v")
@@ -530,7 +529,7 @@ class GroupCatalog:
         if not os.path.exists(os.path.join(corrfunc_path, "wp")):
             corrfunc_path = "/mount/sirocco1/tinker/src/Corrfunc/bin/"
         
-        mass_range = self.caldata.magbins
+        mass_range = self.caldata.magbins[:-1]
 
         nthreads = os.cpu_count()
         pimax = 40
@@ -1061,7 +1060,8 @@ class BGSGroupCatalog(GroupCatalog):
         self.centered = None # SV3 Centered version shortcut.
         self.extra_params = extra_params
         self.GF_props = gfprops
-        self.caldata = CalibrationData.BGS_Y1_6bin(self.mag_cut, self.GF_props['frac_area'])
+        self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
+        #self.caldata = CalibrationData.BGS_Y1_6bin(self.mag_cut, self.GF_props['frac_area'])
 
     @staticmethod
     def from_MCMC(reader: emcee.backends.HDFBackend, mode: Mode):
