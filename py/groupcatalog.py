@@ -506,6 +506,10 @@ class GroupCatalog:
             if os.path.exists(f'{self.output_folder}lsat_groups2.out'):
                 self.lsat_groups2 = np.loadtxt(f'{self.output_folder}lsat_groups2.out', skiprows=0, dtype='float')
 
+            hodout = f'{self.output_folder}hod.out'
+            if os.path.exists(hodout):
+                self.hod = np.loadtxt(hodout, skiprows=4, dtype='float', delimiter=' ')
+
         t2 = time.time()
         print(f"run_group_finder() took {t2-t1:.1f} seconds.")
         return True
@@ -1060,7 +1064,7 @@ class BGSGroupCatalog(GroupCatalog):
         self.centered = None # SV3 Centered version shortcut.
         self.extra_params = extra_params
         self.GF_props = gfprops
-        self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
+        self.caldata = CalibrationData.SDSS_4bin(self.mag_cut, self.GF_props['frac_area'])
         #self.caldata = CalibrationData.BGS_Y1_6bin(self.mag_cut, self.GF_props['frac_area'])
 
     @staticmethod
