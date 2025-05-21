@@ -314,8 +314,9 @@ void lsat_model()
 void tabulate_hods()
 {
   FILE *fp, *bins_fp;
-  int i, j, im, igrp, ibin;
+  int i, j, im, ibin;
   float mag;
+  int *haloadded;
   // TODO switch to giving hte fluxlimit and calculate these.
   // these are for MXXL-BGS
   // float maxz[NBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158 };
@@ -328,7 +329,10 @@ void tabulate_hods()
   float volume[NBINS]; // volume of the mag bin in [Mpc/h]^3
   // these are for TNG300
   // float maxz[NBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158, 0.5 };
-  float w0 = 1.0, w1 = w1 = 0.0;
+  float w0=1.0;
+
+  haloadded = calloc(NGAL+1, sizeof(int)*NBINS);
+
 
   if (!SILENT)
     fprintf(stderr, "Reading Volume Bins...\n");
@@ -361,37 +365,26 @@ void tabulate_hods()
 
   for (i = 0; i < NGAL; ++i)
   {
-    // what is host halo mass?
+    // What is host halo mass?
     // im is the mass bin index
     if (GAL[i].psat > 0.5)
-    {
-      igrp = GAL[i].igrp;
-      im = log10(GAL[igrp].mass) / 0.1; 
-    }
+      im = log10(GAL[GAL[i].igrp].mass) / 0.1; 
     else
-    {
-      // For centrals, count this halo in nhalo for the relevant redshift bins
       im = log10(GAL[i].mass) / 0.1;
-      for (j = 0; j < NBINS; ++j)
-        if (maxz[j] > GAL[i].redshift)
+
+    // Count this halo in nhalo for the relevant redshift bins if we didn't do it already
+    // Both centrals and satellites can force a halo to be counted
+    for (j = 0; j < NBINS; ++j)
+      if (haloadded[(j+1)*GAL[i].igrp] == 0) 
+        if (GAL[GAL[i].igrp].redshift < maxz[j])
         {
           w0 = 1 / volume[j];
           if (GAL[i].vmax < volume[j])
             w0 = 1 / GAL[i].vmax;
           nhalo[j][im] += w0; // 1/vmax weight the halo count
+          haloadded[(j+1)*GAL[i].igrp] = 1;
         }
-    }
-
-    /*if (!SILENT)
-    {  
-      for (j = 0; j < NBINS; ++j)
-      {
-        for (int k = 0; k < 200; ++k)
-        {
-          fprintf(stderr, "nhalo[%d][%d] = %f\n", j, k, nhalo[j][k]);
-        }
-      }
-    }*/
+    
 
     // TODO use the magbins read in instead of these assumptions
 
@@ -481,6 +474,8 @@ void tabulate_hods()
   
   if (!SILENT)
     fprintf(stderr, "Tabulated HODs written to hod.out\n");
+
+  free(haloadded);
 }
 
 /* Do the same as above, but now giving
