@@ -496,6 +496,10 @@ class GroupCatalog:
             if os.path.exists(f'{self.output_folder}lsat_groups2.out'):
                 self.lsat_groups2 = np.loadtxt(f'{self.output_folder}lsat_groups2.out', skiprows=0, dtype='float')
 
+            hodout = f'{self.output_folder}hod.out'
+            if os.path.exists(hodout):
+                self.hod = np.loadtxt(hodout, skiprows=4, dtype='float', delimiter=' ')
+
         t2 = time.time()
         print(f"run_group_finder() took {t2-t1:.1f} seconds.")
         return True

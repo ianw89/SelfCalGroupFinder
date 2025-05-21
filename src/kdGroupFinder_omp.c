@@ -69,6 +69,7 @@ void groupfind()
 {
   FILE *fp;
   char aa[1000];
+  float minvmax, maxvmax;
   int i, i1, niter, j, ngrp_prev, icen_new, k;
   float frac_area, nsat_tot, weight;
   double galden, pt[3], t_start_findsats, t_end_findsats, t_start_iter, t_end_iter, t_alliter_s, t_alliter_e; // galden (galaxy density) only includes centrals, because only they get halos
@@ -129,6 +130,18 @@ void groupfind()
       fgets(aa, 1000, fp);
       galden += 1 / GAL[i].vmax;
     }
+    // print off largest and smallest vmax values
+    minvmax = 1e10;
+    maxvmax = -1e10;
+    for (i = 0; i < NGAL; ++i)
+    {
+      if (GAL[i].vmax < minvmax)
+        minvmax = GAL[i].vmax;
+      if (GAL[i].vmax > maxvmax)
+        maxvmax = GAL[i].vmax;
+    }
+    if (!SILENT) fprintf(stderr, "min vmax= %e max vmax= %e\n", minvmax, maxvmax);
+
     fclose(fp);
     if (!SILENT) fprintf(stderr, "Done reading in from [%s]\n", INPUTFILE);
 

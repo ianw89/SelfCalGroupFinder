@@ -436,24 +436,38 @@ void tabulate_hods()
   // fprintf(stderr,"printing out\n");
   //  print out the tabulated hods
   fp = fopen("hod.out", "w");
+  // Print a header with column names
+  fprintf(fp, "# HODs for volume limited samples\n");
+  fprintf(fp, "# Volume bins: ");
+  for (i = 0; i < NBINS; ++i)
+    fprintf(fp, "%.1f ", maglim[i]);
+  fprintf(fp, "\n");
+  fprintf(fp, "# Redshift limits: ");
+  for (i = 0; i < NBINS; ++i)
+    fprintf(fp, "%f ", maxz[i]);
+  fprintf(fp, "\n");
+  fprintf(fp, "# Volume limits: ");
+  for (i = 0; i < NBINS; ++i)
+    fprintf(fp, "%.1f ", volume[i]);
+  fprintf(fp, "\n");
   // 100, 155 wa previous
   for (i = 90; i < 155; ++i)
   {
-    fprintf(fp, "HOD %f ", i / 10.0);
+    fprintf(fp, "%.2f", i / 10.0);
     for (j = 0; j < NBINS; ++j)
-      fprintf(fp, "%e %e ", ncenr[j][i] * 1. / (nhalo[j][i] + 1.0E-20),
-              nsatr[j][i] * 1. / (nhalo[j][i] + 1.0E-20));
-    for (j = 0; j < NBINS; ++j)
-      fprintf(fp, "%e %e ", ncenb[j][i] * 1. / (nhalo[j][i] + 1.0E-20),
-              nsatb[j][i] * 1. / (nhalo[j][i] + 1.0E-20));
-    fprintf(fp, "MF %f ", i / 10.0);
-    for (j = 0; j < NBINS; ++j)
-      fprintf(fp, "%e ", nhalo[j][i]);
+    {
+      fprintf(fp, " %e %e %e %e %e", 
+        ncenr[j][i] * 1. / (nhalo[j][i] + 1.0E-20),
+        nsatr[j][i] * 1. / (nhalo[j][i] + 1.0E-20),
+        ncenb[j][i] * 1. / (nhalo[j][i] + 1.0E-20),
+        nsatb[j][i] * 1. / (nhalo[j][i] + 1.0E-20),
+        nhalo[j][i]);
+    }
     fprintf(fp, "\n");
   }
   fclose(fp);
   
-
+  // Switch to log10 of the fractions
   for (i = 90; i < 200; ++i)
   {
     for (j = 0; j < NBINS; ++j)
@@ -464,6 +478,9 @@ void tabulate_hods()
       nsatb[j][i] = log10(nsatb[j][i] * 1. / (nhalo[j][i] + 1.0E-20) + 1.0E-10);
     }
   }
+  
+  if (!SILENT)
+    fprintf(stderr, "Tabulated HODs written to hod.out\n");
 }
 
 /* Do the same as above, but now giving
@@ -622,6 +639,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
   iend = 140;
   if (imag >= 2)
     iend = 145;
+
   bfit = 0;
   if (imag == 0)
   {
@@ -631,8 +649,9 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
   if (blue_flag)
   {
     for (i = istart; i <= iend; ++i)
-      bfit += nsatb[imag][i] - i / 10.0;
+      bfit += nsatb[imag][i] - i / 10.0; 
     bfit = bfit / (iend - istart + 1);
+    fprintf(stderr, "popsim> bfit=%f\n", bfit);
     for (i = iend; i <= 160; ++i)
       nsatb[imag][i] = 1 * i / 10.0 + bfit;
   }
@@ -641,6 +660,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
     for (i = istart; i <= iend; ++i)
       bfit += nsatr[imag][i] - i / 10.0;
     bfit = bfit / (iend - istart + 1);
+    fprintf(stderr, "popsim> bfit=%f\n", bfit);
     for (i = iend; i <= 160; ++i)
       nsatr[imag][i] = 1 * i / 10.0 + bfit;
   }
