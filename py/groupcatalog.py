@@ -816,7 +816,7 @@ class SDSSGroupCatalog(GroupCatalog):
         self.Mr_gal_labels = self.Mr_gal_labels[15:]
         self.mag_cut = 17.7
         self.GF_props = gfprops
-        self.caldata = CalibrationData.SDSS_4bin(self.mag_cut, self.GF_props['frac_area'])
+        self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
 
         # TODO BUG right volumes?
         #Volume of bin 0 is 344276.781250
@@ -918,12 +918,12 @@ class TestGroupCatalog(GroupCatalog):
         self.GF_props = {
             'zmin':0,
             'zmax':1.0,
-            'frac_area':4.0/DEGREES_ON_SPHERE,
+            'frac_area':4.0/DEGREES_ONs_SPHERE,
             'fluxlim':1,
             'color':0,
         }
         self.mag_cut = 17.7
-        self.caldata = CalibrationData.SDSS_4bin(self.mag_cut, self.GF_props['frac_area'])
+        self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
 
     def create_test_dat_files(self):
         gals = pd.read_csv(SDSS_v1_DAT_FILE, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
@@ -1064,7 +1064,7 @@ class BGSGroupCatalog(GroupCatalog):
         self.centered = None # SV3 Centered version shortcut.
         self.extra_params = extra_params
         self.GF_props = gfprops
-        self.caldata = CalibrationData.SDSS_4bin(self.mag_cut, self.GF_props['frac_area'])
+        self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
         #self.caldata = CalibrationData.BGS_Y1_6bin(self.mag_cut, self.GF_props['frac_area'])
 
     @staticmethod

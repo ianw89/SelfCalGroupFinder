@@ -327,7 +327,7 @@ void tabulate_hods()
   float volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
   // these are for TNG300
   // float maxz[NBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158, 0.5 };
-  float w0 = 1.0, w1 = w1 = 0.0;
+  float w0 = 1.0;
   int nbins = 0;
 
   if (!SILENT)
@@ -371,7 +371,7 @@ void tabulate_hods()
       // For centrals, count this halo in nhalo for the relevant redshift bins
       im = log10(GAL[i].mass) / 0.1;
       for (j = 0; j < NVOLUME_BINS; ++j)
-        if (maxz[j] > GAL[i].redshift)
+        if (GAL[i].redshift < maxz[j])
         {
           w0 = 1 / volume[j];
           if (GAL[i].vmax < volume[j])
@@ -380,18 +380,7 @@ void tabulate_hods()
         }
     }
 
-    /*if (!SILENT)
-    {  
-      for (j = 0; j < NBINS; ++j)
-      {
-        for (int k = 0; k < 200; ++k)
-        {
-          fprintf(stderr, "nhalo[%d][%d] = %f\n", j, k, nhalo[j][k]);
-        }
-      }
-    }*/
-
-    // Get it's bin
+    // check the magnitude of the galaxy
     mag = -2.5 * log10(GAL[i].lum) + 4.65;
     ibin = (int)(fabs(mag) + maglim[0]); // So if first bin is -17, mag=-17.5, ibin=0
     if (STELLAR_MASS)
@@ -427,8 +416,23 @@ void tabulate_hods()
         ncenb[ibin][im] += w0;
     }
   }
-  // fprintf(stderr,"printing out\n");
-  //  print out the tabulated hods
+
+  // If nsatr/b > 0 but nhalo = 0, it was an edge case for a rare halo. Just set nhalo to nsatr/b there.
+  // This happens when the central (and thus the halo) didn't go into a volume bin, but a satellite did.
+  // Peculiar velocities at the z boundary can do this I think.
+  for (i = 0; i < NVOLUME_BINS; ++i)
+    for (j = 0; j < 200; ++j) {
+      if (nsatr[i][j] > 0 && nhalo[i][j] == 0) {
+        fprintf(stderr,"WARNING: nhalo[%d][%d] = 0, setting to nsatr[%d][%d] = %e\n", i, j, i, j, nsatr[i][j]);
+        nhalo[i][j] = nsatr[i][j];
+      }
+      if (nsatb[i][j] > 0 && nhalo[i][j] == 0) {
+        fprintf(stderr,"WARNING: nhalo[%d][%d] = 0, setting to nsatb[%d][%d] = %e\n", i, j, i, j, nsatb[i][j]);
+        nhalo[i][j] = nsatb[i][j];
+      }
+    }
+
+  // Print out the tabulated hods
   fp = fopen("hod.out", "w");
   // Print a header with column names
   fprintf(fp, "# HODs for volume limited samples\n");
