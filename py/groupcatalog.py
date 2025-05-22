@@ -33,9 +33,6 @@ NO_TRUTH_Z = -99.99
 Mhalo_bins = np.logspace(10, 15.5, 40)
 Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1] 
 
-L_gal_bins = np.logspace(6, 12.5, 40)
-L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1]
-
 mstar_bins = np.logspace(6, 13, 30)
 mstar_labels = mstar_bins[0:len(mstar_bins)-1]
 
@@ -918,7 +915,7 @@ class TestGroupCatalog(GroupCatalog):
         self.GF_props = {
             'zmin':0,
             'zmax':1.0,
-            'frac_area':4.0/DEGREES_ONs_SPHERE,
+            'frac_area':4.0/DEGREES_ON_SPHERE,
             'fluxlim':1,
             'color':0,
         }
@@ -1064,8 +1061,10 @@ class BGSGroupCatalog(GroupCatalog):
         self.centered = None # SV3 Centered version shortcut.
         self.extra_params = extra_params
         self.GF_props = gfprops
-        self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
-        #self.caldata = CalibrationData.BGS_Y1_6bin(self.mag_cut, self.GF_props['frac_area'])
+        frac_area = get_footprint_fraction(data_cut, mode, num_passes)
+        self.GF_props['frac_area'] = frac_area
+        #self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
+        self.caldata = CalibrationData.BGS_Y1_6bin(self.mag_cut, self.GF_props['frac_area'])
 
     @staticmethod
     def from_MCMC(reader: emcee.backends.HDFBackend, mode: Mode):
@@ -1077,8 +1076,7 @@ class BGSGroupCatalog(GroupCatalog):
         
         print(f"Using MCMC parameters: {p}")
 
-        gc = BGSGroupCatalog(f"BGS SV3 MCMC {mode_to_str(mode)}", mode, 19.5, 23.0, sdss_fill=False, num_passes=10, drop_passes=3, data_cut="sv3", extra_params=p)
-        gc.GF_props = GF_PROPS_BGS_VANILLA.copy()
+        gc = BGSGroupCatalog(f"BGS SV3 MCMC {mode_to_str(mode)}", mode, 19.5, 23.0, sdss_fill=False, num_passes=10, drop_passes=3, data_cut="sv3", gfprops=GF_PROPS_BGS_VANILLA.copy(), extra_params=p)
         if mode.value == Mode.PHOTOZ_PLUS_v1.value:
             gc.color = 'g'
         elif mode.value == Mode.PHOTOZ_PLUS_v2.value:
@@ -1542,6 +1540,10 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     Updates the properties for the given indices in the arrays. This is used for lost galaxies when we assigned
     redshifts to them generally.
     """
+    # Ensure app_mag_r and z_eff are not NaN or Inf at idx
+    assert np.isnan(app_mag_r[idx]).any() == False, f"app_mag_r has NaN values at {np.where(np.isnan(app_mag_r))}"
+    assert np.isnan(z_eff[idx]).any() == False, f"z_eff has NaN values at {np.where(np.isnan(z_eff))}"
+    assert z_eff[idx].all() > 0.001, f"z_eff has too low values at {np.where(z_eff <= 0.001)}"
     np.put(abs_mag_R, idx, app_mag_to_abs_mag(app_mag_r[idx], z_eff[idx]))
     np.put(abs_mag_R_k, idx, k_correct(abs_mag_R[idx], z_eff[idx], g_r_apparent[idx], band='r'))
     np.put(abs_mag_G, idx, app_mag_to_abs_mag(app_mag_g[idx], z_eff[idx]))
@@ -1550,6 +1552,8 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     G_R_k = abs_mag_G_k - abs_mag_R_k
     np.put(gmr_best, idx, G_R_k[idx])
     lookup = dn4000lookup()
+    assert np.isnan(abs_mag_R_k[idx]).any() == False, f"abs_mag_R_k[idx] has NaN values at {np.where(np.isnan(abs_mag_R_k[idx]))}"
+    assert np.isnan(G_R_k[idx]).any() == False, f"G_R_k[idx] has NaN values at {np.where(np.isnan(G_R_k[idx]))}"
     np.put(dn4000_model, idx, lookup.query(abs_mag_R_k[idx], G_R_k[idx]))
     np.put(quiescent, idx, is_quiescent_BGS_dn4000(log_L_gal[idx], dn4000_model[idx], G_R_k[idx]))
 

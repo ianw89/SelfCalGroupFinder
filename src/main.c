@@ -283,7 +283,7 @@ int main(int argc, char **argv)
 void print_fsat() {
   // want L bins to be np.logspace(6, 12.5, 40) like in python postprocessing
   float logbin_interval = (12.5 - 6.0) / 40;
-  float num[40], numr[40], numb[40], sats[40], satsr[40], satsb[40], fsat[40], fsatr[40], fsatb[40];
+  float numr[40], numb[40], satsr[40], satsb[40], fsat[40], fsatr[40], fsatb[40];
   int ibin, i;
   int nsats = 0;
   for (i = 0; i < 40; ++i)
@@ -324,7 +324,7 @@ void print_fsat() {
 
   // Ignore SILENT here
   fprintf(stderr, "fsat total: %f\n", (float)nsats / (float)NGAL);
-  fprintf(stderr, "fsat> bin fsat fsatr fsatb\n");
+  //fprintf(stderr, "fsat> bin fsat fsatr fsatb\n");
   for (i = 0; i < 40; ++i)
   {
     fprintf(stderr, "fsat> %d %f %f %f\n", i, fsat[i], fsatr[i], fsatb[i]);

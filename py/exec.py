@@ -27,14 +27,10 @@ datasets_to_run: list[GroupCatalog] = []
 # TODO we did this on SV3 7pass, when Y3-likesv3 would have been better.
 # If we revisit this, we should use the Y3-like sv3 data instead of this.
 
-mcmc = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False)
-mcmc.GF_props = cat.GF_PROPS_BGS_VANILLA.copy()
+mcmc = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, gfprops=cat.GF_PROPS_BGS_VANILLA.copy())
 # V2 was decided to be best
-mcmc2 = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False)
-mcmc2.GF_props = cat.GF_PROPS_BGS_VANILLA.copy()
-
-mcmc3 = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v3, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False)
-mcmc3.GF_props = cat.GF_PROPS_BGS_VANILLA.copy()
+mcmc2 = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, gfprops=cat.GF_PROPS_BGS_VANILLA.copy())
+mcmc3 = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v3, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, gfprops=cat.GF_PROPS_BGS_VANILLA.copy())
 
 callable_list = [
     [mcmc], #0
@@ -49,6 +45,7 @@ callable_list = [
     cat.bgs_y3_list, #9
     [cat.sdss_colors_v2_mcmc], #10
     [cat.bgs_sv3_10p_mcmc], #11
+    [cat.bgs_y3_pzp_2_4_c1] # 12
 ]
 
 def process_gc(gc: GroupCatalog):

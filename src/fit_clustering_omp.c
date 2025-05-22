@@ -376,6 +376,14 @@ void tabulate_hods()
           w0 = 1 / volume[j];
           if (GAL[i].vmax < volume[j])
             w0 = 1 / GAL[i].vmax;
+            if (!isfinite(w0)) {
+            fprintf(stderr, "ERROR: w0 is not finite for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
+            assert(isfinite(w0));
+            }
+            if (isnan(w0)) {
+            fprintf(stderr, "ERROR: w0 is NaN for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
+            assert(!isnan(w0));
+            }
           nhalo[j][im] += w0; // 1/vmax weight the halo count
         }
     }
@@ -430,6 +438,16 @@ void tabulate_hods()
         fprintf(stderr,"WARNING: nhalo[%d][%d] = 0, setting to nsatb[%d][%d] = %e\n", i, j, i, j, nsatb[i][j]);
         nhalo[i][j] = nsatb[i][j];
       }
+      assert(!isnan(ncenr[i][j]));
+      assert(!isnan(nsatr[i][j]));
+      assert(!isnan(ncenb[i][j]));
+      assert(!isnan(nsatb[i][j]));
+      assert(!isnan(nhalo[i][j]));
+      assert(isfinite(ncenr[i][j]));
+      assert(isfinite(nsatr[i][j]));
+      assert(isfinite(ncenb[i][j]));
+      assert(isfinite(nsatb[i][j]));
+      assert(isfinite(nhalo[i][j]));
     }
 
   // Print out the tabulated hods
@@ -654,7 +672,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
     for (i = istart; i <= iend; ++i)
       bfit += nsatb[imag][i] - i / 10.0; 
     bfit = bfit / (iend - istart + 1);
-    fprintf(stderr, "popsim> bfit=%f\n", bfit);
+    //fprintf(stderr, "popsim> bfit=%f\n", bfit);
     for (i = iend; i <= 160; ++i)
       nsatb[imag][i] = 1 * i / 10.0 + bfit;
   }
@@ -663,7 +681,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
     for (i = istart; i <= iend; ++i)
       bfit += nsatr[imag][i] - i / 10.0;
     bfit = bfit / (iend - istart + 1);
-    fprintf(stderr, "popsim> bfit=%f\n", bfit);
+    //fprintf(stderr, "popsim> bfit=%f\n", bfit);
     for (i = iend; i <= 160; ++i)
       nsatr[imag][i] = 1 * i / 10.0 + bfit;
   }

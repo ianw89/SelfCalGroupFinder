@@ -64,6 +64,9 @@ ABS_MAG_MIDPOINTS = np.append(np.append([-23], 0.5*(ABS_MAG_BINS[1:-1] + ABS_MAG
 
 QUIESCENT_BINS = np.array([0.0, 1.0]) 
 
+L_gal_bins = np.logspace(6, 12.5, 40)
+L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1]
+
 ################################
 
 DEGREES_ON_SPHERE = 41253
@@ -711,7 +714,7 @@ class dn4000lookup:
             raise ValueError(f"File {file} does not exist. The Dn4000 lookup table must be built first; see BGS_study.ipynb.")
         self.tree, self.dn4000_lookup = pickle.load(open(file, 'rb'))
 
-    def query(self, abs_mag_array, gmr_array, k=100):
+    def query(self, abs_mag_array, gmr_array, k=50):
         query_points = np.vstack((abs_mag_array * self.METRIC_MAG, gmr_array * self.METRIC_GMR)).T  # Scale the query points
         distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points
         print(np.shape(distances), np.shape(indices))
@@ -1501,3 +1504,85 @@ def is_quiescent_BGS_gmr(logLgal, G_R_k):
 
     #return G_R_k > GLOBAL_RED_COLOR_CUT
 
+
+
+
+###################################################################
+# MCMC Log Processing
+###################################################################
+
+def fsat_variance_from_saved():
+    """
+    Load the fsat variance from the saved file.
+    """
+    if os.path.exists(FSAT_VALUES_FROM_LOGS):
+        fsat_arr, fsatr_arr, fsatb_arr = np.load(FSAT_VALUES_FROM_LOGS)
+        fsat_std = np.std(fsat_arr, axis=0)
+        fsatr_std = np.std(fsatr_arr, axis=0)
+        fsatb_std = np.std(fsatb_arr, axis=0)
+        fsat_mean = np.mean(fsat_arr, axis=0)
+        fsatr_mean = np.mean(fsatr_arr, axis=0)
+        fsatb_mean = np.mean(fsatb_arr, axis=0)
+        return fsat_std, fsatr_std, fsatb_std, fsat_mean, fsatr_mean, fsatb_mean
+    else:
+        print(f"WARNING: {FSAT_VALUES_FROM_LOGS} does not exist. Cannot load variance. Call extract_variance_from_log(path) to create it.")
+        return None
+
+def extract_variance_from_log(logpath: str):
+    """
+    Extracts the fsat variance from the MCMC log file.
+    """
+    FSAT_BINCOUNT = len(L_gal_bins) 
+    fsat_len = 0
+
+    with open(logpath) as fp:
+        # First get total number
+        for line in fp:
+            if line.startswith("fsat> 0 "):
+                fsat_len += 1
+
+        fsat_arr = np.zeros((fsat_len, FSAT_BINCOUNT))
+        fsatr_arr = np.zeros((fsat_len, FSAT_BINCOUNT))
+        fsatb_arr = np.zeros((fsat_len, FSAT_BINCOUNT))
+
+        # Then go back to the beginning and read the values
+        fp.seek(0)
+        current_row = 0  # Track the current row in the arrays
+        for line in fp:
+            if line.startswith("fsat> "):
+                values = line.split(' ')
+                if values[1].isdigit():
+                    bin_i = int(values[1].strip())
+                    fsat = float(values[2].strip())
+                    fsatr = float(values[3].strip())
+                    fsatb = float(values[4].strip())
+                    fsat_arr[current_row, bin_i] = fsat
+                    fsatr_arr[current_row, bin_i] = fsatr
+                    fsatb_arr[current_row, bin_i] = fsatb
+
+                    # Increment the row counter when the last bin is processed
+                    if bin_i == FSAT_BINCOUNT - 1:
+                        current_row += 1
+
+            if current_row >= fsat_len:
+                break
+
+    # Save off the arrays of values
+    if os.path.exists(FSAT_VALUES_FROM_LOGS):
+        print(f"WARNING: {FSAT_VALUES_FROM_LOGS} already exists. Will not overwrite.")
+    else:
+        np.save(FSAT_VALUES_FROM_LOGS, (fsat_arr, fsatr_arr, fsatb_arr))
+
+    # Calculate the std, mean
+    fsat_std = np.std(fsat_arr, axis=0)
+    fsatr_std = np.std(fsatr_arr, axis=0)
+    fsatb_std = np.std(fsatb_arr, axis=0)
+    fsat_mean = np.mean(fsat_arr, axis=0)
+    fsatr_mean = np.mean(fsatr_arr, axis=0)
+    fsatb_mean = np.mean(fsatb_arr, axis=0)
+
+    # TODO LHMR 
+
+    # TODO Lsat?
+
+    return fsat_std, fsatr_std, fsatb_std, fsat_mean, fsatr_mean, fsatb_mean

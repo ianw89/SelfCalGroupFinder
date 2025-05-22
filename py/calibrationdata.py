@@ -19,6 +19,8 @@ class CalibrationData:
     Class to handle the calibration data for the SelfCalGroupFinder.
     """
     def __init__(self, paramsfolder, binsfile, magbins, magcut, frac_area):
+        if frac_area <= 0.0:
+            raise ValueError("frac_area must be greater than 0.0")
         self.paramsfolder = paramsfolder
         self.rpbinsfile = binsfile # the list of radial bins to give to corrfunc
         self.magbins = magbins # absolute magnitude bin definitions (edges)
@@ -58,3 +60,6 @@ class CalibrationData:
     @staticmethod
     def BGS_Y1_6bin(magcut: float, frac_area: float):
         return CalibrationData(PARAMS_BGSY1_FOLDER, WP_RADIAL_BINS_DESI_FILE, np.array([-17, -18, -19, -20, -21, -22, -23]), magcut, frac_area)
+
+    def __str__(self):
+        return f"CalibrationData(paramsfolder={self.paramsfolder}, binsfile={self.rpbinsfile}, magbins={self.magbins}, magcut={self.magcut}, frac_area={self.frac_area})"
