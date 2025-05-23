@@ -12,11 +12,11 @@
 // global for testing luminosty thresholds
 float LUM_LIMIT=0;
 
-int group_center(int icen0, void *kd)
+int group_center(int icen0, struct kdtree *kd)
 {
   float range, rhalo, theta;
   int j, i, n, icen, nmem, nn;
-  void *set;
+  struct kdres *set;
   int *pch;
   double cen[3];
   double sat[3];
@@ -118,7 +118,7 @@ int group_center(int icen0, void *kd)
 }
 
 
-void test_centering(void *kd)
+void test_centering(struct kdtree *kd)
 {
   FILE *fp;
   int n, i, j, cnt, cnt2, flag,nhalo, icen, flag2;
@@ -132,9 +132,9 @@ void test_centering(void *kd)
   LUM_LIMIT = pow(10.0,LUM_LIMIT);
   
   // allocate memory
-  listid = calloc(NGAL,sizeof(int));
-  upid = calloc(NGAL,sizeof(long long int));
-  mass = calloc(NGAL,sizeof(float));
+  listid = (int*) calloc(NGAL,sizeof(int));
+  upid = (long long int *) calloc(NGAL,sizeof(long long int));
+  mass = (float *) calloc(NGAL,sizeof(float));
   
   // for each halo, assign the true members to the halo and do the testing procedure
 

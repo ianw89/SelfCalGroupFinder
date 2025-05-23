@@ -25,7 +25,7 @@ int TEST_ID;
  * Friend of friends implementation requries volume-limited sample. 
  * GALAXY_DENSITY, an external global variable, must be set prior to calling.
  */
-void fof(void *kd)
+void fof(struct kdtree *kd)
 {
   int i,ii,j, iprev, n;
   float plink, zlink, galsep, bp, bz;
@@ -34,11 +34,16 @@ void fof(void *kd)
   int ngrp = 0;
   int *grpmem;
   int *grpid;
-  void *set;
+  struct kdres *set;
   int *pch;
 
-  grpmem = calloc(NGAL,sizeof(float));
-  grpid = calloc(NGAL,sizeof(float));
+  if (FLUXLIM) {
+    fprintf(stderr,"Warning: FOF group finder requires volume-limited sample. Exiting...\n");
+    exit(0);
+  }
+
+  grpmem = (int*) calloc(NGAL,sizeof(float));
+  grpid = (int*) calloc(NGAL,sizeof(float));
 
   /* initialize the fields
    */
@@ -192,16 +197,13 @@ float mean_galaxy_separation(float z)
 {
   static float rg=-1;
   // simple if volume-limited samples
-  if(!FLUXLIM)
-    {
-      if(rg<0)
-	      rg = pow(GALAXY_DENSITY,-THIRD);
-      return rg;
-    }
+  if(rg<0)
+    rg = pow(GALAXY_DENSITY,-THIRD);
+  return rg;
 }
 
 // Test-only function
-void test_fof(void *kd)
+void test_fof(struct kdtree *kd)
 {
   FILE *fp;
   int n, i, j, cnt, cnt2, flag,nhalo, icen, flag2, ntrue, nfof, j1;
@@ -213,9 +215,9 @@ void test_fof(void *kd)
   fof(kd);
 
   // allocate memory
-  listid = calloc(NGAL,sizeof(int));
-  upid = calloc(NGAL,sizeof(long long int));
-  mass = calloc(NGAL,sizeof(float));
+  listid = (int*) calloc(NGAL,sizeof(int));
+  upid = (long long int *) calloc(NGAL,sizeof(long long int));
+  mass = (float*) calloc(NGAL,sizeof(float));
   
   // for each halo, assign the true members to the halo and do the testing procedure
 

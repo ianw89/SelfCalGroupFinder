@@ -1,3 +1,5 @@
+#include "kdtree.h"
+
 // Definitions
 #define OMEGA_M 0.25
 #define PI 3.141592741
@@ -114,11 +116,11 @@ float distance_redshift(float z);
 float density2host_halo_zbins3(float z, float vmax);
 float density2host_halo(float galaxy_density);
 int search(int n, float *x, float val);
-void test_centering(void *kd);
-int group_center(int icen0, void *kd);
+void test_centering(struct kdtree *kd);
+int group_center(int icen0, struct kdtree *kd);
 float angular_separation(float a1, float d1, float a2, float d2);
 float angular_separation_old(float a1, float d1, float a2, float d2);
-void test_fof(void *kd);
+void test_fof(struct kdtree *kd);
 float compute_p_z(float dz, float sigmav);
 float compute_p_proj(float mass, float dr, float rad, float ang_rad);
 float compute_p_proj_g(struct galaxy *gal, float dr);

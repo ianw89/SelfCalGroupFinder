@@ -1127,6 +1127,16 @@ def write_dat_files_v2(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_ba
 
     print(f"Time for file writing: {t2-t1:.2f}")
 
+    # Experiment with feather
+    #import pyarrow.feather as feather
+
+    #t3 = time.time()
+    #df = pd.DataFrame(data, columns=['ra', 'dec', 'z_eff', 'log_L_gal', 'V_max', 'colors', 'chi'])
+    #feather.write_feather(df, outname_base + ".feather")
+    #t4 = time.time()
+    #print(f"Time for feather writing: {t4-t3:.2f}")
+
+
 
 
 

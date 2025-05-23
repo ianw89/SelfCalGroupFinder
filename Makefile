@@ -11,7 +11,7 @@
 # -- for sirocco
 hd = $(HOME)/lib
 CC = gcc
-CFLAGS = -O2 -fopenmp -Wno-unused-result
+CFLAGS = -O2 -fopenmp
 LIB = -lm -fopenmp -L${hd} -lcutil 
 
 # Ian's iMac

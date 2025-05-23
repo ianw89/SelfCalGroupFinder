@@ -15,11 +15,10 @@
  * Contains high level methods for group finding algorithm.
  */
 
-struct galaxy *GAL;
 int NGAL;
 
 /* Local functions */
-void find_satellites(int icen, void *kd);
+void find_satellites(int icen, struct kdtree *kd);
 float fluxlim_correction(float z);
 float get_wcen(int idx);
 float get_chi_weight(int idx);
@@ -79,7 +78,7 @@ void groupfind()
   // Initially it gets setup with the LGAL values; after it gets setup with the LTOT values (the effective length becomes ngrp then)
   static int *permanent_id, *itmp, *flag;
   static float volume, *xtmp, *lumshift; 
-  static void *kd;
+  static struct kdtree *kd;
   static int first_call = 1, ngrp;
 
   if (first_call)
@@ -88,7 +87,7 @@ void groupfind()
     fp = openfile(INPUTFILE);
     NGAL = filesize(fp);
     if (!SILENT) fprintf(stderr, "Allocating space for [%d] galaxies\n", NGAL);
-    GAL = calloc(NGAL, sizeof(struct galaxy));
+    GAL = (struct galaxy*) calloc(NGAL, sizeof(struct galaxy));
     flag = ivector(0, NGAL - 1);
 
     // For volume-limited samples, we calculate the volume and put that in the vmax
@@ -225,7 +224,7 @@ void groupfind()
     pt[0] = GAL[j].x;
     pt[1] = GAL[j].y;
     pt[2] = GAL[j].z;
-    assert(kd_insert(kd, pt, (void *)&permanent_id[j]) == 0);
+    assert(kd_insert(kd, pt, &permanent_id[j]) == 0);
   }
   if (!SILENT) fprintf(stderr, "Done building KD-tree. %d\n", ngrp);
 
@@ -459,14 +458,14 @@ void groupfind()
 
 /* Here is the main code to find satellites for a given central galaxy
  */
-void find_satellites(int icen, void *kd)
+void find_satellites(int icen, struct kdtree *kd)
 {
   //int thread_num = omp_get_thread_num();
   //float t_start = omp_get_wtime();
   int j, k;
   float dx, dy, dz, theta, prob_ang, vol_corr, prob_rad, grp_lum, p0, range;
   float cenDist, bprob;
-  void *set;
+  struct kdres *set;
   int *pch;
   double cen[3];
   double sat[3];

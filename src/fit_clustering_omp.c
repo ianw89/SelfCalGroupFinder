@@ -605,7 +605,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
 
     NHALO = filesize(fp);
     if (!SILENT) fprintf(stderr, "popsim> NHALO=%d\n", NHALO);
-    HALO = calloc(NHALO, sizeof(struct halo));
+    HALO = (struct halo *) calloc(NHALO, sizeof(struct halo));
     for (i = 0; i < NHALO; ++i)
     {
       fscanf(fp, "%f %f %f %f %f %f %f %f", &HALO[i].mass,
