@@ -1521,6 +1521,7 @@ def is_quiescent_BGS_gmr(logLgal, G_R_k):
 # MCMC Log Processing
 ###################################################################
 
+
 def fsat_variance_from_saved():
     """
     Load the fsat variance from the saved file.
@@ -1537,51 +1538,119 @@ def fsat_variance_from_saved():
     else:
         print(f"WARNING: {FSAT_VALUES_FROM_LOGS} does not exist. Cannot load variance. Call extract_variance_from_log(path) to create it.")
         return None
-
-def extract_variance_from_log(logpath: str):
+    
+def lhmr_variance_from_saved():
     """
-    Extracts the fsat variance from the MCMC log file.
+    Load the lhmr variance from the saved file.
+    """
+    if os.path.exists(LHMR_VALUES_FROM_LOGS):
+        r_arr, r_scatter_arr, b_arr, b_scatter_arr, all_arr, all_scatter_arr = np.load(LHMR_VALUES_FROM_LOGS)
+        print(r_arr)
+        r_std = np.std(r_arr, axis=0)
+        r_scatter_std = np.std(r_scatter_arr, axis=0)
+        b_std = np.std(b_arr, axis=0)
+        b_scatter_std = np.std(b_scatter_arr, axis=0)
+        all_std = np.std(all_arr, axis=0)
+        all_scatter_std = np.std(all_scatter_arr, axis=0)
+        r_mean = np.mean(r_arr, axis=0)
+        r_scatter_mean = np.mean(r_scatter_arr, axis=0)
+        b_mean = np.mean(b_arr, axis=0)   
+        b_scatter_mean = np.mean(b_scatter_arr, axis=0)
+        all_mean = np.mean(all_arr, axis=0)
+        all_scatter_mean = np.mean(all_scatter_arr, axis=0)
+
+        return (r_mean,r_std,r_scatter_mean,r_scatter_std,b_mean,b_std,b_scatter_mean,b_scatter_std,all_mean,all_std,all_scatter_mean,all_scatter_std)
+    else:
+        print(f"WARNING: {LHMR_VALUES_FROM_LOGS} does not exist. Cannot load variance. Call extract_variance_from_log(path) to create it.")
+        return None
+
+def save_from_log(logpath: str, overwrite=False):
+    """
+    Extracts f_sat and LHMR from a log file and uses them to compute means and stds of these quantities.
+    Intended for use with a log file from an MCMC run.
     """
     FSAT_BINCOUNT = len(L_gal_bins) 
     fsat_len = 0
 
+    LHMR_BINCOUNT = 155 - 90 # See fit_clustering_omp.c "hod> " 
+    lhmr_len = 0
+
     with open(logpath) as fp:
+
         # First get total number
         for line in fp:
             if line.startswith("fsat> 0 "):
                 fsat_len += 1
+            if line.startswith("LHMR> 9.0"):
+                lhmr_len += 1
+        print(f"fsat_len: {fsat_len}, lhmr_len: {lhmr_len}")
 
+        # Prep arrays
         fsat_arr = np.zeros((fsat_len, FSAT_BINCOUNT))
         fsatr_arr = np.zeros((fsat_len, FSAT_BINCOUNT))
         fsatb_arr = np.zeros((fsat_len, FSAT_BINCOUNT))
 
+        lhmr_r_arr = np.zeros((lhmr_len, LHMR_BINCOUNT))
+        lhmr_r_scatter_arr = np.zeros((lhmr_len, LHMR_BINCOUNT))
+        lhmr_b_arr = np.zeros((lhmr_len, LHMR_BINCOUNT))
+        lhmr_b_scatter_arr = np.zeros((lhmr_len, LHMR_BINCOUNT))
+        lhmr_all_arr = np.zeros((lhmr_len, LHMR_BINCOUNT))
+        lhmr_all_scatter_arr = np.zeros((lhmr_len, LHMR_BINCOUNT))
+
         # Then go back to the beginning and read the values
         fp.seek(0)
-        current_row = 0  # Track the current row in the arrays
+        fsat_row = 0  # Track the current row in the arrays
+        lhmr_row = 0  # Track the current row in the arrays
+
         for line in fp:
             if line.startswith("fsat> "):
-                values = line.split(' ')
-                if values[1].isdigit():
+                if fsat_row < fsat_len:
+                    values = line.split(' ')
                     bin_i = int(values[1].strip())
-                    fsat = float(values[2].strip())
-                    fsatr = float(values[3].strip())
-                    fsatb = float(values[4].strip())
-                    fsat_arr[current_row, bin_i] = fsat
-                    fsatr_arr[current_row, bin_i] = fsatr
-                    fsatb_arr[current_row, bin_i] = fsatb
+                    fsat_arr[fsat_row, bin_i] = float(values[2].strip())
+                    fsatr_arr[fsat_row, bin_i] = float(values[3].strip())
+                    fsatb_arr[fsat_row, bin_i] = float(values[4].strip())
 
                     # Increment the row counter when the last bin is processed
                     if bin_i == FSAT_BINCOUNT - 1:
-                        current_row += 1
+                        fsat_row += 1
+            
+            # Format is: <log10(M_h)> <mean_cenr> <std_cenr> <mean_cenb> <std_cenb> <mean_cen> <std_cen>
+            if line.startswith("LHMR> "):
+                if lhmr_row < lhmr_len:
+                    values = line.split(' ')
+                    bin_i = int(float(values[1].strip())*10) - 90 # 9.0 becomes 0
+                    lhmr_r_arr[lhmr_row, bin_i] = float(values[2].strip())
+                    lhmr_r_scatter_arr[lhmr_row, bin_i] = float(values[3].strip())
+                    lhmr_b_arr[lhmr_row, bin_i] = float(values[4].strip())
+                    lhmr_b_scatter_arr[lhmr_row, bin_i] = float(values[5].strip())
+                    lhmr_all_arr[lhmr_row, bin_i] = float(values[6].strip())
+                    lhmr_all_scatter_arr[lhmr_row, bin_i] = float(values[7].strip())
 
-            if current_row >= fsat_len:
-                break
+                    # Increment the row counter when the last bin is processed
+                    if bin_i == LHMR_BINCOUNT - 1:
+                        lhmr_row += 1
 
     # Save off the arrays of values
     if os.path.exists(FSAT_VALUES_FROM_LOGS):
-        print(f"WARNING: {FSAT_VALUES_FROM_LOGS} already exists. Will not overwrite.")
+        if overwrite:
+            print(f"WARNING: {FSAT_VALUES_FROM_LOGS} already exists. Overwriting.")
+            np.save(FSAT_VALUES_FROM_LOGS, (fsat_arr, fsatr_arr, fsatb_arr))
+        else:
+            # Don't overwrite
+            print(f"WARNING: {FSAT_VALUES_FROM_LOGS} already exists. Will not overwrite.")
     else:
         np.save(FSAT_VALUES_FROM_LOGS, (fsat_arr, fsatr_arr, fsatb_arr))
+
+    if os.path.exists(LHMR_VALUES_FROM_LOGS):
+        if overwrite:
+            print(f"WARNING: {LHMR_VALUES_FROM_LOGS} already exists. Overwriting.")
+            np.save(LHMR_VALUES_FROM_LOGS, (lhmr_r_arr, lhmr_r_scatter_arr, lhmr_b_arr, lhmr_b_scatter_arr, lhmr_all_arr, lhmr_all_scatter_arr))
+        else:
+            # Don't overwrite
+            print(f"WARNING: {LHMR_VALUES_FROM_LOGS} already exists. Will not overwrite.")
+    else:
+        np.save(LHMR_VALUES_FROM_LOGS, (lhmr_r_arr, lhmr_r_scatter_arr, lhmr_b_arr, lhmr_b_scatter_arr, lhmr_all_arr, lhmr_all_scatter_arr))
 
     # Calculate the std, mean
     fsat_std = np.std(fsat_arr, axis=0)
@@ -1591,8 +1660,37 @@ def extract_variance_from_log(logpath: str):
     fsatr_mean = np.mean(fsatr_arr, axis=0)
     fsatb_mean = np.mean(fsatb_arr, axis=0)
 
-    # TODO LHMR 
+    lhmr_r_std = np.std(lhmr_r_arr, axis=0)
+    lhmr_r_scatter_std = np.std(lhmr_r_scatter_arr, axis=0)
+    lhmr_b_std = np.std(lhmr_b_arr, axis=0)
+    lhmr_b_scatter_std = np.std(lhmr_b_scatter_arr, axis=0)
+    lhmr_all_std = np.std(lhmr_all_arr, axis=0)
+    lhmr_all_scatter_std = np.std(lhmr_all_scatter_arr, axis=0)
+    lhmr_r_mean = np.mean(lhmr_r_arr, axis=0)
+    lhmr_r_scatter_mean = np.mean(lhmr_r_scatter_arr, axis=0)
+    lhmr_b_mean = np.mean(lhmr_b_arr, axis=0)   
+    lhmr_b_scatter_mean = np.mean(lhmr_b_scatter_arr, axis=0)
+    lhmr_all_mean = np.mean(lhmr_all_arr, axis=0)
+    lhmr_all_scatter_mean = np.mean(lhmr_all_scatter_arr, axis=0)
 
     # TODO Lsat?
 
-    return fsat_std, fsatr_std, fsatb_std, fsat_mean, fsatr_mean, fsatb_mean
+    return (fsat_mean, 
+        fsat_std, 
+        fsatr_mean,
+        fsatr_std,
+        fsatb_mean,
+        fsatb_std,
+        lhmr_r_mean,
+        lhmr_r_std,
+        lhmr_r_scatter_mean,
+        lhmr_r_scatter_std,
+        lhmr_b_mean,
+        lhmr_b_std,
+        lhmr_b_scatter_mean,
+        lhmr_b_scatter_std,
+        lhmr_all_mean,
+        lhmr_all_std,
+        lhmr_all_scatter_mean,
+        lhmr_all_scatter_std)
+

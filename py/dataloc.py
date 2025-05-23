@@ -157,6 +157,7 @@ BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE = BGS_Y1_FOLDER + "bgsy3_lost_appmag_zphot_t
 BGS_Y3_DN4000_LOOKUP_FILE = BGS_Y3_FOLDER_LOA + "bgsy3_dn4000_lookup.pkl"
 
 FSAT_VALUES_FROM_LOGS = OUTPUT_FOLDER + "fsat_values_from_log.npy"
+LHMR_VALUES_FROM_LOGS = OUTPUT_FOLDER + "lhmr_values_from_log.npy"
 
 # RANDOMS FILES MATCHING OUR FOOTPRINTS
 #######################################

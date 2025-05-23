@@ -30,7 +30,7 @@ from calibrationdata import *
 NO_TRUTH_Z = -99.99
 
 # Shared bins for various purposes
-Mhalo_bins = np.logspace(10, 15.5, 40)
+Mhalo_bins = np.logspace(9, 15.4, 155-90)
 Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1] 
 
 mstar_bins = np.logspace(6, 13, 30)
@@ -39,6 +39,7 @@ mstar_labels = mstar_bins[0:len(mstar_bins)-1]
 Mr_gal_bins = log_solar_L_to_abs_mag_r(np.log10(L_gal_bins))
 Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
 
+# This is for the broken direction clustering measurements on the group catalog, not the mock ones.
 CLUSTERING_MAG_BINS = [-16, -17, -18, -19, -20, -21, -22, -23]
 
 GF_PROPS_BGS_VANILLA = {

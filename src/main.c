@@ -316,9 +316,9 @@ void print_fsat() {
 
   for (i = 0; i < 40; ++i)
   {
-    fsat[i] = (satsr[i] + satsb[i]) / (numr[i] + numb[i] + 0.000001);
-    fsatr[i] = satsr[i] / (numr[i] + 0.000001);
-    fsatb[i] = satsb[i] / (numb[i] + 0.000001);
+    fsat[i] = (satsr[i] + satsb[i]) / (numr[i] + numb[i] + 1E-20);
+    fsatr[i] = satsr[i] / (numr[i] + 1E-20);
+    fsatb[i] = satsb[i] / (numb[i] + 1E-20);
     nsats += satsr[i] + satsb[i];
   }
 

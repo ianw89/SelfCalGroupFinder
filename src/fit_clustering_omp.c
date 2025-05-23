@@ -13,9 +13,10 @@
 #include <errno.h>
 
 // Definitions
-#define MAXBINS 10 // This is the number of magnitude bins we use. // TNG has 6 bins
+#define MAXBINS 10 // This is the max number of magnitude bins we use for the HOD. The actual amount we use is read in from VOLUME_BINS_FILE
 #define NRANDOM 1000000
-#define MAX_SATELLITES 1000
+#define MAX_SATELLITES 1000 // Print a warning and cap the number of satellites to this if it is exceeded. Likely bad parameters.
+#define HALO_BINS 200 // log10(M_halo) / 0.1
 
 /* Global for the random numbers
  */
@@ -30,11 +31,14 @@ int NHALO;
 float BOX_SIZE = 250.0;
 float BOX_EPSILON = 0.01;
 
-/* Globals for the tabulated HODs
- */
-double ncenr[MAXBINS][200], nsatr[MAXBINS][200], ncenb[MAXBINS][200], nsatb[MAXBINS][200], nhalo[MAXBINS][200];
+/* Globals for the tabulated HODs */
+double ncenr[MAXBINS][HALO_BINS], nsatr[MAXBINS][HALO_BINS], ncenb[MAXBINS][HALO_BINS], nsatb[MAXBINS][HALO_BINS], nhalo[MAXBINS][HALO_BINS];
 int NVOLUME_BINS;
 float maglim[MAXBINS];
+
+/* LHMR */
+double mean_cen[HALO_BINS], mean_cenr[HALO_BINS], mean_cenb[HALO_BINS], std_cen[HALO_BINS], std_cenr[HALO_BINS], std_cenb[HALO_BINS];
+double nhalo_r_tot[HALO_BINS], nhalo_b_tot[HALO_BINS], nhalo_tot[HALO_BINS];
 
 float REDSHIFT = 0.0,
       CVIR_FAC = 1.0;
@@ -327,7 +331,7 @@ void tabulate_hods()
   float volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
   // these are for TNG300
   // float maxz[NBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158, 0.5 };
-  float w0 = 1.0;
+  double w0 = 1.0;
   int nbins = 0;
 
   if (!SILENT)
@@ -351,12 +355,12 @@ void tabulate_hods()
     fprintf(stderr, "Tabulating HODs...\n");
 
   for (i = 0; i < NVOLUME_BINS; ++i)
-  {
-    // Initialize the arrays that hold the HODs to 0
-    for (j = 0; j < 200; ++j)
+    for (j = 0; j < HALO_BINS; ++j)
       ncenr[i][j] = nsatr[i][j] = nhalo[i][j] = ncenb[i][j] = nsatb[i][j] = 0;
-  }
-
+  
+  for (j=0; j < HALO_BINS; ++j)
+    mean_cen[j] = mean_cenr[j] = mean_cenb[j] = std_cen[j] = std_cenr[j] = std_cenb[j] = nhalo_tot[j] = nhalo_b_tot[j] = nhalo_r_tot[j] = 0.0;
+  
   for (i = 0; i < NGAL; ++i)
   {
     // what is host halo mass?
@@ -369,7 +373,7 @@ void tabulate_hods()
     else
     {
       // For centrals, count this halo in nhalo for the relevant redshift bins
-      im = log10(GAL[i].mass) / 0.1;
+      im = (int)(log10(GAL[i].mass) / 0.1);
       for (j = 0; j < NVOLUME_BINS; ++j)
         if (GAL[i].redshift < maxz[j])
         {
@@ -377,18 +381,18 @@ void tabulate_hods()
           if (GAL[i].vmax < volume[j])
             w0 = 1 / GAL[i].vmax;
             if (!isfinite(w0)) {
-            fprintf(stderr, "ERROR: w0 is not finite for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
-            assert(isfinite(w0));
+              fprintf(stderr, "ERROR: w0 is not finite for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
+              assert(isfinite(w0));
             }
             if (isnan(w0)) {
-            fprintf(stderr, "ERROR: w0 is NaN for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
-            assert(!isnan(w0));
+              fprintf(stderr, "ERROR: w0 is NaN for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
+              assert(!isnan(w0));
             }
           nhalo[j][im] += w0; // 1/vmax weight the halo count
         }
     }
 
-    // check the magnitude of the galaxy
+    // check the magnitude of the galaxy for the luminosity bins
     mag = -2.5 * log10(GAL[i].lum) + 4.65;
     ibin = (int)(fabs(mag) + maglim[0]); // So if first bin is -17, mag=-17.5, ibin=0
     if (STELLAR_MASS)
@@ -401,7 +405,7 @@ void tabulate_hods()
       continue; // skip if not in the magnitude range
     if (GAL[i].redshift > maxz[ibin])
       continue; // skip if not in the redshift range; peculiar velocities can push galaxies out of the bin...
-    if (im < 0 || im >= 200)
+    if (im < 0 || im >= HALO_BINS)
       fprintf(stderr, "err> %d %e\n", im, GAL[i].mass);
 
     // vmax-weight everything
@@ -429,7 +433,7 @@ void tabulate_hods()
   // This happens when the central (and thus the halo) didn't go into a volume bin, but a satellite did.
   // Peculiar velocities at the z boundary can do this I think.
   for (i = 0; i < NVOLUME_BINS; ++i)
-    for (j = 0; j < 200; ++j) {
+    for (j = 0; j < HALO_BINS; ++j) {
       if (nsatr[i][j] > 0 && nhalo[i][j] == 0) {
         fprintf(stderr,"WARNING: nhalo[%d][%d] = 0, setting to nsatr[%d][%d] = %e\n", i, j, i, j, nsatr[i][j]);
         nhalo[i][j] = nsatr[i][j];
@@ -450,9 +454,8 @@ void tabulate_hods()
       assert(isfinite(nhalo[i][j]));
     }
 
-  // Print out the tabulated hods
+  // Print out the tabulated hods. We don't use this file for anything directly.
   fp = fopen("hod.out", "w");
-  // Print a header with column names
   fprintf(fp, "# HODs for volume limited samples\n");
   fprintf(fp, "# Volume bins: ");
   for (i = 0; i < NVOLUME_BINS; ++i)
@@ -466,7 +469,6 @@ void tabulate_hods()
   for (i = 0; i < NVOLUME_BINS; ++i)
     fprintf(fp, "%.1f ", volume[i]);
   fprintf(fp, "\n");
-  // 100, 155 wa previous
   for (i = 90; i < 155; ++i)
   {
     // Print off halo occupancy fractions in narrow mass bins for each galaxy mag bin
@@ -484,9 +486,82 @@ void tabulate_hods()
     fprintf(fp, "\n");
   }
   fclose(fp);
-  
-  // Switch to log10 of the fractions
-  for (i = 90; i < 200; ++i)
+
+  if (!SILENT)
+    fprintf(stderr, "Tabulated HODs written to hod.out\n");
+
+  // *****************************************
+  // Now LHMR, which we want to print out
+  // *****************************************
+  // Calculate the means
+  // Note this is done in linear space, not log space for both means and std right now.
+  // Sometimes for the std we want to do it in log space, but not for the means. TODO
+  double lum_weighted = 0.0;
+  for (i=0; i<NGAL; ++i)
+  {
+    if (GAL[i].psat > 0.5)
+      continue;
+
+    im = log10(GAL[i].mass) / 0.1;
+    lum_weighted = GAL[i].lum * 1.0/GAL[i].vmax;
+
+    nhalo_tot[im] += 1.0/GAL[i].vmax;
+    mean_cen[im] += lum_weighted;
+
+    if (GAL[i].color > 0.8) { 
+      mean_cenr[im] += lum_weighted;
+      nhalo_r_tot[im] += 1.0/GAL[i].vmax;
+    }
+    else {
+      mean_cenb[im] += lum_weighted;
+      nhalo_b_tot[im] += 1.0/GAL[i].vmax;
+    }
+  }
+  for (i=0; i<HALO_BINS; ++i)
+  {
+    if (nhalo_tot[i] > 0)
+    {
+      mean_cenr[i] /= (nhalo_r_tot[i] + 1.0E-20);
+      mean_cenb[i] /= (nhalo_b_tot[i] + 1.0E-20);
+      mean_cen[i] /= (nhalo_tot[i] + 1.0E-20);
+    }
+  }
+
+  // Now calculate the std dev
+  for (i=0; i<NGAL; ++i)
+  {
+    if (GAL[i].psat > 0.5)
+      continue;
+
+    im = log10(GAL[i].mass) / 0.1;
+
+    std_cen[im] += pow(GAL[i].lum - mean_cen[im],2) * 1.0/GAL[i].vmax;
+    if (GAL[i].color > 0.8) // red
+      std_cenr[im] += pow(GAL[i].lum - mean_cenr[im],2) * 1.0/GAL[i].vmax;
+    else // blue
+      std_cenb[im] += pow(GAL[i].lum - mean_cenb[im],2) * 1.0/GAL[i].vmax;
+  }
+  for (i=0; i<HALO_BINS; ++i)
+  {
+    if (nhalo_tot[i] > 0)
+    {
+      std_cenr[i] = sqrt(std_cenr[i] / (nhalo_r_tot[i] + 1.0E-20));
+      std_cenb[i] = sqrt(std_cenb[i] / (nhalo_b_tot[i] + 1.0E-20));
+      std_cen[i] = sqrt(std_cen[i] / (nhalo_tot[i] + 1.0E-20));
+    }
+  }
+
+  // Print off the LHMR
+  for (i = 90; i < 155; ++i)
+  {
+    // Format is: <log10(M_h)> <mean_cenr> <std_cenr> <mean_cenb> <std_cenb> <mean_cen> <std_cen>
+    fprintf(stderr, "LHMR> %.2f %e %e %e %e %e %e\n", i / 10.0,
+            mean_cenr[i], std_cenr[i], mean_cenb[i], std_cenb[i],
+            mean_cen[i], std_cen[i]);
+  }
+
+  // Back to HODs: switch to log10 of the fractions for the rest of the code later
+  for (i = 90; i < HALO_BINS; ++i)
   {
     for (j = 0; j < NVOLUME_BINS; ++j)
     {
@@ -496,9 +571,6 @@ void tabulate_hods()
       nsatb[j][i] = log10(nsatb[j][i] * 1. / (nhalo[j][i] + 1.0E-20) + 1.0E-10);
     }
   }
-  
-  if (!SILENT)
-    fprintf(stderr, "Tabulated HODs written to hod.out\n");
 }
 
 /* Do the same as above, but now giving
