@@ -14,7 +14,7 @@ from calibrationdata import *
 # np.array(zip(*[line.split() for line in f])[1], dtype=float)
 
 
-DPI = 400
+DPI = 150
 FONT_SIZE_DEFAULT = 13
 
 LGAL_XMINS = [6E7]#[6E7, 3E8]
@@ -278,7 +278,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
     # TODO: I believe that Mh and Mstar don't have any h factors, but should double check.
     # Probably depends on what was given to the group finder?
 
-    LHMR_plots_logerr(*catalogs)
+    #LHMR_plots_logerr(*catalogs)
 
     """
     # SHMR
@@ -952,7 +952,7 @@ def proj_clustering_plot(gc: GroupCatalog):
 
     idx = 0
     for idx in range(len(caldata.magbins)-1):
-        i = caldata.magbins[idx]
+        i = abs(caldata.magbins[idx])
         wp, wp_err, radius = caldata.get_wp_red(i)
         axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkred', capsize=3, ecolor='k')
 
@@ -966,8 +966,8 @@ def proj_clustering_plot(gc: GroupCatalog):
         axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='b', alpha=0.6)
 
         # Put text of the chisqr value in plot
-        axes[idx].text(0.6, 0.9, f"$\chi^2_r$: {clust_r[i-mag_start]:.1f}", transform=axes[idx].transAxes)
-        axes[idx].text(0.6, 0.8, f"$\chi^2_b$: {clust_b[i-mag_start]:.1f}", transform=axes[idx].transAxes)
+        axes[idx].text(0.6, 0.9, f"$\chi^2_r$: {clust_r[i+mag_start]:.1f}", transform=axes[idx].transAxes)
+        axes[idx].text(0.6, 0.8, f"$\chi^2_b$: {clust_b[i+mag_start]:.1f}", transform=axes[idx].transAxes)
 
         # Plot config
         axes[idx].set_xscale('log')

@@ -108,6 +108,7 @@ class Mode(Enum):
     PHOTOZ_PLUS_v1 = 8
     PHOTOZ_PLUS_v2 = 9
     PHOTOZ_PLUS_v3 = 10
+    PHOTOZ_PLUS_v4 = 11
 
     @classmethod
     def is_simple(cls, mode):
@@ -121,7 +122,7 @@ class Mode(Enum):
         if isinstance(mode, Mode):
             value = mode.value   
         value = mode
-        return value == Mode.PHOTOZ_PLUS_v1.value or value == Mode.PHOTOZ_PLUS_v2.value or value == Mode.PHOTOZ_PLUS_v3.value
+        return value == Mode.PHOTOZ_PLUS_v1.value or value == Mode.PHOTOZ_PLUS_v2.value or value == Mode.PHOTOZ_PLUS_v3.value or value == Mode.PHOTOZ_PLUS_v4.value
         
     @classmethod
     def is_all(cls, mode):
@@ -178,6 +179,11 @@ class AssignedRedshiftFlag(Enum):
     NEIGHBOR_EIGHT = 8
     NEIGHBOR_NINE = 9
     NEIGHBOR_TEN = 10
+    NEIGHBOR_ELEVEN = 11
+    NEIGHBOR_TWELVE = 12
+    NEIGHBOR_THIRTEEN = 13
+    NEIGHBOR_FOURTEEN = 14
+    NEIGHBOR_FIFTEEN = 15
 
 def spectroscopic_complete_percent(flags: np.ndarray):
     return np.logical_or(flags == AssignedRedshiftFlag.SDSS_SPEC.value, flags == AssignedRedshiftFlag.DESI_SPEC.value).sum() / len(flags)

@@ -54,6 +54,7 @@ GOOD_TEN_PARAMETERS = np.array([
     [19.737870,6.394322,24.657218,11.571343,33.116540,9.403598,-3.755194,16.879988,9.941906,0.958446],
     [13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04],
     [20.266485,6.981479,20.417991,9.467296,30.750261,6.597792,-1.896981,16.674611,10.527099,1.341537],
+    [16.678, 4.460, 19.821, 8.312, 26.087, 6.361, -2.149, 15.190, 12.316, -2.440,],
     ])
 
 # A 10 Parameter set found from MCMC SV3 with SDSS data.
@@ -197,19 +198,18 @@ class GroupCatalog:
             print("Starting fresh")
             # Start fresh using IC's centered around known good values
             if self.sampler.ndim == 10:
-                initial = GOOD_TEN_PARAMETERS[1]
+                initial = GOOD_TEN_PARAMETERS[3]
             elif self.sampler.ndim == 14:
                 initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
             
-            # These are the values mentioned on the webpage
-            #prev_best = np.array([13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04])
-
             spread_factor = 0.5
             p0 = initial + spread_factor * (np.random.randn(self.sampler.nwalkers, self.sampler.ndim) - 0.5)
-            # set the first few walkers to the initial one, though
-            p0[0] = GOOD_TEN_PARAMETERS[0]
-            p0[1] = GOOD_TEN_PARAMETERS[1]
-            p0[2] = GOOD_TEN_PARAMETERS[1]
+            
+            # Set a walker to each set of saved off parameters
+            for i in range(len(GOOD_TEN_PARAMETERS)):
+                if i < self.sampler.nwalkers:
+                    p0[i] = GOOD_TEN_PARAMETERS[i]
+
             print(np.shape(p0))
 
             pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
@@ -1165,8 +1165,8 @@ class BGSGroupCatalog(GroupCatalog):
                 f_sat_q = alt_df[alt_df['QUIESCENT'] == True].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
                 return f_sat, f_sat_sf, f_sat_q
 
-            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
-            #results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
+            #results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
+            results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
 
             f_sat_realizations, f_sat_sf_realizations, f_sat_q_realizations = zip(*results)
 
@@ -1644,12 +1644,18 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             if len(extra_params) == 2:
                 NEIGHBORS, BB_PARAMS = extra_params
                 print("Using one set of extra parameter values for all color combinations.")
-                RR_PARAMS = BR_PARAMS = RB_PARAMS = BB_PARAMS
+                params = (BB_PARAMS, BB_PARAMS, BB_PARAMS, BB_PARAMS)
             elif len(extra_params) == 5:
                 NEIGHBORS, BB_PARAMS, RB_PARAMS, BR_PARAMS, RR_PARAMS = extra_params
+                params = (BB_PARAMS, RB_PARAMS, BR_PARAMS, RR_PARAMS)
+            elif len(extra_params) == 6:
+                print("Using new Lorentzian parameter set")
+                NEIGHBORS = extra_params[0]
+                params = extra_params[1:]
             elif len(extra_params) == 13:
                 NEIGHBORS = extra_params[0]
                 BB_PARAMS, RB_PARAMS, BR_PARAMS, RR_PARAMS = extra_params[1:].reshape(4, 3)
+                params = (BB_PARAMS, RB_PARAMS, BR_PARAMS, RR_PARAMS)
             else:
                 raise ValueError("Extra parameters must be a tuple of length 2 or 5")
             NEIGHBORS = int(NEIGHBORS)
@@ -1666,12 +1672,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if np.ma.is_masked(table['Z']):
         z_obs = table['Z'].data.data
         unobserved = table['Z'].mask # the masked values are what is unobserved
-        unobserved_orginal = unobserved.copy()
+        no_truth_z = unobserved.copy()
     else:
         # SV3 version didn't do this
         z_obs = table['Z']
-        unobserved = table['Z'].astype("<i8") == 999999
-        unobserved_orginal = unobserved.copy()
+        unobserved = table['Z'].astype("<i8") >  100
+        no_truth_z = unobserved.copy()
 
     obj_type = get_tbl_column(table, 'SPECTYPE')
     deltachi2 = get_tbl_column(table, 'DELTACHI2')
@@ -1698,6 +1704,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     log_L_gal = get_tbl_column(table, 'LOG_L_GAL', required=True)
     quiescent = get_tbl_column(table, 'QUIESCENT', required=True)
     p_obs = get_tbl_column(table, 'PROB_OBS')
+    z_sv3 = get_tbl_column(table, 'Z_SV3')
     if p_obs is None:
         print("WARNING: PROB_OBS column not found in FITS file. Using 0.689 for all unobserved galaxies.")
         p_obs = np.ones(len(z_obs)) * 0.689
@@ -1723,6 +1730,14 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # So this code path is not critical anymore.
     if data_cut == "sv3":
         unobserved = drop_SV3_passes(drop_passes, tileid, unobserved)
+    if data_cut == "Y3-Loa-SV3Cut" and wants_MCMC:
+        if z_sv3 is None:
+            print("ERROR: to run PZP MCMC on Y3-Loa-SV3Cut, you need to provide the Z_SV3 column.")
+            exit(2)
+        # Copy over SV3 redshifts to the unobserved galaxies for use in the MCMC
+        sv3_z_missing = np.isnan(z_sv3) | (z_sv3 > 100)
+        no_truth_z = sv3_z_missing & unobserved 
+        z_obs[unobserved] = z_sv3[unobserved]
 
     orig_count = len(dec)
     print(f"{orig_count:,} objects in file")
@@ -1778,7 +1793,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     #print(f"We have {np.count_nonzero(treat_as_unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
     unobserved = np.all([app_mag_filter, np.logical_or(unobserved, treat_as_unobserved)], axis=0)
 
-    if mode == Mode.FIBER_ASSIGNED_ONLY.value: # means 3pass 
+    if mode == Mode.FIBER_ASSIGNED_ONLY.value:
         keep = np.all([bad_targets_filter, multi_pass_filter, observed_requirements], axis=0)
 
     if mode == Mode.NEAREST_NEIGHBOR.value or Mode.is_simple(mode) or Mode.is_photoz_plus(mode):
@@ -1817,7 +1832,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     ntid = ntid[keep]
     z_phot = z_phot[keep]
     unobserved = unobserved[keep]
-    unobserved_orginal = unobserved_orginal[keep]
+    no_truth_z = no_truth_z[keep]
 
     observed = np.invert(unobserved)
     idx_unobserved = np.flatnonzero(unobserved)
@@ -1928,7 +1943,6 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
                MAX_NEIGHBORS = 20
             else:
                 MAX_NEIGHBORS = NEIGHBORS
-                params = (BB_PARAMS, RB_PARAMS, BR_PARAMS, RR_PARAMS)
 
             catalog = coord.SkyCoord(ra=catalog_ra*u.degree, dec=catalog_dec*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[idx_unobserved]*u.degree, dec=dec[idx_unobserved]*u.degree, frame='icrs')
@@ -1947,13 +1961,14 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
             if wants_MCMC:
                 if data_cut != "sv3" or drop_passes == 0:
-                    raise ValueError("MCMC optimization of parameters is only possible with SV3 and dropped passes.")
-                
+                    if data_cut != 'Y3-Loa-SV3Cut' or z_sv3 is None:
+                        raise ValueError("MCMC optimization of parameters is only possible with SV3 and dropped passes or Y3-Loa-SV3Cut data supplemented with SV3 redshifts.")
+
                 print("Performing MCMC optimization of PhotometricRedshiftGuesser parameters")
                 # Can only use the galaxies that were observed but we're pretending are unobserved 
-                idx =  np.flatnonzero(np.logical_and(~unobserved_orginal, unobserved))
+                idx =  np.flatnonzero(np.logical_and(~no_truth_z, unobserved))
                 # from the neighbor arrays, need to discard the ones that are not in the idx
-                n_selector = (~unobserved_orginal)[unobserved] # True/False array of the ones that were observed but we're pretending are unobserved of length idx_unobserved
+                n_selector = (~no_truth_z)[unobserved] # True/False array of the ones that were observed but we're pretending are unobserved of length idx_unobserved
                 
                 NEIGHBORS, params = find_optimal_parameters_mcmc(scorer, mode, app_mag_r[idx], p_obs[idx], z_phot[idx], target_quiescent[n_selector], ang_dist[:, n_selector], n_z[:, n_selector], n_q[:, n_selector], z_obs[idx])
                 NEIGHBORS = int(NEIGHBORS)
@@ -2066,30 +2081,49 @@ def log_probability(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z
 def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
     assert len(app_mag_r) == len(p_obs) == len(z_phot) == len(t_q) == len(ang_dist[0]) == len(n_z[0]) == len(n_q[0]) == len(z_truth)
     
-    ndim = 13
-    n_walkers=ndim*2
-    n_steps=20000
-    pos = np.array([np.random.uniform(low=[a_range[0], b_range[0], s_range[0]], 
-                                        high=[a_range[1], b_range[1], s_range[1]]) for i in range(n_walkers*4)])
-    pos = pos.reshape(n_walkers, 12)
-    pos = np.insert(pos, 0, np.arange(n_walkers)%20 +1, axis=1)
+    if mode == Mode.PHOTOZ_PLUS_v4.value:
+        ndim = 5
+        n_walkers = 26
+        n_steps = 20000
+        new_a_range = [0.5, 2.0]
+        new_b_range = [0.5, 2.0]
+        # Create random arrays of length 5 of values for each walker
+        # Range of index 0 new_a_range, rest is new_b_range
+        pos = np.array([np.random.uniform(low=[new_a_range[0], new_b_range[0], s_range[0], 0.0, 0.0],
+                                           high=[new_a_range[1], new_b_range[1], s_range[1], 2.5, 4.0]) for i in range(n_walkers*4)])
+        pos = pos.reshape(n_walkers, 5)
+        pos = np.insert(pos, 0, np.arange(n_walkers)%20 +1, axis=1)
 
-    # Get score_b values cached and ready for fast access
-    scorer.use_score_cache_for_mcmc(len(app_mag_r))
-    _ = scorer.choose_redshift(n_z, ang_dist, z_phot, p_obs, app_mag_r, t_q, n_q, np.reshape(pos[0, 1:], (4,3)))
+        print(f"Initial positions: {pos}")
 
-    # Insert some manual favorites as ICs; these came from past MCMC runs
-    for i in range(20):
-        pos[i] = [i + 1, 1.2938, 1.5467, 3.0134, 1.2229, 0.8628, 2.5882, 0.8706, 0.6126, 2.4447, 1.1163, 1.2938, 3.1650]
-        pos[i] *= np.random.uniform(0.90, 0.999, size=13)
+    else:
+        ndim = 13
+        n_walkers=ndim*2
+        n_steps=20000
+        pos = np.array([np.random.uniform(low=[a_range[0], b_range[0], s_range[0]], 
+                                            high=[a_range[1], b_range[1], s_range[1]]) for i in range(n_walkers*4)])
+        pos = pos.reshape(n_walkers, 12)
+        pos = np.insert(pos, 0, np.arange(n_walkers)%20 +1, axis=1)
 
+        # Get score_b values cached and ready for fast access
+        scorer.use_score_cache_for_mcmc(len(app_mag_r))
+        _ = scorer.choose_redshift(n_z, ang_dist, z_phot, p_obs, app_mag_r, t_q, n_q, np.reshape(pos[0, 1:], (4,3)))
+
+        # Insert some manual favorites as ICs; these came from past MCMC runs
+        for i in range(20):
+            pos[i] = [i + 1, 1.2938, 1.5467, 3.0134, 1.2229, 0.8628, 2.5882, 0.8706, 0.6126, 2.4447, 1.1163, 1.2938, 3.1650]
+            if i > 0:
+                pos[i] *= np.random.uniform(0.90, 0.999, size=13)
+        
 
     if mode == Mode.PHOTOZ_PLUS_v1.value:
         backfile = BASE_FOLDER + "mcmc13_m4_1_7.h5"
     elif mode == Mode.PHOTOZ_PLUS_v2.value:
-        backfile = BASE_FOLDER + "mcmc13_m4_2_4.h5"
+        backfile = BASE_FOLDER + "mcmc13_m4_2_6.h5"
     elif mode == Mode.PHOTOZ_PLUS_v3.value:
         backfile = BASE_FOLDER + "mcmc13_m4_3_1.h5"
+    elif mode == Mode.PHOTOZ_PLUS_v4.value:
+        backfile = BASE_FOLDER + "mcmc6_m4_4_1.h5"
     if os.path.exists(backfile):
         new = False
         print("Loaded existing MCMC sampler")
@@ -2109,8 +2143,7 @@ def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_m
 
     samples = sampler.get_chain(flat=True)
     params = samples[np.argmax(sampler.get_log_prob())]
-    bb, rb, br, rr = np.reshape(params[1:], (4,4))
-    return params[0], (bb, rb, br, rr)
+    return int(params[0]), params[1:] # TODO wrong but we usually never get here
 
 
 ##########################

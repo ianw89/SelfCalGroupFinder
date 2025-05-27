@@ -255,24 +255,22 @@ int main(int argc, char **argv)
     if (!SILENT) fprintf(stderr, "Populating mock catalog\n");
 
     t2 = omp_get_wtime();
+    
+    //for (i = 0; i < NVOLUME_BINS*2; i += 1)
+    //{
+    //  populate_simulation_omp(i / 2, i % 2, 1);
+    //}
 
-    for (i = 0; i < NVOLUME_BINS*2; i += 1)
-    {
-      populate_simulation_omp(i / 2, i % 2, 1);
-    }
-
-/*
 #pragma omp parallel private(i,istart,istep)
     {
       istart = omp_get_thread_num();
       istep = omp_get_num_threads();
-      for(i=istart;i<10;i+=istep)
+      for(i=istart; i< NVOLUME_BINS*2; i+=istep)
       {
-        populate_simulation_omp(i/2,i%2,istart);
+        populate_simulation_omp(i/2, i%2, istart);
       }
     }
-*/
-    
+
     t3 = omp_get_wtime();
     if (!SILENT) fprintf(stderr, "popsim> %.2f sec\n", t3 - t2);
 

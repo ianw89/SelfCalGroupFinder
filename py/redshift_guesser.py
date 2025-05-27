@@ -188,6 +188,7 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
             Array of shape (N, COUNT) containing boolean values indicating if the neighbors are quiescent.
         params : tuple
             A tuple containing four arrays (bb, rb, br, rr) each of length 3, representing parameters for scoring.
+            Or for Mode v4, a single array (a, bb_b, rb_b, br_b, rr_b) of length 5.
 
         Returns:
         --------
@@ -218,35 +219,54 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
             if self.debug:
                 print(f"{num_neighbors} neighbors will be considered.")
 
-            # target color then neighbor color. So rb means red target, blue neighbor.   
-            # 0,1,2,3 indxes are a,b,zmatch_sigma,zmatch_pow
-            bb, rb, br, rr = params
 
-            if len(bb) == 3:
-                assert len(bb) == 3 and len(rb) == 3 and len(br) == 3 and len(rr) == 3
-                zmatch_pow = 2.0 # letting this float was too many freedoms
-            elif len(bb) == 4: 
-                assert len(bb) == 4 and len(rb) == 4 and len(br) == 4 and len(rr) == 4
-                zmatch_pow = np.where(target_quiescent,
-                        np.where(nn_quiescent, rr[3], rb[3]),
-                        np.where(nn_quiescent, br[3], bb[3]))
-            else:
-                raise ValueError("Invalid length of parameters")
+            if self.mode.value == Mode.PHOTOZ_PLUS_v4.value:
+                assert len(params) == 5, f"Invalid number of parameters for PHOTOZ_PLUS_v4: {len(params)}"
+                # Use Lorentzian kernel instead of Gaussian for z matching
+                # For this new mode the parameters are just a single a value and the 4 b values
+                # The other parts of the Lorentzian are fixed
+                a, bb_b, rb_b, br_b, rr_b = params
+                b = np.where(target_quiescent,
+                    np.where(nn_quiescent, rr_b, rb_b),
+                    np.where(nn_quiescent, br_b, bb_b))
                 
-            a = np.where(target_quiescent,
-                    np.where(nn_quiescent, rr[0], rb[0]),
-                    np.where(nn_quiescent, br[0], bb[0]))
-            b = np.where(target_quiescent,
-                    np.where(nn_quiescent, rr[1], rb[1]),
-                    np.where(nn_quiescent, br[1], bb[1]))
-            zmatch_sigma = np.where(target_quiescent,
-                    np.where(nn_quiescent, rr[2], rb[2]),
-                    np.where(nn_quiescent, br[2], bb[2]))
+                delta_z = np.abs(neighbor_z - target_z_phot)
+                dzp = np.power(delta_z, 2.28)
+                gamma_sqr = 0.0092**2
+                score_a = (a * gamma_sqr) / (gamma_sqr + dzp)
 
-            # PHOTO-Z scoring of neighbor
-            delta_z = np.abs(neighbor_z - target_z_phot)
-            dzp = np.power(delta_z, zmatch_pow)
-            score_a = np.exp(- dzp / (np.power(10.0, -zmatch_sigma)))
+            else: 
+                # target color then neighbor color. So rb means red target, blue neighbor.   
+                # 0,1,2,3 indxes are a,b,zmatch_sigma,zmatch_pow
+                bb, rb, br, rr = params
+
+                if len(bb) == 3:
+                    assert len(bb) == 3 and len(rb) == 3 and len(br) == 3 and len(rr) == 3
+                    zmatch_pow = 2.0 # letting this float was too many freedoms
+                elif len(bb) == 4: 
+                    assert len(bb) == 4 and len(rb) == 4 and len(br) == 4 and len(rr) == 4
+                    zmatch_pow = np.where(target_quiescent,
+                            np.where(nn_quiescent, rr[3], rb[3]),
+                            np.where(nn_quiescent, br[3], bb[3]))
+                else:
+                    raise ValueError("Invalid length of parameters")
+                    
+                a = np.where(target_quiescent,
+                        np.where(nn_quiescent, rr[0], rb[0]),
+                        np.where(nn_quiescent, br[0], bb[0]))
+                b = np.where(target_quiescent,
+                        np.where(nn_quiescent, rr[1], rb[1]),
+                        np.where(nn_quiescent, br[1], bb[1]))
+                zmatch_sigma = np.where(target_quiescent,
+                        np.where(nn_quiescent, rr[2], rb[2]),
+                        np.where(nn_quiescent, br[2], bb[2]))
+
+                # PHOTO-Z scoring of neighbor
+                delta_z = np.abs(neighbor_z - target_z_phot)
+                dzp = np.power(delta_z, zmatch_pow)
+                score_a = np.exp(- dzp / (np.power(10.0, -zmatch_sigma)))
+
+            
 
             # Other properties scoring of neighbor
             score_b = np.zeros((num_neighbors, gal_count))
@@ -298,7 +318,7 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
                 for i in np.arange(len(bin_i)):
                     z_chosen[idx_remaining[i]] = np.random.choice(self.map_v1[bin_i[i]])
 
-            elif self.mode.value == Mode.PHOTOZ_PLUS_v2.value:
+            elif self.mode.value == Mode.PHOTOZ_PLUS_v2.value or self.mode.value == Mode.PHOTOZ_PLUS_v4.value:
                 #print("Using v2 of Photo-z Plus")
                 # Just use the photo-z directly
                 z_chosen[idx_remaining] = target_z_phot[idx_remaining]

@@ -6,13 +6,14 @@ import concurrent.futures
 from multiprocessing import Pool
 
 # EXAMPLE USAGE
-# nohup python exec.py 6 7 8 9 &> exec.out &
-# nohup python exec.py mcmc 1 x0 &> exec.out &
-# nohup python exec.py mcmc 11 x0 &> exec.out &
+# nohup python3 exec.py 6 7 8 9 &> exec.out &
+# nohup python3 exec.py mcmc 1 x0 &> exec.out &
+# nohup python3 exec.py mcmc 2 x0 &>> exec.out &
+# nohup python3 exec.py 0 &> pzp_mcmc.out &
 
 execution_mode = 'once' # or 'clustering' or 'mcmc'
 mcmcnum = None # Will make a new folder
-mcmc_iter = 300 # x 30 walkers
+mcmc_iter = 3000 # x 30 walkers
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -27,15 +28,23 @@ datasets_to_run: list[GroupCatalog] = []
 # TODO we did this on SV3 7pass, when Y3-likesv3 would have been better.
 # If we revisit this, we should use the Y3-like sv3 data instead of this.
 
-mcmc = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v1, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, gfprops=cat.GF_PROPS_BGS_VANILLA.copy())
-# V2 was decided to be best
+# New MCMC of the fiber incompleteness handling parameters using the Y3 cut
+mcmc = BGSGroupCatalog(
+    "BGS Y3 Like SV3 PZP MCMC", 
+    Mode.PHOTOZ_PLUS_v4, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    gfprops=GF_PROPS_BGS_VANILLA.copy())
+# This is the old MCMC that led to finding the nice v2.4 PZP parameter set. Actually it might have been v3.1 that I just changed mode to v2 instead of v3 after.
 mcmc2 = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, gfprops=cat.GF_PROPS_BGS_VANILLA.copy())
-mcmc3 = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v3, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, gfprops=cat.GF_PROPS_BGS_VANILLA.copy())
 
 callable_list = [
     [mcmc], #0
     [mcmc2], #1
-    [mcmc3], #2
+    [cat.bgs_sv3_hybrid_mcmc], #2
     cat.sdss_list, #3
     cat.uchuu_list, #4
     cat.mxxl_list, #5
@@ -44,8 +53,8 @@ callable_list = [
     cat.bgs_y1_list, #8
     cat.bgs_y3_list, #9
     [cat.sdss_colors_v2_mcmc], #10
-    [cat.bgs_sv3_10p_mcmc], #11
-    [cat.bgs_y3_pzp_2_4_c1] # 12
+    [cat.bgs_sv3_10p_mcmc], #11 sloan one
+    [cat.bgs_sv3_pz_2_4_10p_c1] # 12
 ]
 
 def process_gc(gc: GroupCatalog):
