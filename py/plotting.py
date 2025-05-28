@@ -125,8 +125,8 @@ def single_plots(d: GroupCatalog, truth_on=False):
         sf_gals = d.all_data[np.invert(d.all_data['QUIESCENT'])]
         plots_color_split_lost_split_inner(d.name + " Truth", d.L_gal_labels, d.L_gal_bins, q_gals, sf_gals, fsat_truth_vmax_weighted,'LGAL_BIN_T')
 
-    wp_rp(d)
-    wp_rp_magbins(d)
+    #wp_rp(d)
+    #wp_rp_magbins(d)
 
 def completeness_comparison(*datasets):        
     fig,ax1=plt.subplots()

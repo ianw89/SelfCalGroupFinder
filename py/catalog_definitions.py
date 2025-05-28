@@ -10,7 +10,7 @@ from dataloc import *
 #  target/neighbor bb rb br rr
 PZP_PARAMS_V24 = (8, [1.2938, 1.5467, 3.0134], [1.2229, 0.8628, 2.5882], [0.8706, 0.6126, 2.4447], [1.1163, 1.2938, 3.1650])
 #PZP_PARAMS_V26 = (11, [1.7448, 1.7456, 2.8354], [1.2543, 1.0822, 2.6076], [1.0907, 1.22  , 2.0313], [1.1925, 0.9663, 2.2485])
-PZP_PARAMS_V26 = (10, [0.95, 1.1, 3.0], [1.0, 1.15, 3.1], [0.95, 1.1, 3.0], [1.0, 1.25, 3.1]) # Hand tuned set that matchs fsat better than v2.4 but gets less z right
+PZP_PARAMS_V26 = (8, [0.95, 1.1, 3.0], [1.0, 1.15, 3.1], [0.95, 1.1, 3.0], [1.0, 1.25, 3.1]) # Hand tuned set that matchs fsat better than v2.4 but gets less z right
 #Parameters: (13, [0.9041, 1.4346, 2.1083], [1.385 , 0.638 , 2.7953], [1.097 , 0.4847, 1.9423], [1.2167, 1.5412, 3.1833])
 
 PZP_PARAMS_V40 = (12, 1.25, 1.1, 1.2, 1.1, 1.3) # Neighbors, a, bb_b, rb_b, br_b, rr_b

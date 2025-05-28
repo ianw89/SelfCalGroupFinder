@@ -278,6 +278,8 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
                         continue
 
                 # Compute the scores
+                # The neighbor number really doesn't affect results.
+                #score_b[i, :] = self.nna.get_score(np.repeat(i, len(target_app_mag)), target_app_mag, target_quiescent, neighbor_z[i], neighbor_ang_dist[i], nn_quiescent[i])
                 score_b[i, :] = self.nna.get_score(None, target_app_mag, target_quiescent, neighbor_z[i], neighbor_ang_dist[i], nn_quiescent[i])
                         
                 # If using cache, save the scores for future iterations
