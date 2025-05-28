@@ -35,20 +35,36 @@ from dataloc import *
 # For plotting, it's better to use midpoints of the bins (or for the edges, a reasonable made up value)
 ################################
 
+def linlogmixspace(start, end, count, blend=0.5):
+    """
+    Create values intermediate betwen linear space and logspace, where blend chooses the fraction of logspace (1=fully logspace).
+    """
+    if blend < 0 or blend > 1:
+        raise ValueError("Blend must be between 0 and 1")
+    log_vals = np.geomspace(start, end, count)
+    lin_vals = np.linspace(start, end, count)
+    return lin_vals * (1 - blend) + log_vals * blend
+
+
+NEIGHBOR_BINS = np.arange(1,11) # 1 to 10 neighbors, inclusive
+
 POBS_BIN_COUNT = 15
 POBS_BINS = np.linspace(0.01, 1.01, POBS_BIN_COUNT) # upper bound is higher than any data, lower bound is not
-POBS_BINS_MIDPOINTS = np.append([0.0], 0.5*(POBS_BINS[1:] + POBS_BINS[:-1]))
 
 APP_MAG_BIN_COUNT = 12
 APP_MAG_BINS = np.linspace(15.5, 20.176, APP_MAG_BIN_COUNT) # upper bound is higher than any data, lower bound is not
-APP_MAG_BINS_MIDPOINTS = np.append([15.0], 0.5*(APP_MAG_BINS[1:] + APP_MAG_BINS[:-1]))
 
 ANG_DIST_BIN_COUNT = 15
-ANGULAR_BINS = np.append(np.logspace(np.log10(3), np.log10(900), ANG_DIST_BIN_COUNT - 1), 3600) # upper bound is higher than any data, lower bound is not
-ANGULAR_BINS_MIDPOINTS = np.append([2], 0.5*(ANGULAR_BINS[1:] + ANGULAR_BINS[:-1]))
+ANGULAR_BINS = np.append(linlogmixspace(5, 900, ANG_DIST_BIN_COUNT - 1, blend=0.95), 3600) # upper bound is higher than any data, lower bound is not
+#ANGULAR_BINS = np.append(np.geomspace(3, 900, ANG_DIST_BIN_COUNT - 1), 3600) # upper bound is higher than any data, lower bound is not
 
-Z_BIN_COUNT = 16
-Z_BINS = np.linspace(0.05, 0.5, Z_BIN_COUNT) # upper bound is higher than any data, lower bound is not
+Z_BIN_COUNT = 12
+#Z_BINS = np.linspace(0.05, 0.5, Z_BIN_COUNT) # upper bound is higher than any data, lower bound is not
+Z_BINS = linlogmixspace(0.04, 0.5, Z_BIN_COUNT, blend=0.2)
+
+DELTA_Z_COUNT = 15
+DELTA_Z_BINS = np.linspace(-0.1, 0.1, DELTA_Z_COUNT-1) # upper bound is higher than any data, lower bound is not
+DELTA_Z_BINS = np.append(DELTA_Z_BINS, 0.5) # upper bound is higher than any data, lower bound is not
 
 #Z_BINS = np.array([0.094, 0.135, 0.169, 0.199, 0.231, 0.261, 0.291, 0.331, 0.39, 1.0]) # equal gals per bin over 10 bins
 

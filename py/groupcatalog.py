@@ -1620,6 +1620,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         raise ValueError("Extra parameters are only for the PHOTOZ_PLUS_v1 mode.")
 
     frac_area = get_footprint_fraction(data_cut, mode, num_passes_required)
+    wants_MCMC = False
 
     if mode == Mode.ALL.value:
         print("\nMode ALL NOT SUPPORTED DUE TO FIBER INCOMPLETENESS")
@@ -1640,7 +1641,6 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     elif Mode.is_photoz_plus(mode):
         print("\nMode PHOTOZ PLUS")
         if extra_params is not None:
-            wants_MCMC = False
             if len(extra_params) == 2:
                 NEIGHBORS, BB_PARAMS = extra_params
                 print("Using one set of extra parameter values for all color combinations.")
@@ -1936,7 +1936,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             print(f"Assigning missing redshifts complete.")   
 
     if Mode.is_photoz_plus(mode):
-        with PhotometricRedshiftGuesser.from_files(BGS_Y3_LOST_APP_TO_Z_FILE, BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_SMOOTHED_FILE, Mode(mode)) as scorer:
+        with PhotometricRedshiftGuesser.from_files(BGS_Y3_LOST_APP_TO_Z_FILE, BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_SMOOTHED_FILE_V2, Mode(mode)) as scorer:
             print(f"Assigning missing redshifts... ")   
 
             if wants_MCMC:

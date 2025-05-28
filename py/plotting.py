@@ -1359,7 +1359,7 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
             assigned_z_flag = assigned_z[assignment_type == flag]
             truth_z_flag = truth_z[assignment_type == flag]
             rtophat_flag = rounded_tophat_score(assigned_z_flag, truth_z_flag)
-            print(f"Flag {AssignedRedshiftFlag(flag)} - {rtophat_flag.mean():.4f}")
+            print(f"Flag {AssignedRedshiftFlag(flag)} (used {np.sum(assignment_type == flag)}) - Score Mean: {rtophat_flag.mean():.4f}")
 
         #print("Neighbor-assigned Only:")
         assigned_z2 = s.all_data.loc[valid_idx & z_flag_is_neighbor(s.all_data['Z_ASSIGNED_FLAG']), 'Z']
@@ -1862,7 +1862,7 @@ def examine_groups_near(target, data: pd.DataFrame, nearby_angle: coord.Angle = 
     # Add redshift labels and M_HALO for centrals
     for k in range(len(nearby)):
         plt.text(nearby.iloc[k].RA, nearby.iloc[k]['DEC'], "{0:.3f}".format(nearby.iloc[k]['Z']), size=textsize)
-        plt.text(nearby.iloc[k].RA, nearby.iloc[k]['DEC'] - 0.004, "$B_s$={0:.3f}".format(nearby.iloc[k]['BSAT']), size=textsize)
+        #plt.text(nearby.iloc[k].RA, nearby.iloc[k]['DEC'] - 0.004, "$B_s$={0:.3f}".format(nearby.iloc[k]['BSAT']), size=textsize)
         if not nearby.iloc[k]['IS_SAT']:
             plt.text(nearby.iloc[k].RA, nearby.iloc[k]['DEC'] - 0.0080, "$M_h$={0:.1f}".format(np.log10(nearby.iloc[k]['M_HALO'])), size=textsize)
 
