@@ -17,6 +17,14 @@
 #define ANG (PI / 180.0)
 #define RT2PI 2.50663
 
+// Message passing protocol via a pipe to python wrapper
+#define MSG_REQUEST 0
+#define MSG_FSAT 1
+#define MSG_LHMR 2
+#define MSG_LSAT 3
+#define TYPE_FLOAT 0
+#define TYPE_DOUBLE 1
+
 //#define OPTIMIZE
 
 /* Structure definition for galaxies. */
@@ -66,6 +74,7 @@ extern int FLUXLIM_CORRECTION_MODEL;
 extern int COLOR;
 extern int PERTURB;
 extern int MAX_ITER;
+extern int ALLOW_EARLY_EXIT;
 extern int USE_WCEN;
 extern int USE_BSAT;
 extern int STELLAR_MASS;
@@ -83,6 +92,7 @@ extern char *HALO_MASS_FUNC_FILE;
 extern char *MOCK_FILE;
 extern char *VOLUME_BINS_FILE;
 extern int NVOLUME_BINS;
+extern FILE *MSG_PIPE;
 
 /* Variables for determining threshold if a galaxy is a satellite */
 extern const float BPROB_DEFAULT;

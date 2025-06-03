@@ -13,6 +13,8 @@ import astropy.units as u
 import copy
 import sys
 import math
+import struct
+from io import BufferedReader
 from multiprocessing import Pool
 from joblib import Parallel, delayed
 
@@ -50,11 +52,27 @@ GF_PROPS_BGS_VANILLA = {
     'color':1,
 }
 
+# ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
 GOOD_TEN_PARAMETERS = np.array([
     [19.737870,6.394322,24.657218,11.571343,33.116540,9.403598,-3.755194,16.879988,9.941906,0.958446],
     [13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04],
     [20.266485,6.981479,20.417991,9.467296,30.750261,6.597792,-1.896981,16.674611,10.527099,1.341537],
     [16.678, 4.460, 19.821, 8.312, 26.087, 6.361, -2.149, 15.190, 12.316, -2.440,],
+    [16.703, 4.449, 20.839, 9.096, 28.473, 7.129, -2.792, 16.698, 12.878, -1.552,],
+    [16.085, 4.231, 17.800, 7.393, 24.378, 5.448, -2.335, 13.921, 12.962, -2.611,],
+    [17.244, 4.737, 20.855, 9.040, 29.335, 6.746, -2.556, 17.334, 12.444, -2.083,],
+    [16.996, 4.719, 20.392, 9.025, 28.510, 7.018, -3.166, 16.200, 13.577, -0.381,],
+    [16.546, 4.449, 18.628, 7.764, 25.308, 5.657, -2.405, 13.964, 12.704, -2.656,],
+    [16.282, 4.222, 19.610, 8.317, 25.916, 6.212, -2.352, 15.420, 12.629, -2.366,],
+    [18.164, 5.378, 22.283, 9.641, 29.212, 7.854, -2.662, 14.937, 11.956, -0.798,],
+    [16.479, 4.100, 17.130, 6.873, 27.722, 2.841, -4.811, 20.308, 13.020, -2.867,],
+    [16.434, 4.338, 17.842, 7.859, 26.438, 3.922, -3.719, 17.966, 13.318, -2.801,],
+    [19.603, 6.398, 22.167, 10.035, 29.776, 7.459, -2.735, 15.314, 11.259, -0.649,],
+    [16.851, 4.626, 20.415, 8.839, 27.402, 6.785, -2.461, 15.311, 11.867, -1.280,],
+    [17.482, 5.155, 21.416, 10.300, 27.547, 7.046, -2.988, 15.631, 12.334, -2.553,],
+    [16.851, 4.647, 19.172, 8.232, 26.273, 5.859, -2.518, 15.238, 12.262, -2.230,],
+    [16.812, 4.511, 20.105, 8.392, 26.276, 6.416, -2.102, 15.491, 12.314, -2.457,],
+    [16.682, 4.516, 19.678, 8.421, 28.002, 6.950, -2.308, 15.839, 13.020, -0.616,],
     ])
 
 # A 10 Parameter set found from MCMC SV3 with SDSS data.
@@ -126,6 +144,18 @@ class GroupCatalog:
         self.f_sat = None # per Lgal bin 
         self.Lgal_counts = None # size of Lgal bins 
 
+        # Given from GF process via monitor_pipe
+        self.fsat : np.ndarray = None
+        self.fsatr : np.ndarray = None
+        self.fsatb : np.ndarray = None
+        self.lhmr_m : np.ndarray = None # lhmr model
+        self.lhmr_std : np.ndarray = None # lhmr model scatter
+        self.lhmr_r_m : np.ndarray = None # lhmr model red
+        self.lhmr_r_std : np.ndarray = None # lhmr model red scatter
+        self.lhmr_b_m : np.ndarray = None # lhmr model blue
+        self.lhmr_b_std : np.ndarray = None # lhmr model blue scatter
+
+
     def set_output_folder(self, folder):
         self.output_folder = folder
         self.file_pattern = self.output_folder + self.name
@@ -169,6 +199,9 @@ class GroupCatalog:
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
 
+        if 'earlyexit' not in self.GF_props:
+            self.GF_props['earlyexit'] = 1
+
         # Setup emcee backend
         backfile = self.output_folder + "gf_mcmc.h5"
         if os.path.isfile(backfile):
@@ -182,7 +215,12 @@ class GroupCatalog:
             nwalkers = 30
             ndim = 10
 
-        self.sampler = emcee.EnsembleSampler(nwalkers, ndim, self.lnprob, backend=backend)
+        self.sampler = emcee.EnsembleSampler(
+            nwalkers, 
+            ndim, 
+            self.lnprob,
+            backend=backend
+        )
 
     def run_GF_mcmc(self, niter: int):
 
@@ -198,6 +236,7 @@ class GroupCatalog:
             print("Starting fresh")
             # Start fresh using IC's centered around known good values
             if self.sampler.ndim == 10:
+                # TODO improve the starting random walker locations
                 initial = GOOD_TEN_PARAMETERS[3]
             elif self.sampler.ndim == 14:
                 initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
@@ -219,7 +258,12 @@ class GroupCatalog:
 
     # --- log-likelihood
     def lnlike(self, theta):
-        return -0.5 * self.run_and_calc_chisqr(theta)
+        chi = self.run_and_calc_chisqr(theta)
+        # Side effect of running is that some properties were set via pipe messages
+        # Stack all the blob data as one long array
+        blobs = np.concatenate((self.fsat, self.fsatr, self.fsatb, self.lhmr_m, self.lhmr_std, self.lhmr_r_m, self.lhmr_r_std, self.lhmr_b_m, self.lhmr_b_std))
+        assert len(blobs) == 3*40 + 65*6, f"Expected {3*40 + 65*6} metadata entries, but got {len(blobs)}"
+        return -0.5 * chi, blobs
 
     # --- set the priors (no priors right now)
     def lnprior(self, theta):
@@ -228,9 +272,11 @@ class GroupCatalog:
     # -- combine the two above
     def lnprob(self, theta):
         lp = self.lnprior(theta)
-        if np.isinf(lp): #check if lp is infinite
-            return -np.inf
-        return lp + self.lnlike(theta)
+
+        # TODO also return lhmr, lsat as blob metadata
+        # Want to avoid a postprocess() call in MCMC loop, so things are calculated in C GF and sent via a pipe to us.
+        like = self.lnlike(theta)
+        return lp + like[0], like[1]
 
     def get_backend_for_run(self, mcmc_num: int, read_only=True) -> emcee.backends.Backend:
         
@@ -438,6 +484,65 @@ class GroupCatalog:
         with open(self.results_file, 'wb') as f:
             pickle.dump(self, f)
 
+    def monitor_pipe(self, pipe : BufferedReader, proc):
+        MSG_REQUEST = 0
+        MSG_FSAT = 1
+        MSG_LHMR = 2
+        MSG_LSAT = 3
+        TYPE_FLOAT = 0
+        TYPE_DOUBLE = 1
+
+        while proc.poll() is None: # while the group finder process is running
+            
+            header = pipe.read(6)
+            if len(header) == 0:
+                continue
+            if len(header) < 6:
+                raise Exception("Incomplete header, len=" + str(len(header)))
+
+            msg_type, data_type, count = struct.unpack("<BBI", header)
+            if msg_type not in (MSG_FSAT, MSG_LHMR, MSG_LSAT):
+                raise Exception("Unexpected response")
+            
+            if data_type not in (TYPE_FLOAT, TYPE_DOUBLE):
+                raise Exception("Unexpected data type")
+            
+            dtype_marker = 'd' if data_type == TYPE_DOUBLE else 'f'
+            dtype = np.dtype(dtype_marker)
+            bytes_needed = count * (8 if data_type == TYPE_DOUBLE else 4)
+
+            payload = pipe.read(bytes_needed)
+            if len(payload) < bytes_needed:
+                raise Exception("Incomplete payload")
+
+            data = struct.unpack(f"<{count}{dtype_marker}", payload)
+            if msg_type == MSG_FSAT:
+                if count != 120:
+                    raise Exception(f"Unexpected fsat data count: {count}, expected 120")
+                else:
+                    self.fsat = np.array(data[0:40], dtype=dtype)
+                    self.fsatr = np.array(data[40:80], dtype=dtype)
+                    self.fsatb = np.array(data[80:120], dtype=dtype)
+            elif msg_type == MSG_LHMR:
+                if count != 65*3*2:
+                    raise Exception(f"Unexpected lhmr data count: {count}, expected 65*3*2")
+                else:
+                    data = np.array(data, dtype=dtype).reshape((6, 65))
+                    self.lhmr_m = np.array(data[0], dtype=dtype)
+                    self.lhmr_std = np.array(data[1], dtype=dtype)
+                    self.lhmr_r_m = np.array(data[2], dtype=dtype)
+                    self.lhmr_r_std = np.array(data[3], dtype=dtype)
+                    self.lhmr_b_m = np.array(data[4], dtype=dtype)
+                    self.lhmr_b_std = np.array(data[5], dtype=dtype)
+
+            elif msg_type == MSG_LSAT:
+                raise NotImplementedError("MSG_LSAT not implemented in monitor_pipe")
+            else:
+                raise Exception(f"Unexpected message type: {msg_type}")
+
+        # Does this need to be done in a loop?
+
+
     def run_group_finder(self, popmock=False, silent=False, verbose=False):
         t1 = time.time()
         print("Running Group Finder for " + self.name)
@@ -471,6 +576,8 @@ class GroupCatalog:
             args.append("--iterations=" + str(self.GF_props['iterations']))
         if silent:
             args.append("-s")
+        if 'earlyexit' in self.GF_props and self.GF_props['earlyexit'] == 1:
+            args.append("-e")
         if popmock:
             # Save a file with the volume bin info, which the C code will read
             np.savetxt(self.output_folder + "volume_bins.dat", np.column_stack((self.caldata.magbins[:-1], self.caldata.zmaxes, self.caldata.volumes)), fmt='%f')
@@ -484,14 +591,28 @@ class GroupCatalog:
         if 'omega_chi_0_sf' in self.GF_props:
             args.append(f"--chi1={self.GF_props['omega_chi_0_sf']},{self.GF_props['omega_chi_0_q']},{self.GF_props['omega_chi_L_sf']},{self.GF_props['omega_chi_L_q']}")            
 
+
+        read_fd, write_fd = os.pipe()
+        fds = (write_fd,)
+        args.append(f"--pipe={write_fd}")
         print(args)
+
         # The galaxies are written to stdout, so send ot the GF_outfile file stream
         
         with open(self.GF_outfile, "w") as f:
-            self.results = sp.run(args, cwd=self.output_folder, stdout=f)
+            # TODO stderr to a seperate log?
+            proc = sp.Popen(args, cwd=self.output_folder, stdout=f, stdin=sp.PIPE, pass_fds=fds)
+            pipe = os.fdopen(read_fd, "rb")
+            os.close(write_fd) 
+            self.monitor_pipe(pipe, proc)
+
+            # Cleanup
+            proc.stdin.close()
+            pipe.close()
+            proc.wait()
             
             # TODO Group Finder does not consistently return >0 for errors.
-            if self.results.returncode != 0:
+            if proc.returncode != 0:
                 print(f"ERROR: Group Finder failed with return code {self.results.returncode}.")
                 return False
             

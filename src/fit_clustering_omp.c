@@ -7,10 +7,12 @@
 #include <time.h>
 #include <assert.h>
 #include <sys/time.h>
+#include <unistd.h>
 #include "nrutil.h"
 #include "kdtree.h"
 #include "groups.h"
 #include <errno.h>
+#include <stdint.h>
 
 // Definitions
 #define MAXBINS 10 // This is the max number of magnitude bins we use for the HOD. The actual amount we use is read in from VOLUME_BINS_FILE
@@ -552,12 +554,33 @@ void tabulate_hods()
   }
 
   // Print off the LHMR
-  for (i = 90; i < 155; ++i)
+  // TODO CHANGE to lognormal for std part (only)
+  if (MSG_PIPE != NULL)
   {
-    // Format is: <log10(M_h)> <mean_cenr> <std_cenr> <mean_cenb> <std_cenb> <mean_cen> <std_cen>
-    fprintf(stderr, "LHMR> %.2f %e %e %e %e %e %e\n", i / 10.0,
-            mean_cenr[i], std_cenr[i], mean_cenb[i], std_cenb[i],
-            mean_cen[i], std_cen[i]);
+    if (!SILENT) fprintf(stderr, "Writing LHMR to pipe\n");
+    uint8_t resp_msg_type = MSG_LHMR;
+    uint8_t resp_data_type = TYPE_FLOAT;
+    uint32_t resp_count = (155-90) * 3 * 2; // 65 bins, all/red/blue, mean/scatter
+    fwrite(&resp_msg_type, 1, 1, MSG_PIPE);
+    fwrite(&resp_data_type, 1, 1, MSG_PIPE);
+    fwrite(&resp_count, sizeof(uint32_t), 1, MSG_PIPE);
+    fwrite(&mean_cen[90], sizeof(float), 65, MSG_PIPE);
+    fwrite(&std_cen[90], sizeof(float), 65, MSG_PIPE);
+    fwrite(&mean_cenr[90], sizeof(float), 65, MSG_PIPE);
+    fwrite(&std_cenr[90], sizeof(float), 65, MSG_PIPE);
+    fwrite(&mean_cenb[90], sizeof(float), 65, MSG_PIPE);
+    fwrite(&std_cenb[90], sizeof(float), 65, MSG_PIPE);
+    fflush(MSG_PIPE);
+  }
+  else if (!SILENT)
+  {
+    for (i = 90; i < 155; ++i)
+    {
+      // Format is: <log10(M_h)> <mean_cenr> <std_cenr> <mean_cenb> <std_cenb> <mean_cen> <std_cen>
+      fprintf(stderr, "LHMR> %.2f %e %e %e %e %e %e\n", i / 10.0,
+              mean_cenr[i], std_cenr[i], mean_cenb[i], std_cenb[i],
+              mean_cen[i], std_cen[i]);
+    }
   }
 
   // Back to HODs: switch to log10 of the fractions for the rest of the code later

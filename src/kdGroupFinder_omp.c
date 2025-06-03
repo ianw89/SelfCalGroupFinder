@@ -60,7 +60,9 @@ int VERBOSE = 0; // TODO make this work
 int POPULATE_MOCK = 0; // default is do not populate mock
 char *MOCK_FILE;
 char *VOLUME_BINS_FILE;
-int MAX_ITER = 5; // default is 5 iterations
+int MAX_ITER = 5; // default is to go until fsat 0.002 convergence; can provide a number in parametrs instead
+int ALLOW_EARLY_EXIT = 0; // default is to not allow early exit, but this is used in MCMC to speedups
+FILE *MSG_PIPE = NULL; // default is no message pipe
 
 // This is only called once right now. 
 // Maybe later we can make it more dynamic for MCMC purposes but think about memory management.
@@ -72,6 +74,7 @@ void groupfind()
   int i, i1, niter, j, ngrp_prev, icen_new, k;
   float frac_area, nsat_tot, weight;
   double galden, pt[3], t_start_findsats, t_end_findsats, t_start_iter, t_end_iter, t_alliter_s, t_alliter_e; // galden (galaxy density) only includes centrals, because only they get halos
+  double *fsat_arr;
   long IDUM1 = -555;
 
   // xtmp stores the values of what we sort by. itmp stores the index in the GAL array. It' gets sorted and we find sats in that order.
@@ -80,6 +83,8 @@ void groupfind()
   static float volume, *xtmp, *lumshift; 
   static struct kdtree *kd;
   static int first_call = 1, ngrp;
+
+  fsat_arr = calloc(MAX_ITER, sizeof(double));
 
   if (first_call)
   {
@@ -388,17 +393,21 @@ void groupfind()
       nsat_tot += GAL[i].nsat;
     }
 
-    // For the satellites, set their host halo mass. Actually it doesn't matter until all iteraitons are over I think?
-    //for (j = 0; j < NGAL; ++j)
-    //  if (GAL[j].psat > 0.5) 
-    //    GAL[j].mass = GAL[GAL[j].igrp].mass;
-
-
+    fsat_arr[niter-1] = nsat_tot / NGAL; // store the fraction of satellites in this iteration
     t_end_iter = omp_get_wtime();
 
     if (!SILENT) 
       fprintf(stderr, "iter %d ngroups=%d fsat=%f (kdtime=%.2f %.2f)\n",
-            niter, ngrp, nsat_tot / NGAL, t_end_findsats - t_start_findsats, t_end_iter - t_start_iter);
+            niter, ngrp, fsat_arr[niter-1], t_end_findsats - t_start_findsats, t_end_iter - t_start_iter);
+
+
+    // When allowing early exit, check if the change in fsat is small enough to stop
+    if (ALLOW_EARLY_EXIT && niter > 1 && fabs(fsat_arr[niter-1] - fsat_arr[niter-2]) < 0.002)
+    {
+      if (!SILENT) fprintf(stderr, "Early abortion at iteration %d.\n", niter);
+      break;
+    }
+
   } // end of main iteration loop
 
   t_alliter_e = omp_get_wtime();

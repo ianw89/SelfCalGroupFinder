@@ -7,6 +7,8 @@
 #include <assert.h>
 #include <sys/time.h>
 #include <omp.h>
+#include <stdint.h>
+#include <unistd.h>
 #include "nrutil.h"
 #include "kdtree.h"
 #include "groups.h"
@@ -61,6 +63,8 @@ static struct argp_option options[] = {
   {"verbose",      'v', 0,                                    0,  "Produce verbose output", 3},
   {"quiet",        'q', 0,                                    0,  "Don't produce any output", 3 },
   {"silent",       's', 0,                                    OPTION_ALIAS },
+  {"pipe",         'P', "PIPEID",                             0,  "Specify a pipe ID for the group find to write message to", 3},
+  {"earlyexit",    'e', 0,                                    0,  "Allow early exit from group finding for various scenarios", 3},
   //{"output",   'o', "FILE", 0, "Output to FILE instead of standard output" },
   { 0 }
 };
@@ -77,6 +81,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
   /* Get the input argument from argp_parse, which we
      know is a pointer to our arguments structure. */
   struct arguments *arguments = (struct arguments *) (state->input);
+  int pipe_id;
 
   switch (key)
   {
@@ -115,6 +120,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     case 'q': case 's':
       SILENT = 1;
       break;
+    case 'e':
+      ALLOW_EARLY_EXIT = 1;
+      break;
     case 'w':
       USE_WCEN = 1;
       arguments->wcen_set = 1;
@@ -134,6 +142,22 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       break;
     case 'h':
       HALO_MASS_FUNC_FILE = arg;
+      break;
+    case 'P':
+      if (arg == NULL)
+      {
+        fprintf(stderr, "Pipe ID must be specified with -P option.\n");
+        exit(EPERM);
+      }
+      pipe_id = atoi(arg);
+      if (pipe_id < 0)
+      {
+        fprintf(stderr, "Invalid pipe ID: %d\n", pipe_id);
+        exit(EPERM);
+      }
+      MSG_PIPE = fdopen(pipe_id, "w");
+      if (!MSG_PIPE) 
+          perror("fdopen");
       break;
 
     case ARGP_KEY_ARG:
@@ -228,7 +252,7 @@ int main(int argc, char **argv)
   if (POPULATE_MOCK && !COLOR)
   {
     fprintf(stderr, "Populating mock should only be used when galaxy colors are provided (-c).\n");
-    exit(0);
+    exit(EPERM);
   }
   if (!SILENT && USE_WCEN && !COLOR) 
     fprintf(stderr, "Weighting centrals but not using galaxy colors. All galaxies will use blue wcen values.\n");
@@ -241,6 +265,7 @@ int main(int argc, char **argv)
   t_grp_e = omp_get_wtime();
   if (!SILENT) fprintf(stderr, "groupfind() took %.2f sec\n", t_grp_e - t_grp_s);
 
+  // Populate Mock 
   if (POPULATE_MOCK)
   {
     t0 = omp_get_wtime();
@@ -260,7 +285,6 @@ int main(int argc, char **argv)
     //{
     //  populate_simulation_omp(i / 2, i % 2, 1);
     //}
-
 #pragma omp parallel private(i,istart,istep)
     {
       istart = omp_get_thread_num();
@@ -274,17 +298,26 @@ int main(int argc, char **argv)
     t3 = omp_get_wtime();
     if (!SILENT) fprintf(stderr, "popsim> %.2f sec\n", t3 - t2);
 
-    print_fsat();
+  }
+  
+  print_fsat();
+
+  // CLEANUP
+  if (MSG_PIPE != NULL) 
+  {
+    fflush(MSG_PIPE);
+    fclose(MSG_PIPE);
   }
 }
 
 void print_fsat() {
   // want L bins to be np.logspace(6, 12.5, 40) like in python postprocessing
-  float logbin_interval = (12.5 - 6.0) / 40;
-  float numr[40], numb[40], satsr[40], satsb[40], fsat[40], fsatr[40], fsatb[40];
+  const int FSAT_BINS = 40;
+  float logbin_interval = (12.5 - 6.0) / FSAT_BINS;
+  float numr[FSAT_BINS], numb[FSAT_BINS], satsr[FSAT_BINS], satsb[FSAT_BINS], fsat[FSAT_BINS], fsatr[FSAT_BINS], fsatb[FSAT_BINS];
   int ibin, i;
   int nsats = 0;
-  for (i = 0; i < 40; ++i)
+  for (i = 0; i < FSAT_BINS; ++i)
   {
     numr[i] = numb[i] = satsr[i] = satsb[i] = fsat[i] = fsatr[i] = fsatb[i] = 0;
   }
@@ -294,7 +327,7 @@ void print_fsat() {
     ibin = (int)((log10(GAL[i].lum) - 6.0) / logbin_interval);
     //fprintf(stderr, "GAL %d L=%e bin=%d\n", i, GAL[i].lum, ibin);
 
-    if (ibin < 0 || ibin >= 40)
+    if (ibin < 0 || ibin >= FSAT_BINS)
       continue;
     if (GAL[i].color > 0.8)
     {
@@ -312,7 +345,7 @@ void print_fsat() {
     }
   }
 
-  for (i = 0; i < 40; ++i)
+  for (i = 0; i < FSAT_BINS; ++i)
   {
     fsat[i] = (satsr[i] + satsb[i]) / (numr[i] + numb[i] + 1E-20);
     fsatr[i] = satsr[i] / (numr[i] + 1E-20);
@@ -320,12 +353,30 @@ void print_fsat() {
     nsats += satsr[i] + satsb[i];
   }
 
-  // Ignore SILENT here
-  fprintf(stderr, "fsat total: %f\n", (float)nsats / (float)NGAL);
-  //fprintf(stderr, "fsat> bin fsat fsatr fsatb\n");
-  for (i = 0; i < 40; ++i)
+  if (MSG_PIPE != NULL) 
   {
-    fprintf(stderr, "fsat> %d %f %f %f\n", i, fsat[i], fsatr[i], fsatb[i]);
+    if (!SILENT) fprintf(stderr, "Writing fsat to pipe\n");
+    uint8_t resp_msg_type = MSG_FSAT;
+    uint8_t resp_data_type = TYPE_FLOAT;
+    uint32_t resp_count = FSAT_BINS * 3;
+    fwrite(&resp_msg_type, 1, 1, MSG_PIPE);
+    fwrite(&resp_data_type, 1, 1, MSG_PIPE);
+    fwrite(&resp_count, sizeof(uint32_t), 1, MSG_PIPE);
+    fwrite(&fsat, sizeof(float), FSAT_BINS, MSG_PIPE);
+    fwrite(&fsatr, sizeof(float), FSAT_BINS, MSG_PIPE);
+    fwrite(&fsatb, sizeof(float), FSAT_BINS, MSG_PIPE);
+    fflush(MSG_PIPE);
   }
+  else if (!SILENT) 
+  {
+    fprintf(stderr, "fsat total: %f\n", (float)nsats / (float)NGAL);
+    //fprintf(stderr, "fsat> bin fsat fsatr fsatb\n");
+    for (i = 0; i < FSAT_BINS; ++i)
+    {
+      fprintf(stderr, "fsat> %d %f %f %f\n", i, fsat[i], fsatr[i], fsatb[i]);
+    }
+  }
+
+
       
 }

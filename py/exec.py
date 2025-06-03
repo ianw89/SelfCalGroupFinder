@@ -7,8 +7,8 @@ from multiprocessing import Pool
 
 # EXAMPLE USAGE
 # nohup python3 exec.py 6 7 8 9 &> exec.out &
-# nohup python3 exec.py mcmc 1 x0 &> exec.out &
-# nohup python3 exec.py mcmc 2 x0 &>> exec.out &
+# nohup python3 exec.py mcmc 2 x0 &> exec.out &
+# nohup python3 exec.py mcmc 10 x0 &> exec.out &
 # nohup python3 exec.py 0 &> pzp_mcmc.out &
 
 execution_mode = 'once' # or 'clustering' or 'mcmc'
@@ -52,7 +52,7 @@ callable_list = [
     cat.bgs_aux_list, #7
     cat.bgs_y1_list, #8
     cat.bgs_y3_list, #9
-    [cat.sdss_colors_v2_mcmc], #10
+    [cat.bgs_y3_like_sv3_hybrid_mcmc_new], #10
     [cat.bgs_sv3_10p_mcmc], #11 sloan one
     [cat.bgs_sv3_pz_2_4_10p_c1] # 12
 ]
