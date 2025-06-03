@@ -280,6 +280,18 @@ bgs_sv3_hybrid_mcmc = BGSGroupCatalog(
     gfprops=GF_PROPS_BGS_COLORS_C1.copy()
 )
 
+bgs_y3_like_sv3_hybrid_mcmc_new = BGSGroupCatalog(
+    "BGS Y3-Like-SV3 Hybrid MCMC NEW", 
+    Mode.PHOTOZ_PLUS_v2, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=True, 
+    extra_params=PZP_PARAMS_V24, 
+    gfprops=GF_PROPS_BGS_COLORS_C1.copy()
+)
+
 bgs_sv3_pz_2_4_10p_old = BGSGroupCatalog(
     "Photo-z Plus v2.4 BGS sv3 10pass OLD", 
     Mode.PHOTOZ_PLUS_v2, 

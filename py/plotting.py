@@ -329,6 +329,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
     """
 
     # Wide fsat vs Lgal with Ngal
+    """
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
     for f in catalogs:
@@ -357,7 +358,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
     ax2.set_ylabel('$N_{gal}$')
     ax2.set_yscale('log')
     fig.tight_layout()
-
+    """
     X_MAX = LGAL_MAX_TIGHT
 
     # ALL fsat vs Lgal 
@@ -742,20 +743,20 @@ def plots_color_split(*datasets, truth_on=False, total_on=False):
             #    f.f_sat_sf = f.all_data[np.invert(f.all_data['QUIESCENT'])].groupby(['LGAL_BIN'], observed=False).apply(fsat_vmax_weighted)
             
             if hasattr(f, 'f_sat_q_err'):
-                plt.errorbar(f.L_gal_labels, f.f_sat_q, yerr=f.f_sat_q_err, label=get_dataset_display_name(f) + " Quiescent", color='r')
+                plt.errorbar(f.L_gal_labels, f.f_sat_q, yerr=f.f_sat_q_err, label="Quiescent", color='r')
             else:
-                plt.plot(f.L_gal_labels, f.f_sat_q, label=get_dataset_display_name(f) + " Quiescent", color='r')
+                plt.plot(f.L_gal_labels, f.f_sat_q, label="Quiescent", color='r')
                 
             if hasattr(f, 'f_sat_sf_err'):
-                plt.errorbar(f.L_gal_labels, f.f_sat_sf, yerr=f.f_sat_sf_err, label=get_dataset_display_name(f) + " Star-forming", color='b')
+                plt.errorbar(f.L_gal_labels, f.f_sat_sf, yerr=f.f_sat_sf_err, label="Star-forming", color='b')
             else:
-                plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, label=get_dataset_display_name(f) + " Star-forming", color='b')
+                plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, label="Star-forming", color='b')
             
             if total_on:
                 if hasattr(f, 'f_sat_err'):
-                    plt.errorbar(f.L_gal_labels, f.f_sat, yerr=f.f_sat_err, label=get_dataset_display_name(f) + " Total", color='k')
+                    plt.errorbar(f.L_gal_labels, f.f_sat, yerr=f.f_sat_err, label="Total", color='k')
                 else:
-                    plt.plot(f.L_gal_labels, f.f_sat, label=get_dataset_display_name(f) + " Total", color='k')
+                    plt.plot(f.L_gal_labels, f.f_sat, label="Total", color='k')
 
         for f in datasets:
             if truth_on:
@@ -767,6 +768,7 @@ def plots_color_split(*datasets, truth_on=False, total_on=False):
                     plt.plot(f.L_gal_labels, f.f_sat_sf_t, 'x', label="Simulation's Truth", color='b')
 
 
+        ax1.set_title(get_dataset_display_name(f))
         ax1.set_xscale('log')
         ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
         ax1.set_ylabel("$f_{\\mathrm{sat}}$ ")

@@ -1550,6 +1550,7 @@ def fsat_variance_from_saved():
     """
     if os.path.exists(FSAT_VALUES_FROM_LOGS):
         fsat_arr, fsatr_arr, fsatb_arr = np.load(FSAT_VALUES_FROM_LOGS)
+        print(f"Data point count: {len(fsat_arr)}")
         fsat_std = np.std(fsat_arr, axis=0)
         fsatr_std = np.std(fsatr_arr, axis=0)
         fsatb_std = np.std(fsatb_arr, axis=0)
@@ -1567,7 +1568,6 @@ def lhmr_variance_from_saved():
     """
     if os.path.exists(LHMR_VALUES_FROM_LOGS):
         r_arr, r_scatter_arr, b_arr, b_scatter_arr, all_arr, all_scatter_arr = np.load(LHMR_VALUES_FROM_LOGS)
-        print(r_arr)
         r_std = np.std(r_arr, axis=0)
         r_scatter_std = np.std(r_scatter_arr, axis=0)
         b_std = np.std(b_arr, axis=0)
