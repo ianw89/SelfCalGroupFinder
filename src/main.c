@@ -324,7 +324,7 @@ void print_fsat() {
 
   for (i = 0; i < NGAL; ++i)
   {
-    ibin = (int)((log10(GAL[i].lum) - 6.0) / logbin_interval);
+    ibin = (int)((GAL[i].loglum - 6.0) / logbin_interval);
     //fprintf(stderr, "GAL %d L=%e bin=%d\n", i, GAL[i].lum, ibin);
 
     if (ibin < 0 || ibin >= FSAT_BINS)

@@ -984,15 +984,12 @@ def proj_clustering_plot(gc: GroupCatalog):
     fig.tight_layout()
 
 def lsat_data_compare_plot(gc: GroupCatalog):
-
     overall, clust_r, clust_b, lsat = gc.chisqr()
     print(f"Lsat Chi^2 {np.sum(lsat):.1f}")
 
     # Get Lsat for r/b centrals from the group finder's output
-    lcen = gc.lsat_groups[:,0] # log10 already
-    lsat_r = np.power(10, gc.lsat_groups[:,1])
-    lsat_b = np.power(10, gc.lsat_groups[:,2])
-    ratio = lsat_r/lsat_b
+    #lcen = gc.lsat_groups[:,0] # log10 already hardcorded like obs_lcen
+    ratio = gc.lsat_r/gc.lsat_b
 
     # Get Mean Lsat for r/b centrals from SDSS data
     data = np.loadtxt(LSAT_OBSERVATIONS_FILE, skiprows=0, dtype='float')
@@ -1009,7 +1006,7 @@ def lsat_data_compare_plot(gc: GroupCatalog):
 
     axes[0].errorbar(obs_lcen, np.log10(obs_ratio), yerr=obs_ratio_err_log, fmt='o', color='k', markersize=3, capsize=2, ecolor='k', label='SDSS Data')
     #axes[0].plot(obs_lcen, obs_ratio, color='k', marker='o', label='SDSS Data')
-    axes[0].plot(lcen, np.log10(ratio), color='purple', label='Group Finder')
+    axes[0].plot(obs_lcen, np.log10(ratio), color='purple', label='Group Finder')
     axes[0].set_ylabel('log $L_{sat}^{q}/L_{sat}^{sf}$')
     axes[0].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
     axes[0].set_ylim(-0.2, 0.5)
@@ -1018,18 +1015,16 @@ def lsat_data_compare_plot(gc: GroupCatalog):
     # Put text of the chisqr value in plot
     axes[0].text(.4,.93, f"$\chi^2$: {np.sum(lsat):.1f}", transform=axes[0].transAxes)
 
-    axes[1].plot(lcen, np.log10(lsat_r), label='GF Quiescent', color='r')
-    axes[1].plot(lcen, np.log10(lsat_b), label='GF Star-forming', color='b')
+    axes[1].plot(obs_lcen, np.log10(gc.lsat_r), label='GF Quiescent', color='r')
+    axes[1].plot(obs_lcen, np.log10(gc.lsat_b), label='GF Star-forming', color='b')
     axes[1].errorbar(obs_lcen, np.log10(obs_lsat_r), yerr=obs_err_r/obs_lsat_r, label='SDSS Quiescent', fmt='o', color='r', markersize=3, capsize=2, ecolor='k')
     axes[1].errorbar(obs_lcen, np.log10(obs_lsat_b), yerr=obs_err_b/obs_lsat_b, label='SDSS Star-Forming', fmt='o', color='b', markersize=3, capsize=2, ecolor='k')
     axes[1].set_ylabel('log $L_{sat}~[L_\odot / h^2]$')
     axes[1].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
     axes[1].legend()
 
-
     fig.suptitle(gc.name)
     fig.tight_layout()
-
 
     # TODO "lsat_groups_propx_red.out"
 

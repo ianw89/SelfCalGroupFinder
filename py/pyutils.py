@@ -16,6 +16,7 @@ from sklearn.cluster import KMeans
 import astropy.coordinates as coord
 import pickle
 import emcee
+from emcee.backends import Backend
 from numpy.polynomial.polynomial import Polynomial
 
 if './SelfCalGroupFinder/py/' not in sys.path:
@@ -1587,16 +1588,23 @@ def lhmr_variance_from_saved():
         print(f"WARNING: {LHMR_VALUES_FROM_LOGS} does not exist. Cannot load variance. Call extract_variance_from_log(path) to create it.")
         return None
 
-def save_from_backend(backend: emcee.backends.backend.Backend, overwrite=False):
+def save_from_backend(backend: Backend|list, overwrite=False):
     """
     Extracts f_sat and LHMR from a log file and uses them to compute means and stds of these quantities.
     Intended for use with a emcee backend from a MCMC run.
     """
-    if not backend.has_blobs():
-        print("WARNING: Backend does not have blobs. Cannot extract f_sat and LHMR.")
-        return
-    
-    blobs = backend.get_blobs()
+    backends = backend if isinstance(backend, list) else [backend]
+    blobs = None
+
+    for b in backends:
+        if not b.has_blobs():
+            print("WARNING: Backend does not have blobs. Cannot extract f_sat and LHMR.")
+            return
+
+        if blobs is None:
+            blobs = b.get_blobs()
+        else:
+            blobs = np.concatenate((blobs, b.get_blobs()), axis=0)
     
     # See the C Group Finder pipe writing code for the blob structure.
     # Flatten walkers

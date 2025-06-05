@@ -129,8 +129,8 @@ class GroupCatalog:
         self.mocksize = 250.0 # Mpc/h
 
         # Geneated from popmock option in group finder
-        self.lsat_groups = None # lsat_model
-        self.lsat_groups2 = None # lsat_model_scatter
+        self.lsat_r = None 
+        self.lsat_b = None 
 
         # Generated from run_corrfunc
         self.wp_mock = {}
@@ -154,6 +154,7 @@ class GroupCatalog:
         self.lhmr_r_std : np.ndarray = None # lhmr model red scatter
         self.lhmr_b_m : np.ndarray = None # lhmr model blue
         self.lhmr_b_std : np.ndarray = None # lhmr model blue scatter
+        self.lsat_ratios : np.ndarray = None # lsat ratios, 107-88+1 values
 
 
     def set_output_folder(self, folder):
@@ -261,8 +262,8 @@ class GroupCatalog:
         chi = self.run_and_calc_chisqr(theta)
         # Side effect of running is that some properties were set via pipe messages
         # Stack all the blob data as one long array
-        blobs = np.concatenate((self.fsat, self.fsatr, self.fsatb, self.lhmr_m, self.lhmr_std, self.lhmr_r_m, self.lhmr_r_std, self.lhmr_b_m, self.lhmr_b_std))
-        assert len(blobs) == 3*40 + 65*6, f"Expected {3*40 + 65*6} metadata entries, but got {len(blobs)}"
+        blobs = np.concatenate((self.fsat, self.fsatr, self.fsatb, self.lhmr_m, self.lhmr_std, self.lhmr_r_m, self.lhmr_r_std, self.lhmr_b_m, self.lhmr_b_std, self.lsat_r, self.lsat_b))
+        assert len(blobs) == 3*40 + 65*6 + 40, f"Expected {3*40 + 65*6 + 40} metadata entries, but got {len(blobs)}"
         return -0.5 * chi, blobs
 
     # --- set the priors (no priors right now)
@@ -277,6 +278,26 @@ class GroupCatalog:
         # Want to avoid a postprocess() call in MCMC loop, so things are calculated in C GF and sent via a pipe to us.
         like = self.lnlike(theta)
         return lp + like[0], like[1]
+
+    def get_backends(self):
+        # Read in all subdirs of output_folder that start with mcmc_
+        main_output = self.output_folder
+        last_folder = self.output_folder.split('/')[-2]
+        if last_folder.startswith('mcmc_'):
+            main_output = self.output_folder.replace(last_folder + '/', '')
+            self.set_output_folder(main_output)
+        
+        mcmc_folders = [name for name in os.listdir(main_output) if os.path.isdir(os.path.join(main_output, name)) and name.startswith('mcmc_')]
+        print(f"Found {len(mcmc_folders)} mcmc/optuna folders")
+
+        backends = []
+        # Get the best parameters from each mcmc run and choose the best ones
+        for mcmc_folder in mcmc_folders:
+            backend = self.get_backend_for_run(int(mcmc_folder.split('_')[1]), read_only=True)
+            if backend is None:
+                continue
+            backends.append(backend)
+        return backends, mcmc_folders
 
     def get_backend_for_run(self, mcmc_num: int, read_only=True) -> emcee.backends.Backend:
         
@@ -301,33 +322,22 @@ class GroupCatalog:
 
 
     def load_best_params_across_runs(self, save=False):
-        # Read in all subdirs of output_folder that start with mcmc_
-        main_output = self.output_folder
-        last_folder = self.output_folder.split('/')[-2]
-        if last_folder.startswith('mcmc_'):
-            main_output = self.output_folder.replace(last_folder + '/', '')
-            self.set_output_folder(main_output)
-
-        mcmc_folders = [name for name in os.listdir(main_output) if os.path.isdir(os.path.join(main_output, name)) and name.startswith('mcmc_')]
-        print(f"Found {len(mcmc_folders)} mcmc/optuna folders")
+        backends, mcmc_folders = self.get_backends()
 
         # Get the best parameters from each mcmc run and choose the best ones
         best_params_list = []
-        for mcmc_folder in mcmc_folders:
-            backend = self.get_backend_for_run(int(mcmc_folder.split('_')[1]), read_only=True)
-            if backend is None:
-                continue
+        for backend, folder in zip(backends, mcmc_folders):
             if isinstance(backend, emcee.backends.Backend):
                 idx = np.argmax(backend.get_log_prob(flat=True))
                 values = backend.get_chain(flat=True)[idx]
                 chisqr = (-2) * backend.get_log_prob(flat=True)[idx]
-                print(f"Best chi^2 for {mcmc_folder} (N={len(backend.get_log_prob(flat=True))}) (emcee): {chisqr}")
+                print(f"Best chi^2 for {folder} (N={len(backend.get_log_prob(flat=True))}) (emcee): {chisqr}")
                 best_params_list.append((chisqr, values))
 
         best_params_list.sort(key=lambda x: x[0])
 
         if save:
-            with open(os.path.join(main_output, 'best_params_list.pkl'), 'wb') as f:
+            with open(os.path.join(self.output_folder, 'best_params_list.pkl'), 'wb') as f:
                 pickle.dump(best_params_list, f)
 
         # Copy the best parameters into the GF_props
@@ -536,7 +546,11 @@ class GroupCatalog:
                     self.lhmr_b_std = np.array(data[5], dtype=dtype)
 
             elif msg_type == MSG_LSAT:
-                raise NotImplementedError("MSG_LSAT not implemented in monitor_pipe")
+                if count != 40:
+                    raise Exception(f"Unexpected lsat data count: {count}")
+                else:
+                    self.lsat_r = np.array(data[0:20], dtype=dtype)
+                    self.lsat_b = np.array(data[20:40], dtype=dtype)
             else:
                 raise Exception(f"Unexpected message type: {msg_type}")
 
@@ -617,14 +631,6 @@ class GroupCatalog:
                 return False
             
         if popmock:
-            if os.path.exists(f'{self.output_folder}lsat_groups.out'):
-                self.lsat_groups = np.loadtxt(f'{self.output_folder}lsat_groups.out', skiprows=0, dtype='float')
-            else:
-                print("Warning: popmock option was set, but lsat_groups.out was not found. Considering the run a failure.")
-                return False
-            if os.path.exists(f'{self.output_folder}lsat_groups2.out'):
-                self.lsat_groups2 = np.loadtxt(f'{self.output_folder}lsat_groups2.out', skiprows=0, dtype='float')
-
             hodout = f'{self.output_folder}hod.out'
             if os.path.exists(hodout):
                 self.hod = np.loadtxt(hodout, skiprows=4, dtype='float', delimiter=' ')
@@ -747,26 +753,13 @@ class GroupCatalog:
             obs_err_r = data[:,2] # er
             obs_lsat_b = data[:,3] # fb
             obs_err_b = data[:,4] # eb
-            # 1
-            #obs_ratio = np.log10(obs_lsat_r/obs_lsat_b)
-            #obs_ratio_err = ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5 / np.log(10)
-            # 2
-            #obs_ratio = obs_lsat_r/obs_lsat_b
-            #obs_ratio_err = obs_ratio * ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
-            # 3
-            obs_ratio = np.log(obs_lsat_r/obs_lsat_b)
-            obs_ratio_err = ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
+
+            obs_ratio = obs_lsat_r/obs_lsat_b
+            # Dividing two quantities with errors, so we need to propagate the errors
+            obs_ratio_err = obs_ratio * ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
     
             # Get Lsat for r/b centrals from the group finder's output
-            #model_lcen = self.lsat_groups[:,0] # log10 already
-            model_lsat_r = np.power(10, self.lsat_groups[:,1])
-            model_lsat_b = np.power(10, self.lsat_groups[:,2])
-            # 1
-            #model_ratio = np.log10(model_lsat_r/model_lsat_b)
-            # 2
-            #model_ratio = model_lsat_r/model_lsat_b
-            # 3
-            model_ratio = np.log(model_lsat_r/model_lsat_b)
+            model_ratio = self.lsat_r/self.lsat_b
 
             # Chi squared
             lsat_chisqr = (obs_ratio - model_ratio)**2 / obs_ratio_err**2 

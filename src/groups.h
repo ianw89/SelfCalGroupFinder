@@ -34,6 +34,7 @@ extern struct galaxy {
   float redshift; 
   float rco; // comoving distnace (in Mpc??) set from distance_redshift(z)
   float lum, // lum might mean mstellar
+    loglum, // log10 of luminosity
     psat,
     color, // greater than 0.8 means red, otherwise blue
     propx,

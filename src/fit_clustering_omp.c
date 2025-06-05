@@ -38,8 +38,9 @@ double ncenr[MAXBINS][HALO_BINS], nsatr[MAXBINS][HALO_BINS], ncenb[MAXBINS][HALO
 int NVOLUME_BINS;
 float maglim[MAXBINS];
 
-/* LHMR */
+/* LHMR. Scatter is in in log space. */
 double mean_cen[HALO_BINS], mean_cenr[HALO_BINS], mean_cenb[HALO_BINS], std_cen[HALO_BINS], std_cenr[HALO_BINS], std_cenb[HALO_BINS];
+double logmean_cen[HALO_BINS], logmean_cenr[HALO_BINS], logmean_cenb[HALO_BINS];
 double nhalo_r_tot[HALO_BINS], nhalo_b_tot[HALO_BINS], nhalo_tot[HALO_BINS];
 
 float REDSHIFT = 0.0,
@@ -58,10 +59,11 @@ void boxwrap_galaxy(float xh[], float xg[]);
 float tabulated_gaussian_random(int thisTask);
 float tabulated_uniform_random(int thisTask);
 
-/* Given the group results, calculate the mean
- * expected Lsat50 values as a function of central
- * luminosity (or mass). The code reads in a pre-tabulated
- * list matching halo mass to Lsat50 (from the C250 box).
+/* 
+ * Given the group results, use a lookup table to get the mean Lsat50 values
+ * for each halo as a function of central luminosity (or mass). 
+ * The code reads in a pre-tabulated list matching halo mass to Lsat50 (from the C250 box),
+ * and makes a spline from it for geting actual values for each central.
  */
 void lsat_model()
 {
@@ -69,6 +71,7 @@ void lsat_model()
   FILE *fp;
   int i, j, k, n, nt, nhb[150], nhr[150], im, ihm, ix;
   float *mx, *lx, lsatb[150], lsatr[150], *m2x, x;
+  float ratio[150];
   int **nhrx, **nhbx;
   float **lsatbx, **lsatrx;
   int **nhrx2, **nhbx2;
@@ -131,16 +134,18 @@ void lsat_model()
   for (i = 0; i < 150; ++i)
     nhr[i] = lsatr[i] = nhb[i] = lsatb[i] = 0;
 
+  // Loop over galaxies and calculate the Lsat values, filling up nhr, nhb, lsatr, lsatb arrays.
   for (i = 0; i < NGAL; ++i)
   {
     if (GAL[i].psat > 0.5)
       continue;
     // Bin the Lsat values according to the luminosity/stellar mass
-    im = (int)(log10(GAL[i].lum) / 0.1 + 0.5);
+    im = (int)(GAL[i].loglum / 0.1 + 0.5);
     // get x, the lsat value for this galaxy according to the lookup
     splint(mx, lx, m2x, nt, log10(GAL[i].mass), &x); 
     if (x > 10.4) { // This is unrealisticly high so something went wrong with the interpolation in this case
-      fprintf(stderr, "lsat_model> WARNING: Gal %d, log10(M)=%e has log10(Lsat)=%f\n", i, log10(GAL[i].mass), x);
+      fprintf(stderr, "lsat_model> WARNING: Gal %d, log10(M)=%e has log10(Lsat)=%f. Setting to 10.4 instead.\n", i, log10(GAL[i].mass), x);
+      x = 10.4;
     }
     if (GAL[i].color > 0.8)
     {
@@ -153,7 +158,7 @@ void lsat_model()
       lsatb[im] += pow(10.0, x);
     }
     // let's print this out just for kick
-    // printf("LSAT %d %d %f %f %f %f\n",i,im,log10(GAL[i].mass),x,log10(GAL[i].lum),GAL[i].color);
+    // printf("LSAT %d %d %f %f %f %f\n",i,im,log10(GAL[i].mass),x,GAL[i].loglum,GAL[i].color);
 
     if (!SECOND_PARAMETER)
       continue;
@@ -164,8 +169,8 @@ void lsat_model()
       continue;
 
     // binning for lsat-vs-propx at fixed lum
-    im = (int)((log10(GAL[i].lum) - M0_PROPX) / DM_PROPX);
-    // printf("BINX %d %f %f\n",im,log10(GAL[i].lum),(log10(GAL[i].lum)-M0_PROPX-DM_PROPX/2)/DM_PROPX);
+    im = (int)((GAL[i].loglum - M0_PROPX) / DM_PROPX);
+    // printf("BINX %d %f %f\n",im,GAL[i].loglum,(GAL[i].loglum-M0_PROPX-DM_PROPX/2)/DM_PROPX);
     if (im < 0 || im >= 5)
       continue;
     ix = (int)floor((GAL[i].propx + dpropx / 2) / dpropx); // for the mocks
@@ -201,25 +206,47 @@ void lsat_model()
       lsatbx2[im][ix] += pow(10.0, x);
     }
   }
+  
+  // Turn the running sums into means
+  for (i=0; i<150; ++i)
+  {
+    lsatr[i] = lsatr[i] / (nhr[i] + 1.0E-20);
+    lsatb[i] = lsatb[i] / (nhb[i] + 1.0E-20);
+  }
 
   // output this to a pre-specified file
   // (plus we know the limits of the data)
-  // Format: log(L or M*) log(<Lsat_r>)  log(<Lsat_b>)
-  fp = fopen("lsat_groups.out", "w");
-  if (STELLAR_MASS)
+  // i=88 means 10^8.8 solar masses
+  // 91 to 113 for UniverseMachine, STELLAR_MASS too
+  // 88 to 107 for C250
+  // 88 to 119 for TNG
+  // 88 to 107 for SDSS, see the lsat_sdss_con.dat file that this will be compare to. 
+  // 88 to 107 for BGS Data TODO
+  int i_start = 88;
+  int i_end = 107;
+  int count = (i_end - i_start + 1); 
+  if (MSG_PIPE != NULL)
   {
-    for (i = 91; i <= 113; ++i) // UniverseMachine ?
-      fprintf(fp, "%e %e %e %e %d %e %d\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]), lsatr[i], nhr[i], lsatb[i], nhb[i]);
-    fclose(fp);
+    if (!SILENT) fprintf(stderr, "Writing LSAT to pipe\n");
+    uint8_t resp_msg_type = MSG_LSAT;
+    uint8_t resp_data_type = TYPE_FLOAT;
+    uint32_t resp_count = count*2;
+    fwrite(&resp_msg_type, 1, 1, MSG_PIPE);
+    fwrite(&resp_data_type, 1, 1, MSG_PIPE);
+    fwrite(&resp_count, sizeof(uint32_t), 1, MSG_PIPE);
+    fwrite(&lsatr[i_start], sizeof(float), count, MSG_PIPE);
+    fwrite(&lsatb[i_start], sizeof(float), count, MSG_PIPE);
+    fflush(MSG_PIPE);
   }
-  else
+  else 
   {
-    for (i = 88; i <= 107; ++i) // C250  // i=88 means 10^8.8 solar masses
-      // for(i=88;i<=119;++i) // TNG
-      fprintf(fp, "%e %e %e %e %d %e %d\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]), lsatr[i], nhr[i], lsatb[i], nhb[i]);
+    fp = fopen("lsat_groups.out", "w");
+    for (i = i_start; i <= i_end; ++i) 
+      // Format: log(L or M*) <Lsat_r> <Lsat_b> nhr nhb
+      fprintf(fp, "%f %e %e %d %d\n", i / 10.0, lsatr[i], lsatb[i], nhr[i], nhb[i]);
     fclose(fp);
+    if (!SILENT) fprintf(stderr, "lsat_model> lsat_groups.out written\n");
   }
-  if (!SILENT) fprintf(stderr, "lsat_model> lsat_groups.out written\n");
 
   if (SECOND_PARAMETER == 0)
     return;
@@ -361,7 +388,10 @@ void tabulate_hods()
       ncenr[i][j] = nsatr[i][j] = nhalo[i][j] = ncenb[i][j] = nsatb[i][j] = 0;
   
   for (j=0; j < HALO_BINS; ++j)
+  {
     mean_cen[j] = mean_cenr[j] = mean_cenb[j] = std_cen[j] = std_cenr[j] = std_cenb[j] = nhalo_tot[j] = nhalo_b_tot[j] = nhalo_r_tot[j] = 0.0;
+    logmean_cen[j] = logmean_cenr[j] = logmean_cenb[j] = 0.0;
+  }
   
   for (i = 0; i < NGAL; ++i)
   {
@@ -395,11 +425,11 @@ void tabulate_hods()
     }
 
     // check the magnitude of the galaxy for the luminosity bins
-    mag = -2.5 * log10(GAL[i].lum) + 4.65;
+    mag = -2.5 * GAL[i].loglum + 4.65;
     ibin = (int)(fabs(mag) + maglim[0]); // So if first bin is -17, mag=-17.5, ibin=0
     if (STELLAR_MASS)
     {
-      mag = log10(GAL[i].lum) * 2;
+      mag = GAL[i].loglum * 2;
       ibin = (int)(mag - maglim[0]); // They will both be positive
     }
 
@@ -496,8 +526,7 @@ void tabulate_hods()
   // Now LHMR, which we want to print out
   // *****************************************
   // Calculate the means
-  // Note this is done in linear space, not log space for both means and std right now.
-  // Sometimes for the std we want to do it in log space, but not for the means. TODO
+  // Means in linear space, but scatter in log space as is stndard for this.
   double lum_weighted = 0.0;
   for (i=0; i<NGAL; ++i)
   {
@@ -527,49 +556,52 @@ void tabulate_hods()
       mean_cenb[i] /= (nhalo_b_tot[i] + 1.0E-20);
       mean_cen[i] /= (nhalo_tot[i] + 1.0E-20);
     }
+    logmean_cen[i] = log10(mean_cen[i]);
+    logmean_cenr[i] = log10(mean_cenr[i]);
+    logmean_cenb[i] = log10(mean_cenb[i]);
   }
 
-  // Now calculate the std dev
-  for (i=0; i<NGAL; ++i)
+  // Calculate log-normal scatter 
+  for (i = 0; i < NGAL; ++i)
   {
     if (GAL[i].psat > 0.5)
       continue;
 
     im = log10(GAL[i].mass) / 0.1;
 
-    std_cen[im] += pow(GAL[i].lum - mean_cen[im],2) * 1.0/GAL[i].vmax;
-    if (GAL[i].color > 0.8) // red
-      std_cenr[im] += pow(GAL[i].lum - mean_cenr[im],2) * 1.0/GAL[i].vmax;
-    else // blue
-      std_cenb[im] += pow(GAL[i].lum - mean_cenb[im],2) * 1.0/GAL[i].vmax;
+    std_cen[im] += pow(GAL[i].loglum - logmean_cen[im], 2) * 1.0 / GAL[i].vmax;
+    if (GAL[i].color > 0.8) {
+      std_cenr[im] += pow(GAL[i].loglum - logmean_cenr[im], 2) * 1.0 / GAL[i].vmax;
+    } else {
+      std_cenb[im] += pow(GAL[i].loglum - logmean_cenb[im], 2) * 1.0 / GAL[i].vmax;
+    }
   }
-  for (i=0; i<HALO_BINS; ++i)
+  for (i = 0; i < HALO_BINS; ++i)
   {
     if (nhalo_tot[i] > 0)
     {
       std_cenr[i] = sqrt(std_cenr[i] / (nhalo_r_tot[i] + 1.0E-20));
       std_cenb[i] = sqrt(std_cenb[i] / (nhalo_b_tot[i] + 1.0E-20));
-      std_cen[i] = sqrt(std_cen[i] / (nhalo_tot[i] + 1.0E-20));
+      std_cen[i]  = sqrt(std_cen[i]  / (nhalo_tot[i] + 1.0E-20));
     }
   }
 
   // Print off the LHMR
-  // TODO CHANGE to lognormal for std part (only)
   if (MSG_PIPE != NULL)
   {
     if (!SILENT) fprintf(stderr, "Writing LHMR to pipe\n");
     uint8_t resp_msg_type = MSG_LHMR;
-    uint8_t resp_data_type = TYPE_FLOAT;
+    uint8_t resp_data_type = TYPE_DOUBLE;
     uint32_t resp_count = (155-90) * 3 * 2; // 65 bins, all/red/blue, mean/scatter
     fwrite(&resp_msg_type, 1, 1, MSG_PIPE);
     fwrite(&resp_data_type, 1, 1, MSG_PIPE);
     fwrite(&resp_count, sizeof(uint32_t), 1, MSG_PIPE);
-    fwrite(&mean_cen[90], sizeof(float), 65, MSG_PIPE);
-    fwrite(&std_cen[90], sizeof(float), 65, MSG_PIPE);
-    fwrite(&mean_cenr[90], sizeof(float), 65, MSG_PIPE);
-    fwrite(&std_cenr[90], sizeof(float), 65, MSG_PIPE);
-    fwrite(&mean_cenb[90], sizeof(float), 65, MSG_PIPE);
-    fwrite(&std_cenb[90], sizeof(float), 65, MSG_PIPE);
+    fwrite(&mean_cen[90], sizeof(double), 65, MSG_PIPE);
+    fwrite(&std_cen[90], sizeof(double), 65, MSG_PIPE);
+    fwrite(&mean_cenr[90], sizeof(double), 65, MSG_PIPE);
+    fwrite(&std_cenr[90], sizeof(double), 65, MSG_PIPE);
+    fwrite(&mean_cenb[90], sizeof(double), 65, MSG_PIPE);
+    fwrite(&std_cenb[90], sizeof(double), 65, MSG_PIPE);
     fflush(MSG_PIPE);
   }
   else if (!SILENT)
@@ -631,7 +663,7 @@ void lsat_model_scatter()
   {
     if (GAL[i].psat > 0.5)
       continue;
-    im = (int)(log10(GAL[i].lum) / 0.1 + 0.5);
+    im = (int)(GAL[i].loglum / 0.1 + 0.5);
     id = search(NHALO, mvir, GAL[i].mass);
     lsat = HALO[indx[id]].lsat;
     // printf("LSAT %d %e %e %e\n",id,GAL[i].mass, HALO[indx[id]].mass, lsat);

@@ -117,6 +117,7 @@ void groupfind()
       // check if the stellar mass (or luminosity) is in log
       if (GAL[i].lum < 100)
         GAL[i].lum = pow(10.0, GAL[i].lum);
+      GAL[i].loglum = log10(GAL[i].lum);
       // I think we can just set the bsat here
       if (FLUXLIM)
         fscanf(fp, "%f", &GAL[i].vmax);
@@ -629,9 +630,9 @@ float get_wcen(int idx) {
   {
     if (GAL[idx].color < 0.8)
       // If colors not provided, this is what will be used
-      weight = 1.0 / pow(10.0, 0.5 * (1 + erf((log10(GAL[idx].lum) - WCEN_MASS) / WCEN_SIG)) * WCEN_NORM);
+      weight = 1.0 / pow(10.0, 0.5 * (1 + erf((GAL[idx].loglum - WCEN_MASS) / WCEN_SIG)) * WCEN_NORM);
     else
-      weight = 1.0 / pow(10.0, 0.5 * (1 + erf((log10(GAL[idx].lum) - WCEN_MASSR) / WCEN_SIGR)) * WCEN_NORMR);
+      weight = 1.0 / pow(10.0, 0.5 * (1 + erf((GAL[idx].loglum - WCEN_MASSR) / WCEN_SIGR)) * WCEN_NORMR);
   }
   return weight;
 }
@@ -642,12 +643,12 @@ float get_chi_weight(int idx) {
   if (SECOND_PARAMETER) {
     if (GAL[idx].color < 0.8)
     {
-      wx = PROPX_WEIGHT_BLUE + PROPX_SLOPE_BLUE * (log10(GAL[idx].lum) - 9.5);
+      wx = PROPX_WEIGHT_BLUE + PROPX_SLOPE_BLUE * (GAL[idx].loglum - 9.5);
       weight = exp(GAL[idx].propx / wx);
     }
     else
     {
-      wx = PROPX_WEIGHT_RED + PROPX_SLOPE_RED * (log10(GAL[idx].lum) - 9.5);
+      wx = PROPX_WEIGHT_RED + PROPX_SLOPE_RED * (GAL[idx].loglum - 9.5);
       weight = exp(GAL[idx].propx / wx);
     }
   }
@@ -664,9 +665,9 @@ float get_bprob(int idx) {
   float bprob = BPROB_DEFAULT;
   if (USE_BSAT) {
     if (GAL[idx].color > 0.8)
-      bprob = BPROB_RED + (log10(GAL[idx].lum) - 9.5) * BPROB_XRED;
+      bprob = BPROB_RED + (GAL[idx].loglum - 9.5) * BPROB_XRED;
     else
-      bprob = BPROB_BLUE + (log10(GAL[idx].lum) - 9.5) * BPROB_XBLUE;
+      bprob = BPROB_BLUE + (GAL[idx].loglum - 9.5) * BPROB_XBLUE;
   }
   // let's put a lower limit of the prob
   if (bprob < 0.001)
