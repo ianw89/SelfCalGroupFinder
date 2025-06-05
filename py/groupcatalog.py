@@ -1347,6 +1347,39 @@ class BGSGroupCatalog(GroupCatalog):
         print(f"  Min. # of Passes: {self.num_passes}")
         print(f"  Data Version: {self.data_cut}")
 
+    def get_volume_limited_sample(self, dim_mag: float, bright_mag=None, zmin=0):
+        """
+        Construct a volume-limited sample of galaxies with galaxies brighter than dim_mag.
+        Optionally include a bright mag limit as well.
+        The maximum z will be calculated automatiaclly for the given flux limit of this catalog.
+        """
+        zmax = get_max_observable_z(dim_mag, self.mag_cut)
+        zmax = zmax.value
+
+        if zmin > zmax:
+            raise ValueError(f"zmin {zmin:.5f} is greater than zmax {zmax:.5f}. Cannot create volume-limited sample.")
+        
+        if bright_mag is not None and bright_mag > dim_mag:
+            raise ValueError(f"bright_mag {bright_mag} is greater than dim_mag {dim_mag}. Cannot create volume-limited sample.")
+
+        print(f"Creating volume-limited sample with zmin={zmin:.5f}, zmax={zmax:.5f}, dim_mag={dim_mag:.2f}.")
+        if bright_mag is not None:
+            print(f"Bright magnitude limit: {bright_mag:.2f}")
+
+        df = self.all_data
+        df = df.loc[np.logical_and(df['Z'] > zmin, df['Z'] < zmax)]
+        if bright_mag is not None:
+            bright_lim = abs_mag_r_to_log_solar_L(bright_mag)
+            df = df.loc[df['LOGLGAL'] < bright_lim]
+        dim_lim = abs_mag_r_to_log_solar_L(dim_mag)
+        df = df.loc[df['LOGLGAL'] > dim_lim]
+
+        df.reset_index(drop=True, inplace=True)
+
+        print(f'Volume-limited sample has {len(df):,} galaxies of the original {len(self.all_data):,} galaxies.')
+        return df, zmax        
+
+
     def get_randoms(self):
         if self.data_cut == 'sv3' or self.data_cut == 'Y3-Kibo-SV3Cut' or self.data_cut == 'Y3-Loa-SV3Cut':
             return get_sv3_randoms_inner()
@@ -1620,6 +1653,7 @@ def drop_SV3_passes(drop_passes: int, tileid: np.ndarray, unobserved: np.ndarray
     return unobserved
 
 def add_bsat_column(catalog: GroupCatalog):
+    # This replicates what the C Group Finder does.
     bprob = 10
     if 'beta0q' in catalog.GF_props:
         beta0q = catalog.GF_props['beta0q']
@@ -1631,7 +1665,6 @@ def add_bsat_column(catalog: GroupCatalog):
         bprob = np.where(bprob < 0.001, 0.001, bprob)
 
     catalog.all_data['BSAT'] = bprob
-
 
 def add_halo_columns(catalog: GroupCatalog):
     """

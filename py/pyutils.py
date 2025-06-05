@@ -15,6 +15,7 @@ from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
 import astropy.coordinates as coord
 import pickle
+import emcee
 from numpy.polynomial.polynomial import Polynomial
 
 if './SelfCalGroupFinder/py/' not in sys.path:
@@ -443,19 +444,19 @@ def log_solar_L_to_abs_mag_r(arr):
 
 from astropy.cosmology import z_at_value
 
-def get_max_observable_z(abs_mags, m_cut):
+def get_max_observable_z(abs_mags, fluxlimit):
     # Use distance modulus
-    d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
+    d_l = (10 ** ((fluxlimit - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
 
     return z_at_value(_cosmo_h.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
 
-def get_max_observable_z_m30(abs_mags, m_cut):
-    d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
+def get_max_observable_z_m30(abs_mags, fluxlimit):
+    d_l = (10 ** ((fluxlimit - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
     return z_at_value(_cosmo_h_m30.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
 
-def get_max_observable_z_mxxlcosmo(abs_mags, m_cut):
+def get_max_observable_z_mxxlcosmo(abs_mags, fluxlimit):
     # Use distance modulus
-    d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
+    d_l = (10 ** ((fluxlimit - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
 
     return z_at_value(_cosmo_mxxl.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
 
@@ -1586,6 +1587,52 @@ def lhmr_variance_from_saved():
         print(f"WARNING: {LHMR_VALUES_FROM_LOGS} does not exist. Cannot load variance. Call extract_variance_from_log(path) to create it.")
         return None
 
+def save_from_backend(backend: emcee.backends.backend.Backend, overwrite=False):
+    """
+    Extracts f_sat and LHMR from a log file and uses them to compute means and stds of these quantities.
+    Intended for use with a emcee backend from a MCMC run.
+    """
+    if not backend.has_blobs():
+        print("WARNING: Backend does not have blobs. Cannot extract f_sat and LHMR.")
+        return
+    
+    blobs = backend.get_blobs()
+    
+    # See the C Group Finder pipe writing code for the blob structure.
+    # Flatten walkers
+    fsat = blobs[:,:,0:40].reshape(-1, 40)  # Shape: (nwalkers*nsteps, 40)
+    fsatr = blobs[:,:,40:80].reshape(-1, 40)  
+    fsatb = blobs[:,:,80:120].reshape(-1, 40)  
+    lhmr_m = blobs[:,:,120:185].reshape(-1, 65)  # Shape: (nwalkers*nsteps, 65)
+    lhmr_scatter = blobs[:, :, 185:250].reshape(-1, 65)
+    lhmr_r_m = blobs[:, :, 250:315].reshape(-1, 65)
+    lhmr_r_scatter = blobs[:, :, 315:380].reshape(-1, 65)
+    lhmr_b_m = blobs[:, :, 380:445].reshape(-1, 65)
+    lhmr_b_scatter = blobs[:, :, 445:510].reshape(-1, 65)
+
+    if os.path.exists(FSAT_VALUES_FROM_LOGS):
+        if overwrite:
+            print(f"WARNING: {FSAT_VALUES_FROM_LOGS} already exists. Overwriting.")
+            np.save(FSAT_VALUES_FROM_LOGS, (fsat, fsatr, fsatb))
+        else:
+            # Don't overwrite
+            print(f"WARNING: {FSAT_VALUES_FROM_LOGS} already exists. Will not overwrite.")
+    else:
+        np.save(FSAT_VALUES_FROM_LOGS, (fsat, fsatr, fsatb))
+
+    if os.path.exists(LHMR_VALUES_FROM_LOGS):
+        if overwrite:
+            print(f"WARNING: {LHMR_VALUES_FROM_LOGS} already exists. Overwriting.")
+            np.save(LHMR_VALUES_FROM_LOGS, (lhmr_r_m, lhmr_r_scatter, lhmr_b_m, lhmr_b_scatter, lhmr_m, lhmr_scatter))
+        else:
+            # Don't overwrite
+            print(f"WARNING: {LHMR_VALUES_FROM_LOGS} already exists. Will not overwrite.")
+    else:
+        np.save(LHMR_VALUES_FROM_LOGS, (lhmr_r_m, lhmr_r_scatter, lhmr_b_m, lhmr_b_scatter, lhmr_m, lhmr_scatter))
+
+
+
+
 def save_from_log(logpath: str, overwrite=False):
     """
     Extracts f_sat and LHMR from a log file and uses them to compute means and stds of these quantities.
@@ -1673,46 +1720,4 @@ def save_from_log(logpath: str, overwrite=False):
             print(f"WARNING: {LHMR_VALUES_FROM_LOGS} already exists. Will not overwrite.")
     else:
         np.save(LHMR_VALUES_FROM_LOGS, (lhmr_r_arr, lhmr_r_scatter_arr, lhmr_b_arr, lhmr_b_scatter_arr, lhmr_all_arr, lhmr_all_scatter_arr))
-
-    # Calculate the std, mean
-    fsat_std = np.std(fsat_arr, axis=0)
-    fsatr_std = np.std(fsatr_arr, axis=0)
-    fsatb_std = np.std(fsatb_arr, axis=0)
-    fsat_mean = np.mean(fsat_arr, axis=0)
-    fsatr_mean = np.mean(fsatr_arr, axis=0)
-    fsatb_mean = np.mean(fsatb_arr, axis=0)
-
-    lhmr_r_std = np.std(lhmr_r_arr, axis=0)
-    lhmr_r_scatter_std = np.std(lhmr_r_scatter_arr, axis=0)
-    lhmr_b_std = np.std(lhmr_b_arr, axis=0)
-    lhmr_b_scatter_std = np.std(lhmr_b_scatter_arr, axis=0)
-    lhmr_all_std = np.std(lhmr_all_arr, axis=0)
-    lhmr_all_scatter_std = np.std(lhmr_all_scatter_arr, axis=0)
-    lhmr_r_mean = np.mean(lhmr_r_arr, axis=0)
-    lhmr_r_scatter_mean = np.mean(lhmr_r_scatter_arr, axis=0)
-    lhmr_b_mean = np.mean(lhmr_b_arr, axis=0)   
-    lhmr_b_scatter_mean = np.mean(lhmr_b_scatter_arr, axis=0)
-    lhmr_all_mean = np.mean(lhmr_all_arr, axis=0)
-    lhmr_all_scatter_mean = np.mean(lhmr_all_scatter_arr, axis=0)
-
-    # TODO Lsat?
-
-    return (fsat_mean, 
-        fsat_std, 
-        fsatr_mean,
-        fsatr_std,
-        fsatb_mean,
-        fsatb_std,
-        lhmr_r_mean,
-        lhmr_r_std,
-        lhmr_r_scatter_mean,
-        lhmr_r_scatter_std,
-        lhmr_b_mean,
-        lhmr_b_std,
-        lhmr_b_scatter_mean,
-        lhmr_b_scatter_std,
-        lhmr_all_mean,
-        lhmr_all_std,
-        lhmr_all_scatter_mean,
-        lhmr_all_scatter_std)
 
