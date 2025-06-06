@@ -35,6 +35,8 @@ NO_TRUTH_Z = -99.99
 Mhalo_bins = np.logspace(9, 15.4, 155-90)
 Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1] 
 
+Lgal_bins_for_lsat = np.linspace(8.8, 10.7, 20)
+
 mstar_bins = np.logspace(6, 13, 30)
 mstar_labels = mstar_bins[0:len(mstar_bins)-1]
 
@@ -745,26 +747,10 @@ class GroupCatalog:
 
 
             # LSAT COMPARISON
-
-            # Get Mean Lsat for r/b centrals from SDSS data
-            data = np.loadtxt(LSAT_OBSERVATIONS_FILE, skiprows=0, dtype='float')
-            #obs_lcen = data[:,0] # log10 already
-            obs_lsat_r = data[:,1] # fr
-            obs_err_r = data[:,2] # er
-            obs_lsat_b = data[:,3] # fb
-            obs_err_b = data[:,4] # eb
-
-            obs_ratio = obs_lsat_r/obs_lsat_b
-            # Dividing two quantities with errors, so we need to propagate the errors
-            obs_ratio_err = obs_ratio * ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
-    
-            # Get Lsat for r/b centrals from the group finder's output
-            model_ratio = self.lsat_r/self.lsat_b
-
-            # Chi squared
-            lsat_chisqr = (obs_ratio - model_ratio)**2 / obs_ratio_err**2 
-            print("LSat χ^2: ", lsat_chisqr)
-
+            # TODO put in CalibrationData
+            data = np.loadtxt(LSAT_OBSERVATIONS_SDSS_FILE, skiprows=0, dtype='float')
+            lsat_chisqr = compute_lsat_chisqr(data, self.lsat_r, self.lsat_b)
+            
             # TODO automate whether this is on or off depending on GF parameters?
             # This is for the second parameter (galaxy concentration)    
             """
@@ -2459,3 +2445,24 @@ def nsat_vmax_weighted(series):
         return np.average(series['N_SAT'], weights=1/series['VMAX'])
     
 
+
+##############################
+def compute_lsat_chisqr(observed, model_lsat_r, model_lsat_b):
+
+    #obs_lcen = data[:,0] # log10 already
+    obs_lsat_r = observed[:,1] # fr
+    obs_err_r = observed[:,2] # er
+    obs_lsat_b = observed[:,3] # fb
+    obs_err_b = observed[:,4] # eb
+
+    obs_ratio = obs_lsat_r/obs_lsat_b
+    # Dividing two quantities with errors, so we need to propagate the errors
+    obs_ratio_err = obs_ratio * ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
+
+    # Get Lsat for r/b centrals from the group finder's output
+    model_ratio = model_lsat_r/model_lsat_b
+
+    # Chi squared
+    lsat_chisqr = (obs_ratio - model_ratio)**2 / obs_ratio_err**2 
+    print("LSat χ^2: ", lsat_chisqr)
+    return lsat_chisqr

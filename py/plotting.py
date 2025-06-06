@@ -984,15 +984,18 @@ def proj_clustering_plot(gc: GroupCatalog):
     fig.tight_layout()
 
 def lsat_data_compare_plot(gc: GroupCatalog):
-    overall, clust_r, clust_b, lsat = gc.chisqr()
-    print(f"Lsat Chi^2 {np.sum(lsat):.1f}")
+    data = np.loadtxt(LSAT_OBSERVATIONS_SDSS_FILE, skiprows=0, dtype='float')
+    lsat_r_mean, lsat_r_std, lsat_b_mean, lsat_b_std = lsat_variance_from_saved()
+    lsat_compare_plot(data, gc.lsat_r, gc.lsat_b, lsat_r_std, lsat_b_std)
 
-    # Get Lsat for r/b centrals from the group finder's output
-    #lcen = gc.lsat_groups[:,0] # log10 already hardcorded like obs_lcen
-    ratio = gc.lsat_r/gc.lsat_b
+def lsat_compare_plot(data, lsat_r, lsat_b, lsat_r_std, lsat_b_std):
+    chisqr = compute_lsat_chisqr(data, lsat_r, lsat_b)
+
+    ratio = lsat_r/lsat_b
+    ratio_err = ratio * ((lsat_r_std/lsat_r)**2 + (lsat_b_std/lsat_b)**2)**.5
+    ratio_err_log = ratio_err/ratio/np.log(10)
 
     # Get Mean Lsat for r/b centrals from SDSS data
-    data = np.loadtxt(LSAT_OBSERVATIONS_FILE, skiprows=0, dtype='float')
     obs_lcen = data[:,0] # log10 already
     obs_lsat_r = data[:,1]
     obs_err_r = data[:,2]
@@ -1004,26 +1007,25 @@ def lsat_data_compare_plot(gc: GroupCatalog):
 
     fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(10,5), dpi=DPI)
 
-    axes[0].errorbar(obs_lcen, np.log10(obs_ratio), yerr=obs_ratio_err_log, fmt='o', color='k', markersize=3, capsize=2, ecolor='k', label='SDSS Data')
-    #axes[0].plot(obs_lcen, obs_ratio, color='k', marker='o', label='SDSS Data')
-    axes[0].plot(obs_lcen, np.log10(ratio), color='purple', label='Group Finder')
+    axes[0].errorbar(obs_lcen, np.log10(obs_ratio), yerr=obs_ratio_err_log, fmt='o', color='k', markersize=3, capsize=3, ecolor='k', label='SDSS Data')
+    axes[0].errorbar(obs_lcen, np.log10(ratio), yerr=ratio_err_log, fmt='o', color='purple', markersize=3, capsize=3, ecolor='purple', label='Group Finder Data', alpha=0.7)
     axes[0].set_ylabel('log $L_{sat}^{q}/L_{sat}^{sf}$')
     axes[0].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
     axes[0].set_ylim(-0.2, 0.5)
     axes[0].legend()
 
     # Put text of the chisqr value in plot
-    axes[0].text(.4,.93, f"$\chi^2$: {np.sum(lsat):.1f}", transform=axes[0].transAxes)
+    axes[0].text(.4,.93, f"$\chi^2$: {np.sum(chisqr):.1f}", transform=axes[0].transAxes)
 
-    axes[1].plot(obs_lcen, np.log10(gc.lsat_r), label='GF Quiescent', color='r')
-    axes[1].plot(obs_lcen, np.log10(gc.lsat_b), label='GF Star-forming', color='b')
+    axes[1].plot(obs_lcen, np.log10(lsat_r), label='GF Quiescent', color='r')
+    axes[1].plot(obs_lcen, np.log10(lsat_b), label='GF Star-forming', color='b')
     axes[1].errorbar(obs_lcen, np.log10(obs_lsat_r), yerr=obs_err_r/obs_lsat_r, label='SDSS Quiescent', fmt='o', color='r', markersize=3, capsize=2, ecolor='k')
     axes[1].errorbar(obs_lcen, np.log10(obs_lsat_b), yerr=obs_err_b/obs_lsat_b, label='SDSS Star-Forming', fmt='o', color='b', markersize=3, capsize=2, ecolor='k')
     axes[1].set_ylabel('log $L_{sat}~[L_\odot / h^2]$')
     axes[1].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
     axes[1].legend()
 
-    fig.suptitle(gc.name)
+    #fig.suptitle(gc.name)
     fig.tight_layout()
 
     # TODO "lsat_groups_propx_red.out"

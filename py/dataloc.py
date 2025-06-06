@@ -39,7 +39,7 @@ WP_RADIAL_BINS_DESI_FILE = PARAMS_BGSY1_FOLDER + 'wp_rbins_desi.dat'
 WP_RADIAL_EDGE_DESI_FILE = PARAMS_BGSY1_FOLDER + 'wp_redges_desi.dat'
 HALO_MASS_FUNC_FILE = REPO_FOLDER + 'halo_mass_function.dat'
 LSAT_LOOKUP_FILE = REPO_FOLDER + 'lsat_lookup.dat'
-LSAT_OBSERVATIONS_FILE = PARAMS_SDSS_FOLDER + 'Lsat_SDSS_DnGMM.dat'
+LSAT_OBSERVATIONS_SDSS_FILE = PARAMS_SDSS_FOLDER + 'Lsat_SDSS_DnGMM.dat'
 MOCK_FILE_FOR_POPMOCK = DATA_FOLDER + 'POPMOCK/' + 'hosthalo_z0.0_M1e10_Lsat.dat'
 
 QUIESCENT_MODEL = PARAMS_BGSY1_FOLDER + "kmeans_quiescent_model.pkl" # made from Y1
@@ -161,6 +161,7 @@ BGS_Y3_DN4000_LOOKUP_FILE = BGS_Y3_FOLDER_LOA + "bgsy3_dn4000_lookup.pkl"
 
 FSAT_VALUES_FROM_LOGS = OUTPUT_FOLDER + "fsat_values_from_log.npy"
 LHMR_VALUES_FROM_LOGS = OUTPUT_FOLDER + "lhmr_values_from_log.npy"
+LSAT_VALUES_FROM_LOGS = OUTPUT_FOLDER + "lsat_values_from_log.npy"
 
 # RANDOMS FILES MATCHING OUR FOOTPRINTS
 #######################################

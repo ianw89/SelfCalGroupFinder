@@ -1549,6 +1549,7 @@ def is_quiescent_BGS_gmr(logLgal, G_R_k):
 def fsat_variance_from_saved():
     """
     Load the fsat variance from the saved file.
+    Returns fsat std, fsatr std, fsatb std, fsat mean, fsatr mean, fsatb mean.
     """
     if os.path.exists(FSAT_VALUES_FROM_LOGS):
         fsat_arr, fsatr_arr, fsatb_arr = np.load(FSAT_VALUES_FROM_LOGS)
@@ -1567,6 +1568,9 @@ def fsat_variance_from_saved():
 def lhmr_variance_from_saved():
     """
     Load the lhmr variance from the saved file.
+    Returns red mean, red std, red scatter mean, red scatter std,
+           blue mean, blue std, blue scatter mean, blue scatter std,
+           all mean, all std, all scatter mean, all scatter std.
     """
     if os.path.exists(LHMR_VALUES_FROM_LOGS):
         r_arr, r_scatter_arr, b_arr, b_scatter_arr, all_arr, all_scatter_arr = np.load(LHMR_VALUES_FROM_LOGS)
@@ -1587,11 +1591,26 @@ def lhmr_variance_from_saved():
     else:
         print(f"WARNING: {LHMR_VALUES_FROM_LOGS} does not exist. Cannot load variance. Call extract_variance_from_log(path) to create it.")
         return None
+    
+def lsat_variance_from_saved():
+    """
+    Load the lsat variance from the saved file.
+    Returns red mean, red std, blue mean, blue std.
+    """
+    if os.path.exists(LSAT_VALUES_FROM_LOGS):
+        r_arr, b_arr = np.load(LSAT_VALUES_FROM_LOGS)
+        r_std = np.std(r_arr, axis=0)
+        b_std = np.std(b_arr, axis=0)
+        r_mean = np.mean(r_arr, axis=0)
+        b_mean = np.mean(b_arr, axis=0)
+        return r_mean, r_std, b_mean, b_std
+    else:
+        print(f"WARNING: {LSAT_VALUES_FROM_LOGS} does not exist. Cannot load variance. Call extract_variance_from_log(path) to create it.")
+        return None
 
 def save_from_backend(backend: Backend|list, overwrite=False):
     """
-    Extracts f_sat and LHMR from a log file and uses them to compute means and stds of these quantities.
-    Intended for use with a emcee backend from a MCMC run.
+    Extracts f_sat, LHMR, and L_sat values from an emcee backend and stores them.
     """
     backends = backend if isinstance(backend, list) else [backend]
     blobs = None
@@ -1617,29 +1636,22 @@ def save_from_backend(backend: Backend|list, overwrite=False):
     lhmr_r_scatter = blobs[:, :, 315:380].reshape(-1, 65)
     lhmr_b_m = blobs[:, :, 380:445].reshape(-1, 65)
     lhmr_b_scatter = blobs[:, :, 445:510].reshape(-1, 65)
+    lsat_r = blobs[:, :, 510:530].reshape(-1, 20)
+    lsat_b = blobs[:, :, 530:550].reshape(-1, 20)
 
-    if os.path.exists(FSAT_VALUES_FROM_LOGS):
-        if overwrite:
-            print(f"WARNING: {FSAT_VALUES_FROM_LOGS} already exists. Overwriting.")
-            np.save(FSAT_VALUES_FROM_LOGS, (fsat, fsatr, fsatb))
+    def save_array_if_needed(filename, data, overwrite):
+        if os.path.exists(filename):
+            if overwrite:
+                print(f"WARNING: {filename} already exists. Overwriting.")
+                np.save(filename, data)
+            else:
+                print(f"WARNING: {filename} already exists. Will not overwrite.")
         else:
-            # Don't overwrite
-            print(f"WARNING: {FSAT_VALUES_FROM_LOGS} already exists. Will not overwrite.")
-    else:
-        np.save(FSAT_VALUES_FROM_LOGS, (fsat, fsatr, fsatb))
+            np.save(filename, data)
 
-    if os.path.exists(LHMR_VALUES_FROM_LOGS):
-        if overwrite:
-            print(f"WARNING: {LHMR_VALUES_FROM_LOGS} already exists. Overwriting.")
-            np.save(LHMR_VALUES_FROM_LOGS, (lhmr_r_m, lhmr_r_scatter, lhmr_b_m, lhmr_b_scatter, lhmr_m, lhmr_scatter))
-        else:
-            # Don't overwrite
-            print(f"WARNING: {LHMR_VALUES_FROM_LOGS} already exists. Will not overwrite.")
-    else:
-        np.save(LHMR_VALUES_FROM_LOGS, (lhmr_r_m, lhmr_r_scatter, lhmr_b_m, lhmr_b_scatter, lhmr_m, lhmr_scatter))
-
-
-
+    save_array_if_needed(FSAT_VALUES_FROM_LOGS, (fsat, fsatr, fsatb), overwrite)
+    save_array_if_needed(LHMR_VALUES_FROM_LOGS, (lhmr_r_m, lhmr_r_scatter, lhmr_b_m, lhmr_b_scatter, lhmr_m, lhmr_scatter), overwrite)
+    save_array_if_needed(LSAT_VALUES_FROM_LOGS, (lsat_r, lsat_b), overwrite)
 
 def save_from_log(logpath: str, overwrite=False):
     """
