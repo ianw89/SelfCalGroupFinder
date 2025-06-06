@@ -278,7 +278,7 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
     t2 = time.time()
     print(f"Galprops pickling took {t2-t1:.4f} seconds")
     
-    write_dat_files_v2(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base)
+    write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base)
         
     return outname_base + ".dat", {'zmin': np.min(z_eff), 'zmax': np.max(z_eff), 'frac_area': FOOTPRINT_FRAC }
 

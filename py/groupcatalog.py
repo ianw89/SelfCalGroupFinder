@@ -2176,7 +2176,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     t2 = time.time()
     print(f"Galprops pickling took {t2-t1:.4f} seconds")
 
-    write_dat_files_v2(ra[final_selection], dec[final_selection], z_eff[final_selection], log_L_gal[final_selection], V_max[final_selection], quiescent[final_selection], chi[final_selection], outname_base)
+    write_dat_files(ra[final_selection], dec[final_selection], z_eff[final_selection], log_L_gal[final_selection], V_max[final_selection], quiescent[final_selection], chi[final_selection], outname_base)
 
     return outname_base + ".dat", {'zmin': np.min(z_eff[final_selection]), 'zmax': np.max(z_eff[final_selection]), 'frac_area': frac_area }
 
@@ -2405,25 +2405,11 @@ def qf_vmax_weighted(series):
     else:
         return np.average(series['QUIESCENT'], weights=1/series['VMAX'])
 
-def qf_Dn4000_1_6_vmax_weighted(series):
-    if len(series) == 0:
-        return 0
-    else:
-        return np.average(is_quiescent_BGS_dn4000_hardvariant(series['LOGLGAL'], series['DN4000'], series['G_R']), weights=1/series['VMAX'])
-
-def qf_Dn4000MODEL_1_6_vmax_weighted(series):
-    if len(series) == 0:
-        return 0
-    else:
-        return np.average(is_quiescent_BGS_dn4000_hardvariant(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
-
-
 def qf_Dn4000MODEL_smart_eq_vmax_weighted(series):
     if len(series) == 0:
         return 0
     else:
         return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
-
 
 def qf_Dn4000_smart_eq_vmax_weighted(series):
     if len(series) == 0:
