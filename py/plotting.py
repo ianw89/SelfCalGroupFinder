@@ -914,12 +914,10 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
         if test_methods:
             qf_gmr = f.centrals.groupby(groupby_property, observed=False).apply(qf_BGS_gmr_vmax_weighted)
             qf_dn4000 = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
-            qf_dn4000_hard = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_1_6_vmax_weighted)
             qf_dn4000model = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000MODEL_smart_eq_vmax_weighted)
             qf_dn4000model_hard = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000MODEL_1_6_vmax_weighted)
             plt.plot(getattr(f, label_property), qf_gmr, '.', label=f'(g-r)^0.1 < {GLOBAL_RED_COLOR_CUT}', color='b')
             plt.plot(getattr(f, label_property), qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
-            plt.plot(getattr(f, label_property), qf_dn4000_hard, '-', label='Dn4000 > 1.6', color='r')
             plt.plot(getattr(f, label_property), qf_dn4000model, '-', label='Dn4000_M Eq. 1', color='purple')
             plt.plot(getattr(f, label_property), qf_dn4000model_hard, '-', label='Dn4000_M > 1.6', color='orange')
         else:
