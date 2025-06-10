@@ -112,7 +112,6 @@ BGS_Y1_TILES_FILE = '/global/cfs/cdirs/desi/spectro/redux/iron/tiles-iron.csv' i
 BGS_Y1_FASTSPEC_FILE = BGS_Y1_FOLDER + "fastspec-iron-main-bright.fits"
 BGS_Y1_COMBINED_PHOTOMETRIC_CATALOG = BGS_Y1_FOLDER + "targetphot-iron-combined.fits"
 IAN_BGS_Y1_MERGED_FILE = BGS_Y1_FOLDER + "ian_BGS_merged.fits"
-IAN_BGS_Y1_MERGED_FILE_OLD = BGS_Y1_FOLDER + "ian_BGS_merged.fits~"
 
 # BGS Y3 DATA FILES
 ###################

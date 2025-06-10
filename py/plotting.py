@@ -1648,9 +1648,9 @@ def make_map(ra, dec, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
     if isinstance(dec, pd.Series):
         dec = dec.to_numpy()
 
-    if np.any(ra > 180.0): # if data given is 0 to 360
-        assert np.all(ra > -0.1)
-        ra = ra - 180
+    #if np.any(ra > 180.0): # if data given is 0 to 360
+    assert np.all(ra > -0.1)
+    ra = ra - 180
     if np.any(dec > 90.0): # if data is 0 to 180
         print(f"WARNING: Dec values are 0 to 180. Subtracting 90 to get -90 to 90.")
         assert np.all(dec > -0.1)

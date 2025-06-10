@@ -187,6 +187,10 @@ bgs_nn.marker = '-'
 bgs_nn_sdsslike = BGSGroupCatalog("Nearest Neighbor BGS Y1 SDSS-like", Mode.NEAREST_NEIGHBOR, 17.7, 17.7, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_nn_sdsslike.marker = '-'
 
+bgs_y1mini_pzp_2_4_c1 = BGSGroupCatalog("BGS Y1 Mini PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
+bgs_y1mini_pzp_2_4_c1.marker = '--'
+bgs_y1mini_pzp_2_4_c1.color = 'darkgreen'
+
 bgs_y1_pzp_2_4 = BGSGroupCatalog("BGS Y1 PZP v2.4 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y1_pzp_2_4.marker = '-'
 bgs_y1_pzp_2_4.color = 'darkgreen'
