@@ -11,3 +11,6 @@ conda_env
 py/parameters/bgs_y1/wp_red*
 py/parameters/bgs_y1/wp_blue*
 py/parameters/bgs_y1/wp_all*
+py/parameters/bgs_y1_mini/wp_red*
+py/parameters/bgs_y1_mini/wp_blue*
+py/parameters/bgs_y1_mini/wp_all*
