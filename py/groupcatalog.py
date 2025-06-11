@@ -1907,7 +1907,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     # For Y1-Iron-Mini, we want to cut to a smaller region
     if data_cut == "Y1-Iron-Mini":
         multi_pass_filter &= ra > 160
-        multi_pass_filter &= ra < 170
+        multi_pass_filter &= ra < 175
         multi_pass_filter &= dec > -7
         multi_pass_filter &= dec < 3
 
