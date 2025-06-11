@@ -1701,9 +1701,9 @@ def get_footprint_fraction(data_cut, mode, num_passes_required):
         FOOTPRINT_FRAC_4pass = 0.0228093 # 940 deg^2
         # 0% 5pass coverage
     elif data_cut == "Y1-Iron-Mini":
-        FOOTPRINT_FRAC_1pass = 10 * 10 / DEGREES_ON_SPHERE 
-        FOOTPRINT_FRAC_2pass = 10 * 10 / DEGREES_ON_SPHERE 
-        FOOTPRINT_FRAC_3pass = 10 * 10 / DEGREES_ON_SPHERE 
+        FOOTPRINT_FRAC_1pass = 141.6 / DEGREES_ON_SPHERE 
+        FOOTPRINT_FRAC_2pass = 141.6 / DEGREES_ON_SPHERE 
+        FOOTPRINT_FRAC_3pass = 141.6 / DEGREES_ON_SPHERE 
     elif data_cut == "Y3-Kibo" or data_cut == "Y3-Loa":
         FOOTPRINT_FRAC_1pass = 0.30968189465008605 # 12775 deg^2
         FOOTPRINT_FRAC_2pass = 0.2859776210215015 # 11797 deg^2

@@ -192,3 +192,4 @@ MY_RANDOMS_Y3_MINI = OUTPUT_FOLDER + "randoms_df_y3loa_mini.pkl"
 #######################################################
 
 CUSTOM_CLUSTERING_RESULTS_FOLDER = "/global/cfs/cdirs/desi/users/ianw89/clustering/"
+CUSTOM_CLUSTERING_RESULTS_FOLDER_NEW = "/global/cfs/cdirs/desi/users/ianw89/newclustering/"
