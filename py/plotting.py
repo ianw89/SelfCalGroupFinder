@@ -14,7 +14,7 @@ from calibrationdata import *
 # np.array(zip(*[line.split() for line in f])[1], dtype=float)
 
 
-DPI = 150
+DPI = 250
 FONT_SIZE_DEFAULT = 13
 
 LGAL_XMINS = [6E7]#[6E7, 3E8]
@@ -1003,26 +1003,39 @@ def proj_clustering_plot(gc: GroupCatalog):
     fig,axes=plt.subplots(nrows=1, ncols=num, figsize=(2+3*num,4), dpi=DPI)
     fig.suptitle(gc.name)
 
-    overall, clust_r, clust_b, lsat = gc.chisqr()
+    overall, clust_r, clust_b, clust_nosep, lsat = gc.chisqr()
 
     idx = 0
     for idx in range(len(caldata.magbins)-1):
         i = abs(caldata.magbins[idx])
-        wp, wp_err, radius = caldata.get_wp_red(i)
-        axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkred', capsize=3, ecolor='k')
 
-        wp_mock, wp_mock_err = gc.get_mock_wp(i, 'red', wp_err)
-        axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='r', alpha=0.6)
+        if caldata.color_separation[idx]:
 
-        wp, wp_err, radius = caldata.get_wp_blue(i)
-        axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkblue', capsize=3, ecolor='k')
+            wp, wp_err, radius = caldata.get_wp_red(i)
+            axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkred', capsize=3, ecolor='k')
 
-        wp_mock, wp_mock_err = gc.get_mock_wp(i, 'blue', wp_err)
-        axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='b', alpha=0.6)
+            wp_mock, wp_mock_err = gc.get_mock_wp(i, 'red', wp_err)
+            axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='r', alpha=0.6)
 
-        # Put text of the chisqr value in plot
-        axes[idx].text(0.6, 0.9, f"$\chi^2_r$: {clust_r[i+mag_start]:.1f}", transform=axes[idx].transAxes)
-        axes[idx].text(0.6, 0.8, f"$\chi^2_b$: {clust_b[i+mag_start]:.1f}", transform=axes[idx].transAxes)
+            wp, wp_err, radius = caldata.get_wp_blue(i)
+            axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkblue', capsize=3, ecolor='k')
+
+            wp_mock, wp_mock_err = gc.get_mock_wp(i, 'blue', wp_err)
+            axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='b', alpha=0.6)
+            
+            # Put text of the chisqr value in plot
+            axes[idx].text(0.6, 0.9, f"$\chi^2_r$: {clust_r[i+mag_start]:.1f}", transform=axes[idx].transAxes)
+            axes[idx].text(0.6, 0.8, f"$\chi^2_b$: {clust_b[i+mag_start]:.1f}", transform=axes[idx].transAxes)
+
+        else:
+            wp, wp_err, radius = caldata.get_wp_all(i)
+            axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='k', capsize=3, ecolor='k')
+
+            wp_mock, wp_mock_err = gc.get_mock_wp(i, 'all', wp_err)
+            axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='k', alpha=0.6)
+
+            # Put text of the chisqr value in plot
+            axes[idx].text(0.6, 0.9, f"$\chi^2$: {clust_nosep[i+mag_start]:.1f}", transform=axes[idx].transAxes)
 
         # Plot config
         axes[idx].set_xscale('log')

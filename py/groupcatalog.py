@@ -171,7 +171,7 @@ class GroupCatalog:
         Returns the wp and the error, which is an ad-hoc construction.
 
         :param mag: mass bin without the - sign. e.g. 17
-        :param color: 'r' or 'b'
+        :param color: 'red' or 'blue' or 'all'
         :param wp_err: the wp error from the matching data, which is used in creating the error for the mock
         :return: wp_mock and wp_mock_error
         """
@@ -180,7 +180,7 @@ class GroupCatalog:
 
         wp_mock = self.wp_mock[(color, mag)][:,4] # the wp values
         vfac = (self.caldata.volumes[idx]/250.0**3)**.5 # factor by which to multiply errors
-        efac = 0.1
+        efac = 0.1 # TODO let this be bigger for small data?
         wp_mock_error = vfac*wp_err + efac*wp_mock
         return wp_mock, wp_mock_error
 
@@ -663,22 +663,30 @@ class GroupCatalog:
         if not os.path.exists(os.path.join(corrfunc_path, "wp")):
             corrfunc_path = "/mount/sirocco1/tinker/src/Corrfunc/bin/"
         
-        mass_range = self.caldata.magbins[:-1]
+        mag_starts = self.caldata.magbins[:-1]
 
         nthreads = os.cpu_count()
         pimax = 40
         boxsize = 250
 
         # Call corrfunc compiled executable to compute wp on the mock that was populated with the HOD extracted from this catalog
-        for m in mass_range:
-            m = abs(m)
-            for col in ["red", "blue"]:
-                outf = f"wp_mock_{col}_M{m}.dat"
-                cmd = f"{corrfunc_path}/wp {boxsize} mock_{col}_M{m}.dat a {self.caldata.rpbinsfile} {pimax} {nthreads} > wp_mock_{col}_M{m}.dat 2> wp_stderr.txt"
+        for i in range(len(mag_starts)):
+            m = abs(mag_starts[i])
+            for color in ["red", "blue", "all"]:
+                if color == "red" and not self.caldata.color_separation[i]:
+                    continue
+                if color == "blue" and not self.caldata.color_separation[i]:
+                    continue
+                if color == "all" and self.caldata.color_separation[i]:
+                    continue
+
+                # The mock file is written by the group finder as mock_{col}_M{m}.dat
+                outf = f"wp_mock_{color}_M{m}.dat"
+                cmd = f"{corrfunc_path}/wp {boxsize} mock_{color}_M{m}.dat a {self.caldata.rpbinsfile} {pimax} {nthreads} > wp_mock_{color}_M{m}.dat 2> wp_stderr.txt"
                 result = sp.run(cmd, cwd=self.output_folder, shell=True, check=True)
                 if result.returncode != 0:
                     print(f"Error running command: {cmd}")
-                self.wp_mock[(col, m)] = np.loadtxt(f'{self.output_folder}{outf}', skiprows=0, dtype='float')
+                self.wp_mock[(color, m)] = np.loadtxt(f'{self.output_folder}{outf}', skiprows=0, dtype='float')
 
         t2 = time.time()
         print(f"Done with wp on mock populated with HOD from this sample (time = {t2-t1:.1f}s).")
@@ -727,27 +735,44 @@ class GroupCatalog:
             chi = 0
             clustering_chisqr_r = []
             clustering_chisqr_b = []
+            clustering_chisqr_all = []
             lsat_chisqr = []
 
             # PROJECTED CLUSTERING COMPARISON
             mag_limits = self.caldata.magbins[:-1]
 
-            for mag in mag_limits:
-                wp, wp_err, radius = self.caldata.get_wp_red(mag)
-                wp_model, wp_err_model = self.get_mock_wp(mag, 'red', wp_err)
+            for i in range(len(mag_limits)):
+                mag = abs(mag_limits[i])
 
-                chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
-                clustering_chisqr_r.append(np.sum(chivec))
+                if self.caldata.color_separation[i]:
+                    wp, wp_err, radius = self.caldata.get_wp_red(mag)
+                    wp_model, wp_err_model = self.get_mock_wp(mag, 'red', wp_err)
 
-                wp, wp_err, radius = self.caldata.get_wp_blue(mag)
-                wp_model, wp_err_model = self.get_mock_wp(mag, 'blue', wp_err)
+                    chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
+                    clustering_chisqr_r.append(np.sum(chivec))
 
-                chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
-                clustering_chisqr_b.append(np.sum(chivec))
-            
+                    wp, wp_err, radius = self.caldata.get_wp_blue(mag)
+                    wp_model, wp_err_model = self.get_mock_wp(mag, 'blue', wp_err)
+
+                    chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
+                    clustering_chisqr_b.append(np.sum(chivec))
+
+                    clustering_chisqr_all.append(0)
+
+                else:
+                    wp, wp_err, radius = self.caldata.get_wp_all(mag)
+                    wp_model, wp_err_model = self.get_mock_wp(mag, 'all', wp_err)
+
+                    chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
+                    clustering_chisqr_all.append(np.sum(chivec))
+
+                    clustering_chisqr_r.append(0)
+                    clustering_chisqr_b.append(0)
+
+
             print("Red Clustering χ^2: ", np.array(clustering_chisqr_r))
             print("Blue Clustering χ^2: ", np.array(clustering_chisqr_b))
-
+            print("No sep Clustering χ^2: ", np.array(clustering_chisqr_all))
 
             # LSAT COMPARISON
             # TODO put in CalibrationData
@@ -786,7 +811,7 @@ class GroupCatalog:
             chi = chi + np.sum(chivec)
             """
 
-            chi = np.sum(lsat_chisqr) + np.sum(clustering_chisqr_r) + np.sum(clustering_chisqr_b)
+            chi = np.sum(lsat_chisqr) + np.sum(clustering_chisqr_r) + np.sum(clustering_chisqr_b) + np.sum(clustering_chisqr_all)
 
             # Print off the chi squared value and model info and return it 
             #print(f'MODEL {ncount}')
@@ -794,7 +819,7 @@ class GroupCatalog:
             #os.system('date')
             sys.stdout.flush()
 
-        return chi, clustering_chisqr_r, clustering_chisqr_b, lsat_chisqr
+        return chi, clustering_chisqr_r, clustering_chisqr_b, clustering_chisqr_all, lsat_chisqr
 
     def run_and_calc_chisqr(self, params):
 
@@ -829,7 +854,7 @@ class GroupCatalog:
             return np.inf
         
         self.calc_wp_for_mock()
-        overall, clust_r, clust_b, lsat = self.chisqr()
+        overall, clust_r, clust_b, clust_nosep, lsat = self.chisqr()
         return overall
 
     def get_true_z_from(self, truth_df: pd.DataFrame):

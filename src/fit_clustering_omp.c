@@ -1,3 +1,4 @@
+#define __USE_MISC
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -854,17 +855,12 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
  */
 void populate_simulation_omp(int imag, enum SampleType type)
 {
-  // TODO BUG something from the last change broke this and caused it to make way more satellites
-  // That is why it is now running way slower, and the clustering is way higher than it should be
-  // static int flag=1;
   int i;
   FILE *fp;
-  long IDUM3 = -555;
   FILE *outf;
   char fname[1000];
   int j, nsat_rand, imag_offset, imag_mult, istart, iend, mag;
   float nsat_calc, ncen_calc, mass, xg[3], vg[3], xh[3], logm, bfit;
-  // struct drand48_data drand_buf;
   double r;
   int warned = 0;
 
@@ -1067,12 +1063,12 @@ float N_sat(float m, int imag, enum SampleType type)
   switch (type)
   {
     case QUIESCENT:
-      y0 = nsatb[imag][im];
-      y1 = nsatb[imag][im + 1];
-      break;
-    case STARFORMING:
       y0 = nsatr[imag][im];
       y1 = nsatr[imag][im + 1];
+      break;
+    case STARFORMING:
+      y0 = nsatb[imag][im];
+      y1 = nsatb[imag][im + 1];
       break;
     case ALL:
       y0 = nsat[imag][im];
