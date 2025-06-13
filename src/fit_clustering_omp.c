@@ -11,6 +11,7 @@
 #include "nrutil.h"
 #include "kdtree.h"
 #include "groups.h"
+#include "fit_clustering_omp.h"
 #include <errno.h>
 #include <stdint.h>
 
@@ -19,6 +20,8 @@
 #define NRANDOM 1000000
 #define MAX_SATELLITES 1000 // Print a warning and cap the number of satellites to this if it is exceeded. Likely bad parameters.
 #define HALO_BINS 200 // log10(M_halo) / 0.1
+#define MIN_HALO_IDX 90 // log10(M_halo) = 9.0
+#define MAX_HALO_IDX 155 // log10(M_halo) = 9.0
 
 /* Global for the random numbers
  */
@@ -34,9 +37,14 @@ float BOX_SIZE = 250.0;
 float BOX_EPSILON = 0.01;
 
 /* Globals for the tabulated HODs */
-double ncenr[MAXBINS][HALO_BINS], nsatr[MAXBINS][HALO_BINS], ncenb[MAXBINS][HALO_BINS], nsatb[MAXBINS][HALO_BINS], nhalo[MAXBINS][HALO_BINS];
 int NVOLUME_BINS;
+// TODO replace these with dynamic sized arrays
+double ncenr[MAXBINS][HALO_BINS], nsatr[MAXBINS][HALO_BINS], ncenb[MAXBINS][HALO_BINS], nsatb[MAXBINS][HALO_BINS], ncen[MAXBINS][HALO_BINS], nsat[MAXBINS][HALO_BINS], nhalo[MAXBINS][HALO_BINS];
+int nhalo_int[MAXBINS][HALO_BINS]; // integer version of nhalo (no vmax weight)
 float maglim[MAXBINS];
+int color_sep[MAXBINS]; // 1 means do red/blue seperately, 0 means all together
+float maxz[MAXBINS]; 
+float volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
 
 /* LHMR. Scatter is in in log space. */
 double mean_cen[HALO_BINS], mean_cenr[HALO_BINS], mean_cenb[HALO_BINS], std_cen[HALO_BINS], std_cenr[HALO_BINS], std_cenb[HALO_BINS];
@@ -48,16 +56,61 @@ float REDSHIFT = 0.0,
 
 /* local functions
  */
+void nsat_smooth(double arr[MAXBINS][HALO_BINS]);
+void nsat_extrapolate(double arr[MAXBINS][HALO_BINS]);
 float NFW_position(float mass, float x[], int thisTask);
 float NFW_velocity(float mass, float v[], int thisTask);
 float NFW_density(float r, float rs, float ps);
-int poisson_deviate(float nave, int thisTask);
 float halo_concentration(float mass);
-float N_sat(float m, int imag, int blue_flag);
-float N_cen(float m, int imag, int blue_flag);
+float N_sat(float m, int imag, enum SampleType type);
+float N_cen(float m, int imag, enum SampleType type);
 void boxwrap_galaxy(float xh[], float xg[]);
 float tabulated_gaussian_random(int thisTask);
 float tabulated_uniform_random(int thisTask);
+
+void print_hod(const char* filename)
+{
+  FILE *fp;
+  int i, j;
+
+  // Print out the tabulated hods. We don't use this file for anything directly.
+  fp = fopen(filename, "w");
+  fprintf(fp, "# HODs for volume limited samples\n");
+  fprintf(fp, "# Volume bins: ");
+  for (i = 0; i < NVOLUME_BINS; ++i)
+    fprintf(fp, "%.1f ", maglim[i]);
+  fprintf(fp, "\n");
+  fprintf(fp, "# Redshift limits: ");
+  for (i = 0; i < NVOLUME_BINS; ++i)
+    fprintf(fp, "%f ", maxz[i]);
+  fprintf(fp, "\n");
+  fprintf(fp, "# Volume limits: ");
+  for (i = 0; i < NVOLUME_BINS; ++i)
+    fprintf(fp, "%.1f ", volume[i]);
+  fprintf(fp, "\n");
+  for (i = MIN_HALO_IDX; i < MAX_HALO_IDX; ++i)
+  {
+    // Print off halo occupancy fractions in narrow mass bins for each galaxy mag bin
+    // Format is <M_h> [<ncenr_i> <nsatr_i> <ncenb_i> <nsatb_i> <ncen_i> <nsat_i>  <nhalo_i> for each i mag bin]
+    fprintf(fp, "%.2f", i / 10.0);
+    for (j = 0; j < NVOLUME_BINS; ++j) 
+    { 
+      fprintf(fp, " %e %e %e %e %e %e %d", 
+        ncenr[j][i],
+        nsatr[j][i], 
+        ncenb[j][i],
+        nsatb[j][i],
+        ncen[j][i],
+        nsat[j][i],
+        nhalo_int[j][i]);
+    }
+    fprintf(fp, "\n");
+  }
+  fclose(fp);
+
+  if (!SILENT)
+    fprintf(stderr, "Tabulated HODs written to %s\n", filename);
+}
 
 /* 
  * Given the group results, use a lookup table to get the mean Lsat50 values
@@ -349,15 +402,12 @@ void tabulate_hods()
   FILE *fp, *bins_fp;
   int i, j, im, igrp, ibin;
   float mag;
-  // TODO switch to giving hte fluxlimit and calculate these.
   // these are for MXXL-BGS
   // float maxz[MAXBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158 };
   // these are for MXXL-SDSS
   // float maxz[MAXBINS] = { 0.0292367, 0.0458043, 0.0713047, 0.110097, 0.16823 };
   // these are for SHAM-SDSS (r=17.5)
-  //float maxz[MAXBINS] = {0.02586, 0.0406, 0.06336, 0.0981, 0.1504}; // TODO check these...
-  float maxz[MAXBINS]; 
-  float volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
+  //float maxz[MAXBINS] = {0.02586, 0.0406, 0.06336, 0.0981, 0.1504}; 
   // these are for TNG300
   // float maxz[NBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158, 0.5 };
   double w0 = 1.0;
@@ -367,7 +417,7 @@ void tabulate_hods()
     fprintf(stderr, "Reading Volume Bins...\n");
 
   bins_fp = fopen(VOLUME_BINS_FILE, "r");
-  while (fscanf(bins_fp, "%f %f %f", &maglim[nbins], &maxz[nbins], &volume[nbins]) == 3) 
+  while (fscanf(bins_fp, "%f %f %f %d", &maglim[nbins], &maxz[nbins], &volume[nbins], &color_sep[nbins]) == 4)
   {
     nbins++;
     if (nbins >= MAXBINS)
@@ -385,7 +435,10 @@ void tabulate_hods()
 
   for (i = 0; i < NVOLUME_BINS; ++i)
     for (j = 0; j < HALO_BINS; ++j)
-      ncenr[i][j] = nsatr[i][j] = nhalo[i][j] = ncenb[i][j] = nsatb[i][j] = 0;
+    {
+      ncenr[i][j] = nsatr[i][j] = nhalo[i][j] = ncenb[i][j] = nsatb[i][j] = ncen[i][j] = nsat[i][j] = 0.0;
+      nhalo_int[i][j] = 0;
+    }
   
   for (j=0; j < HALO_BINS; ++j)
   {
@@ -421,6 +474,7 @@ void tabulate_hods()
               assert(!isnan(w0));
             }
           nhalo[j][im] += w0; // 1/vmax weight the halo count
+          nhalo_int[j][im]++; // integer version of nhalo (no vmax weight)
         }
     }
 
@@ -444,6 +498,11 @@ void tabulate_hods()
     w0 = 1 / volume[ibin];
     if (GAL[i].vmax < volume[ibin])
       w0 = 1 / GAL[i].vmax;
+
+    if (GAL[i].psat > 0.5)
+      nsat[ibin][im] += w0;
+    else
+      ncen[ibin][im] += w0;
 
     if (GAL[i].color > 0.8) // red
     {
@@ -478,49 +537,17 @@ void tabulate_hods()
       assert(!isnan(nsatr[i][j]));
       assert(!isnan(ncenb[i][j]));
       assert(!isnan(nsatb[i][j]));
+      assert(!isnan(nsat[i][j]));
+      assert(!isnan(ncen[i][j]));
       assert(!isnan(nhalo[i][j]));
       assert(isfinite(ncenr[i][j]));
       assert(isfinite(nsatr[i][j]));
       assert(isfinite(ncenb[i][j]));
       assert(isfinite(nsatb[i][j]));
+      assert(isfinite(nsat[i][j]));
+      assert(isfinite(ncen[i][j]));
       assert(isfinite(nhalo[i][j]));
     }
-
-  // Print out the tabulated hods. We don't use this file for anything directly.
-  fp = fopen("hod.out", "w");
-  fprintf(fp, "# HODs for volume limited samples\n");
-  fprintf(fp, "# Volume bins: ");
-  for (i = 0; i < NVOLUME_BINS; ++i)
-    fprintf(fp, "%.1f ", maglim[i]);
-  fprintf(fp, "\n");
-  fprintf(fp, "# Redshift limits: ");
-  for (i = 0; i < NVOLUME_BINS; ++i)
-    fprintf(fp, "%f ", maxz[i]);
-  fprintf(fp, "\n");
-  fprintf(fp, "# Volume limits: ");
-  for (i = 0; i < NVOLUME_BINS; ++i)
-    fprintf(fp, "%.1f ", volume[i]);
-  fprintf(fp, "\n");
-  for (i = 90; i < 155; ++i)
-  {
-    // Print off halo occupancy fractions in narrow mass bins for each galaxy mag bin
-    // Format is <M_h> [<ncenr_i> <nsatr_i> <ncenb_i> <nsatb_i> <nhalo_i> for each i mag bin]
-    fprintf(fp, "%.2f", i / 10.0);
-    for (j = 0; j < NVOLUME_BINS; ++j) 
-    { 
-      fprintf(fp, " %e %e %e %e %e", 
-        ncenr[j][i] * 1. / (nhalo[j][i] + 1.0E-20),
-        nsatr[j][i] * 1. / (nhalo[j][i] + 1.0E-20), 
-        ncenb[j][i] * 1. / (nhalo[j][i] + 1.0E-20),
-        nsatb[j][i] * 1. / (nhalo[j][i] + 1.0E-20),
-        nhalo[j][i]);
-    }
-    fprintf(fp, "\n");
-  }
-  fclose(fp);
-
-  if (!SILENT)
-    fprintf(stderr, "Tabulated HODs written to hod.out\n");
 
   // *****************************************
   // Now LHMR, which we want to print out
@@ -592,21 +619,21 @@ void tabulate_hods()
     if (!SILENT) fprintf(stderr, "Writing LHMR to pipe\n");
     uint8_t resp_msg_type = MSG_LHMR;
     uint8_t resp_data_type = TYPE_DOUBLE;
-    uint32_t resp_count = (155-90) * 3 * 2; // 65 bins, all/red/blue, mean/scatter
+    uint32_t resp_count = (MAX_HALO_IDX-MIN_HALO_IDX) * 3 * 2; // 65 bins, all/red/blue, mean/scatter
     fwrite(&resp_msg_type, 1, 1, MSG_PIPE);
     fwrite(&resp_data_type, 1, 1, MSG_PIPE);
     fwrite(&resp_count, sizeof(uint32_t), 1, MSG_PIPE);
-    fwrite(&mean_cen[90], sizeof(double), 65, MSG_PIPE);
-    fwrite(&std_cen[90], sizeof(double), 65, MSG_PIPE);
-    fwrite(&mean_cenr[90], sizeof(double), 65, MSG_PIPE);
-    fwrite(&std_cenr[90], sizeof(double), 65, MSG_PIPE);
-    fwrite(&mean_cenb[90], sizeof(double), 65, MSG_PIPE);
-    fwrite(&std_cenb[90], sizeof(double), 65, MSG_PIPE);
+    fwrite(&mean_cen[MIN_HALO_IDX], sizeof(double), 65, MSG_PIPE);
+    fwrite(&std_cen[MIN_HALO_IDX], sizeof(double), 65, MSG_PIPE);
+    fwrite(&mean_cenr[MIN_HALO_IDX], sizeof(double), 65, MSG_PIPE);
+    fwrite(&std_cenr[MIN_HALO_IDX], sizeof(double), 65, MSG_PIPE);
+    fwrite(&mean_cenb[MIN_HALO_IDX], sizeof(double), 65, MSG_PIPE);
+    fwrite(&std_cenb[MIN_HALO_IDX], sizeof(double), 65, MSG_PIPE);
     fflush(MSG_PIPE);
   }
   else if (!SILENT)
   {
-    for (i = 90; i < 155; ++i)
+    for (i = MIN_HALO_IDX; i < MAX_HALO_IDX; ++i)
     {
       // Format is: <log10(M_h)> <mean_cenr> <std_cenr> <mean_cenb> <std_cenb> <mean_cen> <std_cen>
       fprintf(stderr, "LHMR> %.2f %e %e %e %e %e %e\n", i / 10.0,
@@ -616,16 +643,30 @@ void tabulate_hods()
   }
 
   // Back to HODs: switch to log10 of the fractions for the rest of the code later
-  for (i = 90; i < HALO_BINS; ++i)
+  for (i = MIN_HALO_IDX; i < HALO_BINS; ++i)
   {
     for (j = 0; j < NVOLUME_BINS; ++j)
     {
-      ncenr[j][i] = log10(ncenr[j][i] * 1. / (nhalo[j][i] + 1.0E-20) + 1.0E-10);
-      nsatr[j][i] = log10(nsatr[j][i] * 1. / (nhalo[j][i] + 1.0E-20) + 1.0E-10);
-      ncenb[j][i] = log10(ncenb[j][i] * 1. / (nhalo[j][i] + 1.0E-20) + 1.0E-10);
-      nsatb[j][i] = log10(nsatb[j][i] * 1. / (nhalo[j][i] + 1.0E-20) + 1.0E-10);
+      ncenr[j][i] = log10(ncenr[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      nsatr[j][i] = log10(nsatr[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      ncenb[j][i] = log10(ncenb[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      nsatb[j][i] = log10(nsatb[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      ncen[j][i] = log10(ncen[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      nsat[j][i] = log10(nsat[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
     }
   }
+
+  print_hod("hod.out");
+
+  // Smooth and extrapolate the satellite HODs to handle gaps in the data and the high-mass end where there is little data.
+  //nsat_smooth(nsatr);
+  //nsat_smooth(nsatb);
+  //nsat_smooth(nsat);
+  nsat_extrapolate(nsatr);
+  nsat_extrapolate(nsatb);
+  nsat_extrapolate(nsat);
+
+  print_hod("hod_fit.out");
 }
 
 /* Do the same as above, but now giving
@@ -696,21 +737,131 @@ void lsat_model_scatter()
   return;
 }
 
+void nsat_smooth(double arr[MAXBINS][HALO_BINS])
+{
+  // For places in the array where nhalo_int is < 5, smooth that value with the neighboring two.
+  int imag, i;
+  for (imag = 0; imag < NVOLUME_BINS; ++imag) {
+    for (i = MIN_HALO_IDX + 1; i < MAX_HALO_IDX - 2; ++i) {
+      if (nhalo_int[imag][i] < 5) {
+        // Average with neighbors
+        arr[imag][i] = (arr[imag][i - 1] + arr[imag][i] + arr[imag][i + 1]) / 3.0;
+      }
+    }
+  }
+}
+
+void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
+{  
+  // Extend the satellite occupation function for high-mass halos
+  // using a linear fit.
+  
+  int istart, iend, i, badpoints, idx;
+  double bfit, mfit, mag;
+
+  for (int imag = 0; imag < NVOLUME_BINS; ++imag)
+  {
+    iend = 0;
+
+    // Set iend to the 3nd time we encounter a bin with nhalo_int[imag][i] < 10
+    for (i = 120; i < MAX_HALO_IDX; ++i)
+    {
+      if (nhalo_int[imag][i] < 10)
+      {
+        iend++;
+        if (iend == 3)
+        {
+          iend = i - 1;
+          break;
+        }
+      }
+    }
+    istart = iend - 10;
+
+    /*
+    mag = maglim[imag];
+    if (fabs(mag) < 16.1) {
+      istart = 118;
+      iend = 128;
+    } else if (fabs(mag) < 17.1) {
+      istart = 120;
+      iend = 130;
+    } else if (fabs(mag) < 18.1) {
+      istart = 126;
+      iend = 136;
+    } else if (fabs(mag) < 19.1) {
+      istart = 129;
+      iend = 139;
+    } else if (fabs(mag) < 20.1) {
+      istart = 131;
+      iend = 141;
+    } else if (fabs(mag) < 21.1) {
+      istart = 133;
+      iend = 143;
+    } else {
+      istart = 135;
+      iend = 145;
+    }*/
+
+    // Fit a line y = mfit * x + bfit to the data in arr[imag][i] for i = istart to iend
+    double sum_x = 0, sum_y = 0, sum_xx = 0, sum_xy = 0;
+    int nfit = 0;
+    for (i = istart; i <= iend; ++i) {
+      if (arr[imag][i] > -5) {
+        double x = i / 10.0;
+        double y = arr[imag][i];
+        sum_x += x;
+        sum_y += y;
+        sum_xx += x * x;
+        sum_xy += x * y;
+        nfit++;
+      }
+    }
+    if (nfit > 1) {
+      double denom = nfit * sum_xx - sum_x * sum_x;
+      if (fabs(denom) > 1e-10) {
+        mfit = (nfit * sum_xy - sum_x * sum_y) / denom;
+        bfit = (sum_y - mfit * sum_x) / nfit;
+      } else {
+        fprintf(stderr, "WARNING: Denominator too small for imag=%d, using default slope and intercept\n", imag);
+        mfit = 1.0;
+        bfit = -14.0;
+      }
+    } else {
+        fprintf(stderr, "WARNING: Not enough points to fit for imag=%d, using default slope and intercept\n", imag);
+        mfit = 1.0;
+        bfit = -14.0;
+    }
+
+    // Min slope of 1, max of 1.5
+    //if (mfit < 0.8) mfit = 0.8;
+    //if (mfit > 1.4) mfit = 1.4;
+
+    fprintf(stderr, "Extrapolate: imag=%d, istart=%d, iend=%d, mfit=%f, bfit=%f\n", imag, istart, iend, mfit, bfit);
+
+    for (i = iend; i <= MAX_HALO_IDX; ++i) {
+      arr[imag][i] = mfit * (i / 10.0) + bfit;
+    }
+  }
+}
+
+
 /*
  * Population a simulation's halo catalog using the tabulated HODs from tabulate_hods().
+ * Uses linear interpolate in log-log space from the tabulated HOD values.
  */
-void populate_simulation_omp(int imag, int blue_flag, int thisTask)
+void populate_simulation_omp(int imag, enum SampleType type, int thisTask)
 {
   // TODO BUG something from the last change broke this and caused it to make way more satellites
   // That is why it is now running way slower, and the clustering is way higher than it should be
   // static int flag=1;
   int i;
   FILE *fp;
-  long IDUM3 = -555, iseed = 555;
+  long IDUM3 = -555;
   FILE *outf;
   char fname[1000];
   int j, nsat_rand, imag_offset, imag_mult, istart, iend, mag;
-  float nsat, ncen, mass, xg[3], vg[3], xh[3], logm, bfit;
+  float nsat_calc, ncen_calc, mass, xg[3], vg[3], xh[3], logm, bfit;
   // struct drand48_data drand_buf;
   double r;
   int warned = 0;
@@ -757,83 +908,63 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
     return;
   }
 
-  /* Put this in a global so that we know which HOD
-   * to use.
-   */
+  // If this combination of imag and type isn't needed, skip it
+  assert (type == QUIESCENT || type == STARFORMING || type == ALL);
+  assert (imag >= 0 || imag == -1);
+  assert (imag < NVOLUME_BINS);
+  if (color_sep[imag] == 0 && type != ALL)
+    return;
+  if (color_sep[imag] > 0 && type == ALL)
+    return;
+
   imag_offset = (int)fabs(maglim[0]);
   imag_mult = 1;
   if (STELLAR_MASS)
   {
-    imag_offset = 90;
+    imag_offset = MIN_HALO_IDX;
     imag_mult = 5;
   }
   mag = imag * imag_mult + imag_offset;
-  if (!SILENT) fprintf(stderr, "popsim> starting population for imag=%d, blue=%d, mag=%d\n", imag, blue_flag, mag);
 
-  /* We'll do simple linear interpolation for the HOD
-   */
-  if (blue_flag)
-    sprintf(fname, "mock_blue_M%d.dat", mag);
-  else
-    sprintf(fname, "mock_red_M%d.dat", mag);
+  if (!SILENT) fprintf(stderr, "popsim> starting population for imag=%d, type=%d, mag=%d\n", imag, type, mag);
+
+  switch (type) 
+  {
+    case QUIESCENT:
+      sprintf(fname, "mock_red_M%d.dat", mag);
+      break;
+    case STARFORMING:
+      sprintf(fname, "mock_blue_M%d.dat", mag);
+      break;
+    case ALL:
+      sprintf(fname, "mock_all_M%d.dat", mag);
+      break;
+  }
   outf = fopen(fname, "w");
 
-  // srand48_r (iseed, &drand_buf);
-
-  // fit the high-mass satellite occupation function, force slope=1
-  istart = 130;
-  if (imag >= 2)
-    istart = 135;
-  iend = 140;
-  if (imag >= 2)
-    iend = 145;
-
-  bfit = 0;
-  if (imag == 0)
-  {
-    istart = 120;
-    iend = 130;
-  }
-  if (blue_flag)
-  {
-    for (i = istart; i <= iend; ++i)
-      bfit += nsatb[imag][i] - i / 10.0; 
-    bfit = bfit / (iend - istart + 1);
-    //fprintf(stderr, "popsim> bfit=%f\n", bfit);
-    for (i = iend; i <= 160; ++i)
-      nsatb[imag][i] = 1 * i / 10.0 + bfit;
-  }
-  else
-  {
-    for (i = istart; i <= iend; ++i)
-      bfit += nsatr[imag][i] - i / 10.0;
-    bfit = bfit / (iend - istart + 1);
-    //fprintf(stderr, "popsim> bfit=%f\n", bfit);
-    for (i = iend; i <= 160; ++i)
-      nsatr[imag][i] = 1 * i / 10.0 + bfit;
-  }
-
+  // Loop through halos and populate with galaxies
   for (i = 0; i < NHALO; ++i)
   {
     mass = HALO[i].mass;
     logm = log10(mass);
-    ncen = N_cen(mass, imag, blue_flag);
-    // drand48_r(&drand_buf, &r);
+    ncen_calc = N_cen(mass, imag, type);
     r = tabulated_uniform_random(thisTask);
-    // r = UNIFORM_RANDOM[IRAN_CURRENT[thisTask]];
-    // IRAN_CURRENT[thisTask]++;
-    // if(IRAN_CURRENT[thisTask]==NRANDOM)IRAN_CURRENT[thisTask]=0;
-    if (r < ncen)
+    if (r < ncen_calc)
     {
       fprintf(outf, "%.5f %.5f %.5f %f %f %f %d %f\n",
               HALO[i].x, HALO[i].y, HALO[i].z,
               HALO[i].vx, HALO[i].vy, HALO[i].vz, 0, logm);
     }
-    nsat = N_sat(mass, imag, blue_flag);
-    nsat_rand = poisson_deviate(nsat, thisTask);
+    // We can still add satellites even if there is no central becaues we're just doing this in a single luminosity bin
+
+    // Assume poisson variance in the number of satellites
+    // TODO could update this to use our measured variance?
+    nsat_calc = N_sat(mass, imag, type);
+    nsat_rand = poisson_deviate(nsat_calc, thisTask);
 
     // For a really bad set of parameters, we can get a huge number of satellites for some halos.
-    // Cap it so we don't print off a 10 Teraybyte file! Any MCMC or whatever will move on hopefully.
+    // Cap it so we don't print off a 10 Terabyte file! Any MCMC or whatever will move on hopefully.
+    // TODO early abort program instead
     if (nsat_rand > MAX_SATELLITES) {
       if (!warned) {
         fprintf(stderr, "popsim> WARNING: giving %d sats for halo %d\n", nsat_rand, i);
@@ -858,6 +989,7 @@ void populate_simulation_omp(int imag, int blue_flag, int thisTask)
               1, logm);
     }
   }
+  
   fclose(outf);
 }
 
@@ -878,29 +1010,46 @@ void boxwrap_galaxy(float xh[], float xg[])
 
 /**
  * Return the number of central galaxies for a halo of mass m
- * in the magnitude bin imag and color. Uses the tabulated HOD.
+ * in the magnitude bin imag and color. Uses the tabulated HOD
+ * and linearly interpolates in log10(M_h)-log10(N_cen) space.
  */
-float N_cen(float m, int imag, int blue_flag)
+float N_cen(float m, int imag, enum SampleType type)
 {
   int im;
-  float x0, y0, x1, y1, yp, logm;
+  float x0, y0, y1, yp, logm;
   logm = log10(m) / 0.1;
   im = (int)logm;
   x0 = im;
-  x1 = im + 1;
-  if (blue_flag)
-  {
-    y0 = ncenb[imag][im];
-    y1 = ncenb[imag][im + 1];
+  //x1 = im + 1;
+
+  if (im < MIN_HALO_IDX || im >= HALO_BINS - 1)
+    return 0;
+  if (im >= MAX_HALO_IDX) {
+    im = MAX_HALO_IDX - 1;
   }
-  else
+
+  switch (type)
   {
-    y0 = ncenr[imag][im];
-    y1 = ncenr[imag][im + 1];
+    case QUIESCENT:
+      y0 = ncenr[imag][im];
+      y1 = ncenr[imag][im + 1];
+      break;
+    case STARFORMING:
+      y0 = ncenb[imag][im];
+      y1 = ncenb[imag][im + 1];
+      break;
+    case ALL:
+      y0 = ncen[imag][im];
+      y1 = ncen[imag][im + 1];
+      break;
+    default:
+      fprintf(stderr, "ERROR: Unknown sample type %d in N_cen\n", type);
+      exit(EINVAL);
   }
-  yp = y0 + ((y1 - y0) / (x1 - x0)) * (logm - x0);
-  // if(logm>124)
-  //  printf("CEN %e %f %d %f %f %f %f %f\n",m,logm,im,x0,x1,y0,y1,yp);
+
+  //yp = y0 + ((y1 - y0) / (x1 - x0)) * (logm - x0);
+  yp = y0 + ((y1 - y0)) * (logm - x0);
+
   if (yp <= -10)
     return 0;
   return pow(10.0, yp);
@@ -910,25 +1059,40 @@ float N_cen(float m, int imag, int blue_flag)
  * Return the number of satellites for a halo of mass m in the given 
  * magnitude bin and color. Uses the tabulated HOD.
  */
-float N_sat(float m, int imag, int blue_flag)
+float N_sat(float m, int imag, enum SampleType type)
 {
   int im;
-  float x0, y0, x1, y1, yp, logm;
+  float x0, y0, y1, yp, logm;
   logm = log10(m) / 0.1;
   im = (int)logm;
   x0 = im;
-  x1 = im + 1;
-  if (blue_flag)
-  {
-    y0 = nsatb[imag][im];
-    y1 = nsatb[imag][im + 1];
+  //x1 = im + 1;
+
+  if (im < MIN_HALO_IDX || im >= HALO_BINS - 1)
+    return 0;
+  if (im >= MAX_HALO_IDX) {
+    im = MAX_HALO_IDX - 1;
   }
-  else
+
+  switch (type)
   {
-    y0 = nsatr[imag][im];
-    y1 = nsatr[imag][im + 1];
+    case QUIESCENT:
+      y0 = nsatb[imag][im];
+      y1 = nsatb[imag][im + 1];
+      break;
+    case STARFORMING:
+      y0 = nsatr[imag][im];
+      y1 = nsatr[imag][im + 1];
+      break;
+    case ALL:
+      y0 = nsat[imag][im];
+      y1 = nsat[imag][im + 1];
+      break;
   }
-  yp = y0 + ((y1 - y0) / (x1 - x0)) * (logm - x0);
+
+  //yp = y0 + ((y1 - y0) / (x1 - x0)) * (logm - x0);
+  yp = y0 + ((y1 - y0)) * (logm - x0);
+
   if (yp <= -10)
     return 0;
   return pow(10.0, yp);
@@ -939,6 +1103,30 @@ float N_sat(float m, int imag, int blue_flag)
 //=    - Input:  Mean value of distribution                                 =
 //=    - Output: Returns with Poisson distributed random variable           =
 //===========================================================================
+int poisson_deviate_old(float mean, int thisTask)
+{
+  // Efficient Poisson deviate using inversion for small mean, normal approx for large mean
+  if (mean <= 0)
+    return 0;
+  if (mean < 30.0) {
+    // Inversion method
+    float L = expf(-mean);
+    float p = 1.0f;
+    int k = 0;
+    do {
+      p *= tabulated_uniform_random(thisTask);
+      k++;
+    } while (p > L);
+    return k - 1;
+  } else {
+    // Normal approximation for large mean
+    float g = sqrtf(mean);
+    float val = mean + g * tabulated_gaussian_random(thisTask);
+    if (val < 0) val = 0;
+    return (int)(val + 0.5f);
+  }
+}
+
 int poisson_deviate(float x, int thisTask)
 {
   float r;

@@ -4,6 +4,43 @@
 #include <math.h>
 #include <assert.h>
 #include "groups.h"
+#include "fit_clustering_omp.h"
+
+
+
+void test_poisson_deviate_basic() {
+    printf("=== POISSON DEVIATE BASIC TESTS ===\n");
+    double mean = 5.0;
+    int n_trials = 10000;
+    double sum = 0.0;
+    double sum_sq = 0.0;
+    for (int i = 0; i < n_trials; ++i) {
+        int val = poisson_deviate(mean, 0);
+        assert(val >= 0 && "Poisson deviate should be non-negative");
+        sum += val;
+        sum_sq += val * val;
+    }
+    double avg = sum / n_trials;
+    double var = sum_sq / n_trials - avg * avg;
+    printf("Mean: %f, Variance: %f (expected mean ~%f, variance ~%f)\n", avg, var, mean, mean);
+    assert(fabs(avg - mean) < 0.2 && "Sample mean should be close to input mean");
+    assert(fabs(var - mean) < 0.2 && "Sample variance should be close to input mean");
+    printf(" *** Basic poisson_deviate tests passed.\n\n");
+}
+
+void test_poisson_deviate_edge_cases() {
+    printf("=== POISSON DEVIATE EDGE CASES ===\n");
+    // Mean = 0 should always return 0
+    for (int i = 0; i < 100; ++i) {
+        double val = poisson_deviate(0.0, 0);
+        assert(val == 0.0 && "Poisson deviate with mean 0 should be 0");
+    }
+    // Very large mean
+    double mean = 1e6;
+    double val = poisson_deviate(mean, 0);
+    assert(val >= 0 && "Poisson deviate should be non-negative for large mean");
+    printf(" *** Edge case poisson_deviate tests passed.\n\n");
+}
 
 void test_angular_separation() {
     float theta, theta_old;
@@ -140,6 +177,8 @@ void test_psat() {
 
 int main(int argc, char **argv) {
 
+    test_poisson_deviate_basic();
+    test_poisson_deviate_edge_cases();
     test_angular_separation();
     test_psat();
 

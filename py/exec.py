@@ -13,7 +13,7 @@ from multiprocessing import Pool
 
 execution_mode = 'once' # or 'clustering' or 'mcmc'
 mcmcnum = None # Will make a new folder
-mcmc_iter = 3000 # x 30 walkers
+mcmc_iter = 1000 # x 30 walkers
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')

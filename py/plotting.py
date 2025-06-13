@@ -939,6 +939,63 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.legend()
 
+def hod_plot(gc: GroupCatalog):
+    """
+    Plot the HOD from a file, overlaying with a histogram of the number of halos (nhalo).
+    """
+    # Format is <M_h> [<ncenr_i> <nsatr_i> <ncenb_i> <nsatb_i> <nhalo_i> for each i mag bin]
+    for data in [gc.hod, gc.hodfit]:
+        n_cols = data.shape[1]
+        n_lbins = (n_cols - 1) // 7
+        if n_cols % 7 != 1:
+            raise ValueError(f"Expected 7*n_lbins + 1 columns, got {n_cols} columns")
+        print(f"Found {n_lbins} luminosity bins")
+
+        log_halo_mass = data[:, 0]
+
+        fig, axes = plt.subplots(1, n_lbins, figsize=(5 * n_lbins, 6), dpi=DPI, sharey=True)
+        if n_lbins == 1:
+            axes = [axes]
+        for lbin in range(n_lbins):
+            ax = axes[lbin]
+            log_red_cen_fraction = data[:, 1 + lbin * 7]
+            log_red_sat_fraction = data[:, 2 + lbin * 7]
+            log_blue_cen_fraction = data[:, 3 + lbin * 7]
+            log_blue_sat_fraction = data[:, 4 + lbin * 7]
+            log_all_cen_fraction = data[:, 5 + lbin * 7]
+            log_all_sat_fraction = data[:, 6 + lbin * 7]
+            nhalo = data[:, 7 + lbin * 7]
+
+            alpha = 0.6
+            if gc.caldata.color_separation[lbin]:
+                ax.plot(log_halo_mass, log_red_cen_fraction, 'r-', label='Red Cen', alpha=alpha)
+                ax.plot(log_halo_mass, log_red_sat_fraction, 'r--', label='Red Sat', alpha=alpha)
+                ax.plot(log_halo_mass, log_blue_cen_fraction, 'b-', label='Blue Cen', alpha=alpha)
+                ax.plot(log_halo_mass, log_blue_sat_fraction, 'b--', label='Blue Sat', alpha=alpha)
+            else:
+                ax.plot(log_halo_mass, log_all_cen_fraction, 'k-', label='All Cen', alpha=alpha)
+                ax.plot(log_halo_mass, log_all_sat_fraction, 'k--', label='All Sat', alpha=alpha)
+            ax.set_xlabel('log($M_h$) [$M_\odot / h$]')
+            ax.set_xlim(10.0, 15.5)
+            ax.set_ylim(-5, 2)
+            ax.set_title(f'{gc.caldata.magbins[lbin]} > $M_r$ - 5log($h$) > {gc.caldata.magbins[lbin+1]}')
+            if lbin == 0:
+                ax.set_ylabel('log(fraction)')
+            ax.legend(loc='upper left')
+
+            # Overlay nhalo histogram as a filled area on a secondary y-axis
+            ax2 = ax.twinx()
+            ax2.fill_between(log_halo_mass, nhalo, color='gray', alpha=0.2, step='mid', label='N_halo')
+            ax2.set_ylabel('Number of halos')
+            ax2.set_yscale('log')
+            ax2.tick_params(axis='y', labelcolor='gray')
+            # Optionally, add legend for nhalo
+            if lbin == n_lbins - 1:
+                ax2.legend(loc='upper left')
+
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+
 
 def proj_clustering_plot(gc: GroupCatalog):
     caldata = gc.caldata

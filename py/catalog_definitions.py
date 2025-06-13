@@ -187,7 +187,7 @@ bgs_nn.marker = '-'
 bgs_nn_sdsslike = BGSGroupCatalog("Nearest Neighbor BGS Y1 SDSS-like", Mode.NEAREST_NEIGHBOR, 17.7, 17.7, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_nn_sdsslike.marker = '-'
 
-bgs_y1mini_pzp_2_4_c1 = BGSGroupCatalog("BGS Y1 Mini PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
+bgs_y1mini_pzp_2_4_c1 = BGSGroupCatalog("BGS Y1 Mini PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1mini)
 bgs_y1mini_pzp_2_4_c1.marker = '--'
 bgs_y1mini_pzp_2_4_c1.color = 'darkgreen'
 
@@ -198,6 +198,8 @@ bgs_y1_pzp_2_4.color = 'darkgreen'
 bgs_y1_pzp_2_4_c1 = BGSGroupCatalog("BGS Y1 PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
 bgs_y1_pzp_2_4_c1.marker = '--'
 bgs_y1_pzp_2_4_c1.color = 'darkgreen'
+
+bgs_y1mini_pzp_2_4_mcmc = BGSGroupCatalog("BGS Y1 Mini Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1mini)
 
 bgs_y1_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
 bgs_y1_hybrid_mcmc.marker = '.'
@@ -267,10 +269,10 @@ bgs_sv3_10p_mcmc = BGSGroupCatalog(
     data_cut='sv3', 
     sdss_fill=True, 
     extra_params=PZP_PARAMS_V24, 
-    gfprops=GF_PROPS_BGS_COLORS_C1.copy()
+    gfprops=GF_PROPS_BGS_COLORS_C1.copy(),
+    caldata_ctor=CalibrationData.SDSS_4bin
 )
 bgs_sv3_10p_mcmc.color = 'k'
-bgs_sv3_10p_mcmc.caldata = CalibrationData.SDSS_4bin(19.5, bgs_sv3_10p_mcmc.GF_props['frac_area'])
 
 bgs_sv3_hybrid_mcmc = BGSGroupCatalog(
     "BGS SV3 Hybrid MCMC", 

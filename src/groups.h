@@ -25,6 +25,9 @@
 #define TYPE_FLOAT 0
 #define TYPE_DOUBLE 1
 
+// Custom error numbers
+#define	E_BADPARAMS 50
+
 //#define OPTIMIZE
 
 /* Structure definition for galaxies. */

@@ -111,7 +111,14 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
             if (token != NULL) {
               VOLUME_BINS_FILE = strdup(token);
             }
+          } else {
+            fprintf(stderr, "Mock file and volume bins file must be specified with -p option.\n");
+            exit(EPERM);
           }
+
+      } else {
+        fprintf(stderr, "Mock file and volume bins file must be specified with -p option.\n");
+        exit(EPERM);
       }
       break;
     case 'v':
@@ -281,17 +288,18 @@ int main(int argc, char **argv)
 
     t2 = omp_get_wtime();
     
-    //for (i = 0; i < NVOLUME_BINS*2; i += 1)
+    //for (i = 0; i < NVOLUME_BINS*3; i += 1)
     //{
-    //  populate_simulation_omp(i / 2, i % 2, 1);
+    //  populate_simulation_omp(i / 3, i % 3, 1);
     //}
 #pragma omp parallel private(i,istart,istep)
     {
+      // TODO update given the new enum and values saved in color_sep global.
       istart = omp_get_thread_num();
       istep = omp_get_num_threads();
-      for(i=istart; i< NVOLUME_BINS*2; i+=istep)
+      for(i=istart; i< NVOLUME_BINS*3; i+=istep)
       {
-        populate_simulation_omp(i/2, i%2, istart);
+        populate_simulation_omp(i/3, i%3, istart);
       }
     }
 

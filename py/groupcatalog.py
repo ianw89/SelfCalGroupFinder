@@ -596,7 +596,7 @@ class GroupCatalog:
             args.append("-e")
         if popmock:
             # Save a file with the volume bin info, which the C code will read
-            np.savetxt(self.output_folder + "volume_bins.dat", np.column_stack((self.caldata.magbins[:-1], self.caldata.zmaxes, self.caldata.volumes)), fmt='%f')
+            self.caldata.write_volume_bins_file(self.output_folder + "volume_bins.dat")
             args.append(f"--popmock={MOCK_FILE_FOR_POPMOCK},volume_bins.dat")
         if verbose:
             args.append("-v")
@@ -634,8 +634,11 @@ class GroupCatalog:
             
         if popmock:
             hodout = f'{self.output_folder}hod.out'
+            hodfitout = f'{self.output_folder}hod_fit.out'
             if os.path.exists(hodout):
                 self.hod = np.loadtxt(hodout, skiprows=4, dtype='float', delimiter=' ')
+            if os.path.exists(hodfitout):
+                self.hodfit = np.loadtxt(hodfitout, skiprows=4, dtype='float', delimiter=' ')
 
         t2 = time.time()
         print(f"run_group_finder() took {t2-t1:.1f} seconds.")
@@ -1148,7 +1151,7 @@ class BGSGroupCatalog(GroupCatalog):
     
     extra_prop_df: pd.DataFrame = None
 
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, drop_passes: int = 0, data_cut: str = "Y1-Iron", gfprops=None, extra_params = None):
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, drop_passes: int = 0, data_cut: str = "Y1-Iron", gfprops=None, extra_params = None, caldata_ctor=None):
         super().__init__(name)
         self.mode = mode
         self.mag_cut = mag_cut
@@ -1164,8 +1167,10 @@ class BGSGroupCatalog(GroupCatalog):
         self.GF_props = gfprops
         frac_area = get_footprint_fraction(data_cut, mode, num_passes)
         self.GF_props['frac_area'] = frac_area
-        #self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
-        self.caldata = CalibrationData.BGS_Y1_6bin(self.mag_cut, self.GF_props['frac_area'])
+        if caldata_ctor is None:
+            self.caldata = CalibrationData.BGS_Y1_6bin(self.mag_cut, self.GF_props['frac_area'])
+        else:
+            self.caldata = caldata_ctor(self.mag_cut, self.GF_props['frac_area'])
 
     @staticmethod
     def from_MCMC(reader: emcee.backends.HDFBackend, mode: Mode):
