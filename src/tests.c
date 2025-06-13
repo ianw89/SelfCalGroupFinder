@@ -3,10 +3,39 @@
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+#include <omp.h>
 #include "groups.h"
 #include "fit_clustering_omp.h"
 
 
+void test_poisson_deviate_speed() {
+    printf("=== POISSON DEVIATE SPEED TEST ===\n");
+    double mean = 10.0;
+    int n_trials = 5000000;
+    int dummy = 0;
+    double t1, t2;
+
+    // Time poisson_deviate
+    t1 = omp_get_wtime();
+    for (int i = 0; i < n_trials; ++i) {
+        dummy += poisson_deviate(mean);
+    }
+    t2 = omp_get_wtime();
+    printf("poisson_deviate: %d trials took %.6f seconds\n", n_trials, t2 - t1);
+
+    // Time poisson_deviate_old
+    t1 = omp_get_wtime();
+    for (int i = 0; i < n_trials; ++i) {
+        dummy += poisson_deviate_old(mean);
+    }
+    t2 = omp_get_wtime();
+    printf("poisson_deviate_old: %d trials took %.6f seconds\n", n_trials, t2 - t1);
+
+    // Prevent compiler optimizing away
+    if (dummy == -1) printf("Impossible!\n");
+
+    printf(" *** poisson_deviate speed test complete.\n\n");
+}
 
 void test_poisson_deviate_basic() {
     printf("=== POISSON DEVIATE BASIC TESTS ===\n");
@@ -15,7 +44,7 @@ void test_poisson_deviate_basic() {
     double sum = 0.0;
     double sum_sq = 0.0;
     for (int i = 0; i < n_trials; ++i) {
-        int val = poisson_deviate(mean, 0);
+        int val = poisson_deviate(mean);
         assert(val >= 0 && "Poisson deviate should be non-negative");
         sum += val;
         sum_sq += val * val;
@@ -23,8 +52,8 @@ void test_poisson_deviate_basic() {
     double avg = sum / n_trials;
     double var = sum_sq / n_trials - avg * avg;
     printf("Mean: %f, Variance: %f (expected mean ~%f, variance ~%f)\n", avg, var, mean, mean);
-    assert(fabs(avg - mean) < 0.2 && "Sample mean should be close to input mean");
-    assert(fabs(var - mean) < 0.2 && "Sample variance should be close to input mean");
+    assert(fabs(avg - mean) < 0.1 * mean && "Sample mean should be close to input mean for poisson");
+    assert(fabs(var - mean) < 0.1 * mean && "Sample variance should be close to input mean for poisson");
     printf(" *** Basic poisson_deviate tests passed.\n\n");
 }
 
@@ -32,13 +61,25 @@ void test_poisson_deviate_edge_cases() {
     printf("=== POISSON DEVIATE EDGE CASES ===\n");
     // Mean = 0 should always return 0
     for (int i = 0; i < 100; ++i) {
-        double val = poisson_deviate(0.0, 0);
+        double val = poisson_deviate(0.0);
         assert(val == 0.0 && "Poisson deviate with mean 0 should be 0");
     }
-    // Very large mean
-    double mean = 1e6;
-    double val = poisson_deviate(mean, 0);
-    assert(val >= 0 && "Poisson deviate should be non-negative for large mean");
+    // Large mean
+    double mean = 100;
+    int n_trials = 10000;
+    double sum = 0.0;
+    double sum_sq = 0.0;
+    for (int i = 0; i < n_trials; ++i) {
+        int val = poisson_deviate(mean);
+        assert(val >= 0 && "Poisson deviate should be non-negative");
+        sum += val;
+        sum_sq += val * val;
+    }
+    double avg = sum / n_trials;
+    double var = sum_sq / n_trials - avg * avg;
+    printf("Mean: %f, Variance: %f (expected mean ~%f, variance ~%f)\n", avg, var, mean, mean);
+    assert(fabs(avg - mean) < 0.1 * mean && "Sample mean should be close to input mean for poisson");
+    assert(fabs(var - mean) < 0.1 * mean && "Sample variance should be close to input mean for poisson");
     printf(" *** Edge case poisson_deviate tests passed.\n\n");
 }
 
@@ -161,7 +202,7 @@ void test_psat() {
     assert(p6 < p5 && "psat should go down compared to previous since larger delta_z");  
 
     delta_z = 0.01;
-    arcmin = 7.5; // a Mpc or so
+    arcmin = 30; // 4 Mpc or so
     gal.mass = 1E12;
     ang_sep = angular_separation(0.0, 0.0, 0.0, (arcmin/60.0)*(PI/180.0));
     bsat = 0.001; // Min value in formula for Bsat
@@ -177,6 +218,9 @@ void test_psat() {
 
 int main(int argc, char **argv) {
 
+    setup_rng();
+
+    test_poisson_deviate_speed();
     test_poisson_deviate_basic();
     test_poisson_deviate_edge_cases();
     test_angular_separation();

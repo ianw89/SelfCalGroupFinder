@@ -986,12 +986,10 @@ def hod_plot(gc: GroupCatalog):
             # Overlay nhalo histogram as a filled area on a secondary y-axis
             ax2 = ax.twinx()
             ax2.fill_between(log_halo_mass, nhalo, color='gray', alpha=0.2, step='mid', label='N_halo')
-            ax2.set_ylabel('Number of halos')
+            if lbin == 0:
+                ax2.set_ylabel('Number of halos')
             ax2.set_yscale('log')
             ax2.tick_params(axis='y', labelcolor='gray')
-            # Optionally, add legend for nhalo
-            if lbin == n_lbins - 1:
-                ax2.legend(loc='upper left')
 
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 

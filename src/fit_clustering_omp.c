@@ -1,5 +1,3 @@
-// Initialization //
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -8,6 +6,7 @@
 #include <assert.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <omp.h>
 #include "nrutil.h"
 #include "kdtree.h"
 #include "groups.h"
@@ -17,7 +16,6 @@
 
 // Definitions
 #define MAXBINS 10 // This is the max number of magnitude bins we use for the HOD. The actual amount we use is read in from VOLUME_BINS_FILE
-#define NRANDOM 1000000
 #define MAX_SATELLITES 1000 // Print a warning and cap the number of satellites to this if it is exceeded. Likely bad parameters.
 #define HALO_BINS 200 // log10(M_halo) / 0.1
 #define MIN_HALO_IDX 90 // log10(M_halo) = 9.0
@@ -25,9 +23,7 @@
 
 /* Global for the random numbers
  */
-float UNIFORM_RANDOM[NRANDOM];
-float GAUSSIAN_RANDOM[NRANDOM];
-int IRAN_CURRENT[100];
+struct drand48_data *rng_buffers;
 
 /* Globals for the halos
  */
@@ -58,15 +54,25 @@ float REDSHIFT = 0.0,
  */
 void nsat_smooth(double arr[MAXBINS][HALO_BINS]);
 void nsat_extrapolate(double arr[MAXBINS][HALO_BINS]);
-float NFW_position(float mass, float x[], int thisTask);
-float NFW_velocity(float mass, float v[], int thisTask);
+float NFW_position(float mass, float x[]);
+float NFW_velocity(float mass, float v[]);
 float NFW_density(float r, float rs, float ps);
 float halo_concentration(float mass);
 float N_sat(float m, int imag, enum SampleType type);
 float N_cen(float m, int imag, enum SampleType type);
 void boxwrap_galaxy(float xh[], float xg[]);
-float tabulated_gaussian_random(int thisTask);
-float tabulated_uniform_random(int thisTask);
+float rand_gaussian();
+float rand_f();
+
+
+void setup_rng() 
+{
+  int nthreads = omp_get_max_threads();
+  rng_buffers = malloc(nthreads * sizeof(struct drand48_data));
+
+  for (int i = 0; i < nthreads; ++i)
+    srand48_r(753 + i, &(rng_buffers[i]));
+}
 
 void print_hod(const char* filename)
 {
@@ -833,11 +839,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
         bfit = -14.0;
     }
 
-    // Min slope of 1, max of 1.5
-    //if (mfit < 0.8) mfit = 0.8;
-    //if (mfit > 1.4) mfit = 1.4;
-
-    fprintf(stderr, "Extrapolate: imag=%d, istart=%d, iend=%d, mfit=%f, bfit=%f\n", imag, istart, iend, mfit, bfit);
+    //fprintf(stderr, "Extrapolate: imag=%d, istart=%d, iend=%d, mfit=%f, bfit=%f\n", imag, istart, iend, mfit, bfit);
 
     for (i = iend; i <= MAX_HALO_IDX; ++i) {
       arr[imag][i] = mfit * (i / 10.0) + bfit;
@@ -850,7 +852,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
  * Population a simulation's halo catalog using the tabulated HODs from tabulate_hods().
  * Uses linear interpolate in log-log space from the tabulated HOD values.
  */
-void populate_simulation_omp(int imag, enum SampleType type, int thisTask)
+void populate_simulation_omp(int imag, enum SampleType type)
 {
   // TODO BUG something from the last change broke this and caused it to make way more satellites
   // That is why it is now running way slower, and the clustering is way higher than it should be
@@ -892,21 +894,9 @@ void populate_simulation_omp(int imag, enum SampleType type, int thisTask)
     }
     fclose(fp);
     if (!SILENT) fprintf(stderr, "popsim> done reading halo data [%d].\n", NHALO);
-
-    // lets create a list of random numbers
-    if (!SILENT) fprintf(stderr, "popsim> creating random numbers [%d].\n", NHALO);
-    for (i = 0; i < NRANDOM; ++i)
-    {
-      UNIFORM_RANDOM[i] = drand48();
-      GAUSSIAN_RANDOM[i] = gasdev(&IDUM3);
-    }
-    // each task gets its own counter
-    for (i = 0; i < 100; ++i)
-      IRAN_CURRENT[i] = (int)(drand48() * 100);
-    if (!SILENT) fprintf(stderr, "popsim> done with randoms [%d].\n", NHALO);
-
     return;
   }
+  
 
   // If this combination of imag and type isn't needed, skip it
   assert (type == QUIESCENT || type == STARFORMING || type == ALL);
@@ -948,7 +938,7 @@ void populate_simulation_omp(int imag, enum SampleType type, int thisTask)
     mass = HALO[i].mass;
     logm = log10(mass);
     ncen_calc = N_cen(mass, imag, type);
-    r = tabulated_uniform_random(thisTask);
+    r = rand_f();
     if (r < ncen_calc)
     {
       fprintf(outf, "%.5f %.5f %.5f %f %f %f %d %f\n",
@@ -960,7 +950,7 @@ void populate_simulation_omp(int imag, enum SampleType type, int thisTask)
     // Assume poisson variance in the number of satellites
     // TODO could update this to use our measured variance?
     nsat_calc = N_sat(mass, imag, type);
-    nsat_rand = poisson_deviate(nsat_calc, thisTask);
+    nsat_rand = poisson_deviate(nsat_calc);
 
     // For a really bad set of parameters, we can get a huge number of satellites for some halos.
     // Cap it so we don't print off a 10 Terabyte file! Any MCMC or whatever will move on hopefully.
@@ -975,8 +965,8 @@ void populate_simulation_omp(int imag, enum SampleType type, int thisTask)
 
     for (j = 1; j <= nsat_rand; ++j)
     {
-      NFW_position(mass, xg, thisTask);
-      NFW_velocity(mass, vg, thisTask);
+      NFW_position(mass, xg);
+      NFW_velocity(mass, vg);
       xh[0] = HALO[i].x;
       xh[1] = HALO[i].y;
       xh[2] = HALO[i].z;
@@ -1103,7 +1093,7 @@ float N_sat(float m, int imag, enum SampleType type)
 //=    - Input:  Mean value of distribution                                 =
 //=    - Output: Returns with Poisson distributed random variable           =
 //===========================================================================
-int poisson_deviate_old(float mean, int thisTask)
+int poisson_deviate(float mean)
 {
   // Efficient Poisson deviate using inversion for small mean, normal approx for large mean
   if (mean <= 0)
@@ -1114,20 +1104,20 @@ int poisson_deviate_old(float mean, int thisTask)
     float p = 1.0f;
     int k = 0;
     do {
-      p *= tabulated_uniform_random(thisTask);
+      p *= rand_f();
       k++;
     } while (p > L);
     return k - 1;
   } else {
     // Normal approximation for large mean
     float g = sqrtf(mean);
-    float val = mean + g * tabulated_gaussian_random(thisTask);
+    float val = mean + g * rand_gaussian();
     if (val < 0) val = 0;
     return (int)(val + 0.5f);
   }
 }
 
-int poisson_deviate(float x, int thisTask)
+int poisson_deviate_old(float x)
 {
   float r;
   int poi_value; // Computed Poisson value to be returned
@@ -1142,7 +1132,7 @@ int poisson_deviate(float x, int thisTask)
   t_sum = 0.0;
   while (1)
   {
-    r = tabulated_uniform_random(thisTask);
+    r = rand_f();
     t_sum = t_sum - x * log(r);
     // printf("POI %d %e %e %e %e\n",poi_value,x,r,log(r),t_sum);
     if (t_sum >= 1.0)
@@ -1153,30 +1143,41 @@ int poisson_deviate(float x, int thisTask)
   return (poi_value);
 }
 
-float tabulated_gaussian_random(int thisTask)
+float rand_gaussian()
 {
-  float r;
-  r = GAUSSIAN_RANDOM[IRAN_CURRENT[thisTask]];
-  IRAN_CURRENT[thisTask]++;
-  if (IRAN_CURRENT[thisTask] == NRANDOM)
-    IRAN_CURRENT[thisTask] = 0;
-  return r;
+  // Use Box-Muller transform with drand48_r for thread safety
+  int tnum = omp_get_thread_num();
+  struct drand48_data *rng = &rng_buffers[tnum];
+  double u, v, s;
+
+  do {
+    drand48_r(rng, &u);
+    drand48_r(rng, &v);
+    u = 2.0 * u - 1.0;
+    v = 2.0 * v - 1.0;
+    s = u * u + v * v;
+  } while (s >= 1.0 || s == 0.0);
+
+  s = sqrt(-2.0 * log(s) / s);
+
+  return (float)(u * s);
 }
-float tabulated_uniform_random(int thisTask)
+
+
+float rand_f()
 {
-  float r;
-  r = UNIFORM_RANDOM[IRAN_CURRENT[thisTask]];
-  IRAN_CURRENT[thisTask]++;
-  if (IRAN_CURRENT[thisTask] == NRANDOM)
-    IRAN_CURRENT[thisTask] = 0;
-  return r;
+  int tnum = omp_get_thread_num();
+  struct drand48_data *rng = &(rng_buffers[tnum]);
+  double r;
+  drand48_r(rng, &r);
+  return (float)r;
 }
 
 /* Randomy generates a position away from the origin with
  * a probability given by the NFW profile for a halo of the input
  * mass (and including the CVIR_FAC)
  */
-float NFW_position(float mass, float x[], int thisTask)
+float NFW_position(float mass, float x[])
 {
   float r, pr, max_p, costheta, sintheta, phi1, signs, rvir, rs, cvir, mfac = 1;
   double rr;
@@ -1187,16 +1188,16 @@ float NFW_position(float mass, float x[], int thisTask)
 
   for (;;)
   {
-    r = tabulated_uniform_random(thisTask) * rvir;
+    r = rand_f() * rvir;
     pr = NFW_density(r, rs, 1.0) * r * r * 4.0 * PI / max_p;
 
-    if (tabulated_uniform_random(thisTask) <= pr)
+    if (rand_f() <= pr)
     {
-      costheta = 2. * (tabulated_uniform_random(thisTask) - .5);
+      costheta = 2. * (rand_f() - .5);
       sintheta = sqrt(1. - costheta * costheta);
-      signs = 2. * (tabulated_uniform_random(thisTask) - .5);
+      signs = 2. * (rand_f() - .5);
       costheta = signs * costheta / fabs(signs);
-      phi1 = 2.0 * PI * tabulated_uniform_random(thisTask);
+      phi1 = 2.0 * PI * rand_f();
 
       x[0] = r * sintheta * cos(phi1);
       x[1] = r * sintheta * sin(phi1);
@@ -1215,7 +1216,7 @@ float NFW_density(float r, float rs, float ps)
 
 /* This sets the velocity to be isotropic Gaussian.
  */
-float NFW_velocity(float mass, float v[], int thisTask)
+float NFW_velocity(float mass, float v[])
 {
   static long IDUM2 = -455;
   // static float fac = -1;
@@ -1226,7 +1227,7 @@ float NFW_velocity(float mass, float v[], int thisTask)
   fac = sqrt(4.499E-48) * pow(4 * DELTA_HALO * PI * OMEGA_M * RHO_CRIT / 3, 1.0 / 6.0) * 3.09E19 * sqrt(1 + REDSHIFT);
   sigv = fac * pow(mass, 1.0 / 3.0) / ROOT2;
   for (i = 0; i < 3; ++i)
-    v[i] = tabulated_gaussian_random(thisTask) * sigv;
+    v[i] = rand_gaussian() * sigv;
   return (0);
 }
 

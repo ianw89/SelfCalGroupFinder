@@ -5,10 +5,11 @@ enum SampleType {
   NONE
 };
 
-int poisson_deviate(float nave, int thisTask);
-int poisson_deviate_old(float nave, int thisTask);
+void setup_rng();
+int poisson_deviate(float mean);
+int poisson_deviate_old(float mean);
 void print_hod(const char* filename);
 void tabulate_hods();
-void populate_simulation_omp(int imag, enum SampleType type, int thisTask);
+void populate_simulation_omp(int imag, enum SampleType type);
 void lsat_model();
 void lsat_model_scatter();

@@ -278,7 +278,8 @@ int main(int argc, char **argv)
     t0 = omp_get_wtime();
     lsat_model();
     tabulate_hods();
-    populate_simulation_omp(-1, 0, 0);
+    setup_rng();
+    populate_simulation_omp(-1, 0);
     t1 = omp_get_wtime();
     if (!SILENT) fprintf(stderr, "lsat + hod + prep popsim: %.2f sec\n", t1 - t0);
 
@@ -290,7 +291,7 @@ int main(int argc, char **argv)
     
     //for (i = 0; i < NVOLUME_BINS*3; i += 1)
     //{
-    //  populate_simulation_omp(i / 3, i % 3, 1);
+    //  populate_simulation_omp(i / 3, i % 3);
     //}
 #pragma omp parallel private(i,istart,istep)
     {
@@ -299,7 +300,7 @@ int main(int argc, char **argv)
       istep = omp_get_num_threads();
       for(i=istart; i< NVOLUME_BINS*3; i+=istep)
       {
-        populate_simulation_omp(i/3, i%3, istart);
+        populate_simulation_omp(i/3, i%3);
       }
     }
 
