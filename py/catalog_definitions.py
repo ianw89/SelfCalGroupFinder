@@ -199,7 +199,7 @@ bgs_y1_pzp_2_4_c1 = BGSGroupCatalog("BGS Y1 PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 1
 bgs_y1_pzp_2_4_c1.marker = '--'
 bgs_y1_pzp_2_4_c1.color = 'darkgreen'
 
-bgs_y1mini_pzp_2_4_mcmc = BGSGroupCatalog("BGS Y1 Mini Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1mini)
+bgs_y1mini_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Mini Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1mini)
 
 bgs_y1_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
 bgs_y1_hybrid_mcmc.marker = '.'

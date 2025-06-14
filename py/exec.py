@@ -1,19 +1,20 @@
 import sys
-from urllib.parse import urljoin
 import time
 import asyncio
 import concurrent.futures
 from multiprocessing import Pool
 
 # EXAMPLE USAGE
-# nohup python3 exec.py 6 7 8 9 &> exec.out &
-# nohup python3 exec.py mcmc 2 x0 &> exec.out &
-# nohup python3 exec.py mcmc 10 x0 &> exec.out &
-# nohup python3 exec.py 0 &> pzp_mcmc.out &
+# export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+# nohup python3 py/exec.py 6 7 8 9 &> variations.out &
+# nohup python3 py/exec.py mcmc 12 x0 &> y1mini_mcmc.out &
+# nohup python3 py/exec.py mcmc 13 x0 &> y1full_mcmc.out &
+# nohup python3 py/exec.py 0 &> pzp_mcmc.out &
+
 
 execution_mode = 'once' # or 'clustering' or 'mcmc'
 mcmcnum = None # Will make a new folder
-mcmc_iter = 1000 # x 30 walkers
+mcmc_iter = 2000 # x 30 walkers
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -54,7 +55,8 @@ callable_list = [
     cat.bgs_y3_list, #9
     [cat.bgs_y3_like_sv3_hybrid_mcmc_new], #10
     [cat.bgs_sv3_10p_mcmc], #11 sloan one
-    [cat.bgs_sv3_pz_2_4_10p_c1] # 12
+    [cat.bgs_y1mini_hybrid_mcmc], # 12
+    [cat.bgs_y1_hybrid_mcmc], # 13
 ]
 
 def process_gc(gc: GroupCatalog):

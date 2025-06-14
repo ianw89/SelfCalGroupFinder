@@ -179,9 +179,17 @@ class GroupCatalog:
         idx = self.caldata.mag_to_idx(mag)
 
         wp_mock = self.wp_mock[(color, mag)][:,4] # the wp values
+        
+        # Idea is to take the error bars from the data and use them on the mock
+        # But since the volumes are different, we need to scale them.
         vfac = (self.caldata.volumes[idx]/250.0**3)**.5 # factor by which to multiply errors
-        efac = 0.1 # TODO let this be bigger for small data?
+        
+        # Add in an additional error term that is a fraction of the wp value itself as well. 
+        # This is to account for the fact that the mock is not a perfect representation of the data.
+        # and there are likely systematic errors in the mock itself.
+        efac = 0.1 
         wp_mock_error = vfac*wp_err + efac*wp_mock
+        
         return wp_mock, wp_mock_error
 
 
@@ -629,7 +637,7 @@ class GroupCatalog:
             
             # TODO Group Finder does not consistently return >0 for errors.
             if proc.returncode != 0:
-                print(f"ERROR: Group Finder failed with return code {self.results.returncode}.")
+                print(f"ERROR: Group Finder failed with return code {proc.returncode}.")
                 return False
             
         if popmock:
@@ -1226,7 +1234,7 @@ class BGSGroupCatalog(GroupCatalog):
         print("Pre-processing...")
         if self.data_cut == "Y1-Iron":
             infile = IAN_BGS_Y1_MERGED_FILE
-        if self.data_cut == "Y1-Iron-Mini":
+        elif self.data_cut == "Y1-Iron-Mini":
             infile = IAN_BGS_Y1_MERGED_FILE
         elif self.data_cut == "Y3-Kibo":
             raise ValueError("Y3 Kibo no longer supported")

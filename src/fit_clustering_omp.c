@@ -1,4 +1,4 @@
-#define __USE_MISC
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

@@ -1,3 +1,6 @@
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include <argp.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -295,7 +298,6 @@ int main(int argc, char **argv)
     //}
 #pragma omp parallel private(i,istart,istep)
     {
-      // TODO update given the new enum and values saved in color_sep global.
       istart = omp_get_thread_num();
       istep = omp_get_num_threads();
       for(i=istart; i< NVOLUME_BINS*3; i+=istep)
