@@ -567,7 +567,7 @@ class GroupCatalog:
         # Does this need to be done in a loop?
 
 
-    def run_group_finder(self, popmock=False, silent=False, verbose=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False):
         t1 = time.time()
         print("Running Group Finder for " + self.name)
 
@@ -587,8 +587,12 @@ class GroupCatalog:
         sp.run(["cp", LSAT_LOOKUP_FILE , self.output_folder])
 
         sys.stdout.flush()
-    
-        args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
+
+        if profile:
+            args = ["perf", "record", BIN_FOLDER + "PerfGroupFinder", self.preprocess_file]
+        else:
+            args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
+
         args.append(str(self.GF_props['zmin']))
         args.append(str(self.GF_props['zmax']))
         args.append(str(self.GF_props['frac_area']))
@@ -739,6 +743,8 @@ class GroupCatalog:
             print("WARNING: chisqr() called without having populated the mock.")
             return
 
+        dof = 0
+
         with np.printoptions(precision=0, suppress=True, linewidth=300):
             chi = 0
             clustering_chisqr_r = []
@@ -757,12 +763,14 @@ class GroupCatalog:
                     wp_model, wp_err_model = self.get_mock_wp(mag, 'red', wp_err)
 
                     chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
+                    dof += len(chivec)
                     clustering_chisqr_r.append(np.sum(chivec))
 
                     wp, wp_err, radius = self.caldata.get_wp_blue(mag)
                     wp_model, wp_err_model = self.get_mock_wp(mag, 'blue', wp_err)
 
                     chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
+                    dof += len(chivec)
                     clustering_chisqr_b.append(np.sum(chivec))
 
                     clustering_chisqr_all.append(0)
@@ -772,6 +780,7 @@ class GroupCatalog:
                     wp_model, wp_err_model = self.get_mock_wp(mag, 'all', wp_err)
 
                     chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
+                    dof += len(chivec)
                     clustering_chisqr_all.append(np.sum(chivec))
 
                     clustering_chisqr_r.append(0)
@@ -786,6 +795,7 @@ class GroupCatalog:
             # TODO put in CalibrationData
             data = np.loadtxt(LSAT_OBSERVATIONS_SDSS_FILE, skiprows=0, dtype='float')
             lsat_chisqr = compute_lsat_chisqr(data, self.lsat_r, self.lsat_b)
+            dof += len(lsat_chisqr)
             
             # TODO automate whether this is on or off depending on GF parameters?
             # This is for the second parameter (galaxy concentration)    
@@ -823,7 +833,7 @@ class GroupCatalog:
 
             # Print off the chi squared value and model info and return it 
             #print(f'MODEL {ncount}')
-            print(f'χ^2: {chi:.1f}')
+            print(f'χ^2: {chi:.1f}. χ^2/DOF: {chi/dof:.3f} (dof={dof})')
             #os.system('date')
             sys.stdout.flush()
 
@@ -1103,10 +1113,10 @@ class MXXLGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False, silent=False):
+    def run_group_finder(self, popmock=False, silent=False, profile=False):
         if self.preprocess_file is None:
             self.preprocess()
-        return super().run_group_finder(popmock=popmock, silent=silent)
+        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile)
 
 
     def postprocess(self):
@@ -1155,10 +1165,10 @@ class UchuuGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False, silent=False):
+    def run_group_finder(self, popmock=False, silent=False, profile=False):
         if self.preprocess_file is None:
             self.preprocess()
-        return super().run_group_finder(popmock=popmock, silent=silent)
+        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile)
 
 
     def postprocess(self):
@@ -1266,12 +1276,12 @@ class BGSGroupCatalog(GroupCatalog):
         self.run_group_finder(popmock=True)
         super().setup_GF_mcmc(mcmc_num)
 
-    def run_group_finder(self, popmock=False, silent=False):
+    def run_group_finder(self, popmock=False, silent=False, profile=False):
         if self.preprocess_file is None:
             self.preprocess(silent=silent)
         else:
             print("Skipping pre-processing")
-        return super().run_group_finder(popmock=popmock, silent=silent)
+        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile)
 
     def add_bootstrapped_f_sat(self, N_ITERATIONS = 100):
 

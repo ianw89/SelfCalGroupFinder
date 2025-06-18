@@ -4,8 +4,8 @@
 #include <math.h>
 #include <assert.h>
 #include <omp.h>
-#include "groups.h"
-#include "fit_clustering_omp.h"
+#include "groups.hpp"
+#include "fit_clustering_omp.hpp"
 
 
 void test_poisson_deviate_speed() {

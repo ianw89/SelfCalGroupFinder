@@ -12,11 +12,10 @@
 #include <omp.h>
 #include <stdint.h>
 #include <unistd.h>
+#include "kdtree.hpp"
+#include "groups.hpp"
+#include "fit_clustering_omp.hpp"
 #include "nrutil.h"
-#include "kdtree.h"
-#include "groups.h"
-#include "fit_clustering_omp.h"
-
 /* Main Method and argument parsing for command-line executable kdGroupFinder
 */
 
@@ -282,7 +281,7 @@ int main(int argc, char **argv)
     lsat_model();
     tabulate_hods();
     setup_rng();
-    populate_simulation_omp(-1, 0);
+    populate_simulation_omp(-1, ALL); 
     t1 = omp_get_wtime();
     if (!SILENT) fprintf(stderr, "lsat + hod + prep popsim: %.2f sec\n", t1 - t0);
 
@@ -302,7 +301,7 @@ int main(int argc, char **argv)
       istep = omp_get_num_threads();
       for(i=istart; i< NVOLUME_BINS*3; i+=istep)
       {
-        populate_simulation_omp(i/3, i%3);
+        populate_simulation_omp(i/3, static_cast<SampleType>(i%3));
       }
     }
 

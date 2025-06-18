@@ -1,4 +1,6 @@
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -8,12 +10,12 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <omp.h>
-#include "nrutil.h"
-#include "kdtree.h"
-#include "groups.h"
-#include "fit_clustering_omp.h"
 #include <errno.h>
 #include <stdint.h>
+#include "kdtree.hpp"
+#include "groups.hpp"
+#include "fit_clustering_omp.hpp"
+#include "nrutil.h"
 
 // Definitions
 #define MAXBINS 10 // This is the max number of magnitude bins we use for the HOD. The actual amount we use is read in from VOLUME_BINS_FILE
@@ -28,8 +30,6 @@ struct drand48_data *rng_buffers;
 
 /* Globals for the halos
  */
-struct halo *HALO;
-int NHALO;
 float BOX_SIZE = 250.0;
 float BOX_EPSILON = 0.01;
 
@@ -59,8 +59,8 @@ float NFW_position(float mass, float x[]);
 float NFW_velocity(float mass, float v[]);
 float NFW_density(float r, float rs, float ps);
 float halo_concentration(float mass);
-float N_sat(float m, int imag, enum SampleType type);
-float N_cen(float m, int imag, enum SampleType type);
+float N_sat(float m, int imag, SampleType type);
+float N_cen(float m, int imag, SampleType type);
 void boxwrap_galaxy(float xh[], float xg[]);
 float rand_gaussian();
 float rand_f();
@@ -69,7 +69,7 @@ float rand_f();
 void setup_rng() 
 {
   int nthreads = omp_get_max_threads();
-  rng_buffers = malloc(nthreads * sizeof(struct drand48_data));
+  rng_buffers = (struct drand48_data *) malloc(nthreads * sizeof(struct drand48_data));
 
   for (int i = 0; i < nthreads; ++i)
     srand48_r(753 + i, &(rng_buffers[i]));
@@ -853,7 +853,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
  * Population a simulation's halo catalog using the tabulated HODs from tabulate_hods().
  * Uses linear interpolate in log-log space from the tabulated HOD values.
  */
-void populate_simulation_omp(int imag, enum SampleType type)
+void populate_simulation_omp(int imag, SampleType type)
 {
   int i;
   FILE *fp;
@@ -999,7 +999,7 @@ void boxwrap_galaxy(float xh[], float xg[])
  * in the magnitude bin imag and color. Uses the tabulated HOD
  * and linearly interpolates in log10(M_h)-log10(N_cen) space.
  */
-float N_cen(float m, int imag, enum SampleType type)
+float N_cen(float m, int imag, SampleType type)
 {
   int im;
   float x0, y0, y1, yp, logm;
@@ -1045,7 +1045,7 @@ float N_cen(float m, int imag, enum SampleType type)
  * Return the number of satellites for a halo of mass m in the given 
  * magnitude bin and color. Uses the tabulated HOD.
  */
-float N_sat(float m, int imag, enum SampleType type)
+float N_sat(float m, int imag, SampleType type)
 {
   int im;
   float x0, y0, y1, yp, logm;

@@ -10,9 +10,11 @@
 
 # -- for sirocco
 hd = $(HOME)/lib
-CC = gcc
-CFLAGS = -O2 -fopenmp -std=c11
-LIB = -lm -fopenmp -L${hd} -lcutil 
+#CC = gcc
+CC = g++
+#CFLAGS = -O3 -march=native -fopenmp -std=c11
+CFLAGS = -O3 -march=native -fopenmp -I/path/to/nanoflann/include
+LIB = -lm -fopenmp
 
 # Ian's iMac
 # For Apple Computers. Tested on an Intel iMac but should be OK with M based ones too
@@ -21,8 +23,6 @@ LIB = -lm -fopenmp -L${hd} -lcutil
 # CHECK THE PATH YOU INSTALLED THEM TO WITH brew ls libomp argp-standalone
 # USE THOSE INCLUDE AND LIB PATHS IN THE CFLAGS AND LIB FLAGS
 
-# YOU MUST ALSO GET lib FROM JEREMY'S PROJECT AND BUILD IT
-#LIB_DIR= ${HOME}/lib # Jeremy's lib project moves the build libraries (.a files) here by default
 
 #CC = clang -Xclang -fopenmp # apple built-in clang
 #CFLAGS = -I/usr/local/opt/libomp/include  -I/usr/local/Cellar/argp-standalone/1.3/include
@@ -45,7 +45,7 @@ TESTS_OBJ = $(patsubst %,$(ODIR)/%,$(_TESTS_OBJ))
 
 _OBJ = kdGroupFinder_omp.o qromo.o midpnt.o polint.o sham.o spline.o splint.o \
 	zbrent.o sort2.o kdtree.o fit_clustering_omp.o gasdev.o ran1.o \
-	group_center.o fof.o utils.o
+	group_center.o fof.o utils.o nrutil.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 
@@ -56,13 +56,19 @@ OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 # General entry point builds group finder and tests
 main: $(BDIR)/kdGroupFinder_omp $(BDIR)/tests
 
+perf: $(BDIR)/PerfGroupFinder
+
 # Object file to c file dependencies
-$(ODIR)/%.o: $(SRCDIR)/%.c 
+$(ODIR)/%.o: $(SRCDIR)/%.cpp
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 # Build main program
 $(BDIR)/kdGroupFinder_omp:	$(OBJ) $(GF_OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIB)
+
+# Build main program for profiling
+$(BDIR)/PerfGroupFinder:	$(OBJ) $(GF_OBJ)
+	$(CC) -o $@ $^ $(CFLAGS) -g $(LIB)
 
 # Build tests program
 $(BDIR)/tests: $(OBJ) $(TESTS_OBJ)
@@ -70,5 +76,6 @@ $(BDIR)/tests: $(OBJ) $(TESTS_OBJ)
 
 clean:
 	rm -f *.o $(ODIR)/*.o
-	rm -f $(BDIR)/kdGroupFinder_omp
+#	rm -f $(BDIR)/kdGroupFinder_omp
+	rm -f $(BDIR)/PerfGroupFinder
 	rm -f $(BDIR)/tests

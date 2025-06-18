@@ -1,6 +1,6 @@
+#include "nrutil.h"
 void splint(float xa[], float ya[], float y2a[], int n, float x, float *y)
 {
-	void nrerror(char error_text[]);
 	int klo,khi,k;
 	float h,b,a;
 

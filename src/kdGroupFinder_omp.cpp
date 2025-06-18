@@ -6,16 +6,21 @@
 #include <assert.h>
 #include <sys/time.h>
 #include <omp.h>
+//#include <nanoflann.hpp>
+#include "kdtree.hpp"
+#include "groups.hpp"
+#include "fit_clustering_omp.hpp"
 #include "nrutil.h"
-#include "kdtree.h"
-#include "groups.h"
-#include "fit_clustering_omp.h"
 
-/* Initializes global variables for running group finder.
- * Contains high level methods for group finding algorithm.
- */
-
-int NGAL;
+/* Initialize Globals */
+galaxy *GAL = nullptr;
+halo *HALO = nullptr;
+int NGAL = 0;
+int NHALO = 0;
+const char *INPUTFILE = nullptr; 
+const char *HALO_MASS_FUNC_FILE = nullptr;
+const char *MOCK_FILE = nullptr;
+const char *VOLUME_BINS_FILE = nullptr;
 
 /* Local functions */
 void find_satellites(int icen, struct kdtree *kd);
@@ -42,7 +47,6 @@ float PROPX_SLOPE_RED = 0,
 float PROPX2_WEIGHT_RED = 1000.0,
       PROPX2_WEIGHT_BLUE = 1000.0;
 
-char *INPUTFILE;
 float MINREDSHIFT;
 float MAXREDSHIFT;
 float FRAC_AREA;
@@ -58,8 +62,6 @@ int SECOND_PARAMETER = 0; // default is no extra per-galaxy parameters
 int SILENT = 0; // TODO make this work
 int VERBOSE = 0; // TODO make this work
 int POPULATE_MOCK = 0; // default is do not populate mock
-char *MOCK_FILE;
-char *VOLUME_BINS_FILE;
 int MAX_ITER = 5; // default is to go until fsat 0.002 convergence; can provide a number in parametrs instead
 int ALLOW_EARLY_EXIT = 0; // default is to not allow early exit, but this is used in MCMC to speedups
 FILE *MSG_PIPE = NULL; // default is no message pipe
@@ -84,7 +86,7 @@ void groupfind()
   static struct kdtree *kd;
   static int first_call = 1, ngrp;
 
-  fsat_arr = calloc(MAX_ITER, sizeof(double));
+  fsat_arr = (double *) calloc(MAX_ITER, sizeof(double));
 
   if (first_call)
   {
@@ -620,6 +622,7 @@ float fluxlim_correction(float z) {
     return pow(10.0, pow(z / 0.40, 4.0) * 0.4); // from rho_lum(z) BGS
   }
 
+  return 1;
   //return pow(10.0, pow(z / 0.16, 2.5) * 0.6); // SDSS (sham mock)
 }
 

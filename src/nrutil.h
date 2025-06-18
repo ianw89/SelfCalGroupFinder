@@ -8,11 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// TINKER LIBRARY FUNCTIONS
-FILE *openfile(char *ff);
-int filesize(FILE *fp);
-
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #ifndef _NR_UTILS_H_
 #define _NR_UTILS_H_
@@ -57,7 +55,7 @@ static int iminarg1,iminarg2;
 
 #define SIGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
 
-void nrerror(char error_text[]);
+void nrerror(const char *error_text);
 float *vector(long nl, long nh);
 int *ivector(long nl, long nh);
 unsigned char *cvector(long nl, long nh);
@@ -85,4 +83,6 @@ void free_f3tensor(float ***t, long nrl, long nrh, long ncl, long nch,
 
 #endif /* _NR_UTILS_H_ */
 
-
+#ifdef __cplusplus
+}
+#endif

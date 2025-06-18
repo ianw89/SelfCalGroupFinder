@@ -1,6 +1,5 @@
 #define NRANSI
 #include "nrutil.h"
-
 void spline(float x[], float y[], int n, float yp1, float ypn, float y2[])
 {
 	int i,k;

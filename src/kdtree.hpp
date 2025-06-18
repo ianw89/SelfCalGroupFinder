@@ -27,10 +27,6 @@ OF SUCH DAMAGE.
 #ifndef _KDTREE_H_
 #define _KDTREE_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct kdtree;
 struct kdres;
 
@@ -121,9 +117,5 @@ void *kd_res_item3f(struct kdres *set, float *x, float *y, float *z);
 /* equivalent to kd_res_item(set, 0) */
 void *kd_res_item_data(struct kdres *set);
 
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif	/* _KDTREE_H_ */

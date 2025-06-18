@@ -1,4 +1,5 @@
-#include "kdtree.h"
+#include <cstdio>
+#include "kdtree.hpp"
 
 // Definitions
 #define OMEGA_M 0.25
@@ -30,8 +31,9 @@
 
 //#define OPTIMIZE
 
+
 /* Structure definition for galaxies. */
-extern struct galaxy {
+struct galaxy {
   float x,y,z;
   float ra, dec; // in radians
   float redshift; 
@@ -58,18 +60,21 @@ extern struct galaxy {
     sigmav,
     lgrp; // tracks total luminosity or stellar mass of group
   int nsat;
-} *GAL;
+};
 
 /* Structure for the halos in the simulations */
-extern struct halo {
+struct halo {
   float x,y,z,vx,vy,vz,mass,lsat;
   int nsat;
-} *HALO;
-extern int NHALO;
+};
 
-/* The master array of galaxies */
-struct galaxy *GAL;
+/* The master array of galaxies*/
+extern struct galaxy *GAL;
 extern int NGAL;
+
+/* The master array of halos from the simulation is populating a mock. */
+extern struct halo *HALO;
+extern int NHALO;
 
 /* Options and general purpose globals */
 extern int FLUXLIM;
@@ -91,10 +96,10 @@ extern int SILENT;
 extern int VERBOSE;
 extern int RECENTERING;
 extern int POPULATE_MOCK;
-extern char *INPUTFILE;
-extern char *HALO_MASS_FUNC_FILE;
-extern char *MOCK_FILE;
-extern char *VOLUME_BINS_FILE;
+extern const char *INPUTFILE;
+extern const char *HALO_MASS_FUNC_FILE;
+extern const char *MOCK_FILE;
+extern const char *VOLUME_BINS_FILE;
 extern int NVOLUME_BINS;
 extern FILE *MSG_PIPE;
 
@@ -112,8 +117,8 @@ extern float PROPX2_WEIGHT_RED, PROPX2_WEIGHT_BLUE;
 
 /* Imported functions from numerical recipes 
  */
-float qromo(float (*func)(float), float a, float b,
-       float (*choose)(float(*)(float), float, float, int));
+void polint(float xa[], float ya[], int n, float x, float *y, float *dy);
+float qromo(float (*func)(float), float a, float b, float (*choose)(float(*)(float), float, float, int));
 float midpnt(float (*func)(float), float a, float b, int n);
 void spline(float x[], float y[], int n, float yp1, float ypn, float y2[]);
 void splint(float xa[], float ya[], float y2a[], int n, float x, float *y);
@@ -139,4 +144,5 @@ float compute_p_z(float dz, float sigmav);
 float compute_p_proj(float mass, float dr, float rad, float ang_rad);
 float compute_p_proj_g(struct galaxy *gal, float dr);
 float psat(struct galaxy *central, float dr, float dz, float bprob);
-
+int filesize(FILE *fp);
+FILE *openfile(const char *filename);

@@ -30,7 +30,7 @@ OF SUCH DAMAGE.
 #include <string.h>
 #include <math.h>
 #include <alloca.h>
-#include "kdtree.h"
+#include "kdtree.hpp"
 
 #if defined(WIN32) || defined(__WIN32__)
 #include <malloc.h>
@@ -530,7 +530,7 @@ static kdres *kd_nearest_n(struct kdtree *kd, const double *pos, int num)
 	return rset;
 }*/
 
-struct kdres *kd_nearest_range(struct kdtree *kd, const double *pos, double range)
+struct kdres *kd_nearest_range(struct kdtree *tree, const double *pos, double range)
 {
 	int ret;
 	struct kdres *rset;
@@ -543,9 +543,9 @@ struct kdres *kd_nearest_range(struct kdtree *kd, const double *pos, double rang
 		return 0;
 	}
 	rset->rlist->next = 0;
-	rset->tree = kd;
+	rset->tree = tree;
 
-	if((ret = find_nearest(kd->root, pos, range, rset->rlist, 0, kd->dim)) == -1) {
+	if((ret = find_nearest(tree->root, pos, range, rset->rlist, 0, tree->dim)) == -1) {
 		kd_res_free(rset);
 		return 0;
 	}

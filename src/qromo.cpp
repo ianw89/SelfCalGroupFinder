@@ -1,4 +1,6 @@
 #include <math.h>
+#include "groups.hpp"
+#include "nrutil.h"
 #define EPS 1.0e-6
 #define JMAX 14
 #define JMAXP (JMAX+1)
@@ -25,8 +27,6 @@
 float qromo(float (*func)(float), float a, float b,
 	float (*choose)(float(*)(float), float, float, int))
 {
-	void polint(float xa[], float ya[], int n, float x, float *y, float *dy);
-	void nrerror(char error_text[]);
 	int j;
 	float ss,dss,h[JMAXP+1],s[JMAXP+1];
 

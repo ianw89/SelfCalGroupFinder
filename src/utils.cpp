@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include "groups.h"
+#include "groups.hpp"
 
 /*
  * Update the galaxy's derived halo properties using the mass, which must
@@ -131,4 +131,33 @@ int search(int n, float *x, float val)
       middle = (first + last)/2;
    }
    return first;
+}
+
+/* This takes a file and reads the number of lines in it,
+ * rewinds the file and returns the lines.
+ */
+
+int filesize(FILE *fp)
+{
+  int i=-1;
+  char a[1000];
+
+  while(!feof(fp))
+    {
+      i++;
+      fgets(a,1000,fp);
+    }
+  rewind(fp);
+  return(i);
+}
+
+FILE *openfile(const char *ff)
+{
+  FILE *fp;
+  if(!(fp=fopen(ff,"r")))
+    {
+      fprintf(stderr,"ERROR opening [%s]\n",ff);
+      exit(0);
+    }
+  return(fp);
 }

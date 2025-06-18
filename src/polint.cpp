@@ -1,7 +1,6 @@
 #include <math.h>
 #define NRANSI
 #include "nrutil.h"
-
 void polint(float xa[], float ya[], int n, float x, float *y, float *dy)
 {
 	int i,m,ns=1;

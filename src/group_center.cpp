@@ -5,10 +5,9 @@
 #include <time.h>
 #include <assert.h>
 #include <sys/time.h>
+#include "kdtree.hpp"
+#include "groups.hpp"
 #include "nrutil.h"
-#include "kdtree.h"
-#include "groups.h"
-
 // global for testing luminosty thresholds
 float LUM_LIMIT=0;
 

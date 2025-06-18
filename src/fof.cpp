@@ -5,11 +5,10 @@
 #include <time.h>
 #include <assert.h>
 #include <sys/time.h>
+#include "kdtree.hpp"
+#include "groups.hpp"
+#include "group_center.hpp"
 #include "nrutil.h"
-#include "kdtree.h"
-#include "groups.h"
-#include "group_center.h"
-
 /* 
  * Local functions
  */

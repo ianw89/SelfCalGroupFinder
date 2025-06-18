@@ -3,7 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include "nrutil.h"
-#include "groups.h"
+#include "groups.hpp"
 
 #define HALO_MAX 1.0E+16
 #define HALO_MIN 1.0E+7
@@ -17,7 +17,6 @@ void spline(float x[], float y[], int n, float yp1, float ypn, float y2[]);
 void splint(float xa[], float ya[], float y2a[], int n, float x, float *y);
 void sort2(int n, float arr[], int id[]);
 float zbrent(float (*func)(float, float), float x1, float x2, float tol, float galaxy_density);
-char* HALO_MASS_FUNC_FILE;
 
 /* Local functions
  */
