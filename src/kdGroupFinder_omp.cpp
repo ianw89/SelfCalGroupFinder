@@ -36,7 +36,7 @@ halo *HALO = nullptr;
 int NGAL = 0;
 int NHALO = 0;
 const char *INPUTFILE = nullptr; 
-const char *HALO_MASS_FUNC_FILE = nullptr;
+const char *HALO_MASS_FUNC_FILE = "halo_mass_function.dat"; // Default value
 const char *MOCK_FILE = nullptr;
 const char *VOLUME_BINS_FILE = nullptr;
 

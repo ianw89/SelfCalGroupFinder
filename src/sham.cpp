@@ -1,28 +1,27 @@
+#include <iostream>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <gsl/gsl_spline.h>
+#include <gsl/gsl_errno.h>
 #include "nrutil.h"
 #include "groups.hpp"
+#include "sham.hpp"
 
-#define HALO_MAX 1.0E+16
-#define HALO_MIN 1.0E+7
+double gsl_spline_eval_extrap(const gsl_spline *spline, const double *x, const double *y, int n, double xq, gsl_interp_accel *acc);
 
-/*external functions
- */
-float qromo(float (*func)(float), float a, float b,
-            float (*choose)(float (*)(float), float, float, int));
-float midpnt(float (*func)(float), float a, float b, int n);
-void spline(float x[], float y[], int n, float yp1, float ypn, float y2[]);
-void splint(float xa[], float ya[], float y2a[], int n, float x, float *y);
-void sort2(int n, float arr[], int id[]);
-float zbrent(float (*func)(float, float), float x1, float x2, float tol, float galaxy_density);
-
-/* Local functions
- */
-float halo_abundance(float m);
-float halo_abundance2(float m);
-float func_match_nhost(float mass, float galaxy_density);
+double gsl_spline_eval_extrap(const gsl_spline *spline, const double *x, const double *y, int n, double xq, gsl_interp_accel *acc)
+{
+    // Constant extrapolation below range - this only happens due to floating point inaccuracy issues
+    if (xq < x[0]) {
+        return gsl_spline_eval(spline, x[0], acc);
+    } else if (xq > x[n-1]) {
+        return gsl_spline_eval(spline, x[n-1], acc);
+    } else {
+        return gsl_spline_eval(spline, xq, acc);
+    }
+}
 
 /* 
 * For a galaxy at a certain redshift and vmax, use the provided halo mass function to
@@ -30,6 +29,7 @@ float func_match_nhost(float mass, float galaxy_density);
  * For a given galaxy density, use the provided halo mass function to... */
 float density2host_halo(float galaxy_density)
 {
+  //std::cerr << "Finding host halo mass for galaxy density = " << galaxy_density << std::endl;
   return exp(zbrent(func_match_nhost, log(HALO_MIN), log(HALO_MAX), 1.0E-5, galaxy_density));
 }
 
@@ -128,7 +128,7 @@ float density2host_halo_zbins3(float z, float vmax)
 #undef NZBIN
 }
 
-float func_match_nhost(float mass, float g7_ngal)
+float func_match_nhost_old(float mass, float galdensity)
 {
   static int flag = 1, n = 100;
   static float *mh, *ms, *mx, *nh, mlo, mhi, dlogm, mmax;
@@ -143,26 +143,69 @@ float func_match_nhost(float mass, float g7_ngal)
     nh = vector(1, n);
     mx = vector(1, n);
 
-    mlo = 1.0E+8;
+    mlo = HALO_MIN;
     mhi = HALO_MAX;
     dlogm = log(mhi / mlo) / n;
 
     for (i = 1; i <= n; ++i)
     {
       mh[i] = exp((i - 0.5) * dlogm) * mlo;
-      n1 = qromo(halo_abundance2, log(mh[i]), log(HALO_MAX), midpnt);
+      n1 = qromo(halo_abundance2_old, log(mh[i]), log(HALO_MAX), midpnt);
       nh[i] = log(n1);
       mh[i] = log(mh[i]);
-      fflush(stdout);
     }
     spline(mh, nh, n, 1.0E+30, 1.0E+30, mx);
   }
 
   // Interpolate the halo mass function
   splint(mh, nh, mx, n, mass, &a);
-  return exp(a) - g7_ngal;
+  return exp(a) - galdensity;
 }
 
+float func_match_nhost(float mass, float galdensity)
+{
+    static int flag = 1, n = 100;
+    static double *mh, *nh;
+    static gsl_interp_accel *acc = nullptr;
+    static gsl_spline *spline = nullptr;
+    int i;
+    double a, mlo, mhi, dlogm, n1;
+
+    // First time setup, will read in a halo mass function file
+    if (flag)
+    {
+        flag = 0;
+        mh = (double*)malloc(n * sizeof(double));
+        nh = (double*)malloc(n * sizeof(double));
+
+        mlo = HALO_MIN;
+        mhi = HALO_MAX;
+        dlogm = log(mhi / mlo) / n;
+
+        for (i = 0; i < n; ++i)
+        {
+            mh[i] = exp((i + 0.5) * dlogm) * mlo;
+            n1 = qromo(halo_abundance2, log(mh[i]), log(HALO_MAX), midpnt);
+            nh[i] = log(n1);
+            mh[i] = log(mh[i]);
+            //std::cerr << "mh[" << i << "] = " << mh[i] << ", nh[" << i << "] = " << nh[i] << std::endl;
+        }
+
+        acc = gsl_interp_accel_alloc();
+        spline = gsl_spline_alloc(gsl_interp_cspline, n);
+        gsl_spline_init(spline, mh, nh, n);
+    }
+
+    // Interpolate the halo mass function
+    a = gsl_spline_eval_extrap(spline, mh, nh, n, mass, acc);
+    return exp(a) - galdensity;
+}
+
+float halo_abundance2_old(float m)
+{
+  m = exp(m);
+  return halo_abundance_old(m) * m;
+}
 
 float halo_abundance2(float m)
 {
@@ -170,7 +213,7 @@ float halo_abundance2(float m)
   return halo_abundance(m) * m;
 }
 
-float halo_abundance(float m)
+float halo_abundance_old(float m)
 {
   int i;
   FILE *fp;
@@ -202,3 +245,38 @@ float halo_abundance(float m)
   return exp(a);
 }
 
+
+float halo_abundance(float m)
+{
+    int i;
+    FILE *fp;
+    float a;
+    static int n = 0;
+    static double *x = nullptr, *y = nullptr;
+    static gsl_interp_accel *acc = nullptr;
+    static gsl_spline *spline = nullptr;
+    char aa[1000];
+
+    if (!n)
+    {
+        fp = openfile(HALO_MASS_FUNC_FILE);
+        n = filesize(fp);
+        x = (double*)malloc(n * sizeof(double));
+        y = (double*)malloc(n * sizeof(double));
+        for (i = 0; i < n; ++i)
+        {
+            float xf, yf;
+            fscanf(fp, "%f %f", &xf, &yf);
+            x[i] = log(xf);
+            y[i] = log(yf);
+            fgets(aa, 1000, fp);
+        }
+        fclose(fp);
+
+        acc = gsl_interp_accel_alloc();
+        spline = gsl_spline_alloc(gsl_interp_cspline, n);
+        gsl_spline_init(spline, x, y, n);
+    }
+    a = gsl_spline_eval_extrap(spline, x, y, n, log(m), acc);
+    return exp(a);
+}

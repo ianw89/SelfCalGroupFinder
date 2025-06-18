@@ -216,7 +216,6 @@ int main(int argc, char **argv)
   arguments.wcen_set = 0;
   arguments.bsat_set = 0;
   arguments.chi1_set = 0;
-  HALO_MASS_FUNC_FILE = "halo_mass_function.dat"; // Default value
 
   /* Parse our arguments; will set all the global variables the code uses directly. */
   argp_parse (&argp, argc, argv, 0, 0, &arguments);

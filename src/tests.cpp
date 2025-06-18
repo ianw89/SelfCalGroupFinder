@@ -6,6 +6,7 @@
 #include <omp.h>
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
+#include "sham.hpp"
 
 
 void test_poisson_deviate_speed() {
@@ -216,10 +217,57 @@ void test_psat() {
     printf(" *** All psat tests passed.\n\n");
 }
 
+
+void test_func_match_nhost_consistency() {
+    printf("=== FUNC_MATCH_NHOST CONSISTENCY TESTS ===\n");
+    float loggalden = 1e-5; // not sure at all if this is a reasonable value but it doesn't matter
+    float tol = 1e-5; // Acceptable relative difference
+
+    // Test over a range of halo masses
+    for (int i = 0; i < 20; ++i) {
+        float logmass = log(HALO_MAX) - i * (log(HALO_MAX) - log(HALO_MIN)) / 21.0;
+
+        float old_val = func_match_nhost_old(logmass, loggalden);
+        float new_val = func_match_nhost(logmass, loggalden);
+
+        printf("mass=%.3e, old=%.6e, new=%.6e, rel_diff=%.2g\n", exp(logmass), old_val, new_val, fabs(old_val-new_val)/fabs(old_val));
+        assert(fabs(old_val - new_val) < tol * fabs(old_val) + 1e-8 && "func_match_nhost results changed!");
+    }
+    printf(" *** func_match_nhost consistency tests passed.\n\n");
+}
+
+void test_func_match_nhost_speed() {
+    printf("=== FUNC_MATCH_NHOST SPEED TEST ===\n");
+    float loggalden = 1e-5; // not sure at all if this is a reasonable value but it doesn't matter
+    int n_trials = 1000000;
+    double t1, t2;
+
+    // Time func_match_nhost
+    t1 = omp_get_wtime();
+    for (int i = 0; i < n_trials; ++i) {
+        func_match_nhost(log(1e13), loggalden);
+    }
+    t2 = omp_get_wtime();
+    printf("func_match_nhost: %d trials took %.6f seconds\n", n_trials, t2 - t1);
+
+    // Time func_match_nhost_old
+    t1 = omp_get_wtime();
+    for (int i = 0; i < n_trials; ++i) {
+        func_match_nhost_old(log(1e13), loggalden);
+    }
+    t2 = omp_get_wtime();
+    printf("func_match_nhost_old: %d trials took %.6f seconds\n", n_trials, t2 - t1);
+
+    printf(" *** func_match_nhost speed test complete.\n\n");
+}
+
+
 int main(int argc, char **argv) {
 
     setup_rng();
 
+    test_func_match_nhost_consistency();
+    test_func_match_nhost_speed();
     test_poisson_deviate_speed();
     test_poisson_deviate_basic();
     test_poisson_deviate_edge_cases();

@@ -14,7 +14,7 @@ hd = $(HOME)/lib
 CC = g++
 #CFLAGS = -O3 -march=native -fopenmp -std=c11
 CFLAGS = -O3 -march=native -fopenmp -I/path/to/nanoflann/include
-LIB = -lm -fopenmp
+LIB = -lm -fopenmp -lgsl -lgslcblas -lm
 
 # Ian's iMac
 # For Apple Computers. Tested on an Intel iMac but should be OK with M based ones too
@@ -56,7 +56,7 @@ OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 # General entry point builds group finder and tests
 main: $(BDIR)/kdGroupFinder_omp $(BDIR)/tests
 
-perf: $(BDIR)/PerfGroupFinder
+perf: $(BDIR)/PerfGroupFinder $(BDIR)/tests
 
 # Object file to c file dependencies
 $(ODIR)/%.o: $(SRCDIR)/%.cpp
