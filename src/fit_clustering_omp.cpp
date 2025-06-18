@@ -12,7 +12,6 @@
 #include <omp.h>
 #include <errno.h>
 #include <stdint.h>
-#include "kdtree.hpp"
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
 #include "nrutil.h"

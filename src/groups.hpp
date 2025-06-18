@@ -1,5 +1,4 @@
 #include <cstdio>
-#include "kdtree.hpp"
 
 // Definitions
 #define OMEGA_M 0.25

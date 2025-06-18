@@ -6,11 +6,29 @@
 #include <assert.h>
 #include <sys/time.h>
 #include <omp.h>
-//#include <nanoflann.hpp>
-#include "kdtree.hpp"
+#include <nanoflann.hpp>
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
 #include "nrutil.h"
+using namespace nanoflann;
+
+// Adaptor for nanoflann to access the GAL array
+struct GalaxyCloud {
+    inline unsigned int kdtree_get_point_count() const { return NGAL; }
+    inline float kdtree_get_pt(const unsigned int idx, const unsigned int dim) const {
+        if (dim == 0) return GAL[idx].x;
+        if (dim == 1) return GAL[idx].y;
+        return GAL[idx].z;
+    }
+    template <class BBOX>
+    bool kdtree_get_bbox(BBOX&) const { return false; }
+};
+
+typedef KDTreeSingleIndexAdaptor<
+    L2_Simple_Adaptor<float, GalaxyCloud>,
+    GalaxyCloud,
+    3 /* dim */
+> GalaxyKDTree;
 
 /* Initialize Globals */
 galaxy *GAL = nullptr;
@@ -23,7 +41,8 @@ const char *MOCK_FILE = nullptr;
 const char *VOLUME_BINS_FILE = nullptr;
 
 /* Local functions */
-void find_satellites(int icen, struct kdtree *kd);
+//void find_satellites(int icen, struct kdtree *kd);
+void find_satellites(int icen, GalaxyKDTree *tree);
 float fluxlim_correction(float z);
 float get_wcen(int idx);
 float get_chi_weight(int idx);
@@ -83,7 +102,6 @@ void groupfind()
   // Initially it gets setup with the LGAL values; after it gets setup with the LTOT values (the effective length becomes ngrp then)
   static int *permanent_id, *itmp, *flag;
   static float volume, *xtmp, *lumshift; 
-  static struct kdtree *kd;
   static int first_call = 1, ngrp;
 
   fsat_arr = (double *) calloc(MAX_ITER, sizeof(double));
@@ -120,7 +138,6 @@ void groupfind()
       if (GAL[i].lum < 100)
         GAL[i].lum = pow(10.0, GAL[i].lum);
       GAL[i].loglum = log10(GAL[i].lum);
-      // I think we can just set the bsat here
       if (FLUXLIM)
         fscanf(fp, "%f", &GAL[i].vmax);
       else
@@ -225,15 +242,12 @@ void groupfind()
 
   // Create the 3D KD tree for fast lookup of nearby galaxies
   if (!SILENT) fprintf(stderr, "Building KD-tree...\n");
-  kd = kd_create(3);
-  for (j = 0; j < NGAL; ++j)
-  {
-    permanent_id[j] = j;
-    pt[0] = GAL[j].x;
-    pt[1] = GAL[j].y;
-    pt[2] = GAL[j].z;
-    assert(kd_insert(kd, pt, &permanent_id[j]) == 0);
-  }
+  static GalaxyCloud gal_cloud;
+  static GalaxyKDTree* tree = nullptr;
+  gal_cloud = GalaxyCloud();
+  if (tree) delete tree;
+  tree = new GalaxyKDTree(3, gal_cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */));
+  tree->buildIndex();
   if (!SILENT) fprintf(stderr, "Done building KD-tree. %d\n", ngrp);
 
   // test the FOF group finder
@@ -269,7 +283,7 @@ void groupfind()
     {
       i = itmp[i1];
       flag[i] = 0;
-      find_satellites(i, kd);
+      find_satellites(i, tree);
     }
     t_end_findsats = omp_get_wtime();
 
@@ -294,7 +308,7 @@ void groupfind()
       if (flag[j] && GAL[j].psat <= 0.5)
       {
         //fprintf(stderr, "Newly exposed central: %d.\n", j);
-        find_satellites(j, kd);
+        find_satellites(j, tree);
       }
     }
     for (j = 0; j < NGAL; ++j)
@@ -340,6 +354,7 @@ void groupfind()
 
     // Find new group centers if option enabled (its NOT)
     // TODO: This might be broken, it's not been tested since the fork
+    /*
     if (RECENTERING && niter != MAX_ITER)
     {
       for (j = 1; j <= ngrp; ++j)
@@ -369,6 +384,7 @@ void groupfind()
         }
       }
     }
+    */
 
     // sort groups by their total group luminosity / stellar mass for next time
     sort2(ngrp, xtmp, itmp);
@@ -462,59 +478,75 @@ void groupfind()
   }
   fflush(stdout);
   
-  /* let's free up the memory of the kdtree
-   * TODO we don't free up other dynamic memory, should we?
-   */
-  kd_free(kd);
+   //TODO we don't free up other dynamic memory, should we?
+  delete tree;
 }
 
 /* Here is the main code to find satellites for a given central galaxy
  */
-void find_satellites(int icen, struct kdtree *kd)
+//void find_satellites(int icen, struct kdtree *kd)
+void find_satellites(int icen, GalaxyKDTree *tree)
 {
   //int thread_num = omp_get_thread_num();
   //float t_start = omp_get_wtime();
   int j, k;
-  float dx, dy, dz, theta, prob_ang, vol_corr, prob_rad, grp_lum, p0, range;
+  float dx, dy, dz, theta, prob_ang, vol_corr, prob_rad, grp_lum, p0;
   float cenDist, bprob;
-  struct kdres *set;
+  //struct kdres *set;
+  std::vector<nanoflann::ResultItem<unsigned int, float>> ret_matches;// = std::vector<nanoflann::ResultItem<size_t, float>>();
+  nanoflann::SearchParameters params = nanoflann::SearchParameters(10 /* max leaf */);
   int *pch;
-  double cen[3];
-  double sat[3];
+  float cen[3];
+  float sat[3];
 
   // check if this galaxy has already been given to a group
   if (GAL[icen].psat > 0.5)
     return;
 
   // Use the k-d tree kd to identify the nearest galaxies to the central.
-  cen[0] = GAL[icen].x;
-  cen[1] = GAL[icen].y;
-  cen[2] = GAL[icen].z;
+  //cen[0] = GAL[icen].x;
+  //cen[1] = GAL[icen].y;
+  //cen[2] = GAL[icen].z;
+  float query_pt[3] = { GAL[icen].x, GAL[icen].y, GAL[icen].z };
+
+  // TODO This search could use this range for z, but something smaller for ra, dec. 
+  // In Euclidean, what shape should the search be to take this into account?
 
   // Nearest neighbour search should go out to about 4*sigma, the velocity dispersion of the SHAMed halo.
   // find all galaxies in 3D that are within 4sigma of the velocity dispersion
-  range = 4 * GAL[icen].sigmav / 100.0 * (1 + GAL[icen].redshift) /
+  const float range = 4 * GAL[icen].sigmav / 100.0 * (1 + GAL[icen].redshift) /
           sqrt(OMEGA_M * pow(1 + GAL[icen].redshift, 3.0) + 1 - OMEGA_M);
-  set = kd_nearest_range(kd, cen, range); // TODO possible optimization is to store the set for each galaxy for a large sigmav value? Hmm
+  const float search_radius = range * range; // nanoflann expects squared radius
+  //ret_matches.reserve(100); // TODO reserve some space for the results, can be tuned
+
+  //set = kd_nearest_range(kd, cen, range); 
+  // TODO possible optimization is to store the set for each galaxy for a large sigmav value? Hmm
+  // First time through (on a per-galaxy basis) increase sigmav to use by a factor of 2 (can tune)
+  // Then store results and reuse them for the next iterations
+  // Only redo if the a newly calculated search_radius is bigger than the stored one.
+  ret_matches.clear();
+  tree->radiusSearch(query_pt, search_radius, ret_matches, params);
 
   //float t_nset_done = omp_get_wtime();
 
   // Set now contains the nearest neighbours within a distance range. Grab their info.
-  while (!kd_res_end(set))
+  //while (!kd_res_end(set))
+  for (const auto& match : ret_matches)
   {
 
     // Get index value of the current neighbor
-    pch = (int *)kd_res_item(set, sat);
-    j = *pch;
-    kd_res_next(set);
+    //pch = (int *)kd_res_item(set, sat);
+    //j = *pch;
+    //kd_res_next(set);
     // printf("%d %d %f %f %f %f\n",j,icen,GAL[icen].x, GAL[j].x, range,sat[0]);
-
-    // Skip if target galaxy is the same as the central (obviously).
-    if (j == icen)
-      continue;
+    j = match.first; // index of the galaxy in the GAL array
 
     // skip if the object is more massive than the icen
     if (GAL[j].lum >= GAL[icen].lum)
+      continue;
+
+    // Skip if target galaxy is the same as the central (obviously).
+    if (j == icen)
       continue;
 
     // Skip if already assigned to a central.
@@ -524,7 +556,6 @@ void find_satellites(int icen, struct kdtree *kd)
       continue;
 
     // check if the galaxy is outside the angular radius of the halo
-    dz = fabs(GAL[icen].redshift - GAL[j].redshift) * SPEED_OF_LIGHT;
     theta = angular_separation(GAL[icen].ra, GAL[icen].dec, GAL[j].ra, GAL[j].dec);
     if (theta > GAL[icen].theta)
     {
@@ -533,8 +564,8 @@ void find_satellites(int icen, struct kdtree *kd)
 
     // Now determine the probability of being a satellite
     //(both projected onto the sky, and along the line of sight).
-    bprob = GAL[j].bprob; 
-    p0 = psat(&GAL[icen], theta, dz, bprob);
+    dz = fabs(GAL[icen].redshift - GAL[j].redshift) * SPEED_OF_LIGHT;
+    p0 = psat(&GAL[icen], theta, dz, GAL[j].bprob);
 
     // Keep track of the highest psat so far
     if (p0 > GAL[j].psat)

@@ -134,7 +134,7 @@ class GroupCatalog:
         self.lsat_r = None 
         self.lsat_b = None 
 
-        # Generated from run_corrfunc
+        # Generated from run_corrfunc; holds the wp measurements on the mock populated with this group catalog's HOD.
         self.wp_mock = {}
 
         # These are direct wp measurements, not on the mock. This code doesn't work BUG
