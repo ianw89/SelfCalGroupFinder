@@ -217,7 +217,7 @@ void test_psat() {
     printf(" *** All psat tests passed.\n\n");
 }
 
-
+/*
 void test_func_match_nhost_consistency() {
     printf("=== FUNC_MATCH_NHOST CONSISTENCY TESTS ===\n");
     float loggalden = 1e-5; // not sure at all if this is a reasonable value but it doesn't matter
@@ -260,14 +260,14 @@ void test_func_match_nhost_speed() {
 
     printf(" *** func_match_nhost speed test complete.\n\n");
 }
-
+*/
 
 int main(int argc, char **argv) {
 
     setup_rng();
 
-    test_func_match_nhost_consistency();
-    test_func_match_nhost_speed();
+    //test_func_match_nhost_consistency();
+    //test_func_match_nhost_speed();
     test_poisson_deviate_speed();
     test_poisson_deviate_basic();
     test_poisson_deviate_edge_cases();

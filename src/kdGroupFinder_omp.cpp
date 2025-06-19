@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <sys/time.h>
 #include <omp.h>
-#include <nanoflann.hpp>
+#include "libs/nanoflann.hpp"
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
 #include "nrutil.h"
@@ -30,16 +30,6 @@ typedef KDTreeSingleIndexAdaptor<
     3 /* dim */
 > GalaxyKDTree;
 
-/* Initialize Globals */
-galaxy *GAL = nullptr;
-halo *HALO = nullptr;
-int NGAL = 0;
-int NHALO = 0;
-const char *INPUTFILE = nullptr; 
-const char *HALO_MASS_FUNC_FILE = "halo_mass_function.dat"; // Default value
-const char *MOCK_FILE = nullptr;
-const char *VOLUME_BINS_FILE = nullptr;
-
 /* Local functions */
 //void find_satellites(int icen, struct kdtree *kd);
 void find_satellites(int icen, GalaxyKDTree *tree);
@@ -48,6 +38,15 @@ float get_wcen(int idx);
 float get_chi_weight(int idx);
 float get_bprob(int idx);
 float lgrp_to_matching_rank(int idx);
+
+galaxy *GAL = nullptr;
+halo *HALO = nullptr;
+int NGAL = 0;
+int NHALO = 0;
+const char *INPUTFILE = nullptr; 
+const char *HALO_MASS_FUNC_FILE = "halo_mass_function.dat"; // Default value
+const char *MOCK_FILE = nullptr;
+const char *VOLUME_BINS_FILE = nullptr;
 
 /* Variables for determining if a galaxy is a satellite */
 int USE_BSAT = 0; // off by default
