@@ -5,6 +5,7 @@ enum SampleType {
   NONE
 };
 
+void prepare_halos();
 void setup_rng();
 int poisson_deviate(float mean);
 int poisson_deviate_old(float mean);

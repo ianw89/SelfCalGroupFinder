@@ -87,6 +87,7 @@ extern struct halo *HALO;
 extern int NHALO;
 
 /* Options and general purpose globals */
+extern int INTERACTIVE;
 extern int FLUXLIM;
 extern float FLUXLIM_MAG;
 extern int FLUXLIM_CORRECTION_MODEL;

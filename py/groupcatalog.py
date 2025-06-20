@@ -146,7 +146,7 @@ class GroupCatalog:
         self.extra_params = None # Tuple of parameters values
         self.sampler: emcee.EnsembleSampler = None
         self.proc : sp.Popen = None
-        self.pipe : BufferedReader = None
+        self.pipereader : BufferedReader = None
         self.outstream = None
 
         self.has_truth = False
@@ -206,7 +206,7 @@ class GroupCatalog:
     def __setstate__(self, state):
         self.__dict__.update(state)
         self.proc = None
-        self.pipe = None
+        self.pipereader = None
         self.outstream = None
 
     def set_output_folder(self, folder):
@@ -244,6 +244,7 @@ class GroupCatalog:
 
 
     def setup_GF_mcmc(self, mcmc_num: int = None):
+        print("Setting up GF for MCMC...")
 
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
@@ -283,9 +284,6 @@ class GroupCatalog:
             backend=backend
         )
 
-        # Start up group finder in interactive mode
-        self.run_group_finder(popmock=True, silent=False, verbose=False, profile=False, interactive=True)
-
     def run_GF_mcmc(self, niter: int):
 
         if self.sampler is None:
@@ -293,7 +291,8 @@ class GroupCatalog:
             return
 
         # Run the group finder in interactive mode
-        self.run_group_finder(popmock=True, interactive=True)
+        print("Calling group finder with interactive on for inital run.")
+        self.run_group_finder(popmock=True, profile=False, interactive=True, silent=True)
         
         # If there is a state, continue from there
         if self.sampler.backend.iteration > 0:
@@ -575,18 +574,16 @@ class GroupCatalog:
         
 
     def monitor_pipe(self):
-
-
         while self.proc.poll() is None: # while the group finder process is running
             
-            header = self.pipe.read(6)
+            header = self.pipereader.read(6)
             if len(header) == 0:
                 continue
             if len(header) < 6:
                 raise Exception("Incomplete header, len=" + str(len(header)))
 
             msg_type, data_type, count = struct.unpack("<BBI", header)
-            if msg_type not in (MSG_FSAT, MSG_LHMR, MSG_LSAT, MSG_HOD, MSG_HODFIT):
+            if msg_type not in (MSG_FSAT, MSG_LHMR, MSG_LSAT, MSG_HOD, MSG_HODFIT, MSG_COMPLETED, MSG_ABORTED):
                 raise Exception("Unexpected response")
             
             if data_type not in (TYPE_FLOAT, TYPE_DOUBLE):
@@ -597,7 +594,7 @@ class GroupCatalog:
 
             bytes_needed = count * (8 if data_type == TYPE_DOUBLE else 4)
 
-            payload = self.pipe.read(bytes_needed)
+            payload = self.pipereader.read(bytes_needed)
             if len(payload) < bytes_needed:
                 raise Exception(f"Incomplete payload, expected {bytes_needed} bytes but got {len(payload)} bytes") 
             data = struct.unpack(f"<{count}{dtype_marker}", payload)
@@ -640,9 +637,11 @@ class GroupCatalog:
                 self.hodfit = np.array(data, dtype=dtype).reshape((rows, cols))
             
             elif msg_type == MSG_COMPLETED:
+                print("Group Finder completed successfully.")
                 return True
             
             elif msg_type == MSG_ABORTED:
+                print("Group Finder was aborted.")
                 return False
             
             else:
@@ -697,7 +696,7 @@ class GroupCatalog:
         if verbose:
             args.append("-v")
         if interactive:
-            args.append("-i")
+            args.append("-k") # keep alive
         if 'omegaL_sf' in self.GF_props:
             args.append(f"--wcen={self.GF_props['omegaL_sf']},{self.GF_props['sigma_sf']},{self.GF_props['omegaL_q']},{self.GF_props['sigma_q']},{self.GF_props['omega0_sf']},{self.GF_props['omega0_q']}")
         if 'beta0q' in self.GF_props:
@@ -717,18 +716,18 @@ class GroupCatalog:
         # TODO stderr to a seperate log?
         self.proc = sp.Popen(args, cwd=self.output_folder, stdout=self.outstream, stdin=sp.PIPE, pass_fds=fds)
         MASTER_PROCESS_LIST.append(self.proc)
-        self.pipe = os.fdopen(read_fd, "rb")
-        os.close(write_fd) 
+        self.pipereader = os.fdopen(read_fd, "rb")
         success = self.monitor_pipe()
 
         if not interactive:
             # Cleanup
             self.proc.stdin.close()
-            self.pipe.close()
+            self.pipereader.close()
             self.proc.wait()
-            self.pipe = None
+            self.pipereader = None
             self.outstream.close()
             self.outstream = None
+
 
             # TODO Group Finder does not consistently return >0 for errors.
             if self.proc.returncode != 0:
@@ -937,8 +936,8 @@ class GroupCatalog:
             print("Warning: chisqr called with wrong number of parameters. Expected 10 or 14.")
         if self.proc is None:
             raise Exception("Group finder process is not running, but expected to be.")
-        if self.pipe is None:
-            raise Exception("Group finder pipe is no longer open, but expected to be.")
+        if self.pipereader is None:
+            raise Exception("Group finder pipe reader is no longer open, but expected to be.")
 
         self.GF_props = {
             'zmin':self.GF_props['zmin'],
@@ -965,9 +964,10 @@ class GroupCatalog:
 
         # Send message to GF TODO
         # &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR), &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE)
+        print("Sending message for next GF iteration")
         msg = struct.pack("<BBI", MSG_REQUEST, TYPE_DOUBLE, len(params)) + struct.pack(f"<{len(params)}d", *params)
-        self.pipe.write(msg)
-        self.pipe.flush()
+        self.proc.stdin.write(msg)
+        self.proc.stdin.flush()
 
         # Wait for the group finder to re-run with these parameters
         success = self.monitor_pipe()  
@@ -1219,7 +1219,7 @@ class MXXLGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False, silent=False, profile=False, interactive=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess()
         return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
@@ -1271,7 +1271,7 @@ class UchuuGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False, silent=False, profile=False, interactive=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess()
         return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
@@ -1379,15 +1379,15 @@ class BGSGroupCatalog(GroupCatalog):
         print(f"Pre-processing complete in {t2-t1:.2} seconds.")
 
     def setup_GF_mcmc(self, mcmc_num: int = None):
-        self.run_group_finder(popmock=True)
+        #self.run_group_finder(popmock=True)
         super().setup_GF_mcmc(mcmc_num)
 
-    def run_group_finder(self, popmock=False, silent=False, profile=False, interactive=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess(silent=silent)
         else:
             print("Skipping pre-processing")
-        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
+        return super().run_group_finder(popmock=popmock, silent=silent, verbose=verbose, profile=profile, interactive=interactive)
 
     def add_bootstrapped_f_sat(self, N_ITERATIONS = 100):
 

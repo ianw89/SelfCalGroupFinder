@@ -33,7 +33,7 @@ float BOX_SIZE = 250.0;
 float BOX_EPSILON = 0.01;
 
 /* Globals for the tabulated HODs */
-int NVOLUME_BINS;
+int NVOLUME_BINS = 0;
 // TODO replace these with dynamic sized arrays
 double ncenr[MAXBINS][HALO_BINS], nsatr[MAXBINS][HALO_BINS], ncenb[MAXBINS][HALO_BINS], nsatb[MAXBINS][HALO_BINS], ncen[MAXBINS][HALO_BINS], nsat[MAXBINS][HALO_BINS], nhalo[MAXBINS][HALO_BINS];
 double nhalo_int[MAXBINS][HALO_BINS]; // integer version of nhalo (no vmax weight)
@@ -465,22 +465,24 @@ void tabulate_hods()
   double w0 = 1.0;
   int nbins = 0;
 
-  LOG_INFO("Reading Volume Bins...\n");
+  if (NVOLUME_BINS <= 0) {
+    LOG_INFO("Reading Volume Bins...\n");
 
-  bins_fp = fopen(VOLUME_BINS_FILE, "r");
-  while (fscanf(bins_fp, "%f %f %f %d", &maglim[nbins], &maxz[nbins], &volume[nbins], &color_sep[nbins]) == 4)
-  {
-    nbins++;
-    if (nbins >= MAXBINS)
+    bins_fp = fopen(VOLUME_BINS_FILE, "r");
+    while (fscanf(bins_fp, "%f %f %f %d", &maglim[nbins], &maxz[nbins], &volume[nbins], &color_sep[nbins]) == 4)
     {
-      LOG_ERROR("ERROR: More lines in volume bins file than maximum of %d\n", MAXBINS);
-      fclose(bins_fp);
-      exit(EINVAL);
+      nbins++;
+      if (nbins >= MAXBINS)
+      {
+        LOG_ERROR("ERROR: More lines in volume bins file than maximum of %d\n", MAXBINS);
+        fclose(bins_fp);
+        exit(EINVAL);
+      }
     }
+    fclose(bins_fp);
+    NVOLUME_BINS = nbins;
   }
-  fclose(bins_fp);
-  NVOLUME_BINS = nbins;
-  
+
   LOG_INFO("Tabulating HODs...\n");
 
   for (i = 0; i < NVOLUME_BINS; ++i)
@@ -890,6 +892,40 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
   }
 }
 
+/*
+ * Read in the mock halo data from a file.
+ * The file should have the following format:
+ * mass x y z vx vy
+ */
+void prepare_halos() {
+  if (HALO != nullptr) {
+    return;
+  }
+
+  srand48(555);
+  LOG_INFO("popsim> reading mock halo data...\n");
+  FILE *fp = fopen(MOCK_FILE, "r");
+  //fp = fopen("/export/sirocco1/tinker/SIMULATIONS/BOLSHOI/hosthalo_z0.0_M1e10.dat", "r");
+  //fp = fopen("/export/sirocco2/tinker/SIMULATIONS/C250_2560/hosthalo_z0.0_M1e10_Lsat.dat", "r");
+  if (!fp)
+  {
+    LOG_ERROR("popsim> could not open mock halo file\n");
+    fflush(stderr);
+    exit(ENOENT);
+  }
+
+  NHALO = filesize(fp);
+  LOG_INFO("popsim> NHALO=%d\n", NHALO);
+  HALO = (halo *) calloc(NHALO, sizeof(halo));
+  for (int i = 0; i < NHALO; ++i)
+  {
+    fscanf(fp, "%f %f %f %f %f %f %f %f", &HALO[i].mass,
+            &HALO[i].x, &HALO[i].y, &HALO[i].z,
+            &HALO[i].vx, &HALO[i].vy, &HALO[i].vz, &HALO[i].lsat);
+  }
+  fclose(fp);
+  LOG_INFO("popsim> done reading halo data [%d].\n", NHALO);
+}
 
 /*
  * Population a simulation's halo catalog using the tabulated HODs from tabulate_hods().
@@ -898,43 +934,12 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
 void populate_simulation_omp(int imag, SampleType type)
 {
   int i;
-  FILE *fp;
   FILE *outf;
   char fname[1000];
   int j, nsat_rand, imag_offset, imag_mult, istart, iend, mag;
   float nsat_calc, ncen_calc, mass, xg[3], vg[3], xh[3], logm, bfit;
   double r;
   int warned = 0;
-
-  // First time setup - read mock's halo file
-  if (imag < 0)
-  {
-    srand48(555);
-    LOG_INFO("popsim> reading mock halo data...\n");
-    fp = fopen(MOCK_FILE, "r");
-    //fp = fopen("/export/sirocco1/tinker/SIMULATIONS/BOLSHOI/hosthalo_z0.0_M1e10.dat", "r");
-    //fp = fopen("/export/sirocco2/tinker/SIMULATIONS/C250_2560/hosthalo_z0.0_M1e10_Lsat.dat", "r");
-    if (!fp)
-    {
-      LOG_ERROR("popsim> could not open mock halo file\n");
-      fflush(stderr);
-      exit(ENOENT);
-    }
-
-    NHALO = filesize(fp);
-    LOG_INFO("popsim> NHALO=%d\n", NHALO);
-    HALO = (struct halo *) calloc(NHALO, sizeof(struct halo));
-    for (i = 0; i < NHALO; ++i)
-    {
-      fscanf(fp, "%f %f %f %f %f %f %f %f", &HALO[i].mass,
-             &HALO[i].x, &HALO[i].y, &HALO[i].z,
-             &HALO[i].vx, &HALO[i].vy, &HALO[i].vz, &HALO[i].lsat);
-    }
-    fclose(fp);
-    LOG_INFO("popsim> done reading halo data [%d].\n", NHALO);
-    return;
-  }
-  
 
   // If this combination of imag and type isn't needed, skip it
   assert (type == QUIESCENT || type == STARFORMING || type == ALL);

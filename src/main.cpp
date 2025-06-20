@@ -12,6 +12,7 @@
 #include <omp.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <vector>
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
 #include "nrutil.h"
@@ -32,7 +33,8 @@
 // stdout is used for printing the output of the program; 1 galaxy per line
 // stderr is used for printing the progress of the program and errors
 
-void print_fsat();
+void write_fsat();
+bool await_request();
 
 /* Standard GNU command-line program stuff */
 const char *argp_program_version =  "kdGroupFinder-2.0";
@@ -66,6 +68,7 @@ static struct argp_option options[] = {
   {"quiet",        'q', 0,                                    0,  "Don't produce any output to stdout or stderr", 3 },
   {"silent",       's', 0,                                    OPTION_ALIAS },
   {"pipe",         'P', "PIPEID",                             0,  "Specify a pipe ID for the group find to write message to", 3},
+  {"interactive",  'k', 0,                                    0,  "Do not terminate after group finding. Use pipe messages to control.", 3},
   //{"output",   'o', "FILE", 0, "Output to FILE instead of standard output" },
   { 0 }
 };
@@ -147,6 +150,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       break;
     case 'h':
       HALO_MASS_FUNC_FILE = arg;
+      break;
+    case 'k':
+      INTERACTIVE = 1;
       break;
     case 'P':
       if (arg == NULL)
@@ -259,52 +265,83 @@ int main(int argc, char **argv)
     LOG_WARN("Weighting centrals but not using galaxy colors. All galaxies will use blue wcen values.\n");
   if (USE_BSAT && !COLOR) 
     LOG_WARN("Using custom Bsat but not using galaxy colors. All galaxies will use blue Bsat values.\n");
-
-  // The primary method for group finding
-  t_grp_s = omp_get_wtime();
-  groupfind();
-  t_grp_e = omp_get_wtime();
-  LOG_PERF("groupfind() took %.2f sec\n", t_grp_e - t_grp_s);
-
-  // Populate Mock 
-  if (POPULATE_MOCK)
+  if (INTERACTIVE && MSG_PIPE == NULL) 
   {
-    t0 = omp_get_wtime();
-    lsat_model();
-    tabulate_hods();
-    setup_rng();
-    populate_simulation_omp(-1, ALL); 
-    t1 = omp_get_wtime();
-    LOG_PERF("lsat + hod + prep popsim: %.2f sec\n", t1 - t0);
+    LOG_ERROR("Interactive mode (-k) requires a pipe ID (-P).\n");
+    exit(EPERM);
+  }
 
-    // lsat_model_scatter(); // This is crashing for some reason...
+  bool run = true;
+  while (run)
+  {
+    if (!INTERACTIVE) 
+      run = false;
+      
+    // The primary method for group finding
+    t_grp_s = omp_get_wtime();
+    groupfind();
+    t_grp_e = omp_get_wtime();
+    LOG_PERF("groupfind() took %.2f sec\n", t_grp_e - t_grp_s);
 
-    LOG_INFO("Populating mock catalog\n");
-
-    t2 = omp_get_wtime();
-    
-    //for (i = 0; i < NVOLUME_BINS*3; i += 1)
-    //{
-    //  populate_simulation_omp(i / 3, i % 3);
-    //}
-#pragma omp parallel private(i,istart,istep)
+    // Populate Mock 
+    if (POPULATE_MOCK)
     {
-      istart = omp_get_thread_num();
-      istep = omp_get_num_threads();
-      for(i=istart; i< NVOLUME_BINS*3; i+=istep)
+      t0 = omp_get_wtime();
+      lsat_model();
+      tabulate_hods();
+      setup_rng();
+      prepare_halos();
+      t1 = omp_get_wtime();
+      LOG_PERF("lsat + hod + prep popsim: %.2f sec\n", t1 - t0);
+
+      // lsat_model_scatter(); // This is crashing for some reason...
+
+      LOG_INFO("Populating mock catalog\n");
+
+      t2 = omp_get_wtime();
+      
+      //for (i = 0; i < NVOLUME_BINS*3; i += 1)
+      //{
+      //  populate_simulation_omp(i / 3, i % 3);
+      //}
+  #pragma omp parallel private(i,istart,istep)
       {
-        populate_simulation_omp(i/3, static_cast<SampleType>(i%3));
+        istart = omp_get_thread_num();
+        istep = omp_get_num_threads();
+        for(i=istart; i< NVOLUME_BINS*3; i+=istep)
+        {
+          populate_simulation_omp(i/3, static_cast<SampleType>(i%3));
+        }
       }
+
+      t3 = omp_get_wtime();
+      LOG_INFO("popsim> %.2f sec\n", t3 - t2);
+
+    }
+    
+    write_fsat();
+
+    // Done. Send pipe message that's were done and await instructions
+    if (MSG_PIPE != NULL) 
+    {
+      //LOG_INFO("Group finding completed, sending message and awaiting next request...\n");
+      uint8_t resp_msg_type = MSG_COMPLETED;
+      uint8_t resp_data_type = TYPE_FLOAT;
+      uint32_t resp_count = 0;
+
+      fwrite(&resp_msg_type, 1, 1, MSG_PIPE);
+      fwrite(&resp_data_type, 1, 1, MSG_PIPE);
+      fwrite(&resp_count, sizeof(uint32_t), 1, MSG_PIPE);
+      fflush(MSG_PIPE);
     }
 
-    t3 = omp_get_wtime();
-    LOG_INFO("popsim> %.2f sec\n", t3 - t2);
+    if (INTERACTIVE) {
+      run = await_request();
+    }
 
   }
-  
-  print_fsat();
 
-  // CLEANUP
+  // FINAL CLEANUP
   if (MSG_PIPE != NULL) 
   {
     fflush(MSG_PIPE);
@@ -312,7 +349,64 @@ int main(int argc, char **argv)
   }
 }
 
-void print_fsat() {
+bool await_request() {
+  uint8_t msg_type, data_type;
+  uint32_t count;
+  std::vector<double> params;
+
+  // Read header: 1 byte msg_type, 1 byte data_type, 4 bytes count (little-endian)
+  // TODO end gracefully when stdin is closed
+  //if (feof(stdin)) {
+  //  LOG_INFO("End of input stream reached, exiting...\n");
+  //  return false; // No more requests
+  //}
+  uint8_t header[6];
+  size_t n = fread(header, 1, 6, stdin);
+  if (n != 6) {
+    LOG_ERROR("Failed to read MSG_REQUEST header (got %zu bytes)\n", n);
+    return false;
+  }
+  msg_type = header[0];
+  data_type = header[1];
+  memcpy(&count, header + 2, sizeof(uint32_t));
+  if (msg_type != MSG_REQUEST) {
+    LOG_ERROR("Expected MSG_REQUEST, got %d\n", msg_type);
+    return false;
+  }
+  if (data_type != TYPE_DOUBLE) {
+    LOG_ERROR("Expected TYPE_DOUBLE, got %d\n", data_type);
+    return false;
+  }
+
+  // Read payload: count doubles
+  params.resize(count);
+  size_t n_payload = fread(params.data(), sizeof(double), count, stdin);
+  if (n_payload != count) {
+    fprintf(stderr, "Failed to read MSG_REQUEST payload (got %zu doubles)\n", n_payload);
+    return false;
+  }
+
+  if (params.size() == 10) {
+    assert(USE_WCEN && USE_BSAT && SECOND_PARAMETER == 0);
+    WCEN_MASS = params[0];
+    WCEN_SIG = params[1];
+    WCEN_MASSR = params[2];
+    WCEN_SIGR = params[3];
+    WCEN_NORM = params[4];
+    WCEN_NORMR = params[5];
+    BPROB_RED = params[6];
+    BPROB_XRED = params[7];
+    BPROB_BLUE = params[8];
+    BPROB_XBLUE = params[9];
+  } else {
+    LOG_ERROR("Unexpected number of parameters in MSG_REQUEST: %zu\n", params.size());
+    return false;
+  }
+
+  return true;
+}
+
+void write_fsat() {
   // want L bins to be np.logspace(6, 12.5, 40) like in python postprocessing
   const int FSAT_BINS = 40;
   float logbin_interval = (12.5 - 6.0) / FSAT_BINS;

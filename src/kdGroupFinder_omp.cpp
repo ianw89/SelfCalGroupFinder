@@ -32,6 +32,7 @@ typedef KDTreeSingleIndexAdaptor<
 
 /* Local functions */
 //void find_satellites(int icen, struct kdtree *kd);
+void recalc_galprops();
 void find_satellites(int icen, GalaxyKDTree *tree);
 float fluxlim_correction(float z);
 float get_wcen(int idx);
@@ -69,6 +70,7 @@ float MINREDSHIFT;
 float MAXREDSHIFT;
 float FRAC_AREA;
 float GALAXY_DENSITY;
+int INTERACTIVE = 0; // default is off
 int FLUXLIM = 0; // default is volume-limited
 float FLUXLIM_MAG = 0.0; 
 int FLUXLIM_CORRECTION_MODEL = 0; // default is no correction, 1 for SDSS tuned, 2 for BGS tuned
@@ -91,7 +93,7 @@ void groupfind()
   FILE *fp;
   char aa[1000];
   float minvmax, maxvmax;
-  int i, i1, niter, j, ngrp_prev, icen_new, k;
+  int niter, ngrp_prev, icen_new;
   float frac_area, nsat_tot, weight;
   double galden, pt[3], t_start_findsats, t_end_findsats, t_start_iter, t_end_iter, t_alliter_s, t_alliter_e; // galden (galaxy density) only includes centrals, because only they get halos
   double *fsat_arr;
@@ -102,6 +104,7 @@ void groupfind()
   static int *permanent_id, *itmp, *flag;
   static float volume, *xtmp, *lumshift; 
   static int first_call = 1, ngrp;
+  static GalaxyKDTree *tree = nullptr;
 
   fsat_arr = (double *) calloc(MAX_ITER, sizeof(double));
 
@@ -126,7 +129,7 @@ void groupfind()
     // For that case, a factor of frac_area should already be included in the vmax.
 
     galden = 0;
-    for (i = 0; i < NGAL; ++i)
+    for (int i = 0; i < NGAL; ++i)
     {
       // Thought called lum throughout the code, this galaxy property could be mstellar too.
       fscanf(fp, "%f %f %f %f", &GAL[i].ra, &GAL[i].dec, &GAL[i].redshift, &GAL[i].lum);
@@ -150,13 +153,16 @@ void groupfind()
       GAL[i].weight = get_wcen(i);
       GAL[i].chiweight = get_chi_weight(i);
       GAL[i].bprob = get_bprob(i);
+      GAL[i].x = GAL[i].rco * cos(GAL[i].ra) * cos(GAL[i].dec);
+      GAL[i].y = GAL[i].rco * sin(GAL[i].ra) * cos(GAL[i].dec);
+      GAL[i].z = GAL[i].rco * sin(GAL[i].dec);
       fgets(aa, 1000, fp);
       galden += 1 / GAL[i].vmax;
     }
     // print off largest and smallest vmax values
     minvmax = 1e10;
     maxvmax = -1e10;
-    for (i = 0; i < NGAL; ++i)
+    for (int i = 0; i < NGAL; ++i)
     {
       if (GAL[i].vmax < minvmax)
         minvmax = GAL[i].vmax;
@@ -174,80 +180,79 @@ void groupfind()
       LOG_INFO("Number density= %e %e\n", NGAL / volume, galden);
       GALAXY_DENSITY = NGAL / volume;
     }
-
-    // For the first time through, sort by LGAL / stellar mass
-    xtmp = vector(1, NGAL); // group property that is abundance matched on (the values)
-    itmp = ivector(1, NGAL); // index in the GAL array
-    permanent_id = ivector(1, NGAL);
-    for (i = 1; i <= NGAL; ++i)
-    {
-      // Used to not multiply by chiweight here. (only in main iterations). But why not? Seems reasonable here too.
-      xtmp[i] = -(GAL[i-1].lum) * GAL[i-1].chiweight; 
-      itmp[i] = i-1;
-
-      // just for kicks, give each galaxy a random luminosity 
-      if (PERTURB) {
-        xtmp[i] *= pow(10.0, gasdev(&IDUM1) * 0.0);
-      }
-    }
-    //LOG_INFO("itmp initial: ");
-    //for (i = 1; i <= NGAL; ++i)
-    //  LOG_INFO("%d ", itmp[i]);
-    //LOG_INFO("\n");
-
-    LOG_INFO("Sorting galaxies...\n");
-    sort2(NGAL, xtmp, itmp);
-    LOG_INFO("Done sorting galaxies.\n");
-
-    //LOG_INFO("itmp after sort2 by LGAL: ");
-    //for (i = 1; i <= NGAL; ++i)
-    //  LOG_INFO("%d ", itmp[i]);
-    //LOG_INFO("\n");
-
-    // do the inverse-abundance matching
-    
-    density2host_halo(0.01);
-    LOG_INFO("Starting inverse-sham...\n");
-    galden = 0;
-
-    // reset the sham counters
-    if (FLUXLIM)
-      density2host_halo_zbins3(-1, 0);
-
-    for (i1 = 1; i1 <= NGAL; ++i1)
-    {
-      i = itmp[i1];
-      GAL[i].grp_rank = i1;
-      // Set the galaxy's halo mass
-      if (FLUXLIM)
-        GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
-      else
-      {
-        galden += 1 / GAL[i].vmax;
-        GAL[i].mass = density2host_halo(galden); // TODO is this right? we haven't counted galden fully yet?
-      }
-      // Set other properties derived from that
-      update_galaxy_halo_props(&GAL[i]);
-      GAL[i].psat = 0;
-      j = i;
-      GAL[j].x = GAL[j].rco * cos(GAL[j].ra) * cos(GAL[j].dec);
-      GAL[j].y = GAL[j].rco * sin(GAL[j].ra) * cos(GAL[j].dec);
-      GAL[j].z = GAL[j].rco * sin(GAL[j].dec);
-    }
-    LOG_INFO("Done inverse-sham.\n");
-    // assume that NGAL=NGROUP at first
-    ngrp = NGAL;
   } // end of first call code
+  else {
+    LOG_INFO("Reusing existing GAL array. Recalculating properties.\n", NGAL);
+    recalc_galprops();
+  }
+
+  // For the first group finding iteration, sort by LGAL / stellar mass
+  xtmp = vector(1, NGAL); // group property that is abundance matched on (the values)
+  itmp = ivector(1, NGAL); // index in the GAL array
+  permanent_id = ivector(1, NGAL);
+  for (int i = 1; i <= NGAL; ++i)
+  {
+    // Used to not multiply by chiweight here. (only in main iterations). But why not? Seems reasonable here too.
+    xtmp[i] = -(GAL[i-1].lum) * GAL[i-1].chiweight; 
+    itmp[i] = i-1;
+
+    // just for kicks, give each galaxy a random luminosity 
+    if (PERTURB) {
+      xtmp[i] *= pow(10.0, gasdev(&IDUM1) * 0.0);
+    }
+  }
+  //LOG_INFO("itmp initial: ");
+  //for (i = 1; i <= NGAL; ++i)
+  //  LOG_INFO("%d ", itmp[i]);
+  //LOG_INFO("\n");
+
+  LOG_INFO("Sorting galaxies...\n");
+  sort2(NGAL, xtmp, itmp);
+  LOG_INFO("Done sorting galaxies.\n");
+
+  //LOG_INFO("itmp after sort2 by LGAL: ");
+  //for (i = 1; i <= NGAL; ++i)
+  //  LOG_INFO("%d ", itmp[i]);
+  //LOG_INFO("\n");
+
+  // do the inverse-abundance matching
+  density2host_halo(0.01); // TODO delete?
+  LOG_INFO("Starting inverse-sham...\n");
+  galden = 0;
+
+  // reset the sham counters
+  if (FLUXLIM)
+    density2host_halo_zbins3(-1, 0);
+
+  for (int i1 = 1; i1 <= NGAL; ++i1)
+  {
+    int i = itmp[i1];
+    GAL[i].grp_rank = i1;
+    // Set the galaxy's halo mass
+    if (FLUXLIM)
+      GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
+    else
+    {
+      galden += 1 / GAL[i].vmax;
+      GAL[i].mass = density2host_halo(galden); // TODO is this right? we haven't counted galden fully yet?
+    }
+    // Set other properties derived from that
+    update_galaxy_halo_props(&GAL[i]);
+    GAL[i].psat = 0;
+  }
+  LOG_INFO("Done inverse-sham.\n");
+  // assume that NGAL=NGROUP at first
+  ngrp = NGAL;
 
   // Create the 3D KD tree for fast lookup of nearby galaxies
-  LOG_INFO("Building KD-tree...\n");
-  static GalaxyCloud gal_cloud;
-  static GalaxyKDTree* tree = nullptr;
-  gal_cloud = GalaxyCloud();
-  if (tree) delete tree;
-  tree = new GalaxyKDTree(3, gal_cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */));
-  tree->buildIndex();
-  LOG_INFO("Done building KD-tree. %d\n", ngrp);
+  if (tree == nullptr)
+  {
+    LOG_INFO("Building KD-tree...\n");
+    static GalaxyCloud gal_cloud = GalaxyCloud();
+    tree = new GalaxyKDTree(3, gal_cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */));
+    tree->buildIndex();
+    LOG_INFO("Done building KD-tree. %d\n", ngrp);
+  }
 
   // test the FOF group finder
   // test_fof(kd);
@@ -263,7 +268,7 @@ void groupfind()
 
     // Reset group properties except the halo mass
     // (We have the itmp array from the last iteration with the previous LGRP values sorted already)
-    for (j = 0; j < NGAL; ++j)
+    for (int j = 0; j < NGAL; ++j)
     {
       GAL[j].igrp = -1;
       GAL[j].psat = 0;
@@ -277,19 +282,20 @@ void groupfind()
     ngrp_prev = ngrp; // first iteration this is NGAL
     ngrp = 0;
     t_start_findsats = omp_get_wtime();
-#pragma omp parallel for private(i1, i)
-    for (i1 = 1; i1 <= ngrp_prev; ++i1)
+    int i1_par, i_par;
+#pragma omp parallel for private(i1_par, i_par)
+    for (i1_par = 1; i1_par <= ngrp_prev; ++i1_par)
     {
-      i = itmp[i1];
-      flag[i] = 0;
-      find_satellites(i, tree);
+      i_par = itmp[i1_par];
+      flag[i_par] = 0;
+      find_satellites(i_par, tree);
     }
     t_end_findsats = omp_get_wtime();
 
     // After finding satellites, now set some properties on the centrals
-    for (i1 = 1; i1 <= ngrp_prev; ++i1)
+    for (int i1 = 1; i1 <= ngrp_prev; ++i1)
     {
-      i = itmp[i1];
+      int i = itmp[i1];
       if (GAL[i].psat <= 0.5)
       {
         GAL[i].igrp = i;
@@ -301,29 +307,30 @@ void groupfind()
     }
 
 // go back and check objects are newly-exposed centrals
-#pragma omp parallel for private(j)
-    for (j = 0; j < NGAL; ++j)
+    int j_par;
+#pragma omp parallel for private(j_par)
+    for (j_par = 0; j_par < NGAL; ++j_par)
     {
-      if (flag[j] && GAL[j].psat <= 0.5)
+      if (flag[j_par] && GAL[j_par].psat <= 0.5)
       {
         //LOG_INFO("Newly exposed central: %d.\n", j);
-        find_satellites(j, tree);
+        find_satellites(j_par, tree);
       }
     }
-    for (j = 0; j < NGAL; ++j)
+    for (j_par = 0; j_par < NGAL; ++j_par)
     {
-      if (flag[j] && GAL[j].psat <= 0.5)
+      if (flag[j_par] && GAL[j_par].psat <= 0.5)
       {
         ngrp++;
-        GAL[j].igrp = j;
-        xtmp[ngrp] = lgrp_to_matching_rank(j);
-        itmp[ngrp] = j;
-        GAL[j].listid = ngrp;
+        GAL[j_par].igrp = j_par;
+        xtmp[ngrp] = lgrp_to_matching_rank(j_par);
+        itmp[ngrp] = j_par;
+        GAL[j_par].listid = ngrp;
       }
     }
 
   // Fix up orphaned satellites (satellites of centrals that became satellites)
-  for (k = 0; k < NGAL; ++k) {
+  for (int k = 0; k < NGAL; ++k) {
     if (GAL[k].psat > 0.5) {
       #ifndef OPTIMIZE
       if (GAL[k].igrp == k) { 
@@ -397,9 +404,9 @@ void groupfind()
     // reset the sham counters
     if (FLUXLIM)
       density2host_halo_zbins3(-1, 0);
-    for (j = 1; j <= ngrp; ++j)
+    for (int j = 1; j <= ngrp; ++j)
     {
-      i = itmp[j];
+      int i = itmp[j];
       GAL[i].grp_rank = j;
       galden += 1 / GAL[i].vmax;
       if (FLUXLIM)
@@ -432,7 +439,7 @@ void groupfind()
   // Copy group properties to each member
   // Perform other sanity checks
   // **********************************
-  for (j = 0; j < NGAL; ++j) {
+  for (int j = 0; j < NGAL; ++j) {
     // Satellites
     if (GAL[j].psat > 0.5) {
       // It thinks it's a satellite of itself? Should not happen
@@ -462,7 +469,7 @@ void groupfind()
   // Output the group catalog to stdout
   // **********************************
   if (!SILENT) {
-    for (i = 0; i < NGAL; ++i) {
+    for (int i = 0; i < NGAL; ++i) {
       printf("%d %f %f %f %e %e %f %e %d %e %d %f %f\n",
               i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
               GAL[i].lum, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
@@ -475,6 +482,19 @@ void groupfind()
 
   // We want to reuse the tree if we introduce an interactive mode, so don't delete.
   //delete tree;
+}
+
+
+/**
+ * Recalculate galaxy properties when the parameters have changed (interactive mode).
+ */
+void recalc_galprops() {
+  for (int i=0; i<NGAL; ++i) {
+    GAL[i].weight = get_wcen(i);
+    GAL[i].chiweight = get_chi_weight(i);
+    GAL[i].bprob = get_bprob(i);
+    GAL[i].lgrp = GAL[i].lum; // reset lgrp to lum
+  }
 }
 
 /* Here is the main code to find satellites for a given central galaxy
