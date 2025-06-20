@@ -3,6 +3,7 @@ import pandas as pd
 import astropy.coordinates as coord
 import astropy.units as u
 import os
+import sys
 import emcee
 import pickle
 from astropy.io import ascii
@@ -17,6 +18,7 @@ import struct
 from io import BufferedReader
 from multiprocessing import Pool
 from joblib import Parallel, delayed
+import signal 
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -27,6 +29,18 @@ from uchuu_to_dat import pre_process_uchuu
 from bgs_helpers import *
 import wp
 from calibrationdata import *
+
+# Must keep this protocol syncronized with the C++ code in groups.hpp
+MSG_REQUEST = 0
+MSG_FSAT = 1
+MSG_LHMR = 2
+MSG_LSAT = 3
+MSG_HOD = 4
+MSG_HODFIT = 5
+MSG_COMPLETED = 6
+MSG_ABORTED = 7
+TYPE_FLOAT = 0
+TYPE_DOUBLE = 1
 
 # Sentinal value for no truth redshift
 NO_TRUTH_Z = -99.99
@@ -99,6 +113,25 @@ GF_PROPS_BGS_COLORS_C1 = {
 # Weird other good one
 #({'omegaL_sf': 13.03086801, 'sigma_sf': 1.85056851, 'omegaL_q': 8.92398122, 'sigma_q': -0.27906515, 'omega0_sf': 15.34144908, 'omega0_q': -1.27133105, 'beta0q': -0.59290738, 'betaLq': 14.81630656, 'beta0sf': 12.17260624, 'betaLsf': -6.73894304})
 
+MASTER_PROCESS_LIST = [] # List of all processes that should be killed if we die unexpectedly
+def cleanup():
+    for p in MASTER_PROCESS_LIST:
+        if p is sp.Popen:
+            if p.poll() is None:
+                p.terminate()
+                p.wait()   
+def signal_handler(signum, frame):
+    cleanup()             
+    sys.exit(1)
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+def exception_handler(exc_type, exc_value, exc_traceback):
+    cleanup()
+    sys.__excepthook__(exc_type, exc_value, exc_traceback)
+    sys.exit(1)
+sys.excepthook = exception_handler
+
+
 class GroupCatalog:
 
     def __init__(self, name):
@@ -112,6 +145,9 @@ class GroupCatalog:
         self.GF_props = {} # Properties that are sent as command-line arguments to the group finder executable
         self.extra_params = None # Tuple of parameters values
         self.sampler: emcee.EnsembleSampler = None
+        self.proc : sp.Popen = None
+        self.pipe : BufferedReader = None
+        self.outstream = None
 
         self.has_truth = False
         self.Mhalo_bins = Mhalo_bins
@@ -157,7 +193,21 @@ class GroupCatalog:
         self.lhmr_b_m : np.ndarray = None # lhmr model blue
         self.lhmr_b_std : np.ndarray = None # lhmr model blue scatter
         self.lsat_ratios : np.ndarray = None # lsat ratios, 107-88+1 values
+        self.hod : np.ndarray = None # Raw HOD
+        self.hodfit : np.ndarray = None # HOD with modifications; this is what was used to populate mocks
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['proc']
+        del state['pipe']
+        del state['outstream']
+        return state
+    
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.proc = None
+        self.pipe = None
+        self.outstream = None
 
     def set_output_folder(self, folder):
         self.output_folder = folder
@@ -223,7 +273,7 @@ class GroupCatalog:
         else:
             print(f'CREATING BACKEND: {backfile}')
             backend = emcee.backends.HDFBackend(backfile)
-            nwalkers = 30
+            nwalkers = 25
             ndim = 10
 
         self.sampler = emcee.EnsembleSampler(
@@ -233,11 +283,17 @@ class GroupCatalog:
             backend=backend
         )
 
+        # Start up group finder in interactive mode
+        self.run_group_finder(popmock=True, silent=False, verbose=False, profile=False, interactive=True)
+
     def run_GF_mcmc(self, niter: int):
 
         if self.sampler is None:
             print("Warning: run_GF_mcmc() called without sampler set. Call setup_GF_mcmc() first.")
             return
+
+        # Run the group finder in interactive mode
+        self.run_group_finder(popmock=True, interactive=True)
         
         # If there is a state, continue from there
         if self.sampler.backend.iteration > 0:
@@ -273,6 +329,10 @@ class GroupCatalog:
         # Side effect of running is that some properties were set via pipe messages
         # Stack all the blob data as one long array
         blobs = np.concatenate((self.fsat, self.fsatr, self.fsatb, self.lhmr_m, self.lhmr_std, self.lhmr_r_m, self.lhmr_r_std, self.lhmr_b_m, self.lhmr_b_std, self.lsat_r, self.lsat_b))
+        
+        # TODO maybe store HOD too
+        #blobs = np.concatenate((self.fsat, self.fsatr, self.fsatb, self.lhmr_m, self.lhmr_std, self.lhmr_r_m, self.lhmr_r_std, self.lhmr_b_m, self.lhmr_b_std, self.lsat_r, self.lsat_b, np.flatten(self.hodfit)))
+        
         assert len(blobs) == 3*40 + 65*6 + 40, f"Expected {3*40 + 65*6 + 40} metadata entries, but got {len(blobs)}"
         return -0.5 * chi, blobs
 
@@ -504,22 +564,22 @@ class GroupCatalog:
         with open(self.results_file, 'wb') as f:
             pickle.dump(self, f)
 
-    def monitor_pipe(self, pipe : BufferedReader, proc):
-        # Must keep this protocol syncronized with the C++ code in groups.hpp
-        MSG_REQUEST = 0
-        MSG_FSAT = 1
-        MSG_LHMR = 2
-        MSG_LSAT = 3
-        MSG_HOD = 4
-        MSG_HODFIT = 5
-        MSG_COMPLETED = 6
-        MSG_ABORTED = 7
-        TYPE_FLOAT = 0
-        TYPE_DOUBLE = 1
+    def cleanup_gfproc(self):
+        if self.proc is not None:
+            try:
+                if self.proc.poll() is None:  # If the process is still running
+                    self.proc.send_signal(signal.SIGINT)  # Send interrupt signal
+                    self.proc.wait(timeout=5)  # Wait for it to finish
+            except sp.TimeoutExpired:
+                self.proc.kill()
+        
 
-        while proc.poll() is None: # while the group finder process is running
+    def monitor_pipe(self):
+
+
+        while self.proc.poll() is None: # while the group finder process is running
             
-            header = pipe.read(6)
+            header = self.pipe.read(6)
             if len(header) == 0:
                 continue
             if len(header) < 6:
@@ -537,7 +597,7 @@ class GroupCatalog:
 
             bytes_needed = count * (8 if data_type == TYPE_DOUBLE else 4)
 
-            payload = pipe.read(bytes_needed)
+            payload = self.pipe.read(bytes_needed)
             if len(payload) < bytes_needed:
                 raise Exception(f"Incomplete payload, expected {bytes_needed} bytes but got {len(payload)} bytes") 
             data = struct.unpack(f"<{count}{dtype_marker}", payload)
@@ -568,21 +628,30 @@ class GroupCatalog:
                 else:
                     self.lsat_r = np.array(data[0:20], dtype=dtype)
                     self.lsat_b = np.array(data[20:40], dtype=dtype)
+
             elif msg_type == MSG_HOD:
                 cols = self.caldata.bincount*7 + 1
                 rows = len(data) // cols
                 self.hod = np.array(data, dtype=dtype).reshape((rows, cols))
+
             elif msg_type == MSG_HODFIT:
                 cols = self.caldata.bincount*7 + 1
                 rows = len(data) // cols
                 self.hodfit = np.array(data, dtype=dtype).reshape((rows, cols))
+            
+            elif msg_type == MSG_COMPLETED:
+                return True
+            
+            elif msg_type == MSG_ABORTED:
+                return False
+            
             else:
                 raise Exception(f"Unexpected message type: {msg_type}")
 
-        # Does this need to be done in a loop?
+        return True
 
 
-    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
         t1 = time.time()
         print("Running Group Finder for " + self.name)
 
@@ -627,6 +696,8 @@ class GroupCatalog:
             args.append(f"--popmock={MOCK_FILE_FOR_POPMOCK},volume_bins.dat")
         if verbose:
             args.append("-v")
+        if interactive:
+            args.append("-i")
         if 'omegaL_sf' in self.GF_props:
             args.append(f"--wcen={self.GF_props['omegaL_sf']},{self.GF_props['sigma_sf']},{self.GF_props['omegaL_q']},{self.GF_props['sigma_q']},{self.GF_props['omega0_sf']},{self.GF_props['omega0_q']}")
         if 'beta0q' in self.GF_props:
@@ -641,25 +712,31 @@ class GroupCatalog:
         print(args)
 
         # The galaxies are written to stdout, so send ot the GF_outfile file stream
-        
-        with open(self.GF_outfile, "w") as f:
-            # TODO stderr to a seperate log?
-            proc = sp.Popen(args, cwd=self.output_folder, stdout=f, stdin=sp.PIPE, pass_fds=fds)
-            pipe = os.fdopen(read_fd, "rb")
-            os.close(write_fd) 
-            self.monitor_pipe(pipe, proc)
+        self.outstream = open(self.GF_outfile, "w")
 
+        # TODO stderr to a seperate log?
+        self.proc = sp.Popen(args, cwd=self.output_folder, stdout=self.outstream, stdin=sp.PIPE, pass_fds=fds)
+        MASTER_PROCESS_LIST.append(self.proc)
+        self.pipe = os.fdopen(read_fd, "rb")
+        os.close(write_fd) 
+        success = self.monitor_pipe()
+
+        if not interactive:
             # Cleanup
-            proc.stdin.close()
-            pipe.close()
-            proc.wait()
-            
+            self.proc.stdin.close()
+            self.pipe.close()
+            self.proc.wait()
+            self.pipe = None
+            self.outstream.close()
+            self.outstream = None
+
             # TODO Group Finder does not consistently return >0 for errors.
-            if proc.returncode != 0:
-                print(f"ERROR: Group Finder failed with return code {proc.returncode}.")
+            if self.proc.returncode != 0:
+                print(f"ERROR: Group Finder failed with return code {self.proc.returncode}.")
+                self.proc = None
                 return False
             
-        
+            self.proc = None
         #if popmock:
         #    # TODO switch these to use pipe instead of file
         #    hodout = f'{self.output_folder}hod.out'
@@ -671,7 +748,7 @@ class GroupCatalog:
 
         t2 = time.time()
         print(f"run_group_finder() took {t2-t1:.1f} seconds.")
-        return True
+        return success
 
 
     def calc_wp_for_mock(self):
@@ -858,6 +935,10 @@ class GroupCatalog:
 
         if len(params) != 10 and len(params) != 14:
             print("Warning: chisqr called with wrong number of parameters. Expected 10 or 14.")
+        if self.proc is None:
+            raise Exception("Group finder process is not running, but expected to be.")
+        if self.pipe is None:
+            raise Exception("Group finder pipe is no longer open, but expected to be.")
 
         self.GF_props = {
             'zmin':self.GF_props['zmin'],
@@ -882,10 +963,19 @@ class GroupCatalog:
             self.GF_props['omega_chi_L_sf'] = params[12]
             self.GF_props['omega_chi_L_q'] = params[13]
 
-        success = self.run_group_finder(popmock=True, silent=True)
+        # Send message to GF TODO
+        # &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR), &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE)
+        msg = struct.pack("<BBI", MSG_REQUEST, TYPE_DOUBLE, len(params)) + struct.pack(f"<{len(params)}d", *params)
+        self.pipe.write(msg)
+        self.pipe.flush()
+
+        # Wait for the group finder to re-run with these parameters
+        success = self.monitor_pipe()  
         if not success:
+            # GF aborted early for very bad parameters or something similar
             return np.inf
-        
+
+        # No issues, calculate goodness of fit and give it back to emcee
         self.calc_wp_for_mock()
         overall, clust_r, clust_b, clust_nosep, lsat = self.chisqr()
         return overall
@@ -1129,10 +1219,10 @@ class MXXLGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False, silent=False, profile=False):
+    def run_group_finder(self, popmock=False, silent=False, profile=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess()
-        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile)
+        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
 
 
     def postprocess(self):
@@ -1181,10 +1271,10 @@ class UchuuGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False, silent=False, profile=False):
+    def run_group_finder(self, popmock=False, silent=False, profile=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess()
-        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile)
+        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
 
 
     def postprocess(self):
@@ -1292,12 +1382,12 @@ class BGSGroupCatalog(GroupCatalog):
         self.run_group_finder(popmock=True)
         super().setup_GF_mcmc(mcmc_num)
 
-    def run_group_finder(self, popmock=False, silent=False, profile=False):
+    def run_group_finder(self, popmock=False, silent=False, profile=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess(silent=silent)
         else:
             print("Skipping pre-processing")
-        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile)
+        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
 
     def add_bootstrapped_f_sat(self, N_ITERATIONS = 100):
 

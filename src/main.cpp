@@ -134,19 +134,16 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     case 'w':
       USE_WCEN = 1;
       arguments->wcen_set = 1;
-      sscanf(arg, "%f,%f,%f,%f,%f,%f", 
-             &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR));
+      sscanf(arg, "%f,%f,%f,%f,%f,%f", &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR));
       break;
     case 'b':
       USE_BSAT = 1;
       arguments->bsat_set = 1;
-      sscanf(arg, "%f,%f,%f,%f", 
-             &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE));
+      sscanf(arg, "%f,%f,%f,%f", &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE));
       break;
     case 'x':
       arguments->chi1_set = 1;
-      sscanf(arg, "%f,%f,%f,%f", 
-             &(PROPX_WEIGHT_BLUE), &(PROPX_WEIGHT_RED), &(PROPX_SLOPE_BLUE), &(PROPX_SLOPE_RED));
+      sscanf(arg, "%f,%f,%f,%f", &(PROPX_WEIGHT_BLUE), &(PROPX_WEIGHT_RED), &(PROPX_SLOPE_BLUE), &(PROPX_SLOPE_RED));
       break;
     case 'h':
       HALO_MASS_FUNC_FILE = arg;
@@ -244,7 +241,7 @@ int main(int argc, char **argv)
   else 
     LOG_INFO("input> wcen OFF\n");
   if (USE_BSAT)
-      LOG_INFO("input> Bsat ON: %f %f %f %f\n", BPROB_RED, BPROB_XRED, BPROB_BLUE, BPROB_XBLUE);
+    LOG_INFO("input> Bsat ON: %f %f %f %f\n", BPROB_RED, BPROB_XRED, BPROB_BLUE, BPROB_XBLUE);
   else 
     LOG_INFO("input> Bsat OFF\n");
 

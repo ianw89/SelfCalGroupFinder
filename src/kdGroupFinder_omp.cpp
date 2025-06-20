@@ -416,7 +416,7 @@ void groupfind()
     LOG_INFO("iter %d ngroups=%d fsat=%f (kdtime=%.2f %.2f)\n", niter, ngrp, fsat_arr[niter-1], t_end_findsats - t_start_findsats, t_end_iter - t_start_iter);
 
     // When allowing early exit, check if the change in fsat is small enough to stop
-    if (ALLOW_EARLY_EXIT && niter > 1 && fabs(fsat_arr[niter-1] - fsat_arr[niter-2]) < 0.002)
+    if (ALLOW_EARLY_EXIT && niter > 1 && fabs(fsat_arr[niter-1] - fsat_arr[niter-2]) < 0.001)
     {
       LOG_INFO("Early abortion at iteration %d.\n", niter);
       break;
