@@ -505,10 +505,15 @@ class GroupCatalog:
             pickle.dump(self, f)
 
     def monitor_pipe(self, pipe : BufferedReader, proc):
+        # Must keep this protocol syncronized with the C++ code in groups.hpp
         MSG_REQUEST = 0
         MSG_FSAT = 1
         MSG_LHMR = 2
         MSG_LSAT = 3
+        MSG_HOD = 4
+        MSG_HODFIT = 5
+        MSG_COMPLETED = 6
+        MSG_ABORTED = 7
         TYPE_FLOAT = 0
         TYPE_DOUBLE = 1
 
@@ -521,7 +526,7 @@ class GroupCatalog:
                 raise Exception("Incomplete header, len=" + str(len(header)))
 
             msg_type, data_type, count = struct.unpack("<BBI", header)
-            if msg_type not in (MSG_FSAT, MSG_LHMR, MSG_LSAT):
+            if msg_type not in (MSG_FSAT, MSG_LHMR, MSG_LSAT, MSG_HOD, MSG_HODFIT):
                 raise Exception("Unexpected response")
             
             if data_type not in (TYPE_FLOAT, TYPE_DOUBLE):
@@ -529,13 +534,15 @@ class GroupCatalog:
             
             dtype_marker = 'd' if data_type == TYPE_DOUBLE else 'f'
             dtype = np.dtype(dtype_marker)
+
             bytes_needed = count * (8 if data_type == TYPE_DOUBLE else 4)
 
             payload = pipe.read(bytes_needed)
             if len(payload) < bytes_needed:
-                raise Exception("Incomplete payload")
-
+                raise Exception(f"Incomplete payload, expected {bytes_needed} bytes but got {len(payload)} bytes") 
             data = struct.unpack(f"<{count}{dtype_marker}", payload)
+            assert count == len(data)
+
             if msg_type == MSG_FSAT:
                 if count != 120:
                     raise Exception(f"Unexpected fsat data count: {count}, expected 120")
@@ -561,6 +568,14 @@ class GroupCatalog:
                 else:
                     self.lsat_r = np.array(data[0:20], dtype=dtype)
                     self.lsat_b = np.array(data[20:40], dtype=dtype)
+            elif msg_type == MSG_HOD:
+                cols = self.caldata.bincount*7 + 1
+                rows = len(data) // cols
+                self.hod = np.array(data, dtype=dtype).reshape((rows, cols))
+            elif msg_type == MSG_HODFIT:
+                cols = self.caldata.bincount*7 + 1
+                rows = len(data) // cols
+                self.hodfit = np.array(data, dtype=dtype).reshape((rows, cols))
             else:
                 raise Exception(f"Unexpected message type: {msg_type}")
 
@@ -589,7 +604,7 @@ class GroupCatalog:
         sys.stdout.flush()
 
         if profile:
-            args = ["perf", "record", BIN_FOLDER + "PerfGroupFinder", self.preprocess_file]
+            args = ["perf", "record",  "-g", BIN_FOLDER + "PerfGroupFinder", self.preprocess_file]
         else:
             args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
 
@@ -619,10 +634,10 @@ class GroupCatalog:
         if 'omega_chi_0_sf' in self.GF_props:
             args.append(f"--chi1={self.GF_props['omega_chi_0_sf']},{self.GF_props['omega_chi_0_q']},{self.GF_props['omega_chi_L_sf']},{self.GF_props['omega_chi_L_q']}")            
 
-
         read_fd, write_fd = os.pipe()
         fds = (write_fd,)
         args.append(f"--pipe={write_fd}")
+
         print(args)
 
         # The galaxies are written to stdout, so send ot the GF_outfile file stream
@@ -642,20 +657,21 @@ class GroupCatalog:
             # TODO Group Finder does not consistently return >0 for errors.
             if proc.returncode != 0:
                 print(f"ERROR: Group Finder failed with return code {proc.returncode}.")
-                return proc.returncode
+                return False
             
-        if popmock:
-            # TODO switch these to use pipe instead of file
-            hodout = f'{self.output_folder}hod.out'
-            hodfitout = f'{self.output_folder}hod_fit.out'
-            if os.path.exists(hodout):
-                self.hod = np.loadtxt(hodout, skiprows=4, dtype='float', delimiter=' ')
-            if os.path.exists(hodfitout):
-                self.hodfit = np.loadtxt(hodfitout, skiprows=4, dtype='float', delimiter=' ')
+        
+        #if popmock:
+        #    # TODO switch these to use pipe instead of file
+        #    hodout = f'{self.output_folder}hod.out'
+        #    hodfitout = f'{self.output_folder}hod_fit.out'
+        #    if os.path.exists(hodout):
+        #        self.hod = np.loadtxt(hodout, skiprows=4, dtype='float', delimiter=' ')
+        #    if os.path.exists(hodfitout):
+        #        self.hodfit = np.loadtxt(hodfitout, skiprows=4, dtype='float', delimiter=' ')
 
         t2 = time.time()
         print(f"run_group_finder() took {t2-t1:.1f} seconds.")
-        return 0
+        return True
 
 
     def calc_wp_for_mock(self):
@@ -793,9 +809,7 @@ class GroupCatalog:
             print("No sep Clustering χ^2: ", np.array(clustering_chisqr_all))
 
             # LSAT COMPARISON
-            # TODO put in CalibrationData
-            data = np.loadtxt(LSAT_OBSERVATIONS_SDSS_FILE, skiprows=0, dtype='float')
-            lsat_chisqr = compute_lsat_chisqr(data, self.lsat_r, self.lsat_b)
+            lsat_chisqr = compute_lsat_chisqr(self.caldata.lsat_observations, self.lsat_r, self.lsat_b)
             dof += len(lsat_chisqr)
             
             # TODO automate whether this is on or off depending on GF parameters?
@@ -868,16 +882,14 @@ class GroupCatalog:
             self.GF_props['omega_chi_L_sf'] = params[12]
             self.GF_props['omega_chi_L_q'] = params[13]
 
-        errornum = self.run_group_finder(popmock=True, silent=True)
-        if errornum == 50:
+        success = self.run_group_finder(popmock=True, silent=True)
+        if not success:
             return np.inf
         
-        if errornum == 0:
-            self.calc_wp_for_mock()
-            overall, clust_r, clust_b, clust_nosep, lsat = self.chisqr()
-            return overall
-        else: 
-            raise Exception(f"Group Finder returned and unexpected error code {errornum}. Aborting MCMC.")
+        self.calc_wp_for_mock()
+        overall, clust_r, clust_b, clust_nosep, lsat = self.chisqr()
+        return overall
+
 
     def get_true_z_from(self, truth_df: pd.DataFrame):
         """
@@ -1731,6 +1743,13 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     assert np.isnan(z_eff[idx]).any() == False, f"z_eff has NaN values at {np.where(np.isnan(z_eff))}"
     assert z_eff[idx].all() > 0.001, f"z_eff has too low values at {np.where(z_eff <= 0.001)}"
     np.put(abs_mag_R, idx, app_mag_to_abs_mag(app_mag_r[idx], z_eff[idx]))
+    nanindex = np.isnan(abs_mag_R[idx])
+    if nanindex.any():
+        print(f"Warning: abs_mag_R has NaN values at {np.where(nanindex)}")
+        print(f"app_mag_r[idx]: {app_mag_r[idx]}")
+        print(f"z_eff[idx]: {z_eff[idx]}")
+        print(f"abs_mag_R[idx]: {abs_mag_R[idx]}")
+    assert np.isnan(abs_mag_R[idx]).any() == False, f"abs_mag_R[idx] has NaN values at {np.where(np.isnan(abs_mag_R[idx]))}"
     np.put(abs_mag_R_k, idx, k_correct(abs_mag_R[idx], z_eff[idx], g_r_apparent[idx], band='r'))
     np.put(abs_mag_G, idx, app_mag_to_abs_mag(app_mag_g[idx], z_eff[idx]))
     np.put(abs_mag_G_k, idx, k_correct(abs_mag_G[idx], z_eff[idx], g_r_apparent[idx], band='g'))

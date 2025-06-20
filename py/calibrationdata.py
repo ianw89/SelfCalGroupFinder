@@ -33,6 +33,14 @@ class CalibrationData:
         self.zmaxes = np.array([get_max_observable_z(m, self.magcut).value for m in self.magbins[:-1]])
         self.volumes = np.array([get_volume_at_z(z, frac_area) for z in self.zmaxes])
         self.bincount = len(self.magbins) - 1
+
+        # Write now we only have one Lsat calibration data 
+        self.lsat_observations = np.loadtxt(LSAT_OBSERVATIONS_SDSS_FILE, skiprows=0, dtype='float')
+
+        self._wp_red_cache = {}
+        self._wp_blue_cache = {}
+        self._wp_all_cache = {}
+
     
     def write_volume_bins_file(self, path: str):
         data = np.column_stack((self.magbins[:-1], self.zmaxes, self.volumes, self.color_separation.astype(int)))
@@ -41,18 +49,24 @@ class CalibrationData:
 
     def get_wp_red(self, mag: int):
         mag = abs(mag)
-        fname = os.path.join(self.paramsfolder, f'wp_red_M{mag:d}.dat')
-        return read_wp_file(fname)
+        if mag not in self._wp_red_cache:
+            fname = os.path.join(self.paramsfolder, f'wp_red_M{mag:d}.dat')
+            self._wp_red_cache[mag] = read_wp_file(fname)
+        return self._wp_red_cache[mag]
     
     def get_wp_blue(self, mag: int):
         mag = abs(mag)
-        fname = os.path.join(self.paramsfolder, f'wp_blue_M{mag:d}.dat')
-        return read_wp_file(fname)
+        if mag not in self._wp_blue_cache:
+            fname = os.path.join(self.paramsfolder, f'wp_blue_M{mag:d}.dat')
+            self._wp_blue_cache[mag] = read_wp_file(fname)
+        return self._wp_blue_cache[mag]
     
     def get_wp_all(self, mag: int):
         mag = abs(mag)
-        fname = os.path.join(self.paramsfolder, f'wp_all_M{mag:d}.dat')
-        return read_wp_file(fname)
+        if mag not in self._wp_all_cache:
+            fname = os.path.join(self.paramsfolder, f'wp_all_M{mag:d}.dat')
+            self._wp_all_cache[mag] = read_wp_file(fname)
+        return self._wp_all_cache[mag]
     
     def mag_to_idx(self, mag: float):
         m = abs(mag)

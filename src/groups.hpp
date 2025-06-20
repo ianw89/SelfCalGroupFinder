@@ -22,11 +22,15 @@
 #define MSG_FSAT 1
 #define MSG_LHMR 2
 #define MSG_LSAT 3
+#define MSG_HOD 4
+#define MSG_HODFIT 5
+#define MSG_COMPLETED 6
+#define MSG_ABORTED 7
+
 #define TYPE_FLOAT 0
 #define TYPE_DOUBLE 1
 
-// Custom error numbers
-#define	E_BADPARAMS 50
+
 
 // LOGGING
 #define LOG_VERBOSE(...)  if (!SILENT && VERBOSE) fprintf(stderr, __VA_ARGS__)

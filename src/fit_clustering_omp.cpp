@@ -36,7 +36,7 @@ float BOX_EPSILON = 0.01;
 int NVOLUME_BINS;
 // TODO replace these with dynamic sized arrays
 double ncenr[MAXBINS][HALO_BINS], nsatr[MAXBINS][HALO_BINS], ncenb[MAXBINS][HALO_BINS], nsatb[MAXBINS][HALO_BINS], ncen[MAXBINS][HALO_BINS], nsat[MAXBINS][HALO_BINS], nhalo[MAXBINS][HALO_BINS];
-int nhalo_int[MAXBINS][HALO_BINS]; // integer version of nhalo (no vmax weight)
+double nhalo_int[MAXBINS][HALO_BINS]; // integer version of nhalo (no vmax weight)
 float maglim[MAXBINS];
 int color_sep[MAXBINS]; // 1 means do red/blue seperately, 0 means all together
 float maxz[MAXBINS]; 
@@ -63,7 +63,9 @@ float N_cen(float m, int imag, SampleType type);
 void boxwrap_galaxy(float xh[], float xg[]);
 float rand_gaussian();
 float rand_f();
-
+void write_hodinner(int type);
+void write_hod();
+void write_hodfit();
 
 void setup_rng() 
 {
@@ -74,15 +76,59 @@ void setup_rng()
     srand48_r(753 + i, &(rng_buffers[i]));
 }
 
+void write_hod() {
+  write_hodinner(MSG_HOD);
+}
+
+void write_hodfit() {
+  write_hodinner(MSG_HODFIT);
+}
+
+void write_hodinner(int type) {
+  if (MSG_PIPE != NULL) {
+    if (type == MSG_HOD) LOG_INFO("Writing HOD to pipe\n");
+    else LOG_INFO("Writing HOD FIT to pipe\n");
+    uint8_t resp_msg_type = type;
+    uint8_t resp_data_type = TYPE_DOUBLE;
+    uint32_t rows = MAX_HALO_IDX - MIN_HALO_IDX;
+    uint32_t cols = NVOLUME_BINS * 7 + 1;
+    uint32_t total = rows * cols;
+    double *buffer = (double *)malloc(sizeof(double) * total);
+    size_t idx = 0;
+    for (int i = MIN_HALO_IDX; i < MAX_HALO_IDX; ++i) {
+      double mass = i / 10.0;
+      buffer[idx++] = mass;
+      for (int j = 0; j < NVOLUME_BINS; ++j) {
+        buffer[idx++] = ncenr[j][i];
+        buffer[idx++] = nsatr[j][i];
+        buffer[idx++] = ncenb[j][i];
+        buffer[idx++] = nsatb[j][i];
+        buffer[idx++] = ncen[j][i];
+        buffer[idx++] = nsat[j][i];
+        buffer[idx++] = nhalo_int[j][i];
+      }
+    }
+    
+    fwrite(&resp_msg_type, 1, 1, MSG_PIPE);
+    fwrite(&resp_data_type, 1, 1, MSG_PIPE);
+    fwrite(&total, sizeof(uint32_t), 1, MSG_PIPE);
+    fwrite(buffer, sizeof(double), idx, MSG_PIPE);
+    fflush(MSG_PIPE);
+    free(buffer);
+  }
+  else {
+    if (type == MSG_HOD) print_hod("hod.out");
+    else print_hod("hodfit.out");
+  }
+}
+
 void print_hod(const char* filename)
 {
-  FILE *fp;
+  if (SILENT) return;
   int i, j;
 
-  if (SILENT) return;
-  
   // Print out the tabulated hods. We don't use this file for anything directly.
-  fp = fopen(filename, "w");
+  FILE *fp = fopen(filename, "w");
   fprintf(fp, "# HODs for volume limited samples\n");
   fprintf(fp, "# Volume bins: ");
   for (i = 0; i < NVOLUME_BINS; ++i)
@@ -440,8 +486,7 @@ void tabulate_hods()
   for (i = 0; i < NVOLUME_BINS; ++i)
     for (j = 0; j < HALO_BINS; ++j)
     {
-      ncenr[i][j] = nsatr[i][j] = nhalo[i][j] = ncenb[i][j] = nsatb[i][j] = ncen[i][j] = nsat[i][j] = 0.0;
-      nhalo_int[i][j] = 0;
+      ncenr[i][j] = nsatr[i][j] = nhalo[i][j] = ncenb[i][j] = nsatb[i][j] = ncen[i][j] = nsat[i][j] = nhalo_int[i][j]= 0.0;
     }
   
   for (j=0; j < HALO_BINS; ++j)
@@ -660,7 +705,7 @@ void tabulate_hods()
     }
   }
 
-  print_hod("hod.out");
+  write_hod();
 
   // Smooth and extrapolate the satellite HODs to handle gaps in the data and the high-mass end where there is little data.
   //nsat_smooth(nsatr);
@@ -670,7 +715,7 @@ void tabulate_hods()
   nsat_extrapolate(nsatb);
   nsat_extrapolate(nsat);
 
-  print_hod("hod_fit.out");
+  write_hodfit();
 }
 
 /* Do the same as above, but now giving
