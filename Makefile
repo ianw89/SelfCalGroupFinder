@@ -8,13 +8,13 @@
 #LIB = -lm -L${hd} -lcutil
 #CC = gcc
 
-# -- for sirocco
-hd = $(HOME)/lib
+# -- for sirocco/howdy/sirocco1
 #CC = gcc
 CC = g++
-#CFLAGS = -O3 -march=native -fopenmp -std=c11
-CFLAGS = -O3 -march=native -fopenmp -I/path/to/nanoflann/include
-LIB = -lm -fopenmp -lgsl -lgslcblas -lm
+CFLAGS = -O3 -fopenmp -std=c++11	
+CFLAGS += -Isrc/libs
+#CFLAGS += -march=native
+LIB = -lm -fopenmp #-lgsl -lgslcblas
 
 # Ian's iMac
 # For Apple Computers. Tested on an Intel iMac but should be OK with M based ones too
@@ -23,11 +23,9 @@ LIB = -lm -fopenmp -lgsl -lgslcblas -lm
 # CHECK THE PATH YOU INSTALLED THEM TO WITH brew ls libomp argp-standalone
 # USE THOSE INCLUDE AND LIB PATHS IN THE CFLAGS AND LIB FLAGS
 
-
 #CC = clang -Xclang -fopenmp # apple built-in clang
 #CFLAGS = -I/usr/local/opt/libomp/include  -I/usr/local/Cellar/argp-standalone/1.3/include
 #LIB = -L${LIB_DIR} -L/usr/local/opt/libomp/lib -L/usr/local/Cellar/argp-standalone/1.3/lib -lm -lomp -lcutil -largp
-
 
 # ------------------------------------ #
 # Define Files
@@ -54,7 +52,7 @@ OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 # ------------------------------------ #
 
 # General entry point builds group finder and tests
-main: $(BDIR)/kdGroupFinder_omp $(BDIR)/tests
+main: $(BDIR)/kdGroupFinder_omp $(BDIR)/tests perf
 
 perf: $(BDIR)/PerfGroupFinder $(BDIR)/tests
 
@@ -76,6 +74,6 @@ $(BDIR)/tests: $(OBJ) $(TESTS_OBJ)
 
 clean:
 	rm -f *.o $(ODIR)/*.o
-#	rm -f $(BDIR)/kdGroupFinder_omp
+	rm -f $(BDIR)/kdGroupFinder_omp
 	rm -f $(BDIR)/PerfGroupFinder
 	rm -f $(BDIR)/tests

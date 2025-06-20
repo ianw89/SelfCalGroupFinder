@@ -58,14 +58,14 @@ static struct argp_option options[] = {
   {"colors",       'c', 0,                                    0,  "Read in and use galaxy colors", 1},
   {"random",       'r', 0,                                    0,  "Randomly perturb luminosity/mstar for first group finding", 1 },
   {"iterations",   'i', "N",                                  0,  "Number of iterations for group finding", 1},
+  {"earlyexit",    'e', 0,                                    0,  "Allow early exit from group finding for various scenarios", 1},
   {"wcen",         'w', "MASS,SIGMA,MASSR,SIGMAR,NORM,NORMR", 0,  "Six parameters for weighting the centrals", 2},
   {"bsat",         'b', "RED,XRED,BLUE,XBLUE",                0,  "Four parameters for the satellite probability", 2},
   {"chi1",         'x', "WEIGHT_B,WEIGHT_R,SLOPE_B,SLOPE_R",  0,  "Four parameters per-galaxy extra property weighting", 2},
-  {"verbose",      'v', 0,                                    0,  "Produce verbose output", 3},
-  {"quiet",        'q', 0,                                    0,  "Don't produce any output", 3 },
+  {"verbose",      'v', 0,                                    0,  "Produce verbose stderr logging", 3},
+  {"quiet",        'q', 0,                                    0,  "Don't produce any output to stdout or stderr", 3 },
   {"silent",       's', 0,                                    OPTION_ALIAS },
   {"pipe",         'P', "PIPEID",                             0,  "Specify a pipe ID for the group find to write message to", 3},
-  {"earlyexit",    'e', 0,                                    0,  "Allow early exit from group finding for various scenarios", 3},
   //{"output",   'o', "FILE", 0, "Output to FILE instead of standard output" },
   { 0 }
 };
@@ -113,12 +113,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
               VOLUME_BINS_FILE = strdup(token);
             }
           } else {
-            fprintf(stderr, "Mock file and volume bins file must be specified with -p option.\n");
+            LOG_ERROR("Mock file and volume bins file must be specified with -p option.\n");
             exit(EPERM);
           }
 
       } else {
-        fprintf(stderr, "Mock file and volume bins file must be specified with -p option.\n");
+        LOG_ERROR("Mock file and volume bins file must be specified with -p option.\n");
         exit(EPERM);
       }
       break;
@@ -154,19 +154,19 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     case 'P':
       if (arg == NULL)
       {
-        fprintf(stderr, "Pipe ID must be specified with -P option.\n");
+        LOG_ERROR("Pipe ID must be specified with -P option.\n");
         exit(EPERM);
       }
       pipe_id = atoi(arg);
       if (pipe_id < 0)
       {
-        fprintf(stderr, "Invalid pipe ID: %d\n", pipe_id);
+        LOG_ERROR("Invalid pipe ID: %d\n", pipe_id);
         exit(EPERM);
       }
       MSG_PIPE = fdopen(pipe_id, "w");
       if (!MSG_PIPE) 
           perror("fdopen");
-      break;
+      break;      
 
     case ARGP_KEY_ARG:
       if (state->arg_num >= 4)
@@ -237,40 +237,37 @@ int main(int argc, char **argv)
   */
 
   // Summarize input
-  if (!SILENT)
-  {
-    fprintf(stderr, "input> FLUXLIM: %d, COLOR: %d, STELLAR_MASS: %d \n", FLUXLIM, COLOR, STELLAR_MASS);
-    fprintf(stderr, "input> z: %f-%f, frac_area: %f\n", MINREDSHIFT, MAXREDSHIFT, FRAC_AREA);
-    if (USE_WCEN)
-      fprintf(stderr, "input> wcen ON: %f %f %f %f %f %f\n", WCEN_MASS, WCEN_SIG, WCEN_MASSR, WCEN_SIGR, WCEN_NORM, WCEN_NORMR);
-    else 
-      fprintf(stderr, "input> wcen OFF\n");
-    if (USE_BSAT)
-        fprintf(stderr, "input> Bsat ON: %f %f %f %f\n", BPROB_RED, BPROB_XRED, BPROB_BLUE, BPROB_XBLUE);
-    else 
-      fprintf(stderr, "input> Bsat OFF\n");
+  LOG_INFO("input> FLUXLIM: %d, COLOR: %d, STELLAR_MASS: %d \n", FLUXLIM, COLOR, STELLAR_MASS);
+  LOG_INFO("input> z: %f-%f, frac_area: %f\n", MINREDSHIFT, MAXREDSHIFT, FRAC_AREA);
+  if (USE_WCEN)
+    LOG_INFO("input> wcen ON: %f %f %f %f %f %f\n", WCEN_MASS, WCEN_SIG, WCEN_MASSR, WCEN_SIGR, WCEN_NORM, WCEN_NORMR);
+  else 
+    LOG_INFO("input> wcen OFF\n");
+  if (USE_BSAT)
+      LOG_INFO("input> Bsat ON: %f %f %f %f\n", BPROB_RED, BPROB_XRED, BPROB_BLUE, BPROB_XBLUE);
+  else 
+    LOG_INFO("input> Bsat OFF\n");
 
-    fprintf(stderr, "input> SECOND_PARAMETER= %d\n", SECOND_PARAMETER);
-    if (SECOND_PARAMETER)
-        fprintf(stderr, "input> %f %f %f %f\n", PROPX_WEIGHT_BLUE, PROPX_WEIGHT_RED, PROPX_SLOPE_BLUE, PROPX_SLOPE_RED);
-  }
+  LOG_INFO("input> SECOND_PARAMETER= %d\n", SECOND_PARAMETER);
+  if (SECOND_PARAMETER)
+      LOG_INFO("input> %f %f %f %f\n", PROPX_WEIGHT_BLUE, PROPX_WEIGHT_RED, PROPX_SLOPE_BLUE, PROPX_SLOPE_RED);
 
   // Print Warnings
   if (POPULATE_MOCK && !COLOR)
   {
-    fprintf(stderr, "Populating mock should only be used when galaxy colors are provided (-c).\n");
+    LOG_ERROR("Populating mock should only be used when galaxy colors are provided (-c).\n");
     exit(EPERM);
   }
-  if (!SILENT && USE_WCEN && !COLOR) 
-    fprintf(stderr, "Weighting centrals but not using galaxy colors. All galaxies will use blue wcen values.\n");
-  if (!SILENT && USE_BSAT && !COLOR) 
-    fprintf(stderr, "Using custom Bsat but not using galaxy colors. All galaxies will use blue Bsat values.\n");
+  if (USE_WCEN && !COLOR) 
+    LOG_WARN("Weighting centrals but not using galaxy colors. All galaxies will use blue wcen values.\n");
+  if (USE_BSAT && !COLOR) 
+    LOG_WARN("Using custom Bsat but not using galaxy colors. All galaxies will use blue Bsat values.\n");
 
   // The primary method for group finding
   t_grp_s = omp_get_wtime();
   groupfind();
   t_grp_e = omp_get_wtime();
-  if (!SILENT) fprintf(stderr, "groupfind() took %.2f sec\n", t_grp_e - t_grp_s);
+  LOG_PERF("groupfind() took %.2f sec\n", t_grp_e - t_grp_s);
 
   // Populate Mock 
   if (POPULATE_MOCK)
@@ -281,11 +278,11 @@ int main(int argc, char **argv)
     setup_rng();
     populate_simulation_omp(-1, ALL); 
     t1 = omp_get_wtime();
-    if (!SILENT) fprintf(stderr, "lsat + hod + prep popsim: %.2f sec\n", t1 - t0);
+    LOG_PERF("lsat + hod + prep popsim: %.2f sec\n", t1 - t0);
 
     // lsat_model_scatter(); // This is crashing for some reason...
 
-    if (!SILENT) fprintf(stderr, "Populating mock catalog\n");
+    LOG_INFO("Populating mock catalog\n");
 
     t2 = omp_get_wtime();
     
@@ -304,7 +301,7 @@ int main(int argc, char **argv)
     }
 
     t3 = omp_get_wtime();
-    if (!SILENT) fprintf(stderr, "popsim> %.2f sec\n", t3 - t2);
+    LOG_INFO("popsim> %.2f sec\n", t3 - t2);
 
   }
   
@@ -363,7 +360,7 @@ void print_fsat() {
 
   if (MSG_PIPE != NULL) 
   {
-    if (!SILENT) fprintf(stderr, "Writing fsat to pipe\n");
+    LOG_INFO("Writing fsat to pipe\n");
     uint8_t resp_msg_type = MSG_FSAT;
     uint8_t resp_data_type = TYPE_FLOAT;
     uint32_t resp_count = FSAT_BINS * 3;

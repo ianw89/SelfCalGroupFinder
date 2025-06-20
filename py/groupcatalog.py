@@ -642,9 +642,10 @@ class GroupCatalog:
             # TODO Group Finder does not consistently return >0 for errors.
             if proc.returncode != 0:
                 print(f"ERROR: Group Finder failed with return code {proc.returncode}.")
-                return False
+                return proc.returncode
             
         if popmock:
+            # TODO switch these to use pipe instead of file
             hodout = f'{self.output_folder}hod.out'
             hodfitout = f'{self.output_folder}hod_fit.out'
             if os.path.exists(hodout):
@@ -654,7 +655,7 @@ class GroupCatalog:
 
         t2 = time.time()
         print(f"run_group_finder() took {t2-t1:.1f} seconds.")
-        return True
+        return 0
 
 
     def calc_wp_for_mock(self):
@@ -867,13 +868,16 @@ class GroupCatalog:
             self.GF_props['omega_chi_L_sf'] = params[12]
             self.GF_props['omega_chi_L_q'] = params[13]
 
-        noerror = self.run_group_finder(popmock=True, silent=True)
-        if not noerror:
+        errornum = self.run_group_finder(popmock=True, silent=True)
+        if errornum == 50:
             return np.inf
         
-        self.calc_wp_for_mock()
-        overall, clust_r, clust_b, clust_nosep, lsat = self.chisqr()
-        return overall
+        if errornum == 0:
+            self.calc_wp_for_mock()
+            overall, clust_r, clust_b, clust_nosep, lsat = self.chisqr()
+            return overall
+        else: 
+            raise Exception(f"Group Finder returned and unexpected error code {errornum}. Aborting MCMC.")
 
     def get_true_z_from(self, truth_df: pd.DataFrame):
         """

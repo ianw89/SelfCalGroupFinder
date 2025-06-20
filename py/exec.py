@@ -7,7 +7,7 @@ from multiprocessing import Pool
 # EXAMPLE USAGE
 # export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 # nohup python3 py/exec.py 6 7 8 9 &> variations.out &
-# nohup python3 py/exec.py mcmc 12 x0 &> y1mini_mcmc.out &
+# nohup python3 py/exec.py mcmc 12 x4 &> y1mini_mcmc.out &
 # nohup python3 py/exec.py mcmc 13 x0 &> y1full_mcmc.out &
 # nohup python3 py/exec.py 0 &> pzp_mcmc.out &
 
@@ -64,9 +64,13 @@ def process_gc(gc: GroupCatalog):
     print(f"***** process_gc({name}) start *****")
 
     if execution_mode == 'once':
-        gc.run_group_finder(popmock=True)
-        gc.calc_wp_for_mock()
-        gc.postprocess()
+        result = gc.run_group_finder(popmock=True)
+        if result:
+            gc.calc_wp_for_mock()
+            gc.postprocess()
+        else:
+            print(f"Group finder failed for {name}, skipping further processing.")
+            return
 
     elif execution_mode == 'clustering':
         gc.run_group_finder(popmock=True)

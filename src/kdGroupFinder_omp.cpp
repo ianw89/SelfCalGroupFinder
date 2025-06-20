@@ -110,7 +110,7 @@ void groupfind()
     first_call = 0;
     fp = openfile(INPUTFILE);
     NGAL = filesize(fp);
-    if (!SILENT) fprintf(stderr, "Allocating space for [%d] galaxies\n", NGAL);
+    LOG_INFO("Allocating space for [%d] galaxies\n", NGAL);
     GAL = (struct galaxy*) calloc(NGAL, sizeof(struct galaxy));
     flag = ivector(0, NGAL - 1);
 
@@ -163,15 +163,15 @@ void groupfind()
       if (GAL[i].vmax > maxvmax)
         maxvmax = GAL[i].vmax;
     }
-    if (!SILENT) fprintf(stderr, "min vmax= %e max vmax= %e\n", minvmax, maxvmax);
+    LOG_INFO("min vmax= %e max vmax= %e\n", minvmax, maxvmax);
 
     fclose(fp);
-    if (!SILENT) fprintf(stderr, "Done reading in from [%s]\n", INPUTFILE);
+    LOG_INFO("Done reading in from [%s]\n", INPUTFILE);
 
     if (!FLUXLIM)
     {
-      if (!SILENT) fprintf(stderr, "Volume= %e L_box= %f\n", volume, pow(volume, THIRD));
-      if (!SILENT) fprintf(stderr, "Number density= %e %e\n", NGAL / volume, galden);
+      LOG_INFO("Volume= %e L_box= %f\n", volume, pow(volume, THIRD));
+      LOG_INFO("Number density= %e %e\n", NGAL / volume, galden);
       GALAXY_DENSITY = NGAL / volume;
     }
 
@@ -190,24 +190,24 @@ void groupfind()
         xtmp[i] *= pow(10.0, gasdev(&IDUM1) * 0.0);
       }
     }
-    //fprintf(stderr, "itmp initial: ");
+    //LOG_INFO("itmp initial: ");
     //for (i = 1; i <= NGAL; ++i)
-    //  fprintf(stderr, "%d ", itmp[i]);
-    //fprintf(stderr, "\n");
+    //  LOG_INFO("%d ", itmp[i]);
+    //LOG_INFO("\n");
 
-    if (!SILENT) fprintf(stderr, "Sorting galaxies...\n");
+    LOG_INFO("Sorting galaxies...\n");
     sort2(NGAL, xtmp, itmp);
-    if (!SILENT) fprintf(stderr, "Done sorting galaxies.\n");
+    LOG_INFO("Done sorting galaxies.\n");
 
-    //fprintf(stderr, "itmp after sort2 by LGAL: ");
+    //LOG_INFO("itmp after sort2 by LGAL: ");
     //for (i = 1; i <= NGAL; ++i)
-    //  fprintf(stderr, "%d ", itmp[i]);
-    //fprintf(stderr, "\n");
+    //  LOG_INFO("%d ", itmp[i]);
+    //LOG_INFO("\n");
 
     // do the inverse-abundance matching
     
     density2host_halo(0.01);
-    if (!SILENT) fprintf(stderr, "Starting inverse-sham...\n");
+    LOG_INFO("Starting inverse-sham...\n");
     galden = 0;
 
     // reset the sham counters
@@ -234,20 +234,20 @@ void groupfind()
       GAL[j].y = GAL[j].rco * sin(GAL[j].ra) * cos(GAL[j].dec);
       GAL[j].z = GAL[j].rco * sin(GAL[j].dec);
     }
-    if (!SILENT) fprintf(stderr, "Done inverse-sham.\n");
+    LOG_INFO("Done inverse-sham.\n");
     // assume that NGAL=NGROUP at first
     ngrp = NGAL;
   } // end of first call code
 
   // Create the 3D KD tree for fast lookup of nearby galaxies
-  if (!SILENT) fprintf(stderr, "Building KD-tree...\n");
+  LOG_INFO("Building KD-tree...\n");
   static GalaxyCloud gal_cloud;
   static GalaxyKDTree* tree = nullptr;
   gal_cloud = GalaxyCloud();
   if (tree) delete tree;
   tree = new GalaxyKDTree(3, gal_cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */));
   tree->buildIndex();
-  if (!SILENT) fprintf(stderr, "Done building KD-tree. %d\n", ngrp);
+  LOG_INFO("Done building KD-tree. %d\n", ngrp);
 
   // test the FOF group finder
   // test_fof(kd);
@@ -306,7 +306,7 @@ void groupfind()
     {
       if (flag[j] && GAL[j].psat <= 0.5)
       {
-        //fprintf(stderr, "Newly exposed central: %d.\n", j);
+        //LOG_INFO("Newly exposed central: %d.\n", j);
         find_satellites(j, tree);
       }
     }
@@ -327,13 +327,13 @@ void groupfind()
     if (GAL[k].psat > 0.5) {
       #ifndef OPTIMIZE
       if (GAL[k].igrp == k) { 
-        fprintf(stderr, "ERROR - psat>0.5 galaxy %d has igrp itself! (N_SAT=%d)\n", k, GAL[k].nsat);
+        LOG_ERROR("ERROR - psat>0.5 galaxy %d has igrp itself! (N_SAT=%d)\n", k, GAL[k].nsat);
       }
       #endif
       // Orphaned Satellite - it's central became a satellite in the final iteration. Need to reassign.
       if (GAL[GAL[k].igrp].igrp != GAL[k].igrp) { 
          // Consider this a central now, next loop will process it.
-        //fprintf(stderr, "WARNING - psat>0.5 galaxy %d points to central %d which isn't a central!\n", k, GAL[k].igrp);
+        //LOG_WARN("WARNING - psat>0.5 galaxy %d points to central %d which isn't a central!\n", k, GAL[k].igrp);
         ngrp++;  
         GAL[k].igrp = k;
         GAL[k].psat = 0.0;
@@ -346,7 +346,7 @@ void groupfind()
     }
     #ifndef OPTIMIZE
     else if (GAL[k].igrp != k) {
-      fprintf(stderr, "ERROR - psat<=0.5 galaxy %d not it's own central (N_SAT=%d)\n", k, GAL[k].nsat);
+      LOG_ERROR("ERROR - psat<=0.5 galaxy %d not it's own central (N_SAT=%d)\n", k, GAL[k].nsat);
     }
     #endif
   }
@@ -370,8 +370,7 @@ void groupfind()
           if (icen_new != i)
           {
             // transfer the halo values
-            if (!SILENT && VERBOSE)
-              fprintf(stderr, "REC %d %d %d %d\n",niter, i, icen_new, j);
+            LOG_VERBOSE("REC %d %d %d %d\n",niter, i, icen_new, j);
             itmp[j] = icen_new;
             GAL[i].psat = 1;
             GAL[i].igrp = icen_new; // need to swap all of them, fyi...
@@ -388,10 +387,10 @@ void groupfind()
     // sort groups by their total group luminosity / stellar mass for next time
     sort2(ngrp, xtmp, itmp);
 
-    //fprintf(stderr, "itmp after sort2 by LTOT: ");
+    //LOG_INFO("itmp after sort2 by LTOT: ");
     //for (i = 1; i <= NGAL; ++i)
-    //  fprintf(stderr, "%d ", itmp[i]);
-    //fprintf(stderr, "\n");
+    //  LOG_INFO("%d ", itmp[i]);
+    //LOG_INFO("\n");
 
     // Re-assign the halo masses to each central
     nsat_tot = galden = 0;
@@ -414,22 +413,19 @@ void groupfind()
     fsat_arr[niter-1] = nsat_tot / NGAL; // store the fraction of satellites in this iteration
     t_end_iter = omp_get_wtime();
 
-    if (!SILENT) 
-      fprintf(stderr, "iter %d ngroups=%d fsat=%f (kdtime=%.2f %.2f)\n",
-            niter, ngrp, fsat_arr[niter-1], t_end_findsats - t_start_findsats, t_end_iter - t_start_iter);
-
+    LOG_INFO("iter %d ngroups=%d fsat=%f (kdtime=%.2f %.2f)\n", niter, ngrp, fsat_arr[niter-1], t_end_findsats - t_start_findsats, t_end_iter - t_start_iter);
 
     // When allowing early exit, check if the change in fsat is small enough to stop
     if (ALLOW_EARLY_EXIT && niter > 1 && fabs(fsat_arr[niter-1] - fsat_arr[niter-2]) < 0.002)
     {
-      if (!SILENT) fprintf(stderr, "Early abortion at iteration %d.\n", niter);
+      LOG_INFO("Early abortion at iteration %d.\n", niter);
       break;
     }
 
   } // end of main iteration loop
 
   t_alliter_e = omp_get_wtime();
-  if (!SILENT) fprintf(stderr, "Group finding complete. All iterations took %.2fs.\n", t_alliter_e - t_alliter_s);
+  LOG_PERF("Group finding complete. All iterations took %.2fs.\n", t_alliter_e - t_alliter_s);
 
   // **********************************
   // End of group finding
@@ -441,11 +437,11 @@ void groupfind()
     if (GAL[j].psat > 0.5) {
       // It thinks it's a satellite of itself? Should not happen
       if (GAL[j].igrp == j) { 
-        fprintf(stderr, "FINAL ERROR - psat>0.5 galaxy %d has igrp itself! (N_SAT=%d)\n", j, GAL[j].nsat);
+        LOG_ERROR("FINAL ERROR - psat>0.5 galaxy %d has igrp itself! (N_SAT=%d)\n", j, GAL[j].nsat);
       }
       // Orphaned Satellite - it's central became a satellite in the final iteration. Need to reassign.
       if (GAL[GAL[j].igrp].igrp != GAL[j].igrp) { 
-        fprintf(stderr, "FINAL ERROR - psat>0.5 galaxy %d points to central %d which isn't a central!\n", j, GAL[j].igrp);
+        LOG_ERROR("FINAL ERROR - psat>0.5 galaxy %d points to central %d which isn't a central!\n", j, GAL[j].igrp);
       }
       // Standard satellite - Copy group properties to this member
       else {
@@ -457,28 +453,28 @@ void groupfind()
     // Centrals
     else {
       if (GAL[j].igrp != j) {
-        fprintf(stderr, "FINAL ERROR - psat<=0.5 galaxy %d not it's own central (N_SAT=%d)\n", j, GAL[j].nsat);
+        LOG_ERROR("FINAL ERROR - psat<=0.5 galaxy %d not it's own central (N_SAT=%d)\n", j, GAL[j].nsat);
       }
     }
   }
     
   // **********************************
-  // Output to disk the final results
+  // Output the group catalog to stdout
   // **********************************
-  for (i = 0; i < NGAL; ++i)
-  {
-    // the weight printed off here is only the color-dependent centrals weight
-    // not the chi properties affected weight
-    // TODO: should we change that?
-    printf("%d %f %f %f %e %e %f %e %d %e %d %f %f\n",
-            i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
-            GAL[i].lum, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
-            GAL[i].nsat, GAL[i].lgrp, GAL[i].igrp, GAL[i].weight, GAL[i].chiweight);
+  if (!SILENT) {
+    for (i = 0; i < NGAL; ++i) {
+      printf("%d %f %f %f %e %e %f %e %d %e %d %f %f\n",
+              i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
+              GAL[i].lum, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
+              GAL[i].nsat, GAL[i].lgrp, GAL[i].igrp, GAL[i].weight, GAL[i].chiweight);
+    }
   }
   fflush(stdout);
   
-   //TODO we don't free up other dynamic memory, should we?
-  delete tree;
+  // TODO Check for memeory leaks for interactive mode
+
+  // We want to reuse the tree if we introduce an interactive mode, so don't delete.
+  //delete tree;
 }
 
 /* Here is the main code to find satellites for a given central galaxy

@@ -79,6 +79,8 @@ void print_hod(const char* filename)
   FILE *fp;
   int i, j;
 
+  if (SILENT) return;
+  
   // Print out the tabulated hods. We don't use this file for anything directly.
   fp = fopen(filename, "w");
   fprintf(fp, "# HODs for volume limited samples\n");
@@ -114,8 +116,7 @@ void print_hod(const char* filename)
   }
   fclose(fp);
 
-  if (!SILENT)
-    fprintf(stderr, "Tabulated HODs written to %s\n", filename);
+  LOG_INFO("Tabulated HODs written to %s\n", filename);
 }
 
 /* 
@@ -168,8 +169,7 @@ void lsat_model()
   M0_PROPX = 0;
   DM_PROPX = 100; // evertyhing should be in one mass bin
 
-  if (!SILENT)
-    fprintf(stderr, "lsat_model> Applying Lsat model...\n");
+  LOG_INFO("lsat_model> Applying Lsat model...\n");
 
   for (i = 0; i <= 5; ++i)
     for (j = -20; j <= 20; ++j)
@@ -203,7 +203,7 @@ void lsat_model()
     // get x, the lsat value for this galaxy according to the lookup
     splint(mx, lx, m2x, nt, log10(GAL[i].mass), &x); 
     if (x > 10.4) { // This is unrealisticly high so something went wrong with the interpolation in this case
-      fprintf(stderr, "lsat_model> WARNING: Gal %d, log10(M)=%e has log10(Lsat)=%f. Setting to 10.4 instead.\n", i, log10(GAL[i].mass), x);
+      LOG_WARN("lsat_model> WARNING: Gal %d, log10(M)=%e has log10(Lsat)=%f. Setting to 10.4 instead.\n", i, log10(GAL[i].mass), x);
       x = 10.4;
     }
     if (GAL[i].color > 0.8)
@@ -286,7 +286,7 @@ void lsat_model()
   int count = (i_end - i_start + 1); 
   if (MSG_PIPE != NULL)
   {
-    if (!SILENT) fprintf(stderr, "Writing LSAT to pipe\n");
+    LOG_INFO("Writing LSAT to pipe\n");
     uint8_t resp_msg_type = MSG_LSAT;
     uint8_t resp_data_type = TYPE_FLOAT;
     uint32_t resp_count = count*2;
@@ -304,7 +304,7 @@ void lsat_model()
       // Format: log(L or M*) <Lsat_r> <Lsat_b> nhr nhb
       fprintf(fp, "%f %e %e %d %d\n", i / 10.0, lsatr[i], lsatb[i], nhr[i], nhb[i]);
     fclose(fp);
-    if (!SILENT) fprintf(stderr, "lsat_model> lsat_groups.out written\n");
+    LOG_INFO("lsat_model> lsat_groups.out written\n");
   }
 
   if (SECOND_PARAMETER == 0)
@@ -419,8 +419,7 @@ void tabulate_hods()
   double w0 = 1.0;
   int nbins = 0;
 
-  if (!SILENT)
-    fprintf(stderr, "Reading Volume Bins...\n");
+  LOG_INFO("Reading Volume Bins...\n");
 
   bins_fp = fopen(VOLUME_BINS_FILE, "r");
   while (fscanf(bins_fp, "%f %f %f %d", &maglim[nbins], &maxz[nbins], &volume[nbins], &color_sep[nbins]) == 4)
@@ -428,7 +427,7 @@ void tabulate_hods()
     nbins++;
     if (nbins >= MAXBINS)
     {
-      fprintf(stderr, "ERROR: More lines in volume bins file than maximum of %d\n", MAXBINS);
+      LOG_ERROR("ERROR: More lines in volume bins file than maximum of %d\n", MAXBINS);
       fclose(bins_fp);
       exit(EINVAL);
     }
@@ -436,8 +435,7 @@ void tabulate_hods()
   fclose(bins_fp);
   NVOLUME_BINS = nbins;
   
-  if (!SILENT)
-    fprintf(stderr, "Tabulating HODs...\n");
+  LOG_INFO("Tabulating HODs...\n");
 
   for (i = 0; i < NVOLUME_BINS; ++i)
     for (j = 0; j < HALO_BINS; ++j)
@@ -472,11 +470,11 @@ void tabulate_hods()
           if (GAL[i].vmax < volume[j])
             w0 = 1 / GAL[i].vmax;
             if (!isfinite(w0)) {
-              fprintf(stderr, "ERROR: w0 is not finite for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
+              LOG_ERROR("ERROR: w0 is not finite for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
               assert(isfinite(w0));
             }
             if (isnan(w0)) {
-              fprintf(stderr, "ERROR: w0 is NaN for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
+              LOG_ERROR("ERROR: w0 is NaN for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
               assert(!isnan(w0));
             }
           nhalo[j][im] += w0; // 1/vmax weight the halo count
@@ -498,7 +496,7 @@ void tabulate_hods()
     if (GAL[i].redshift > maxz[ibin])
       continue; // skip if not in the redshift range; peculiar velocities can push galaxies out of the bin...
     if (im < 0 || im >= HALO_BINS)
-      fprintf(stderr, "err> %d %e\n", im, GAL[i].mass);
+      LOG_ERROR("err> %d %e\n", im, GAL[i].mass);
 
     // vmax-weight everything
     w0 = 1 / volume[ibin];
@@ -622,7 +620,7 @@ void tabulate_hods()
   // Print off the LHMR
   if (MSG_PIPE != NULL)
   {
-    if (!SILENT) fprintf(stderr, "Writing LHMR to pipe\n");
+    LOG_INFO("Writing LHMR to pipe\n");
     uint8_t resp_msg_type = MSG_LHMR;
     uint8_t resp_data_type = TYPE_DOUBLE;
     uint32_t resp_count = (MAX_HALO_IDX-MIN_HALO_IDX) * 3 * 2; // 65 bins, all/red/blue, mean/scatter
@@ -642,7 +640,7 @@ void tabulate_hods()
     for (i = MIN_HALO_IDX; i < MAX_HALO_IDX; ++i)
     {
       // Format is: <log10(M_h)> <mean_cenr> <std_cenr> <mean_cenb> <std_cenb> <mean_cen> <std_cen>
-      fprintf(stderr, "LHMR> %.2f %e %e %e %e %e %e\n", i / 10.0,
+      LOG_INFO("LHMR> %.2f %e %e %e %e %e %e\n", i / 10.0,
               mean_cenr[i], std_cenr[i], mean_cenb[i], std_cenb[i],
               mean_cen[i], std_cen[i]);
     }
@@ -691,7 +689,7 @@ void lsat_model_scatter()
   int *indx;
   float *mvir;
 
-  if (!SILENT) fprintf(stderr, "lsat_model_scatter> start\n");
+  LOG_INFO("lsat_model_scatter> start\n");
 
   indx = ivector(1, NHALO);
   mvir = vector(1, NHALO);
@@ -701,7 +699,7 @@ void lsat_model_scatter()
     mvir[i] = HALO[i].mass;
   }
   sort2(NHALO, mvir, indx);
-  if (!SILENT) fprintf(stderr, "lsat_model_scatter> done sorting\n");
+  LOG_INFO("lsat_model_scatter> done sorting\n");
 
   for (i = 0; i < 150; ++i)
     nhr[i] = lsatr[i] = nhb[i] = lsatb[i] = 0;
@@ -726,7 +724,7 @@ void lsat_model_scatter()
       lsatb[im] += lsat;
     }
   }
-  if (!SILENT) fprintf(stderr, "lsat_model_scatter> done with calculations\n");
+  LOG_INFO("lsat_model_scatter> done with calculations\n");
 
   // output this to a pre-specified file
   // (plus we knoe the limits of the data)
@@ -738,7 +736,7 @@ void lsat_model_scatter()
   //  fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
   fclose(fp);
 
-  if (!SILENT) fprintf(stderr, "lsat_model_scatter> lsat_groups2.out written\n");
+  LOG_INFO("lsat_model_scatter> lsat_groups2.out written\n");
 
   return;
 }
@@ -829,17 +827,17 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
         mfit = (nfit * sum_xy - sum_x * sum_y) / denom;
         bfit = (sum_y - mfit * sum_x) / nfit;
       } else {
-        fprintf(stderr, "WARNING: Denominator too small for imag=%d, using default slope and intercept\n", imag);
+        LOG_WARN("WARNING: Denominator too small for imag=%d, using default slope and intercept\n", imag);
         mfit = 1.0;
         bfit = -14.0;
       }
     } else {
-        fprintf(stderr, "WARNING: Not enough points to fit for imag=%d, using default slope and intercept\n", imag);
+        LOG_WARN("WARNING: Not enough points to fit for imag=%d, using default slope and intercept\n", imag);
         mfit = 1.0;
         bfit = -14.0;
     }
 
-    //fprintf(stderr, "Extrapolate: imag=%d, istart=%d, iend=%d, mfit=%f, bfit=%f\n", imag, istart, iend, mfit, bfit);
+    //LOG_INFO("Extrapolate: imag=%d, istart=%d, iend=%d, mfit=%f, bfit=%f\n", imag, istart, iend, mfit, bfit);
 
     for (i = iend; i <= MAX_HALO_IDX; ++i) {
       arr[imag][i] = mfit * (i / 10.0) + bfit;
@@ -867,19 +865,19 @@ void populate_simulation_omp(int imag, SampleType type)
   if (imag < 0)
   {
     srand48(555);
-    if (!SILENT) fprintf(stderr, "popsim> reading mock halo data...\n");
+    LOG_INFO("popsim> reading mock halo data...\n");
     fp = fopen(MOCK_FILE, "r");
     //fp = fopen("/export/sirocco1/tinker/SIMULATIONS/BOLSHOI/hosthalo_z0.0_M1e10.dat", "r");
     //fp = fopen("/export/sirocco2/tinker/SIMULATIONS/C250_2560/hosthalo_z0.0_M1e10_Lsat.dat", "r");
     if (!fp)
     {
-      fprintf(stderr, "popsim> could not open mock halo file\n");
+      LOG_ERROR("popsim> could not open mock halo file\n");
       fflush(stderr);
       exit(ENOENT);
     }
 
     NHALO = filesize(fp);
-    if (!SILENT) fprintf(stderr, "popsim> NHALO=%d\n", NHALO);
+    LOG_INFO("popsim> NHALO=%d\n", NHALO);
     HALO = (struct halo *) calloc(NHALO, sizeof(struct halo));
     for (i = 0; i < NHALO; ++i)
     {
@@ -888,7 +886,7 @@ void populate_simulation_omp(int imag, SampleType type)
              &HALO[i].vx, &HALO[i].vy, &HALO[i].vz, &HALO[i].lsat);
     }
     fclose(fp);
-    if (!SILENT) fprintf(stderr, "popsim> done reading halo data [%d].\n", NHALO);
+    LOG_INFO("popsim> done reading halo data [%d].\n", NHALO);
     return;
   }
   
@@ -911,7 +909,7 @@ void populate_simulation_omp(int imag, SampleType type)
   }
   mag = imag * imag_mult + imag_offset;
 
-  if (!SILENT) fprintf(stderr, "popsim> starting population for imag=%d, type=%d, mag=%d\n", imag, type, mag);
+  LOG_INFO("popsim> starting population for imag=%d, type=%d, mag=%d\n", imag, type, mag);
 
   switch (type) 
   {
@@ -952,7 +950,7 @@ void populate_simulation_omp(int imag, SampleType type)
     // TODO early abort program instead
     if (nsat_rand > MAX_SATELLITES) {
       if (!warned) {
-        fprintf(stderr, "popsim> WARNING: giving %d sats for halo %d\n", nsat_rand, i);
+        LOG_WARN("popsim> WARNING: giving %d sats for halo %d\n", nsat_rand, i);
         warned = 1;
       }
       nsat_rand = MAX_SATELLITES;
@@ -1028,7 +1026,7 @@ float N_cen(float m, int imag, SampleType type)
       y1 = ncen[imag][im + 1];
       break;
     default:
-      fprintf(stderr, "ERROR: Unknown sample type %d in N_cen\n", type);
+      LOG_ERROR("ERROR: Unknown sample type %d in N_cen\n", type);
       exit(EINVAL);
   }
 

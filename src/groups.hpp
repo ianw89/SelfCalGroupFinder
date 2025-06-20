@@ -28,6 +28,13 @@
 // Custom error numbers
 #define	E_BADPARAMS 50
 
+// LOGGING
+#define LOG_VERBOSE(...)  if (!SILENT && VERBOSE) fprintf(stderr, __VA_ARGS__)
+#define LOG_INFO(...)  if (!SILENT) fprintf(stderr, __VA_ARGS__)
+#define LOG_PERF(...)  fprintf(stderr, __VA_ARGS__)
+#define LOG_WARN(...)  if (!SILENT) fprintf(stderr, __VA_ARGS__)
+#define LOG_ERROR(...) fprintf(stderr, __VA_ARGS__)
+
 //#define OPTIMIZE
 
 
