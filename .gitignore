@@ -1,6 +1,7 @@
 bin/
 obj/
 data/
+*.out
 __pycache__/*
 **/__pycache__/*
 figs/

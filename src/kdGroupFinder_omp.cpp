@@ -478,10 +478,9 @@ void groupfind()
   }
   fflush(stdout);
   
-  // TODO Check for memeory leaks for interactive mode
-
-  // We want to reuse the tree if we introduce an interactive mode, so don't delete.
-  //delete tree;
+  // Free all dynamically allocated memory that we don't reuse in future groupfind() calls (ITERATIVE MODE)
+  free(fsat_arr);
+  // If I ever need to remake the static arrays or the KD-tree, free the old stuff here
 }
 
 
@@ -502,16 +501,11 @@ void recalc_galprops() {
 //void find_satellites(int icen, struct kdtree *kd)
 void find_satellites(int icen, GalaxyKDTree *tree)
 {
-  //int thread_num = omp_get_thread_num();
-  //float t_start = omp_get_wtime();
   int j, k;
   float dx, dy, dz, theta, prob_ang, vol_corr, prob_rad, grp_lum, p0;
-  float cenDist, bprob;
-  //struct kdres *set;
-  std::vector<nanoflann::ResultItem<unsigned int, float>> ret_matches;// = std::vector<nanoflann::ResultItem<size_t, float>>();
+  float bprob;
+  std::vector<nanoflann::ResultItem<unsigned int, float>> ret_matches;
   nanoflann::SearchParameters params = nanoflann::SearchParameters(10 /* max leaf */);
-  int *pch;
-  float cen[3];
   float sat[3];
 
   // check if this galaxy has already been given to a group
@@ -519,9 +513,6 @@ void find_satellites(int icen, GalaxyKDTree *tree)
     return;
 
   // Use the k-d tree kd to identify the nearest galaxies to the central.
-  //cen[0] = GAL[icen].x;
-  //cen[1] = GAL[icen].y;
-  //cen[2] = GAL[icen].z;
   float query_pt[3] = { GAL[icen].x, GAL[icen].y, GAL[icen].z };
 
   // TODO This search could use this range for z, but something smaller for ra, dec. 
@@ -534,7 +525,6 @@ void find_satellites(int icen, GalaxyKDTree *tree)
   const float search_radius = range * range; // nanoflann expects squared radius
   //ret_matches.reserve(100); // TODO reserve some space for the results, can be tuned
 
-  //set = kd_nearest_range(kd, cen, range); 
   // TODO possible optimization is to store the set for each galaxy for a large sigmav value? Hmm
   // First time through (on a per-galaxy basis) increase sigmav to use by a factor of 2 (can tune)
   // Then store results and reuse them for the next iterations
@@ -542,18 +532,11 @@ void find_satellites(int icen, GalaxyKDTree *tree)
   ret_matches.clear();
   tree->radiusSearch(query_pt, search_radius, ret_matches, params);
 
-  //float t_nset_done = omp_get_wtime();
-
   // Set now contains the nearest neighbours within a distance range. Grab their info.
-  //while (!kd_res_end(set))
   for (const auto& match : ret_matches)
   {
 
     // Get index value of the current neighbor
-    //pch = (int *)kd_res_item(set, sat);
-    //j = *pch;
-    //kd_res_next(set);
-    // printf("%d %d %f %f %f %f\n",j,icen,GAL[icen].x, GAL[j].x, range,sat[0]);
     j = match.first; // index of the galaxy in the GAL array
 
     // skip if the object is more massive than the icen
@@ -564,9 +547,7 @@ void find_satellites(int icen, GalaxyKDTree *tree)
     if (j == icen)
       continue;
 
-    // Skip if already assigned to a central.
-    // if(GAL[j].psat>0.5)continue;
-    // UNLESS current group has priority
+    // Skip if already assigned to a central, UNLESS current group has priority
     if (GAL[j].psat > 0.5 && GAL[icen].grp_rank > GAL[GAL[j].igrp].grp_rank)
       continue;
 
@@ -613,7 +594,8 @@ void find_satellites(int icen, GalaxyKDTree *tree)
       }
     }
     // Assign it to this group
-    // BUG: Aren't there race conditions here?
+    // BUG: Aren't there race conditions here? 
+    // Multiple threads can try to assign the same galaxy to a group.
     GAL[j].psat = p0;
     GAL[j].nsat = 0;
     GAL[j].igrp = icen;
@@ -642,14 +624,16 @@ void find_satellites(int icen, GalaxyKDTree *tree)
 }
 
 
-// 
-
 /* 
  * This is a luminosity correction for flux-limited samples that 
  * is applied to the group luminosity for the purposes of the 
- * inverse-sham. 
+ * inverse-sham. For flux limited samples, we are already doing the 
+ * SHAMing in narrow redshift bins, so this correction is really
+ * a minor one for galaxies within the same redshift bin.
  * 
- * This comments are old and Jeremy does not remember them:
+ * TODO: test that no correct vs model 2 for BGS shouldn't change a lot.
+ * 
+ * These comments are old and Jeremy does not remember them:
  * 
  * This is calibrated from the MXXL BGS mock,
  * from ratio of luminosity density in redshift

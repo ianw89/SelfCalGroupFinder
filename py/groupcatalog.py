@@ -198,9 +198,9 @@ class GroupCatalog:
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        del state['proc']
-        del state['pipe']
-        del state['outstream']
+        for key in ['proc', 'pipereader', 'outstream']:
+            if key in state:
+                del state[key]
         return state
     
     def __setstate__(self, state):
@@ -2431,20 +2431,16 @@ def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_m
     elif mode == Mode.PHOTOZ_PLUS_v4.value:
         backfile = BASE_FOLDER + "mcmc6_m4_4_1.h5"
     if os.path.exists(backfile):
-        new = False
         print("Loaded existing MCMC sampler")
         backend = emcee.backends.HDFBackend(backfile)
         n_walkers = backend.shape[0]
     else:
-        new = True
         backend = emcee.backends.HDFBackend(backfile)
         backend.reset(n_walkers, ndim)
 
     sampler = emcee.EnsembleSampler(n_walkers, ndim, log_probability, args=(scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth), backend=backend, pool=Pool())
 
     print("Running MCMC...")
-    #if not new:
-    #    pos = None
     sampler.run_mcmc(pos, n_steps, progress=True)
 
     samples = sampler.get_chain(flat=True)

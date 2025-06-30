@@ -807,17 +807,35 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
   // Extend the satellite occupation function for high-mass halos
   // using a linear fit.
   
-  int istart, iend, i, badpoints, idx;
+  int istart, iend, badpoints, idx;
   double bfit, mfit, mag;
 
   for (int imag = 0; imag < NVOLUME_BINS; ++imag)
   {
     iend = 0;
+    mag = maglim[imag];
 
-    // Set iend to the 3nd time we encounter a bin with nhalo_int[imag][i] < 10
-    for (i = 120; i < MAX_HALO_IDX; ++i)
+    // Start in a known good place with lots of data for each magbin.
+    // Search up from there (in halo mass) until we run low on data.
+    // Use the 10 data points leading up to that to fit the line.
+    if (fabs(mag) < 16.1) {
+      istart = 118;
+    } else if (fabs(mag) < 17.1) {
+      istart = 120;
+    } else if (fabs(mag) < 18.1) {
+      istart = 126;
+    } else if (fabs(mag) < 19.1) {
+      istart = 129;
+    } else if (fabs(mag) < 20.1) {
+      istart = 131;
+    } else if (fabs(mag) < 21.1) {
+      istart = 133;
+    } else { // Brightest bin (-22 to -23)
+      istart = 135;
+    }
+    for (int i = istart; i < MAX_HALO_IDX; ++i)
     {
-      if (nhalo_int[imag][i] < 10)
+      if (nhalo_int[imag][i] < 10) // need 10 halos to be considered sufficient data
       {
         iend++;
         if (iend == 3)
@@ -827,37 +845,19 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
         }
       }
     }
-    istart = iend - 10;
 
-    /*
-    mag = maglim[imag];
-    if (fabs(mag) < 16.1) {
-      istart = 118;
-      iend = 128;
-    } else if (fabs(mag) < 17.1) {
-      istart = 120;
-      iend = 130;
-    } else if (fabs(mag) < 18.1) {
-      istart = 126;
-      iend = 136;
-    } else if (fabs(mag) < 19.1) {
-      istart = 129;
-      iend = 139;
-    } else if (fabs(mag) < 20.1) {
-      istart = 131;
-      iend = 141;
-    } else if (fabs(mag) < 21.1) {
-      istart = 133;
-      iend = 143;
-    } else {
-      istart = 135;
-      iend = 145;
-    }*/
+    if (iend < 3 || iend == MAX_HALO_IDX-1) {
+      // We had plenty of data everywhere
+      LOG_INFO("No HOD extrapolation needed for imag=%d", imag);
+      continue;
+    }
+
+    istart = iend - 10;
 
     // Fit a line y = mfit * x + bfit to the data in arr[imag][i] for i = istart to iend
     double sum_x = 0, sum_y = 0, sum_xx = 0, sum_xy = 0;
     int nfit = 0;
-    for (i = istart; i <= iend; ++i) {
+    for (int i = istart; i <= iend; ++i) {
       if (arr[imag][i] > -5) {
         double x = i / 10.0;
         double y = arr[imag][i];
@@ -886,7 +886,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
 
     //LOG_INFO("Extrapolate: imag=%d, istart=%d, iend=%d, mfit=%f, bfit=%f\n", imag, istart, iend, mfit, bfit);
 
-    for (i = iend; i <= MAX_HALO_IDX; ++i) {
+    for (int i = iend; i <= MAX_HALO_IDX; ++i) {
       arr[imag][i] = mfit * (i / 10.0) + bfit;
     }
   }
