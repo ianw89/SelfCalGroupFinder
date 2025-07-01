@@ -1071,25 +1071,25 @@ def lsat_compare_plot(data, lsat_r, lsat_b, lsat_r_std, lsat_b_std):
     obs_ratio_err = obs_ratio * ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
     obs_ratio_err_log = obs_ratio_err/obs_ratio/np.log(10)
 
-    fig,axes=plt.subplots(nrows=1, ncols=2, figsize=(10,5), dpi=DPI)
+    fig,axes=plt.subplots(nrows=1, ncols=1, figsize=(5,5), dpi=DPI)
 
-    axes[0].errorbar(obs_lcen, np.log10(obs_ratio), yerr=obs_ratio_err_log, fmt='o', color='k', markersize=3, capsize=3, ecolor='k', label='SDSS Data')
-    axes[0].errorbar(obs_lcen, np.log10(ratio), yerr=ratio_err_log, fmt='o', color='purple', markersize=3, capsize=3, ecolor='purple', label='Group Finder Data', alpha=0.7)
-    axes[0].set_ylabel('log $L_{sat}^{q}/L_{sat}^{sf}$')
-    axes[0].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
-    axes[0].set_ylim(-0.2, 0.5)
-    axes[0].legend()
+    axes.errorbar(obs_lcen, np.log10(obs_ratio), yerr=obs_ratio_err_log, fmt='o', color='k', markersize=3, capsize=3, ecolor='k', label='SDSS Data')
+    axes.errorbar(obs_lcen, np.log10(ratio), yerr=ratio_err_log, fmt='-', color='purple', markersize=3, capsize=3, ecolor='purple', label='Group Finder Data', alpha=0.7)
+    axes.set_ylabel('log $L_{sat}^{q}/L_{sat}^{sf}$')
+    axes.set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
+    axes.set_ylim(-0.2, 0.5)
+    axes.legend()
 
     # Put text of the chisqr value in plot
-    axes[0].text(.4,.93, f"$\chi^2$: {np.sum(chisqr):.1f}", transform=axes[0].transAxes)
+    axes.text(.4,.93, f"$\chi^2$: {np.sum(chisqr):.1f}", transform=axes.transAxes)
 
-    axes[1].plot(obs_lcen, np.log10(lsat_r), label='GF Quiescent', color='r')
-    axes[1].plot(obs_lcen, np.log10(lsat_b), label='GF Star-forming', color='b')
-    axes[1].errorbar(obs_lcen, np.log10(obs_lsat_r), yerr=obs_err_r/obs_lsat_r, label='SDSS Quiescent', fmt='o', color='r', markersize=3, capsize=2, ecolor='k')
-    axes[1].errorbar(obs_lcen, np.log10(obs_lsat_b), yerr=obs_err_b/obs_lsat_b, label='SDSS Star-Forming', fmt='o', color='b', markersize=3, capsize=2, ecolor='k')
-    axes[1].set_ylabel('log $L_{sat}~[L_\odot / h^2]$')
-    axes[1].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
-    axes[1].legend()
+    #axes[1].plot(obs_lcen, np.log10(lsat_r), label='GF Quiescent', color='r')
+    #axes[1].plot(obs_lcen, np.log10(lsat_b), label='GF Star-forming', color='b')
+    #axes[1].errorbar(obs_lcen, np.log10(obs_lsat_r), yerr=obs_err_r/obs_lsat_r, label='SDSS Quiescent', fmt='o', color='r', markersize=3, capsize=2, ecolor='k')
+    #axes[1].errorbar(obs_lcen, np.log10(obs_lsat_b), yerr=obs_err_b/obs_lsat_b, label='SDSS Star-Forming', fmt='o', color='b', markersize=3, capsize=2, ecolor='k')
+    #axes[1].set_ylabel('log $L_{sat}~[L_\odot / h^2]$')
+    #axes[1].set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
+    #axes[1].legend()
 
     #fig.suptitle(gc.name)
     fig.tight_layout()

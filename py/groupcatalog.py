@@ -19,6 +19,7 @@ from io import BufferedReader
 from multiprocessing import Pool
 from joblib import Parallel, delayed
 import signal 
+import random
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -77,18 +78,18 @@ GOOD_TEN_PARAMETERS = np.array([
     [16.703, 4.449, 20.839, 9.096, 28.473, 7.129, -2.792, 16.698, 12.878, -1.552,],
     [16.085, 4.231, 17.800, 7.393, 24.378, 5.448, -2.335, 13.921, 12.962, -2.611,],
     [17.244, 4.737, 20.855, 9.040, 29.335, 6.746, -2.556, 17.334, 12.444, -2.083,],
-    [16.996, 4.719, 20.392, 9.025, 28.510, 7.018, -3.166, 16.200, 13.577, -0.381,],
-    [16.546, 4.449, 18.628, 7.764, 25.308, 5.657, -2.405, 13.964, 12.704, -2.656,],
-    [16.282, 4.222, 19.610, 8.317, 25.916, 6.212, -2.352, 15.420, 12.629, -2.366,],
-    [18.164, 5.378, 22.283, 9.641, 29.212, 7.854, -2.662, 14.937, 11.956, -0.798,],
-    [16.479, 4.100, 17.130, 6.873, 27.722, 2.841, -4.811, 20.308, 13.020, -2.867,],
-    [16.434, 4.338, 17.842, 7.859, 26.438, 3.922, -3.719, 17.966, 13.318, -2.801,],
-    [19.603, 6.398, 22.167, 10.035, 29.776, 7.459, -2.735, 15.314, 11.259, -0.649,],
-    [16.851, 4.626, 20.415, 8.839, 27.402, 6.785, -2.461, 15.311, 11.867, -1.280,],
-    [17.482, 5.155, 21.416, 10.300, 27.547, 7.046, -2.988, 15.631, 12.334, -2.553,],
-    [16.851, 4.647, 19.172, 8.232, 26.273, 5.859, -2.518, 15.238, 12.262, -2.230,],
-    [16.812, 4.511, 20.105, 8.392, 26.276, 6.416, -2.102, 15.491, 12.314, -2.457,],
-    [16.682, 4.516, 19.678, 8.421, 28.002, 6.950, -2.308, 15.839, 13.020, -0.616,],
+    [15.442, 3.417, 24.055, 9.782, 32.008, 12.107, -4.460, 15.086, 8.517, 4.562,],
+    [15.442, 3.417, 24.055, 9.782, 32.008, 12.107, -4.460, 15.086, 8.517, 4.562,],
+    [15.071, 3.240, 21.655, 8.244, 26.211, 9.050, -2.637, 13.255, 10.314, -0.203,],
+    [24.522, 9.070, 30.209, 14.599, 41.622, 11.895, -5.727, 22.852, 8.134, 2.546,],
+    [15.734, 3.736, 21.492, 8.847, 27.586, 8.035, -4.000, 14.645, 10.026, -0.647,],
+    [15.431, 3.376, 24.646, 10.059, 32.770, 12.637, -4.735, 15.351, 8.167, 5.076,],
+    [15.184, 3.246, 23.803, 9.678, 31.264, 11.245, -4.717, 15.430, 8.667, 3.344,],
+    [15.002, 3.151, 22.238, 8.458, 26.588, 9.447, -2.810, 13.411, 10.020, -0.067,],
+    [15.259, 3.368, 22.617, 9.162, 30.026, 10.345, -4.285, 14.988, 9.326, 2.494,],
+    [14.679, 2.981, 21.439, 8.716, 29.704, 8.613, -4.921, 15.760, 10.080, 0.901,],
+    [15.215, 3.264, 23.844, 9.703, 31.490, 11.401, -4.721, 15.419, 8.642, 3.585,],
+
     ])
 
 # A 10 Parameter set found from MCMC SV3 with SDSS data.
@@ -109,6 +110,12 @@ GF_PROPS_BGS_COLORS_C1 = {
     'beta0sf':GOOD_TEN_PARAMETERS[0][8],
     'betaLsf':GOOD_TEN_PARAMETERS[0][9]
 }
+
+def set_all_seeds(seed=59418):
+    """Set seeds for all common RNG sources"""
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
 
 # Weird other good one
 #({'omegaL_sf': 13.03086801, 'sigma_sf': 1.85056851, 'omegaL_q': 8.92398122, 'sigma_q': -0.27906515, 'omega0_sf': 15.34144908, 'omega0_q': -1.27133105, 'beta0q': -0.59290738, 'betaLq': 14.81630656, 'beta0sf': 12.17260624, 'betaLsf': -6.73894304})
@@ -274,7 +281,7 @@ class GroupCatalog:
         else:
             print(f'CREATING BACKEND: {backfile}')
             backend = emcee.backends.HDFBackend(backfile)
-            nwalkers = 25
+            nwalkers = 20
             ndim = 10
 
         self.sampler = emcee.EnsembleSampler(
@@ -1344,6 +1351,7 @@ class BGSGroupCatalog(GroupCatalog):
         return gc
 
     def preprocess(self, silent=False):
+        set_all_seeds()
         t1 = time.time()
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
@@ -2076,12 +2084,15 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if maskbits is not None and ref_cat is not None:
         sga_collision = (maskbits & MASKBITS['GALAXY']) != 0
         sga_central = ref_cat == b'L3'
-        to_remove_blue = sga_collision & ~sga_central & (g_r_apparent < 0.8)
-        print(f"{np.sum(to_remove_blue):,} galaxies ({np.sum(to_remove_blue) / len(dec) * 100:.2f}%) have a SGA collision, are not SGA centrals, and are blue enough to remove.")
-        no_SGA_Issues = np.invert(to_remove_blue)
+        to_remove_blue = sga_collision & ~sga_central & (g_r_apparent < 0.8) & unobserved
+        print(f"{np.sum(to_remove_blue):,} galaxies ({np.sum(to_remove_blue) / len(unobserved) * 100:.2f}%) of unobserved galaxies have a SGA collision, are not SGA centrals, and are blue enough to remove.")
+        # Save off the to_remove_blue galaxies in a file for inspection
+        with open("shredding.txt", "w") as f:
+            for r, d in zip(ra[to_remove_blue], dec[to_remove_blue]):
+                print(f"{r} {d}", file=f)
     else:
-        no_SGA_Issues = np.ones(len(dec), dtype=bool)
-
+        print("WARNING: missing MASKBITS or REF_CAT columns. No shredding elimination possible.")
+ 
     # Fiberflux cuts, too remove confusing overlapping objects which likely have bad spectra.
     ff_req = np.ones(len(dec), dtype=bool)
     if ff_g is not None and ff_r is not None and ff_z is not None:
@@ -2092,12 +2103,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
        ff_req = np.sum([ff_g_req, ff_r_req, ff_z_req], axis=0) >= 2 # Two+ bands with low enough fracflux required
        print(f"{np.sum(~ff_req):,} galaxies ({np.sum(~ff_req) / len(dec) * 100:.2f}%) have fracflux in two bands too high to keep.")
 
-    observed_requirements = np.all([galaxy_observed_filter, app_mag_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, no_SGA_Issues, ff_req], axis=0)
+    observed_requirements = np.all([galaxy_observed_filter, app_mag_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, ff_req], axis=0)
 
     # treat low deltachi2 as unobserved. Must pass the photometric quality control still.
-    treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, no_SGA_Issues, ff_req, np.invert(deltachi2_filter)], axis=0)
+    treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, ff_req, np.invert(deltachi2_filter)], axis=0)
     #print(f"We have {np.count_nonzero(treat_as_unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
-    unobserved = np.all([app_mag_filter, np.logical_or(unobserved, treat_as_unobserved)], axis=0)
+    unobserved = np.all([app_mag_filter, ~to_remove_blue, np.logical_or(unobserved, treat_as_unobserved)], axis=0)
 
     if mode == Mode.FIBER_ASSIGNED_ONLY.value:
         keep = np.all([bad_targets_filter, multi_pass_filter, observed_requirements], axis=0)
@@ -2109,7 +2120,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         # TODO why bother with this for the real data? Use all we got, right? 
         # I upped the cut to 21 so it doesn't do anything
         catalog_bright_filter = app_mag_r < CATALOG_APP_MAG_CUT 
-        catalog_keep = np.all([galaxy_observed_filter, catalog_bright_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, no_SGA_Issues, ~unobserved], axis=0)
+        catalog_keep = np.all([galaxy_observed_filter, catalog_bright_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, ~unobserved], axis=0)
         catalog_ra = ra[catalog_keep]
         catalog_dec = dec[catalog_keep]
         z_obs_catalog = z_obs[catalog_keep]

@@ -5,19 +5,18 @@ import concurrent.futures
 from multiprocessing import Pool
 
 # NOTES
-# ON HOWDY: export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH FIRST ?!
 
 # EXAMPLE USAGE
 # export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 # nohup python3 py/exec.py 6 7 8 9 &> variations.out &
-# nohup python3 py/exec.py mcmc 12 x2 &> y1mini_mcmc.out &
-# nohup python3 py/exec.py mcmc 13 x0 &> y1full_mcmc.out &
+# nohup python3 py/exec.py mcmc 12 x0 &> y1mini_mcmc0_2.out &
+# nohup python3 py/exec.py mcmc 13 x5 &> y1full_mcmc5_0.out &
 # nohup python3 py/exec.py 0 &> pzp_mcmc.out &
 
 
 execution_mode = 'once' # or 'clustering' or 'mcmc'
 mcmcnum = None # Will make a new folder
-mcmc_iter = 5 # x 30 walkers
+mcmc_iter = 1500 # x 20 walkers
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')

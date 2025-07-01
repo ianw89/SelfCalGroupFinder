@@ -848,7 +848,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
 
     if (iend < 3 || iend == MAX_HALO_IDX-1) {
       // We had plenty of data everywhere
-      LOG_INFO("No HOD extrapolation needed for imag=%d", imag);
+      LOG_INFO("No HOD extrapolation needed for imag=%d\n", imag);
       continue;
     }
 
@@ -886,7 +886,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
 
     //LOG_INFO("Extrapolate: imag=%d, istart=%d, iend=%d, mfit=%f, bfit=%f\n", imag, istart, iend, mfit, bfit);
 
-    for (int i = iend; i <= MAX_HALO_IDX; ++i) {
+    for (int i = iend; i < MAX_HALO_IDX; ++i) {
       arr[imag][i] = mfit * (i / 10.0) + bfit;
     }
   }
@@ -902,7 +902,6 @@ void prepare_halos() {
     return;
   }
 
-  srand48(555);
   LOG_INFO("popsim> reading mock halo data...\n");
   FILE *fp = fopen(MOCK_FILE, "r");
   //fp = fopen("/export/sirocco1/tinker/SIMULATIONS/BOLSHOI/hosthalo_z0.0_M1e10.dat", "r");
@@ -1261,7 +1260,6 @@ float NFW_density(float r, float rs, float ps)
  */
 float NFW_velocity(float mass, float v[])
 {
-  static long IDUM2 = -455;
   // static float fac = -1;
   float sigv, vbias = 1, mfac = 1;
   int i;

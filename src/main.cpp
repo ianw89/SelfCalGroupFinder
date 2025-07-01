@@ -58,7 +58,6 @@ static struct argp_option options[] = {
   {"stellarmass",  'm', 0,                                    0,  "Abundance match on stellar mass, not luminosity", 1},
   {"popmock",      'p', "MOCKFILE,BINSFILE",                  0,  "Populate a mock catalog after group finding, provide mock file path and bin definitions", 1},
   {"colors",       'c', 0,                                    0,  "Read in and use galaxy colors", 1},
-  {"random",       'r', 0,                                    0,  "Randomly perturb luminosity/mstar for first group finding", 1 },
   {"iterations",   'i', "N",                                  0,  "Number of iterations for group finding", 1},
   {"earlyexit",    'e', 0,                                    0,  "Allow early exit from group finding for various scenarios", 1},
   {"wcen",         'w', "MASS,SIGMA,MASSR,SIGMAR,NORM,NORMR", 0,  "Six parameters for weighting the centrals", 2},
@@ -98,9 +97,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       break;
     case 'c':
       COLOR = 1;
-      break;
-    case 'r':
-      PERTURB = 1;
       break;
     case 'i':
       MAX_ITER = atoi(arg);
@@ -286,10 +282,10 @@ int main(int argc, char **argv)
     // Populate Mock 
     if (POPULATE_MOCK)
     {
+      setup_rng();
       t0 = omp_get_wtime();
       lsat_model();
       tabulate_hods();
-      setup_rng();
       prepare_halos();
       t1 = omp_get_wtime();
       LOG_PERF("lsat + hod + prep popsim: %.2f sec\n", t1 - t0);

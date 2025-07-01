@@ -75,7 +75,6 @@ int FLUXLIM = 0; // default is volume-limited
 float FLUXLIM_MAG = 0.0; 
 int FLUXLIM_CORRECTION_MODEL = 0; // default is no correction, 1 for SDSS tuned, 2 for BGS tuned
 int COLOR = 0; // default is ignore color information (sometimes treating all as blue)
-int PERTURB = 0; // default is no perturbation
 int STELLAR_MASS = 0; // defaulit is luminosities
 int RECENTERING = 0; // this options appears to always be off right now and hasn't been tested since fork
 int SECOND_PARAMETER = 0; // default is no extra per-galaxy parameters
@@ -97,7 +96,6 @@ void groupfind()
   float frac_area, nsat_tot, weight;
   double galden, pt[3], t_start_findsats, t_end_findsats, t_start_iter, t_end_iter, t_alliter_s, t_alliter_e; // galden (galaxy density) only includes centrals, because only they get halos
   double *fsat_arr;
-  long IDUM1 = -555;
 
   // xtmp stores the values of what we sort by. itmp stores the index in the GAL array. It' gets sorted and we find sats in that order.
   // Initially it gets setup with the LGAL values; after it gets setup with the LTOT values (the effective length becomes ngrp then)
@@ -195,11 +193,6 @@ void groupfind()
     // Used to not multiply by chiweight here. (only in main iterations). But why not? Seems reasonable here too.
     xtmp[i] = -(GAL[i-1].lum) * GAL[i-1].chiweight; 
     itmp[i] = i-1;
-
-    // just for kicks, give each galaxy a random luminosity 
-    if (PERTURB) {
-      xtmp[i] *= pow(10.0, gasdev(&IDUM1) * 0.0);
-    }
   }
   //LOG_INFO("itmp initial: ");
   //for (i = 1; i <= NGAL; ++i)
