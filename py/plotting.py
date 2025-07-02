@@ -1918,11 +1918,51 @@ def examine_groups_near(target, data: pd.DataFrame, nearby_angle: coord.Angle = 
     for k in range(len(centrals)):
         current = centrals.iloc[k]
         radius = current.halo_radius_arcsec / 3600  # arcsec to degrees, like the plot
-        circ = Circle((current.RA, current['DEC']), radius, color=group_colors[current['IGRP']], alpha=0.16)
+        circ = Circle((current['RA'], current['DEC']), radius, color=group_colors[current['IGRP']], alpha=0.16)
         ax.add_patch(circ)
 
-    scattered = plt.scatter(centrals.RA, centrals['DEC'], s=list(map(_getsize, centrals['Z'])), color=[group_colors[grp] for grp in centrals['IGRP']])
-    scattered = plt.scatter(sats.RA, sats['DEC'], s=list(map(_getsize, sats['Z'])), color=[group_colors[grp] for grp in sats['IGRP']], marker='s')
+    
+    cenobs = centrals.loc[z_flag_is_spectro_z(centrals['Z_ASSIGNED_FLAG'])]
+    cenunobs = centrals.loc[z_flag_is_not_spectro_z(centrals['Z_ASSIGNED_FLAG'])]
+    satobs = sats.loc[z_flag_is_spectro_z(sats['Z_ASSIGNED_FLAG'])]
+    satunobs = sats.loc[z_flag_is_not_spectro_z(sats['Z_ASSIGNED_FLAG'])]
+
+    # Assign a color for each group and use it for both edge and face colors
+    cenobs_colors = [group_colors[grp] for grp in cenobs['IGRP']]
+    cenunobs_colors = [group_colors[grp] for grp in cenunobs['IGRP']]
+    satobs_colors = [group_colors[grp] for grp in satobs['IGRP']]
+    satunobs_colors = [group_colors[grp] for grp in satunobs['IGRP']]
+
+    # Observed centrals: filled circles
+    plt.scatter(
+        cenobs['RA'], cenobs['DEC'],
+        s=list(map(_getsize, cenobs['Z'])),
+        color=cenobs_colors,
+        edgecolor=cenobs_colors,
+    )
+    # Unobserved centrals: open circles
+    plt.scatter(
+        cenunobs['RA'], cenunobs['DEC'],
+        s=list(map(_getsize, cenunobs['Z'])),
+        facecolors='none',
+        edgecolors=cenunobs_colors,
+    )
+    # Observed satellites: filled squares
+    plt.scatter(
+        satobs['RA'], satobs['DEC'],
+        s=list(map(_getsize, satobs['Z'])),
+        color=satobs_colors,
+        edgecolor=satobs_colors,
+        marker='s'
+    )
+    # Unobserved satellites: open squares
+    plt.scatter(
+        satunobs['RA'], satunobs['DEC'],
+        s=list(map(_getsize, satunobs['Z'])),
+        facecolors='none',
+        edgecolors=satunobs_colors,
+        marker='s'
+    )
 
     # Add redshift labels and M_HALO for centrals
     for k in range(len(nearby)):
@@ -1939,6 +1979,7 @@ def examine_groups_near(target, data: pd.DataFrame, nearby_angle: coord.Angle = 
     ax.set_xticklabels([f"{tick:.3f}°" for tick in ax.get_xticks()])
     ax.set_yticks(np.linspace(dec_min, dec_max, num=7))
     ax.set_yticklabels([f"{tick:.3f}°" for tick in ax.get_yticks()])
+    ax.invert_xaxis()
     #plt.legend()
     plt.draw()
 

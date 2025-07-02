@@ -2097,57 +2097,70 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     
     # Roughly remove HII regions of low z, high angular size galaxies (SGA catalog)
     if maskbits is not None and ref_cat is not None:
-        sga_collision = (maskbits & MASKBITS['GALAXY']) != 0
-        #sga_central = ref_cat == b'L3' # This does not mean SGA Central after all. It is set for a bunch of HII regions in a big spiral galaxy. 
+        sga_collision = keep & ((maskbits & MASKBITS['GALAXY']) != 0)
+
+        # TODO also use morphology. If extended, do not include in the possible cutlist
+        # Maybe SER > 4 required. Need something for every morphtype though.
+        sga_collision_blue = sga_collision & (g_r_apparent < 0.70) # blue enough to be HII region
         
-        # Build a little nearest neighbor catalog of these galaxies. 
-        # We want to filter out targets that are within 30 arcseconds of another SGA marked target, 
-        # unless it is brighter than all of the nearby ones.
-        # TODO See if this is right
         sgacat = coord.SkyCoord(ra=ra[sga_collision]*u.degree, dec=dec[sga_collision]*u.degree, frame='icrs')
-        sgamag = app_mag_r[sga_collision]
+        sgabluecat = coord.SkyCoord(ra=ra[sga_collision_blue]*u.degree, dec=dec[sga_collision_blue]*u.degree, frame='icrs')
+        sgaappmag = app_mag_r[sga_collision]
+        #sgaabsmag = abs_mag_R_k[sga_collision] # Might actually be less reliable for these objects...
+
+        to_remove_nn = np.zeros(len(sgabluecat), dtype=bool)
+
         # Find the nearest neighbor (excluding self)
-        idx, d2d, d3d = coord.match_coordinates_sky(sgacat, sgacat, nthneighbor=2, storekdtree=False)
-        # 30 arcsec threshold
-        close = d2d < 30 * u.arcsec
-        # For those that are close, mark as to_remove if not the brightest
-        to_remove_nn = np.zeros(len(sgacat), dtype=bool)
-        for i in np.where(close)[0]:
-            neighbor = idx[i]
-            # Remove if this galaxy is fainter than its neighbor
-            if sgamag[i] > sgamag[neighbor]:
-                to_remove_nn[i] = True
+        MAX_SEARCHES = 10
+        n = 2
+        while (n<MAX_SEARCHES):
+            idx, d2d, d3d = coord.match_coordinates_sky(sgabluecat, sgacat, nthneighbor=n, storekdtree=False)
+            close = (d2d < 45*u.arcsec) 
+            
+            # If you have a neighbor within 45 arcseconds that is apparently brighter than you are, mark to remove
+            for i in np.where(close)[0]:
+                neighbor = idx[i]
+                if sgaappmag[i] > sgaappmag[neighbor]:
+                    to_remove_nn[i] = True
+
+            if np.sum(to_remove_nn) == 0:
+                break
+            n += 1
 
         # Map back to the original array
-        to_remove_nn_full = np.zeros(len(ra), dtype=bool)
-        to_remove_nn_full[np.where(sga_collision)[0][to_remove_nn]] = True
+        to_remove_nn_full = np.zeros(orig_count, dtype=bool)
+        to_remove_nn_full[np.where(sga_collision_blue)[0][to_remove_nn]] = True
         keep &= ~to_remove_nn_full
         catalog_keep &= ~to_remove_nn_full
         print(f"After SGA nearest neighbor cut: {keep.sum():,}")
 
-
-        #to_remove_blue = sga_collision & (g_r_apparent < 0.8)
-        #print(f"{np.sum(to_remove_blue):,} galaxies ({np.sum(to_remove_blue) / len(dec) * 100:.2f}%) have a SGA collision, are not SGA centrals, and are blue enough to remove.")
-        # Save off the to_remove_blue galaxies in a file for inspection
         #with open("shredding.txt", "w") as f:
-        #    for r, d, t in zip(ra[to_remove_blue], dec[to_remove_blue], target_id[to_remove_blue]):
+        #    for r, d, t in zip(ra[to_remove_nn_full], dec[to_remove_nn_full], target_id[to_remove_nn_full]):
         #        print(f"{r},{d},{t}", file=f)
-        #keep &= ~to_remove_blue
-        #catalog_keep &= ~to_remove_blue
-        #print(f"After SGA collision cut: {keep.sum():,}")
+
+        #sgakeep = sga_collision & ~to_remove_nn_full
+        #with open("sga_keep.txt", "w") as f:
+        #    for r, d, t in zip(ra[sgakeep], dec[sgakeep], target_id[sgakeep]):
+        #        print(f"{r},{d},{t}", file=f)
+
     else:
         print("WARNING: missing MASKBITS or REF_CAT columns. No shredding elimination possible.")
 
  
     # Fiberflux cuts, too remove confusing overlapping objects which likely have bad spectra.
     if ff_g is not None and ff_r is not None and ff_z is not None:
-       FF_CUT = 0.5 # LOW Z folks used 0.35 for this in target selection. LSSCats don't cut on it at all. 
-       ff_g_req = np.logical_or(ff_g < FF_CUT, np.isnan(ff_g))
-       ff_r_req = np.logical_or(ff_r < FF_CUT, np.isnan(ff_r))
-       ff_z_req = np.logical_or(ff_z < FF_CUT, np.isnan(ff_z))
-       ff_req = np.sum([ff_g_req, ff_r_req, ff_z_req], axis=0) >= 2 # Two+ bands with low enough fracflux required
-       keep &= ff_req
-       print(f"After fiberflux cut: {keep.sum():,}")
+        FF_CUT = 0.65 # LOW Z folks used 0.35 for this in target selection. LSSCats don't cut on it at all. 
+        ff_g_req = np.logical_or(ff_g < FF_CUT, np.isnan(ff_g))
+        ff_r_req = np.logical_or(ff_r < FF_CUT, np.isnan(ff_r))
+        ff_z_req = np.logical_or(ff_z < FF_CUT, np.isnan(ff_z))
+        ff_req = np.sum([ff_g_req, ff_r_req, ff_z_req], axis=0) >= 2 # Two+ bands with low enough fracflux required
+
+        #with open("ffcuts.txt", "w") as f:
+        #    for r, d, t in zip(ra[keep & ~ff_req], dec[keep & ~ff_req], target_id[keep & ~ff_req]):
+        #        print(f"{r},{d},{t}", file=f)
+
+        keep &= ff_req
+        print(f"After fiberflux cut: {keep.sum():,}")
 
     observed_requirements = np.all([galaxy_observed_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
     treat_as_unobserved = np.all([galaxy_observed_filter, np.invert(deltachi2_filter)], axis=0)
