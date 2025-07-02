@@ -1839,14 +1839,16 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     # Ensure app_mag_r and z_eff are not NaN or Inf at idx
     assert np.isnan(app_mag_r[idx]).any() == False, f"app_mag_r has NaN values at {np.where(np.isnan(app_mag_r))}"
     assert np.isnan(z_eff[idx]).any() == False, f"z_eff has NaN values at {np.where(np.isnan(z_eff))}"
-    assert z_eff[idx].all() > 0.001, f"z_eff has too low values at {np.where(z_eff <= 0.001)}"
+
+    # Replace z_eff by 0.001 when it is too low
+    z_eff[idx] = np.where(z_eff[idx] < 0.001, 0.001, z_eff[idx])
     np.put(abs_mag_R, idx, app_mag_to_abs_mag(app_mag_r[idx], z_eff[idx]))
     nanindex = np.isnan(abs_mag_R[idx])
     if nanindex.any():
         print(f"Warning: abs_mag_R has NaN values at {np.where(nanindex)}")
-        print(f"app_mag_r[idx]: {app_mag_r[idx]}")
-        print(f"z_eff[idx]: {z_eff[idx]}")
-        print(f"abs_mag_R[idx]: {abs_mag_R[idx]}")
+        print(f"app_mag_r[idx]: {app_mag_r[idx][nanindex]}")
+        print(f"z_eff[idx]: {z_eff[idx][nanindex]}")
+        print(f"abs_mag_R[idx]: {abs_mag_R[idx][nanindex]}")
     assert np.isnan(abs_mag_R[idx]).any() == False, f"abs_mag_R[idx] has NaN values at {np.where(np.isnan(abs_mag_R[idx]))}"
     np.put(abs_mag_R_k, idx, k_correct(abs_mag_R[idx], z_eff[idx], g_r_apparent[idx], band='r'))
     np.put(abs_mag_G, idx, app_mag_to_abs_mag(app_mag_g[idx], z_eff[idx]))
@@ -2057,75 +2059,120 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     ##############################################################################
     # Make filter arrays (True/False values)
     ##############################################################################
-    multi_pass_filter = table['NTILE_MINE'] >= num_passes_required
-    galaxy_observed_filter = obj_type == b'GALAXY'
-    app_mag_filter = app_mag_r < APP_MAG_CUT
-    redshift_filter = z_obs > Z_MIN
-    redshift_hi_filter = z_obs < Z_MAX
-    deltachi2_filter = deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
-    bad_targets_filter = ~np.isin(target_id, bad_targets)
-    
+    keep = np.ones(orig_count, dtype=bool) # will be used to filter the table
+    catalog_keep = np.ones(orig_count, dtype=bool) # will be used to filter the catalog for NN and similar calculations
+
+    keep &= table['NTILE_MINE'] >= num_passes_required
+    print(f"After NTILE_MINE >= {num_passes_required} cut: {keep.sum():,}")
+
+    keep &= app_mag_r < APP_MAG_CUT
+    print(f"After app_mag_r < {APP_MAG_CUT} cut: {keep.sum():,}")
+
+    keep &= ~np.isin(target_id, bad_targets)
+    catalog_keep &= ~np.isin(target_id, bad_targets)
+    print(f"After bad targets cut: {keep.sum():,}")
+
+    # For Y1-Iron-Mini, we want to cut to a smaller region
+    if data_cut == "Y1-Iron-Mini":
+        keep &= ra > 160
+        keep &= ra < 175
+        keep &= dec > -7
+        keep &= dec < 3
+        print(f"After Y1-Mini cut: {keep.sum():,}")
+
     # Special version cut to look like SV3 - choose only the ones inside the SV3 footprint
     if data_cut == "Y3-Kibo-SV3Cut" or data_cut == "Y3-Loa-SV3Cut":
         ntid_sv3 = get_tbl_column(table, 'NEAREST_TILEIDS_SV3', required=True)[:,0] # just need to nearest tile for our purposes
         region = tile_to_region(ntid_sv3)
         to_remove = np.isin(region, sv3_poor_y3overlap)
         in_good_sv3regions = ~to_remove
-        multi_pass_filter = np.all([multi_pass_filter, table['NTILE_MINE_SV3'] >= 10, in_good_sv3regions], axis=0)
+        keep &= in_good_sv3regions
+        keep &= table['NTILE_MINE_SV3'] >= 10
+        print(f"After Y3 Like SV3 region cut: {keep.sum():,}")
 
-    # For Y1-Iron-Mini, we want to cut to a smaller region
-    if data_cut == "Y1-Iron-Mini":
-        multi_pass_filter &= ra > 160
-        multi_pass_filter &= ra < 175
-        multi_pass_filter &= dec > -7
-        multi_pass_filter &= dec < 3
-
+    galaxy_observed_filter = obj_type == b'GALAXY'
+    redshift_filter = z_obs > Z_MIN
+    redshift_hi_filter = z_obs < Z_MAX
+    deltachi2_filter = deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
+    
     # Roughly remove HII regions of low z, high angular size galaxies (SGA catalog)
     if maskbits is not None and ref_cat is not None:
         sga_collision = (maskbits & MASKBITS['GALAXY']) != 0
-        sga_central = ref_cat == b'L3'
-        to_remove_blue = sga_collision & ~sga_central & (g_r_apparent < 0.8) & unobserved
-        print(f"{np.sum(to_remove_blue):,} galaxies ({np.sum(to_remove_blue) / len(unobserved) * 100:.2f}%) of unobserved galaxies have a SGA collision, are not SGA centrals, and are blue enough to remove.")
+        #sga_central = ref_cat == b'L3' # This does not mean SGA Central after all. It is set for a bunch of HII regions in a big spiral galaxy. 
+        
+        # Build a little nearest neighbor catalog of these galaxies. 
+        # We want to filter out targets that are within 30 arcseconds of another SGA marked target, 
+        # unless it is brighter than all of the nearby ones.
+        # TODO See if this is right
+        sgacat = coord.SkyCoord(ra=ra[sga_collision]*u.degree, dec=dec[sga_collision]*u.degree, frame='icrs')
+        sgamag = app_mag_r[sga_collision]
+        # Find the nearest neighbor (excluding self)
+        idx, d2d, d3d = coord.match_coordinates_sky(sgacat, sgacat, nthneighbor=2, storekdtree=False)
+        # 30 arcsec threshold
+        close = d2d < 30 * u.arcsec
+        # For those that are close, mark as to_remove if not the brightest
+        to_remove_nn = np.zeros(len(sgacat), dtype=bool)
+        for i in np.where(close)[0]:
+            neighbor = idx[i]
+            # Remove if this galaxy is fainter than its neighbor
+            if sgamag[i] > sgamag[neighbor]:
+                to_remove_nn[i] = True
+
+        # Map back to the original array
+        to_remove_nn_full = np.zeros(len(ra), dtype=bool)
+        to_remove_nn_full[np.where(sga_collision)[0][to_remove_nn]] = True
+        keep &= ~to_remove_nn_full
+        catalog_keep &= ~to_remove_nn_full
+        print(f"After SGA nearest neighbor cut: {keep.sum():,}")
+
+
+        #to_remove_blue = sga_collision & (g_r_apparent < 0.8)
+        #print(f"{np.sum(to_remove_blue):,} galaxies ({np.sum(to_remove_blue) / len(dec) * 100:.2f}%) have a SGA collision, are not SGA centrals, and are blue enough to remove.")
         # Save off the to_remove_blue galaxies in a file for inspection
-        with open("shredding.txt", "w") as f:
-            for r, d in zip(ra[to_remove_blue], dec[to_remove_blue]):
-                print(f"{r} {d}", file=f)
+        #with open("shredding.txt", "w") as f:
+        #    for r, d, t in zip(ra[to_remove_blue], dec[to_remove_blue], target_id[to_remove_blue]):
+        #        print(f"{r},{d},{t}", file=f)
+        #keep &= ~to_remove_blue
+        #catalog_keep &= ~to_remove_blue
+        #print(f"After SGA collision cut: {keep.sum():,}")
     else:
         print("WARNING: missing MASKBITS or REF_CAT columns. No shredding elimination possible.")
+
  
     # Fiberflux cuts, too remove confusing overlapping objects which likely have bad spectra.
-    ff_req = np.ones(len(dec), dtype=bool)
     if ff_g is not None and ff_r is not None and ff_z is not None:
        FF_CUT = 0.5 # LOW Z folks used 0.35 for this in target selection. LSSCats don't cut on it at all. 
        ff_g_req = np.logical_or(ff_g < FF_CUT, np.isnan(ff_g))
        ff_r_req = np.logical_or(ff_r < FF_CUT, np.isnan(ff_r))
        ff_z_req = np.logical_or(ff_z < FF_CUT, np.isnan(ff_z))
        ff_req = np.sum([ff_g_req, ff_r_req, ff_z_req], axis=0) >= 2 # Two+ bands with low enough fracflux required
-       print(f"{np.sum(~ff_req):,} galaxies ({np.sum(~ff_req) / len(dec) * 100:.2f}%) have fracflux in two bands too high to keep.")
+       keep &= ff_req
+       print(f"After fiberflux cut: {keep.sum():,}")
 
-    observed_requirements = np.all([galaxy_observed_filter, app_mag_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, ff_req], axis=0)
-
-    # treat low deltachi2 as unobserved. Must pass the photometric quality control still.
-    treat_as_unobserved = np.all([galaxy_observed_filter, app_mag_filter, ff_req, np.invert(deltachi2_filter)], axis=0)
-    #print(f"We have {np.count_nonzero(treat_as_unobserved)} observed galaxies with deltachi2 < 40 to add to the unobserved pool")
-    unobserved = np.all([app_mag_filter, ~to_remove_blue, np.logical_or(unobserved, treat_as_unobserved)], axis=0)
+    observed_requirements = np.all([galaxy_observed_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
+    treat_as_unobserved = np.all([galaxy_observed_filter, np.invert(deltachi2_filter)], axis=0)
+    unobserved |= treat_as_unobserved
 
     if mode == Mode.FIBER_ASSIGNED_ONLY.value:
-        keep = np.all([bad_targets_filter, multi_pass_filter, observed_requirements], axis=0)
-
-    if mode == Mode.NEAREST_NEIGHBOR.value or Mode.is_simple(mode) or Mode.is_photoz_plus(mode):
-        keep = np.all([bad_targets_filter, multi_pass_filter, np.logical_or(observed_requirements, unobserved)], axis=0)
+        keep &= observed_requirements
+    else:
+        keep &= observed_requirements|unobserved
 
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
         # TODO why bother with this for the real data? Use all we got, right? 
         # I upped the cut to 21 so it doesn't do anything
-        catalog_bright_filter = app_mag_r < CATALOG_APP_MAG_CUT 
-        catalog_keep = np.all([galaxy_observed_filter, catalog_bright_filter, redshift_filter, redshift_hi_filter, deltachi2_filter, ~unobserved], axis=0)
+        catalog_keep &= app_mag_r < CATALOG_APP_MAG_CUT 
+        catalog_keep &= redshift_filter
+        catalog_keep &= redshift_hi_filter
+        catalog_keep &= deltachi2_filter
+        catalog_keep &= ~unobserved
         catalog_ra = ra[catalog_keep]
         catalog_dec = dec[catalog_keep]
         z_obs_catalog = z_obs[catalog_keep]
         catalog_quiescent = quiescent[catalog_keep]
         print(f"{len(z_obs_catalog):,} galaxies in the neighbor catalog.")
+
+    print (f"After observed/unobserved requirements: {keep.sum():,} galaxies left")
 
     # Apply filters
     obj_type = obj_type[keep]
@@ -2179,12 +2226,10 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             sdss_z = sdss_vanilla.all_data.iloc[idx]['Z'].to_numpy()
 
             # if angular distance is < 1", then we consider it a match to SDSS catalog and copy over it's z
-            ANGULAR_DISTANCE_MATCH_OLD = 3.0
             ANGULAR_DISTANCE_MATCH = 1.0
-            matched_old = ang_dist < ANGULAR_DISTANCE_MATCH_OLD
             matched = ang_dist < ANGULAR_DISTANCE_MATCH
 
-            print(f"{matched.sum():,} of {first_need_redshift_count:,} lost galaxies matched to SDSS catalog (would have matched {matched_old.sum():,} with 3\")")
+            print(f"{matched.sum():,} of {first_need_redshift_count:,} lost galaxies matched to {len(sdss_catalog):,} SDSS galaxies)")
 
             # If sloan z is very different from z_phot, we should probably not use it
             # This is a bit of a hack to avoid using the SDSS z for galaxies that are likely to be wrong
