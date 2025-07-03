@@ -482,17 +482,6 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area):
     # My fsat calculations that have 1/Vmax weightings are not affected by this
     return v_max * frac_area
 
-def get_max_observable_volume_est(abs_mags, z_obs, m_cut, ra, dec):
-    """
-    Calculate the max volume at which the galaxy could be seen in comoving coords. 
-
-    This overload calculates 
-    """
-    frac_area = estimate_frac_area(ra, dec)
-    print(f"Footprint not provided; estimated to be {frac_area:.3f} of the sky")
-
-    return get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area)
-
 
 def mollweide_transform(ra, dec):
     """
@@ -539,67 +528,6 @@ def mollweide_transform(ra, dec):
     y = np.sqrt(2.0) * np.sin(aux) * (180/np.pi)
 
     return x, y
-
-def estimate_frac_area(ra, dec):
-    """
-    Estimate the fraction of the sky covered in the survey so far based on the ra, dec 
-    of galaxies that have been observed thus far.
-
-    BUG This procedure does not work very well. Though it recovered somethign reasonable
-    for MXXL and UCHUU, it failed to get what I expected for BGS based on the randoms.
-
-    We haven't used the fact that the each pointing of the telescope covers 7.44 square 
-    degrees of the sky in this yet.
-    """
-
-    # Reduce data if too large
-    #_MAX_POINTS = 10000000 
-    #if len(ra) > 2*_MAX_POINTS:
-    #    reduce = len(ra) // _MAX_POINTS
-    #    #print(f"Reducing data size by a factor of {reduce}")
-    #    rnd_indices = np.random.choice(len(ra), len(ra)//reduce, replace=False)
-    #    ra = ra[rnd_indices]
-    #    dec = dec[rnd_indices]
-    
-    # Shift to -pi to pi and -pi/2 to pi/2 if needed
-    if np.any(ra > 180.0): # if data given is 0 to 360
-        assert np.all(ra > -0.1)
-        ra = ra - 180
-    if np.any(dec > 90.0): # if data is 0 to 180
-        assert np.all(dec > -0.1)
-        dec = dec - 90
-
-    #print("ra", min(ra), max(ra))
-    #print("dec", min(dec), max(dec))
-    x, y = mollweide_transform(ra, dec)
-    #print("x", min(x), max(x))
-    #print("y", min(y), max(y))
-
-    #plt.figure(figsize=(8,4))
-    #plt.scatter(ra, dec, alpha=0.1)
-    #plt.scatter(x, y, alpha=0.1)
-    #plt.title("Blue: Original. Orange: Mollweide.")
-    #plt.xlim(-180,180)
-    #plt.ylim(-90,90)
-
-    # Now we have the x and y coordinates of the points in the Mollweide projection
-    # We can use these to make a 2D histogram of the points
-    # But the projection makes some of the bins impossible to fill; ignore those bins
-    # Also we may need to tune fineness
-    fineness=4 # fineness^2 is how many bins per square degree
-    accessible_bins = DEGREES_ON_SPHERE*fineness**2 # 41253 square degrees in the sky, this must be the max bins
-
-    xbins = np.linspace(-180,180,360*fineness +1)
-    ybins = np.linspace(-90,90,180*fineness +1)
-    hist, xedges, yedges = np.histogram2d(x, y, bins=[xbins, ybins])
-
-    filled_bincount = np.count_nonzero(hist)
-
-    #print(f"Filled bins: {filled_bincount}. Total bins: {accessible_bins}")
-    # You can fill slightly bins than the max due to edge effects I think?
-    frac_area = min(filled_bincount / accessible_bins, 1.0)
-    
-    return frac_area
 
 
 def build_app_mag_to_z_map(app_mag, z_obs):

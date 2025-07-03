@@ -74,6 +74,7 @@ GOOD_TEN_PARAMETERS = np.array([
     [19.737870,6.394322,24.657218,11.571343,33.116540,9.403598,-3.755194,16.879988,9.941906,0.958446],
     [13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04],
     [20.266485,6.981479,20.417991,9.467296,30.750261,6.597792,-1.896981,16.674611,10.527099,1.341537],
+    [17.63968071,5.26786139,21.22471422,11.20876684,39.86147899,8.73320591,-8.49058791,22.61250293,9.88422018,5.31489043],
     [16.678, 4.460, 19.821, 8.312, 26.087, 6.361, -2.149, 15.190, 12.316, -2.440,],
     [16.703, 4.449, 20.839, 9.096, 28.473, 7.129, -2.792, 16.698, 12.878, -1.552,],
     [16.085, 4.231, 17.800, 7.393, 24.378, 5.448, -2.335, 13.921, 12.962, -2.611,],
@@ -761,7 +762,7 @@ class GroupCatalog:
         """
         Run corrfunc on the mock populated with an HOD built from this sample. 
         """
-        print("Running Corrfunc on mock populated with HOD from this sample.")
+        #print("Running Corrfunc on mock populated with HOD from this sample.")
         t1 = time.time()
         if self.GF_outfile is None:
             print("Warning: calc_wp_for_mock() called without GF_outfile set.")
@@ -971,7 +972,7 @@ class GroupCatalog:
 
         # Send message to GF TODO
         # &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR), &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE)
-        print("Sending message for next GF iteration")
+        #print("Sending message for next GF iteration")
         msg = struct.pack("<BBI", MSG_REQUEST, TYPE_DOUBLE, len(params)) + struct.pack(f"<{len(params)}d", *params)
         self.proc.stdin.write(msg)
         self.proc.stdin.flush()

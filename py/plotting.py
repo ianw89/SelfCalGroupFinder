@@ -2151,3 +2151,46 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
     
     else:
         print("Skipping empty plot for {0}".format(title))
+
+
+
+def plot_parameters(params):
+    # Weights for each galaxy luminosity, when abundance matching
+    # log w_cen,r = (ω_0,r / 2) (1 + erf[(log L_gal - ω_L,r) / σ_ω,r)] ) 
+    # log w_cen,b = (ω_0,b / 2) (1 + erf[(log L_gal - ω_L,b) / σ_ω,b)] ) 
+    # Bsat,r = β_0,r + β_L,r(log L_gal − 9.5)
+    # Bsat,b = β_0,b + β_L,b(log L_gal − 9.5)
+
+    def bsat(p0, p1, L):
+        return np.maximum(p0 + p1 * (L - 9.5), 0.001)
+    
+    def cweight(w0, wl, s, L):
+        return L * (w0 / 2) * (1 + special.erf((np.log10(L) - wl) / s))
+
+    fig, axes = plt.subplots(1,2)
+    fig.set_size_inches(8, 4)
+    x = np.logspace(6, 12, 100)
+
+    axes[0].set_title("Central Weights")
+    axes[0].set_xlabel("log$(L_{\\mathrm{gal}}) [L_{\\odot} h^{-2}]$")
+    axes[0].set_ylabel("Weight")
+    axes[0].set_yscale('log')
+    axes[0].set_xscale('log')
+
+    axes[0].plot(x, x, color='k', linestyle='--')
+    axes[0].plot(x, cweight(params[0], params[1], params[4], x), label='SF', color='b')
+    axes[0].plot(x, cweight(params[2], params[3], params[5], x), label='Q', color='r')
+
+    x = np.linspace(6, 12, 100)
+
+    axes[1].set_title("Bsat")
+    axes[1].set_xlabel("log$(L_{\\mathrm{gal}}) [L_{\\odot} h^{-2}]$")
+    axes[1].set_ylabel("$B_{\\mathrm{sat}}$")
+    #axes[1].set_yscale('log')
+    axes[1].plot(x, bsat(params[6], params[7], x), label='Q', color='r')
+    axes[1].plot(x, bsat(params[8], params[9], x), label='SF', color='b')
+
+    axes[1].legend()
+
+    plt.tight_layout()
+    plt.show()
