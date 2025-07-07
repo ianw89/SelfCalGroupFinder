@@ -11,13 +11,13 @@ from multiprocessing import Pool
 # nohup python3 py/exec.py 6 7 8 9 &> variations.out &
 # nohup python3 py/exec.py mcmc 12 x0 &> y1mini_mcmc0_2.out &
 # nohup python3 py/exec.py mcmc 13 x5 &> y1full_mcmc5_0.out &
-# nohup python3 py/exec.py mcmc 14 x0 &> y1full8_mcmc0_0.out &
+# nohup python3 py/exec.py mcmc 14 x7 &> y1full8_mcmc7_1.out &
 # nohup python3 py/exec.py 0 &> pzp_mcmc.out &
 
 
 execution_mode = 'once' # or 'clustering' or 'mcmc'
 mcmcnum = None # Will make a new folder
-mcmc_iter = 1000 # x 20 walkers
+mcmc_iter = 700 # x 20 walkers
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
