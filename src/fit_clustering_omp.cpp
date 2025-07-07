@@ -54,6 +54,7 @@ float REDSHIFT = 0.0,
  */
 void nsat_smooth(double arr[MAXBINS][HALO_BINS]);
 void nsat_extrapolate(double arr[MAXBINS][HALO_BINS]);
+void nsat_extrapolate_old(double arr[MAXBINS][HALO_BINS]);
 float NFW_position(float mass, float x[]);
 float NFW_velocity(float mass, float v[]);
 float NFW_density(float r, float rs, float ps);
@@ -799,6 +800,35 @@ void nsat_smooth(double arr[MAXBINS][HALO_BINS])
         arr[imag][i] = (arr[imag][i - 1] + arr[imag][i] + arr[imag][i + 1]) / 3.0;
       }
     }
+  }
+}
+
+void nsat_extrapolate_old(double arr[MAXBINS][HALO_BINS])
+{
+  // fit the high-mass satellite occupation function, force slope=1
+
+  for (int imag = 0; imag < NVOLUME_BINS; ++imag)
+  {
+    float mag = maglim[imag];
+    int istart = 130;
+
+    if (imag >= 2)
+      istart = 135;
+    int iend = 140;
+    if (imag >= 2)
+      iend = 145;
+
+    float bfit = 0;
+    if (imag == 0)
+    {
+      istart = 120;
+      iend = 130;
+    }
+    for (int i = istart; i <= iend; ++i)
+      bfit += arr[imag][i] - i / 10.0;
+    bfit = bfit / (iend - istart + 1);
+    for (int i = iend; i <= 160; ++i)
+      arr[imag][i] = 1 * i / 10.0 + bfit;
   }
 }
 

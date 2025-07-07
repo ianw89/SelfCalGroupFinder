@@ -175,11 +175,11 @@ mxxl_simple_4_c.marker = '--'
 uchuu_all = UchuuGroupCatalog("All UCHUU <19.5", Mode.ALL, 19.5, 20.0, False, gfprops=GF_PROPS_BGS_VANILLA.copy())
 uchuu_all.marker = '-'
 
-bgs_fiberonly_1pass = BGSGroupCatalog("Observed 1pass BGS Y1", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=1, gfprops=GF_PROPS_BGS_VANILLA.copy())
-bgs_fiberonly_1pass.marker = '-'
+bgs_y1_fiberonly_1pass = BGSGroupCatalog("Observed 1pass BGS Y1", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=1, gfprops=GF_PROPS_BGS_VANILLA.copy())
+bgs_y1_fiberonly_1pass.marker = '-'
 
-bgs_fiberonly = BGSGroupCatalog("Observed BGS Y1", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, gfprops=GF_PROPS_BGS_VANILLA.copy())
-bgs_fiberonly.marker = '-'
+bgs_y1_fiberonly = BGSGroupCatalog("Observed BGS Y1", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, gfprops=GF_PROPS_BGS_VANILLA.copy())
+bgs_y1_fiberonly.marker = '-'
 
 bgs_nn = BGSGroupCatalog("Nearest Neighbor BGS Y1", Mode.NEAREST_NEIGHBOR, 19.5, 21.0, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_nn.marker = '-'
@@ -199,9 +199,17 @@ bgs_y1_pzp_2_4_c1 = BGSGroupCatalog("BGS Y1 PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 1
 bgs_y1_pzp_2_4_c1.marker = '--'
 bgs_y1_pzp_2_4_c1.color = 'darkgreen'
 
+bgs_y1_pzp_2_4_c2 = BGSGroupCatalog("BGS Y1 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
+bgs_y1_pzp_2_4_c2.marker = '-'
+bgs_y1_pzp_2_4_c2.color = 'darkgreen'
+
+bgs_y1_pzp_2_4_c2_noffc = BGSGroupCatalog("BGS Y1 C2 No Cuts", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', ffc=False, extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
+bgs_y1_pzp_2_4_c2_noffc.marker = '-'
+bgs_y1_pzp_2_4_c2_noffc.color = 'darkred'
+
 bgs_y1mini_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Mini Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1mini)
 
-bgs_y1_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
+bgs_y1_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_6bin)
 bgs_y1_hybrid_mcmc.marker = '.'
 bgs_y1_hybrid_mcmc.color = 'darkgreen'
 
@@ -784,11 +792,12 @@ bgs_sv3_list : list[GroupCatalog] = [
     bgs_y3_like_sv3_nn,
 ]
 bgs_aux_list : list[GroupCatalog] = [
-    bgs_fiberonly_1pass,
+    bgs_y1_fiberonly_1pass,
     bgs_y3_fiberonly_1pass,
     bgs_nn_sdsslike,
 ]
 bgs_y1_list : list[GroupCatalog] = [
+    bgs_y1mini_pzp_2_4_c1,
     bgs_y1_pzp_2_4,
     bgs_y1_pzp_2_4_c1,
 ]

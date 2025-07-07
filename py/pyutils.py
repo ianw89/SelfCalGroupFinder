@@ -912,14 +912,14 @@ def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_in
         plt.figure(dpi=80, figsize=(10, 5))
         bins = np.arange(min, max, (max-min)/200)
         plt.hist(binned_values, bins=bins, density=True, alpha=0.6, label=f"Values")
-        plt.plot(x, model1(x) + model2(x), label='Gaussian Mixture Model')
-        plt.plot(x, model1(x), label='Gaussian 1')
-        plt.plot(x, model2(x), label='Gaussian 2')
-        #plt.plot(x, model3(x), label='Gaussian 3')
+        #plt.plot(x, model1(x) + model2(x), label='Gaussian Mixture Model')
+        #plt.plot(x, model1(x), label='Gaussian 1')
+        #plt.plot(x, model2(x), label='Gaussian 2')
+        ##plt.plot(x, model3(x), label='Gaussian 3')
         buffer = (max-min) * 0.15
         midpoints.append(intersection)
-        if min+buffer <= intersection <= max-buffer:
-            plt.axvline(intersection, color='r', linestyle='--', label=f'Intersection at {intersection:.2f}')
+        #if min+buffer <= intersection <= max-buffer:
+        #    plt.axvline(intersection, color='r', linestyle='--', label=f'Intersection at {intersection:.2f}')
         if manual_thresholds is not None:
             plt.axvline(manual_thresholds[i-1], color='g', linestyle='--', label=f'Chosen Threshold {manual_thresholds[i-1]:.2f}')
         plt.legend()

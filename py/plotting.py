@@ -146,7 +146,7 @@ def completeness_comparison(*datasets):
     ax1.set_ylim(0.0,0.6)
     fig.tight_layout()
 
-def LHMR_plots_logerr(*catalogs):
+def LHMR_withscatter(*catalogs):
 
     # LHMR
     plt.figure(dpi=DPI)
@@ -265,6 +265,22 @@ def LHMR_plots(*catalogs):
     plt.ylim(1E10,MHALO_MAX)
     plt.xlim(3E7,2E12)
     plt.draw()
+
+def fsat_with_err_from_saved(gc: GroupCatalog):
+    fsat_std, fsatr_std, fsatb_std, fsat_mean, fsatr_mean, fsatb_mean = fsat_variance_from_saved()
+    # TODO
+    plt.figure()
+    plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
+    plt.errorbar(L_gal_bins, fsatr_mean, yerr=fsatr_std, fmt='.', color='r', label='Quiescent', capsize=3, alpha=0.7)
+    plt.errorbar(L_gal_bins, fsatb_mean, yerr=fsatb_std, fmt='.', color='b', label='Star-forming', capsize=3, alpha=0.7)
+    plt.xlabel('$L_{\mathrm{gal}}$')
+    plt.ylabel(r'$\langle f_{\mathrm{sat}} \rangle$')
+    plt.legend()
+    plt.xscale('log')
+    plt.xlim(1E7, 2E11)
+    plt.ylim(0.0, 1.0)
+    plt.tight_layout()
+    plt.show()
 
 def plots(*catalogs, show_err=None, truth_on=False):
     catalogs = list(catalogs)
@@ -939,7 +955,7 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.legend()
 
-def hod_plot(gc: GroupCatalog):
+def hod_plot(gc: GroupCatalog, pretty=True):
     """
     Plot the HOD from a file, overlaying with a histogram of the number of halos (nhalo).
     """
@@ -953,9 +969,11 @@ def hod_plot(gc: GroupCatalog):
 
         log_halo_mass = data[:, 0]
 
-        fig, axes = plt.subplots(1, n_lbins, figsize=(5 * n_lbins, 6), dpi=DPI, sharey=True)
-        if n_lbins == 1:
-            axes = [axes]
+        ncols = int(np.ceil(n_lbins / 2))
+        nrows = 2 if n_lbins > 1 else 1
+        fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 5 * nrows), dpi=DPI, sharey=True)
+        axes = np.array(axes).reshape(-1)  # flatten in case axes is 2D
+
         for lbin in range(n_lbins):
             ax = axes[lbin]
             log_red_cen_fraction = data[:, 1 + lbin * 7]
@@ -976,20 +994,31 @@ def hod_plot(gc: GroupCatalog):
                 ax.plot(log_halo_mass, log_all_cen_fraction, 'k-', label='All Cen', alpha=alpha)
                 ax.plot(log_halo_mass, log_all_sat_fraction, 'k--', label='All Sat', alpha=alpha)
             ax.set_xlabel('log($M_h$) [$M_\odot / h$]')
-            ax.set_xlim(10.0, 15.5)
-            ax.set_ylim(-5, 2)
+            if pretty:
+                ax.set_xlim(10.0, 15.0)
+                ax.set_ylim(-3, 2)
+            else:
+                ax.set_xlim(10.0, 15.5)
+                ax.set_ylim(-5, 2)
             ax.set_title(f'{gc.caldata.magbins[lbin]} > $M_r$ - 5log($h$) > {gc.caldata.magbins[lbin+1]}')
-            if lbin == 0:
+            if lbin % ncols == 0:
                 ax.set_ylabel('log(fraction)')
             ax.legend(loc='upper left')
+            ax.grid(True)
 
-            # Overlay nhalo histogram as a filled area on a secondary y-axis
-            ax2 = ax.twinx()
-            ax2.fill_between(log_halo_mass, nhalo, color='gray', alpha=0.2, step='mid', label='N_halo')
-            if lbin == 0:
-                ax2.set_ylabel('Number of halos')
-            ax2.set_yscale('log')
-            ax2.tick_params(axis='y', labelcolor='gray')
+
+            if not pretty:
+                # Overlay nhalo histogram as a filled area on a secondary y-axis
+                ax2 = ax.twinx()
+                ax2.fill_between(log_halo_mass, nhalo, color='gray', alpha=0.2, step='mid', label='N_halo')
+                if lbin % ncols == 0:
+                    ax2.set_ylabel('Number of halos')
+                ax2.set_yscale('log')
+                ax2.tick_params(axis='y', labelcolor='gray')
+
+        # Hide unused axes if any
+        for i in range(n_lbins, nrows * ncols):
+            fig.delaxes(axes[i])
 
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
@@ -1051,6 +1080,10 @@ def proj_clustering_plot(gc: GroupCatalog):
 
 def lsat_data_compare_plot(gc: GroupCatalog):
     data = np.loadtxt(LSAT_OBSERVATIONS_SDSS_FILE, skiprows=0, dtype='float')
+    lsat_compare_plot(data, gc.lsat_r, gc.lsat_b, None, None)
+
+def lsat_data_compare_werr_plot(gc: GroupCatalog):
+    data = np.loadtxt(LSAT_OBSERVATIONS_SDSS_FILE, skiprows=0, dtype='float')
     lsat_r_mean, lsat_r_std, lsat_b_mean, lsat_b_std = lsat_variance_from_saved()
     lsat_compare_plot(data, gc.lsat_r, gc.lsat_b, lsat_r_std, lsat_b_std)
 
@@ -1058,8 +1091,9 @@ def lsat_compare_plot(data, lsat_r, lsat_b, lsat_r_std, lsat_b_std):
     chisqr = compute_lsat_chisqr(data, lsat_r, lsat_b)
 
     ratio = lsat_r/lsat_b
-    ratio_err = ratio * ((lsat_r_std/lsat_r)**2 + (lsat_b_std/lsat_b)**2)**.5
-    ratio_err_log = ratio_err/ratio/np.log(10)
+    if lsat_r_std is not None and lsat_b_std is not None:
+        ratio_err = ratio * ((lsat_r_std/lsat_r)**2 + (lsat_b_std/lsat_b)**2)**.5
+        ratio_err_log = ratio_err/ratio/np.log(10)
 
     # Get Mean Lsat for r/b centrals from SDSS data
     obs_lcen = data[:,0] # log10 already
@@ -1074,7 +1108,11 @@ def lsat_compare_plot(data, lsat_r, lsat_b, lsat_r_std, lsat_b_std):
     fig,axes=plt.subplots(nrows=1, ncols=1, figsize=(5,5), dpi=DPI)
 
     axes.errorbar(obs_lcen, np.log10(obs_ratio), yerr=obs_ratio_err_log, fmt='o', color='k', markersize=3, capsize=3, ecolor='k', label='SDSS Data')
-    axes.errorbar(obs_lcen, np.log10(ratio), yerr=ratio_err_log, fmt='-', color='purple', markersize=3, capsize=3, ecolor='purple', label='Group Finder Data', alpha=0.7)
+    
+    if lsat_r_std is not None and lsat_b_std is not None:
+        axes.errorbar(obs_lcen, np.log10(ratio), yerr=ratio_err_log, fmt='-', color='purple', markersize=3, capsize=3, ecolor='purple', label='Group Finder Data', alpha=0.7)
+    else:
+        axes.plot(obs_lcen, np.log10(ratio), '-', color='purple', label='Group Finder Data', alpha=0.7)
     axes.set_ylabel('log $L_{sat}^{q}/L_{sat}^{sf}$')
     axes.set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
     axes.set_ylim(-0.2, 0.5)

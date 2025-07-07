@@ -112,6 +112,26 @@ GF_PROPS_BGS_COLORS_C1 = {
     'betaLsf':GOOD_TEN_PARAMETERS[0][9]
 }
 
+
+# A 10 Parameter set found from MCMC SV3 with SDSS data.
+GF_PROPS_BGS_COLORS_C2 = {
+    'zmin':0, 
+    'zmax':0,
+    'frac_area':0, # should be filled in
+    'fluxlim':2,
+    'color':1,
+    'omegaL_sf':GOOD_TEN_PARAMETERS[3][0],
+    'sigma_sf':GOOD_TEN_PARAMETERS[3][1],
+    'omegaL_q':GOOD_TEN_PARAMETERS[3][2],
+    'sigma_q':GOOD_TEN_PARAMETERS[3][3],
+    'omega0_sf':GOOD_TEN_PARAMETERS[3][4],
+    'omega0_q':GOOD_TEN_PARAMETERS[3][5],
+    'beta0q':GOOD_TEN_PARAMETERS[3][6],
+    'betaLq':GOOD_TEN_PARAMETERS[3][7],
+    'beta0sf':GOOD_TEN_PARAMETERS[3][8],
+    'betaLsf':GOOD_TEN_PARAMETERS[3][9]
+}
+
 def set_all_seeds(seed=59418):
     """Set seeds for all common RNG sources"""
     random.seed(seed)
@@ -405,10 +425,11 @@ class GroupCatalog:
         best_params_list = []
         for backend, folder in zip(backends, mcmc_folders):
             if isinstance(backend, emcee.backends.Backend):
+                chains = backend.get_log_prob(flat=False)
                 idx = np.argmax(backend.get_log_prob(flat=True))
                 values = backend.get_chain(flat=True)[idx]
                 chisqr = (-2) * backend.get_log_prob(flat=True)[idx]
-                print(f"Best chi^2 for {folder} (N={len(backend.get_log_prob(flat=True))}) (emcee): {chisqr}")
+                print(f"Best chi^2 for {folder} (N={chains.shape[0]} x {chains.shape[1]}): {chisqr:.3f}")
                 best_params_list.append((chisqr, values))
 
         best_params_list.sort(key=lambda x: x[0])
@@ -645,7 +666,7 @@ class GroupCatalog:
                 self.hodfit = np.array(data, dtype=dtype).reshape((rows, cols))
             
             elif msg_type == MSG_COMPLETED:
-                print("Group Finder completed successfully.")
+                #print("Group Finder completed successfully.")
                 return True
             
             elif msg_type == MSG_ABORTED:
@@ -1308,7 +1329,7 @@ class BGSGroupCatalog(GroupCatalog):
     
     extra_prop_df: pd.DataFrame = None
 
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, drop_passes: int = 0, data_cut: str = "Y1-Iron", gfprops=None, extra_params = None, caldata_ctor=None):
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, ffc:bool=True, drop_passes: int = 0, data_cut: str = "Y1-Iron", gfprops=None, extra_params = None, caldata_ctor=None):
         super().__init__(name)
         self.mode = mode
         self.mag_cut = mag_cut
@@ -1318,6 +1339,7 @@ class BGSGroupCatalog(GroupCatalog):
         self.num_passes = num_passes
         self.drop_passes = drop_passes
         self.data_cut = data_cut
+        self.ffc = ffc
         self.is_centered_version = False
         self.centered = None # SV3 Centered version shortcut.
         self.extra_params = extra_params
@@ -1325,7 +1347,7 @@ class BGSGroupCatalog(GroupCatalog):
         frac_area = get_footprint_fraction(data_cut, mode, num_passes)
         self.GF_props['frac_area'] = frac_area
         if caldata_ctor is None:
-            self.caldata = CalibrationData.BGS_Y1_6bin(self.mag_cut, self.GF_props['frac_area'])
+            self.caldata = CalibrationData.BGS_Y1_8bin(self.mag_cut, self.GF_props['frac_area'])
         else:
             self.caldata = caldata_ctor(self.mag_cut, self.GF_props['frac_area'])
 
@@ -1376,9 +1398,9 @@ class BGSGroupCatalog(GroupCatalog):
         
         if silent:
             with SuppressPrint():
-                fname, props = pre_process_BGS(infile, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.sdss_fill, self.num_passes, self.drop_passes, self.data_cut, self.extra_params)
+                fname, props = pre_process_BGS(infile, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.sdss_fill, self.num_passes, self.drop_passes, self.data_cut, self.extra_params, self.ffc)
         else:
-            fname, props = pre_process_BGS(infile, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.sdss_fill, self.num_passes, self.drop_passes, self.data_cut, self.extra_params)
+            fname, props = pre_process_BGS(infile, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.sdss_fill, self.num_passes, self.drop_passes, self.data_cut, self.extra_params, self.ffc)
         
         self.preprocess_file = fname
         for p in props:
@@ -1910,7 +1932,7 @@ def get_footprint_fraction(data_cut, mode, num_passes_required):
         exit(2)        
         
 
-def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, sdss_fill, num_passes_required, drop_passes, data_cut, extra_params):
+def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, sdss_fill, num_passes_required, drop_passes, data_cut, extra_params, ffc):
     """
     Pre-processes the BGS data for use with the group finder.
     """
@@ -2149,7 +2171,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
  
     # Fiberflux cuts, too remove confusing overlapping objects which likely have bad spectra.
-    if ff_g is not None and ff_r is not None and ff_z is not None:
+    if ffc and ff_g is not None and ff_r is not None and ff_z is not None:
         FF_CUT = 0.65 # LOW Z folks used 0.35 for this in target selection. LSSCats don't cut on it at all. 
         ff_g_req = np.logical_or(ff_g < FF_CUT, np.isnan(ff_g))
         ff_r_req = np.logical_or(ff_r < FF_CUT, np.isnan(ff_r))
