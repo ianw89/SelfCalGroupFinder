@@ -4,7 +4,7 @@ Jeremy Tinker (jlt12@nyu.edu).
 
 This folder contains a (presently) INTERNAL galaxy group catalog built from DESI Y1 Bright Galaxy Survey ('IRON' reductions). Please get in touch with the authors if you are using this for DESI science.
 
-The catalog is built using the Self Calibrated Group Finder, a public halo-based group finder. The code used for preprocessing and group finding can be found in [SelfCalGroupFinder](https://github.com/ianw89/SelfCalGroupFinder). For details regarding the group finding methods, see [arXiv:2007.12200](https://arxiv.org/abs/2007.12200), [arXiv:2010.02946](https://arxiv.org/abs/2010.02946) and [galaxygroupfinder.net](http://www.galaxygroupfinder.net), which contains information not yet published describing details of this catalog's construction. This version fo the catalog used group finding parameters that were tuned using SV3 to SDSS clustering and Lsat data.
+The catalog is built using the Self Calibrated Group Finder, a public halo-based group finder. The code used for preprocessing and group finding can be found in [SelfCalGroupFinder](https://github.com/ianw89/SelfCalGroupFinder). For details regarding the group finding methods, see [arXiv:2007.12200](https://arxiv.org/abs/2007.12200), [arXiv:2010.02946](https://arxiv.org/abs/2010.02946) and [galaxygroupfinder.net](http://www.galaxygroupfinder.net), which contains information not yet published describing details of this catalog's construction. This version of the catalog used group finding parameters that were tuned using the Y1 sample on BGS Y1 clustering and SDSS Lsat data.
 
 The catalog is provided as a single table in a .FITS archive. In Python, this can be easily read as follows:
 
@@ -50,4 +50,4 @@ Note that when converting redshifts to distances we use flat LCDM cosmology with
 
 **KNOWN ISSUES**
 
-1. There is some contamination of non-galaxy objects in the catalog. This is primarilly from the unobserved targets (no DESI spectra), which would have been filtered out due to a poor spectral fitting. 
+1. There is some contamination of non-galaxy objects in the catalog. This is exacerbated because we must include targets without DESI spectra, which might have been filtered out due to a poor spectral fitting. Although both the Siena Galaxy Atlas mask and fracflux cuts were used to cleanup some shredding and other contamination, some spurious targets remain.

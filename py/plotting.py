@@ -17,10 +17,10 @@ from calibrationdata import *
 DPI = 250
 FONT_SIZE_DEFAULT = 13
 
-LGAL_XMINS = [6E7]#[6E7, 3E8]
+LGAL_XMINS = [6E7, 1E8]
 
 LGAL_MIN = 1E7
-LGAL_MAX_TIGHT = 4E11
+LGAL_MAX_TIGHT = 2E11
 LGAL_MAX = 4E11
 
 MSTAR_MIN = 1E7
@@ -116,6 +116,47 @@ def single_plots(d: GroupCatalog, truth_on=False):
     Plots that are nice for just 1 group catalog at a time.
     """
 
+    # LHMR Inverted
+    plt.figure(dpi=DPI)
+    means = np.log10(d.centrals[d.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted))
+    scatter = d.centrals.loc[d.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_std_vmax_weighted)
+    plt.errorbar(np.log10(d.L_gal_labels), means, yerr=scatter, label=get_dataset_display_name(d), color='red', elinewidth=1, alpha=0.6)
+    means = np.log10(d.centrals[~d.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted))
+    scatter = d.centrals.loc[~d.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_std_vmax_weighted)
+    plt.errorbar(np.log10(d.L_gal_labels), means, yerr=scatter, label=get_dataset_display_name(d), color='blue', elinewidth=1, alpha=0.6)
+    plt.ylabel('($log_{10}(M_{halo})~[M_\\odot / h]$')
+    plt.xlabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.title("Luminosity Halo Mass Relation (Centrals)")
+    plt.ylim(10,15)
+    plt.xlim(7,np.log10(LGAL_MAX_TIGHT))
+    plt.grid(True)
+    plt.twiny()
+    plt.xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
+    plt.xticks(np.arange(-23, -13, 1))
+    plt.xlabel("$M_r$ - 5log(h)")
+    plt.draw()
+
+    # LHMR
+    plt.figure(dpi=DPI)
+    means = np.log10(d.centrals[d.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted))
+    scatter = d.centrals.loc[d.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
+    plt.errorbar(np.log10(d.labels), means, yerr=scatter, label=get_dataset_display_name(d), color='red', elinewidth=1)
+    means = np.log10(d.centrals[~d.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted))
+    scatter = d.centrals.loc[~d.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
+    plt.errorbar(np.log10(d.labels), means, yerr=scatter, label=get_dataset_display_name(d), color='blue', elinewidth=1, alpha=0.6)
+    plt.xlabel('($log_{10}(M_{halo})~[M_\\odot / h]$')
+    plt.ylabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.title("Luminosity Halo Mass Relation (Centrals)")
+    plt.xlim(10,15)
+    plt.ylim(7,np.log10(LGAL_MAX_TIGHT))
+    plt.grid(True)
+    plt.twinx()
+    plt.ylim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
+    plt.yticks(np.arange(-23, -13, 1))
+    plt.ylabel("$M_r$ - 5log(h)")
+    plt.draw()
+    
+
     plots_color_split(d, truth_on=truth_on, total_on=True)
 
     if 'Z_ASSIGNED_FLAG' in d.all_data.columns:
@@ -124,6 +165,8 @@ def single_plots(d: GroupCatalog, truth_on=False):
         q_gals = d.all_data[d.all_data['QUIESCENT']]
         sf_gals = d.all_data[np.invert(d.all_data['QUIESCENT'])]
         plots_color_split_lost_split_inner(d.name + " Truth", d.L_gal_labels, d.L_gal_bins, q_gals, sf_gals, fsat_truth_vmax_weighted,'LGAL_BIN_T')
+
+    hod_plot(d)
 
     #wp_rp(d)
     #wp_rp_magbins(d)
@@ -148,6 +191,7 @@ def completeness_comparison(*datasets):
 
 def LHMR_withscatter(*catalogs):
 
+
     # LHMR
     plt.figure(dpi=DPI)
     for f in catalogs:        
@@ -159,7 +203,7 @@ def LHMR_withscatter(*catalogs):
     plt.title("Central Luminosity vs. Halo Mass")
     legend(catalogs)
     plt.xlim(10,15)
-    plt.ylim(7,12)
+    plt.ylim(7,np.log10(LGAL_MAX_TIGHT))
     plt.draw()
 
     # RED LHMR
@@ -173,7 +217,7 @@ def LHMR_withscatter(*catalogs):
     plt.title("Red Central Luminosity vs. Halo Mass")
     legend(catalogs)
     plt.xlim(10,15)
-    plt.ylim(7,12)
+    plt.ylim(7,np.log10(LGAL_MAX_TIGHT))
     plt.draw()
 
     # BLUE LHMR
@@ -187,7 +231,7 @@ def LHMR_withscatter(*catalogs):
     plt.title("Blue Central Luminosity vs. Halo Mass")
     legend(catalogs)
     plt.xlim(10,15)
-    plt.ylim(7,12)
+    plt.ylim(7,np.log10(LGAL_MAX_TIGHT))
     plt.draw()
 
     # RED LHMR Inverted
@@ -201,7 +245,7 @@ def LHMR_withscatter(*catalogs):
     plt.title("Red Central Luminosity vs. Halo Mass")
     legend(catalogs)
     plt.ylim(10,15)
-    plt.xlim(7,12)
+    plt.xlim(7,np.log10(LGAL_MAX_TIGHT))
     plt.draw()
 
     # BLUE LHMR Inverted
@@ -215,7 +259,7 @@ def LHMR_withscatter(*catalogs):
     plt.title("Blue Central Luminosity vs. Halo Mass")
     legend(catalogs)
     plt.ylim(10,15)
-    plt.xlim(7,12)
+    plt.xlim(7,np.log10(LGAL_MAX_TIGHT))
     plt.draw()
 
 def LHMR_plots(*catalogs):

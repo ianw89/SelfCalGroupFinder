@@ -225,6 +225,10 @@ bgs_y3_pzp_2_4_c1 = BGSGroupCatalog("BGS Y3 PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 1
 bgs_y3_pzp_2_4_c1.color = 'darkorange'
 bgs_y3_pzp_2_4_c1.marker = '--'
 
+bgs_y3_pzp_2_4_c2 = BGSGroupCatalog("BGS Y3 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
+bgs_y3_pzp_2_4_c2.color = 'darkorange'
+bgs_y3_pzp_2_4_c2.marker = '-'
+
 bgs_y3_fiberonly = BGSGroupCatalog("Observed BGS Y3 <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, data_cut='Y3-Loa', gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y3_fiberonly.marker = '-'
 
@@ -270,6 +274,19 @@ bgs_sv3_pz_2_4_10p_c1 = BGSGroupCatalog(
     gfprops=GF_PROPS_BGS_COLORS_C1.copy()
 )
 bgs_sv3_pz_2_4_10p_c1.color = 'k'
+
+bgs_sv3_pz_2_4_10p_c2 = BGSGroupCatalog(
+    "Photo-z Plus v2.4 BGS sv3 10pass C2", 
+    Mode.PHOTOZ_PLUS_v2, 
+    19.5, 
+    21.0, 
+    num_passes=10, 
+    data_cut='sv3', 
+    sdss_fill=True, 
+    extra_params=PZP_PARAMS_V24, 
+    gfprops=GF_PROPS_BGS_COLORS_C2.copy()
+)
+bgs_sv3_pz_2_4_10p_c2.color = 'k'
 
 # This one was calibrated on SDSS data
 bgs_sv3_10p_mcmc = BGSGroupCatalog(
@@ -478,6 +495,20 @@ bgs_y3_like_sv3_pz_2_4_c1 = BGSGroupCatalog(
     gfprops=GF_PROPS_BGS_COLORS_C1.copy()
 )
 bgs_y3_like_sv3_pz_2_4_c1.color = 'slateblue'
+
+bgs_y3_like_sv3_pz_2_4_c2 = BGSGroupCatalog(
+    "Photo-z Plus v2.4 BGS Y3 like-sv3 C2", 
+    Mode.PHOTOZ_PLUS_v2, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    extra_params=PZP_PARAMS_V24, 
+    gfprops=GF_PROPS_BGS_COLORS_C2.copy()
+)
+bgs_y3_like_sv3_pz_2_4_c2.color = 'slateblue'
+
 bgs_y3_like_sv3_pz_2_5 = BGSGroupCatalog(
     "Photo-z Plus v2.5 BGS Y3 like-sv3", 
     Mode.PHOTOZ_PLUS_v2, 
@@ -781,12 +812,14 @@ bgs_sv3_list : list[GroupCatalog] = [
     #bgs_sv3_pz_2_0_7p,
     bgs_sv3_pz_2_4_10p, 
     bgs_sv3_pz_2_4_10p_c1, # Truthiest catalog
+    bgs_sv3_pz_2_4_10p_c2, # Truthiest catalog
     #bgs_sv3_pz_1_0_7p,
     #bgs_sv3_pz_2_4_7p,
     #bgs_sv3_pz_2_5_7p,
     #bgs_sv3_pz_3_1_7p,
     bgs_y3_like_sv3_pz_2_4,
     bgs_y3_like_sv3_pz_2_4_c1,
+    bgs_y3_like_sv3_pz_2_4_c2,
     bgs_y3_like_sv3_fiberonly,
     bgs_y3_like_sv3_pz_2_0,
     bgs_y3_like_sv3_nn,
@@ -797,11 +830,12 @@ bgs_aux_list : list[GroupCatalog] = [
     bgs_nn_sdsslike,
 ]
 bgs_y1_list : list[GroupCatalog] = [
+    bgs_y1_pzp_2_4_c2,
     bgs_y1mini_pzp_2_4_c1,
     bgs_y1_pzp_2_4,
-    bgs_y1_pzp_2_4_c1,
 ]
 bgs_y3_list : list[GroupCatalog] = [
+    bgs_y3_pzp_2_4_c2,
     bgs_y3_pzp_2_4,
-    bgs_y3_pzp_2_4_c1,
+
 ]

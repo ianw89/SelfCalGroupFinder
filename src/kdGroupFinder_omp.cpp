@@ -498,7 +498,7 @@ void find_satellites(int icen, GalaxyKDTree *tree)
   float dx, dy, dz, theta, prob_ang, vol_corr, prob_rad, grp_lum, p0;
   float bprob;
   std::vector<nanoflann::ResultItem<unsigned int, float>> ret_matches;
-  nanoflann::SearchParameters params = nanoflann::SearchParameters(10 /* max leaf */);
+  nanoflann::SearchParameters params = nanoflann::SearchParameters();
   float sat[3];
 
   // check if this galaxy has already been given to a group
@@ -516,7 +516,7 @@ void find_satellites(int icen, GalaxyKDTree *tree)
   const float range = 4 * GAL[icen].sigmav / 100.0 * (1 + GAL[icen].redshift) /
           sqrt(OMEGA_M * pow(1 + GAL[icen].redshift, 3.0) + 1 - OMEGA_M);
   const float search_radius = range * range; // nanoflann expects squared radius
-  //ret_matches.reserve(100); // TODO reserve some space for the results, can be tuned
+  ret_matches.reserve(20); 
 
   // TODO possible optimization is to store the set for each galaxy for a large sigmav value? Hmm
   // First time through (on a per-galaxy basis) increase sigmav to use by a factor of 2 (can tune)
