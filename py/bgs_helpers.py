@@ -250,32 +250,46 @@ def read_fastspecfit_sv3():
 
 def read_fastspecfit_y1():
     if not os.path.exists(BGS_Y1_FASTSPEC_FILE):
-        print (f"BGS_Y1_FASTSPEC_FILE does not exist. Building from '{NERSC_BGS_IRON_FASTSPECFIT_DIR}'")
-        file = NERSC_BGS_IRON_FASTSPECFIT_DIR + "fastspec-iron-main-bright.fits"
-    else:
-        file = BGS_Y1_FASTSPEC_FILE
+        print(f"BGS_Y1_FASTSPEC_FILE does not exist. Building from '{NERSC_BGS_IRON_FASTSPECFIT_DIR}'")
+        hp = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11']
+        filepattern = os.path.join(NERSC_BGS_IRON_FASTSPECFIT_DIR, "fastspec-iron-main-bright-nside1-hpXX.fits")
+        for h in hp:
+            filename = filepattern.replace("XX", h)
+            if os.path.exists(filename):
+                print(f"  Found {filename}")
+                hdul = fits.open(filename, memmap=True)
+                fastspecfit_table = Table([
+                    hdul[2].data['TARGETID'], 
+                    hdul[2].data['DN4000'], 
+                    hdul[2].data['DN4000_IVAR'], 
+                    hdul[2].data['DN4000_MODEL'], 
+                    hdul[2].data['DN4000_MODEL_IVAR'], 
+                    hdul[2].data['ABSMAG01_SDSS_G'], 
+                    hdul[2].data['ABSMAG01_IVAR_SDSS_G'], 
+                    hdul[2].data['ABSMAG01_SDSS_R'], 
+                    hdul[2].data['ABSMAG01_IVAR_SDSS_R'], 
+                    hdul[2].data['SFR'], 
+                    hdul[2].data['SFR_IVAR'], 
+                    hdul[2].data['LOGMSTAR'],
+                    hdul[2].data['LOGMSTAR_IVAR'],
+                    hdul[3].data['HALPHA_EW'],
+                    hdul[3].data['HALPHA_EW_IVAR'],
+                    hdul[3].data['HBETA_EW'],
+                    hdul[3].data['HBETA_EW_IVAR'],
+                    ], 
+                    names=('TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
+                hdul.close()
+                if h == hp[0]:
+                    all_fastspecfit_table = fastspecfit_table
+                else:
+                    all_fastspecfit_table = vstack([all_fastspecfit_table, fastspecfit_table])
+        
+        all_fastspecfit_table.write(BGS_Y1_FASTSPEC_FILE, format='fits', overwrite=True)
+        print(f"  Saved {len(all_fastspecfit_table)} rows to {BGS_Y1_FASTSPEC_FILE}")
+        return all_fastspecfit_table
 
-    hdul = fits.open(file, memmap=True)
-    fsf_tbl = Table([
-        hdul[1].data['TARGETID'], 
-        hdul[1].data['DN4000'], 
-        hdul[1].data['DN4000_MODEL'], 
-        hdul[1].data['ABSMAG01_SDSS_G'], 
-        hdul[1].data['ABSMAG01_IVAR_SDSS_G'], 
-        hdul[1].data['ABSMAG01_SDSS_R'], 
-        hdul[1].data['ABSMAG01_IVAR_SDSS_R'], 
-        hdul[1].data['SFR'], 
-        hdul[1].data['LOGMSTAR'],
-        hdul[1].data['HALPHA_EW'],
-        hdul[1].data['HALPHA_EW_IVAR'],
-        hdul[1].data['HBETA_EW'],
-        hdul[1].data['HBETA_EW_IVAR'],
-        ], 
-        names=('TARGETID', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
-    hdul.close()
-    if not os.path.exists(BGS_Y1_FASTSPEC_FILE):
-        fsf_tbl.write(BGS_Y1_FASTSPEC_FILE, format='fits', overwrite=True)
-    return fsf_tbl
+    return Table.read(BGS_Y1_FASTSPEC_FILE, format='fits')
+
 
 def read_fastspecfit_y3():
     if not os.path.exists(BGS_Y3_FASTSPEC_FILE):

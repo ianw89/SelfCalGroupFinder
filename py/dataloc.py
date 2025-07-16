@@ -50,8 +50,8 @@ QUIESCENT_MODEL_V2 = PARAMS_BGSY1_FOLDER + "kmeans_quiescent_model-v2.pkl" # mad
 
 # OTHER NERSC PATHS
 ######################
-NERSC_BGS_IRON_FASTSPECFIT_DIR = "/global/cfs/cdirs/desi/public/dr1/vac/dr1/fastspecfit/iron/v2.1/catalogs/"
-NERSC_BGS_LOA_FASTSPECFIT_DIR = "/pscratch/sd/i/ioannis/fastspecfit/data/loa/catalogs/"
+NERSC_BGS_IRON_FASTSPECFIT_DIR = "/global/cfs/cdirs/desi/public/dr1/vac/dr1/fastspecfit/iron/v3.0/catalogs/"
+NERSC_BGS_LOA_FASTSPECFIT_DIR = "/global/cfs/cdirs/desi/vac/dr2/fastspecfit/loa/v1.0/catalogs/"
 FUJI_PHOTO_VAC_ROOT = "/global/cfs/cdirs/desi/public/edr/vac/edr/lsdr9-photometry/fuji/v2.1/"
 IRON_PHOTO_VAC_ROOT = "/global/cfs/cdirs/desi/public/dr1/vac/dr1/lsdr9-photometry/iron/v1.1/"
 LOA_PHOTO_VAC_ROOT = "/global/cfs/cdirs/desi/vac/dr2/lsdr9-photometry/loa/v1.0/"
@@ -123,7 +123,7 @@ BGS_Y3_TILES_FILE = '/global/cfs/cdirs/desi/spectro/redux/loa/tiles-loa.csv' if 
 BGS_Y3_CLUSTERING_FILE = BGS_Y3_FOLDER_LOA + "BGS_BRIGHT_clustering.dat.fits"
 BGS_Y3_CLUSTERING_RAND_FILE = '/global/cfs/cdirs/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v1.1/nonkp/BGS_BRIGHT_X_clustering.ran.fits' if ON_NERSC else BGS_Y3_FOLDER_LOA + "BGS_BRIGHT_X_clustering.ran.fits"
 # These files are built
-BGS_Y3_FASTSPEC_FILE = BGS_Y3_FOLDER_LOA + "fastspec-loa-main-bright-ian.fits"
+BGS_Y3_FASTSPEC_FILE = BGS_Y3_FOLDER_LOA + "fastspec-loa-main-bright.fits"
 BGS_Y3_COMBINED_PHOTOMETRIC_CATALOG = BGS_Y3_FOLDER_LOA + "targetphot-loa-combined.fits"
 IAN_BGS_Y3_MERGED_FILE_KIBO = BGS_Y3_FOLDER_KIBO + "ian_BGS_Y3_merged.fits"
 IAN_BGS_Y3_MERGED_FILE_LOA = BGS_Y3_FOLDER_LOA + "ian_BGS_Y3_merged.fits"
