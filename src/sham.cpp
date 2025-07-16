@@ -3,13 +3,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-//#include <gsl/gsl_spline.h>
-//#include <gsl/gsl_errno.h>
+#include <gsl/gsl_spline.h>
+#include <gsl/gsl_errno.h>
 #include "nrutil.h"
 #include "groups.hpp"
 #include "sham.hpp"
 
-/*
+
 double gsl_spline_eval_extrap(const gsl_spline *spline, const double *x, const double *y, int n, double xq, gsl_interp_accel *acc);
 
 double gsl_spline_eval_extrap(const gsl_spline *spline, const double *x, const double *y, int n, double xq, gsl_interp_accel *acc)
@@ -23,7 +23,7 @@ double gsl_spline_eval_extrap(const gsl_spline *spline, const double *x, const d
         return gsl_spline_eval(spline, xq, acc);
     }
 }
-*/
+
 
 /* 
 * For a galaxy at a certain redshift and vmax, use the provided halo mass function to
@@ -32,7 +32,7 @@ double gsl_spline_eval_extrap(const gsl_spline *spline, const double *x, const d
 float density2host_halo(float galaxy_density)
 {
   //std::cerr << "Finding host halo mass for galaxy density = " << galaxy_density << std::endl;
-  return exp(zbrent(func_match_nhost_old, log(HALO_MIN), log(HALO_MAX), 1.0E-5, galaxy_density));
+  return exp(zbrent(func_match_nhost, log(HALO_MIN), log(HALO_MAX), 1.0E-5, galaxy_density));
 }
 
 /* For a galaxy at a certain redshift and vmax, use the provided halo mass function to
@@ -164,7 +164,7 @@ float func_match_nhost_old(float mass, float galdensity)
   return exp(a) - galdensity;
 }
 
-/*
+
 float func_match_nhost(float mass, float galdensity)
 {
     static int flag = 1, n = 100;
@@ -203,7 +203,7 @@ float func_match_nhost(float mass, float galdensity)
     a = gsl_spline_eval_extrap(spline, mh, nh, n, mass, acc);
     return exp(a) - galdensity;
 }
-    */
+    
 
 float halo_abundance2_old(float m)
 {
@@ -211,12 +211,12 @@ float halo_abundance2_old(float m)
   return halo_abundance_old(m) * m;
 }
 
-/*
+
 float halo_abundance2(float m)
 {
   m = exp(m);
   return halo_abundance(m) * m;
-}*/
+}
 
 float halo_abundance_old(float m)
 {
@@ -250,7 +250,7 @@ float halo_abundance_old(float m)
   return exp(a);
 }
 
-/*
+
 float halo_abundance(float m)
 {
     int i;
@@ -285,4 +285,3 @@ float halo_abundance(float m)
     a = gsl_spline_eval_extrap(spline, x, y, n, log(m), acc);
     return exp(a);
 }
-*/

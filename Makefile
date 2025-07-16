@@ -14,7 +14,8 @@ CC = g++
 CFLAGS = -O3 -fopenmp -std=c++11	
 CFLAGS += -Isrc/libs
 #CFLAGS += -march=native
-LIB = -lm -fopenmp #-lgsl -lgslcblas
+LIB = -lm -fopenmp -lgsl -lgslcblas
+LIB += -L/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
 # Ian's iMac
 # For Apple Computers. Tested on an Intel iMac but should be OK with M based ones too
@@ -62,15 +63,15 @@ $(ODIR)/%.o: $(SRCDIR)/%.cpp
 
 # Build main program
 $(BDIR)/kdGroupFinder_omp:	$(OBJ) $(GF_OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) $(LIB)
+	$(CC) -o $@ $^ $(CFLAGS) $(LIB) -Wl,-rpath,/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
 # Build main program for profiling
 $(BDIR)/PerfGroupFinder:	$(OBJ) $(GF_OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) -g $(LIB)
+	$(CC) -o $@ $^ $(CFLAGS) -g $(LIB) -Wl,-rpath,/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
 # Build tests program
 $(BDIR)/tests: $(OBJ) $(TESTS_OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) $(LIB)
+	$(CC) -o $@ $^ $(CFLAGS) $(LIB) -Wl,-rpath,/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
 clean:
 	rm -f *.o $(ODIR)/*.o
