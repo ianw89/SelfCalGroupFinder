@@ -1874,10 +1874,10 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
         print(f"abs_mag_R[idx]: {abs_mag_R[idx][nanindex]}")
     assert np.isnan(abs_mag_R[idx]).any() == False, f"abs_mag_R[idx] has NaN values at {np.where(np.isnan(abs_mag_R[idx]))}"
     np.put(abs_mag_R_k, idx, k_correct(abs_mag_R[idx], z_eff[idx], g_r_apparent[idx], band='r'))
-    np.put(abs_mag_R_k_BEST, idx, abs_mag_R_k) # won't overwrite the FSF ones because this only happens for lost galaxies
+    np.put(abs_mag_R_k_BEST, idx, abs_mag_R_k[idx]) # won't overwrite the FSF ones because this only happens for lost galaxies
     np.put(abs_mag_G, idx, app_mag_to_abs_mag(app_mag_g[idx], z_eff[idx]))
     np.put(abs_mag_G_k, idx, k_correct(abs_mag_G[idx], z_eff[idx], g_r_apparent[idx], band='g'))
-    np.put(abs_mag_G_k_BEST, idx, abs_mag_G_k)
+    np.put(abs_mag_G_k_BEST, idx, abs_mag_G_k[idx])
     np.put(log_L_gal, idx, abs_mag_r_to_log_solar_L(abs_mag_R_k_BEST[idx]))
     G_R_k = abs_mag_G_k - abs_mag_R_k
     np.put(gmr_best, idx, G_R_k[idx])
