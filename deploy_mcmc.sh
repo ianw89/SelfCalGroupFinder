@@ -42,7 +42,6 @@ EOF
 echo "Starting distributed MCMC job deployment..."
 echo "Target nodes: ${NODES[@]}"
 echo "Command: $PYTHON_CMD"
-echo "Output file: $OUTPUT_FILE"
 echo "=========================================="
 
 # Process each node

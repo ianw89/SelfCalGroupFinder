@@ -13,9 +13,9 @@ from groupcatalog import *
 from calibrationdata import *
 # np.array(zip(*[line.split() for line in f])[1], dtype=float)
 
-
-DPI = 250
-FONT_SIZE_DEFAULT = 13
+DPI_PAPER = 600
+DPI = DPI_PAPER
+FONT_SIZE_DEFAULT = 16
 
 LGAL_XMINS = [6E7, 1E8]
 

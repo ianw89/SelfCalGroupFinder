@@ -1854,10 +1854,10 @@ def add_halo_columns(catalog: GroupCatalog):
     # Luminosity distance to z_obs
     #df.loc[:, 'ldist_true'] = z_to_ldist(df.z_obs.to_numpy())
 
-def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, gmr_best, dn4000_model, log_L_gal, quiescent):
+def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent):
     """
     Updates the properties for the given indices in the arrays. This is used for lost galaxies when we assigned
-    redshifts to them generally.
+    redshifts to them.
     """
     # Ensure app_mag_r and z_eff are not NaN or Inf at idx
     assert np.isnan(app_mag_r[idx]).any() == False, f"app_mag_r has NaN values at {np.where(np.isnan(app_mag_r))}"
@@ -1874,9 +1874,11 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
         print(f"abs_mag_R[idx]: {abs_mag_R[idx][nanindex]}")
     assert np.isnan(abs_mag_R[idx]).any() == False, f"abs_mag_R[idx] has NaN values at {np.where(np.isnan(abs_mag_R[idx]))}"
     np.put(abs_mag_R_k, idx, k_correct(abs_mag_R[idx], z_eff[idx], g_r_apparent[idx], band='r'))
+    np.put(abs_mag_R_k_BEST, idx, abs_mag_R_k) # won't overwrite the FSF ones because this only happens for lost galaxies
     np.put(abs_mag_G, idx, app_mag_to_abs_mag(app_mag_g[idx], z_eff[idx]))
     np.put(abs_mag_G_k, idx, k_correct(abs_mag_G[idx], z_eff[idx], g_r_apparent[idx], band='g'))
-    np.put(log_L_gal, idx, abs_mag_r_to_log_solar_L(abs_mag_R_k[idx]))
+    np.put(abs_mag_G_k_BEST, idx, abs_mag_G_k)
+    np.put(log_L_gal, idx, abs_mag_r_to_log_solar_L(abs_mag_R_k_BEST[idx]))
     G_R_k = abs_mag_G_k - abs_mag_R_k
     np.put(gmr_best, idx, G_R_k[idx])
     lookup = dn4000lookup()
@@ -2029,8 +2031,10 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     g_r_apparent = app_mag_g - app_mag_r
     abs_mag_R = get_tbl_column(table, 'ABS_MAG_R', required=True)
     abs_mag_R_k = get_tbl_column(table, 'ABS_MAG_R_K', required=True)
+    abs_mag_R_k_BEST = get_tbl_column(table, 'ABS_MAG_R_K_BEST', required=True) # absolute R-K using fastspecfit k-corr when possible or polynomial for unobserved
     abs_mag_G = get_tbl_column(table, 'ABS_MAG_G', required=True)
     abs_mag_G_k = get_tbl_column(table, 'ABS_MAG_G_K', required=True)
+    abs_mag_G_k_BEST = get_tbl_column(table, 'ABS_MAG_G_K_BEST', required=True) # absolute G-K using fastspecfit k-corr when possible or polynomial for unobserved
     gmr_best = get_tbl_column(table, 'G_R_BEST', required=True) # absolute G-R using fastspecfit k-corr when possible or polynomial for unobserved
     log_L_gal = get_tbl_column(table, 'LOG_L_GAL', required=True)
     quiescent = get_tbl_column(table, 'QUIESCENT', required=True)
@@ -2129,7 +2133,6 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         sgacat = coord.SkyCoord(ra=ra[sga_collision]*u.degree, dec=dec[sga_collision]*u.degree, frame='icrs')
         sgabluecat = coord.SkyCoord(ra=ra[sga_collision_blue]*u.degree, dec=dec[sga_collision_blue]*u.degree, frame='icrs')
         sgaappmag = app_mag_r[sga_collision]
-        #sgaabsmag = abs_mag_R_k[sga_collision] # Might actually be less reliable for these objects...
 
         to_remove_nn = np.zeros(len(sgabluecat), dtype=bool)
 
@@ -2223,8 +2226,10 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     g_r_apparent = g_r_apparent[keep]
     abs_mag_R = abs_mag_R[keep]
     abs_mag_R_k = abs_mag_R_k[keep]
+    abs_mag_R_k_BEST = abs_mag_R_k_BEST[keep]
     abs_mag_G = abs_mag_G[keep]
     abs_mag_G_k = abs_mag_G_k[keep]
+    abs_mag_G_k_BEST = abs_mag_G_k_BEST[keep]
     gmr_best = gmr_best[keep]
     log_L_gal = log_L_gal[keep]
     quiescent = quiescent[keep]
@@ -2278,7 +2283,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             
             # Take Dn4000 and QUIESCENT from SDSS, keep the magnitude related things as DESI calculations
             idx_from_sloan = idx_unobserved[matched]
-            update_properties_for_indices(idx_from_sloan, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, gmr_best, dn4000_model, log_L_gal, quiescent)
+            update_properties_for_indices(idx_from_sloan, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent)
             np.put(dn4000_model, idx_from_sloan, observed_sdss.iloc[idx]['DN4000'].to_numpy())
             np.put(quiescent, idx_from_sloan, observed_sdss.iloc[idx]['QUIESCENT'].to_numpy())
             unobserved[idx_unobserved] = np.where(matched, False, unobserved[idx_unobserved])
@@ -2390,7 +2395,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     # Now that we have redshifts for lost galaxies, we can calculate the rest of the properties
     if len(idx_unobserved) > 0:
-        update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_G, abs_mag_G_k, gmr_best, dn4000_model, log_L_gal, quiescent)
+        update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent)
 
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
 

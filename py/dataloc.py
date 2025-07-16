@@ -21,6 +21,7 @@ PARAMS_BGSY1_FOLDER = PARAMS_FOLDER + 'bgs_y1/'
 PARAMS_BGSY1MINI_FOLDER = PARAMS_FOLDER + 'bgs_y1_mini/'
 PARAMS_BGSY3_FOLDER = PARAMS_FOLDER + 'bgs_y3/'
 OUTPUT_FOLDER = BASE_FOLDER + 'OUTPUT/'
+PAPER_PLOT_FOLDER = OUTPUT_FOLDER + 'A_PAPER_PLOTS/'
 DATA_FOLDER = BASE_FOLDER + 'DATA/' if not ON_NERSC else '/global/cfs/cdirs/desi/users/ianw89/private/DATA/'
 SDSS_FOLDER = DATA_FOLDER + 'SDSS/'
 BGS_IMAGES_FOLDER = DATA_FOLDER + 'BGS_IMAGES/'
@@ -155,10 +156,12 @@ MXXL_ABS_MAG_R_FILE = OUTPUT_FOLDER + "mxxl_abs_mag_r_mine.npy"
 
 # BGS DERIVED AUXILERY FILES
 ###############################
+# needed for python wrapper to work
 BGS_Y3_LOST_APP_TO_Z_FILE = BGS_Y1_FOLDER + "bgsy3_lost_appmag_to_z_map.dat"
 BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE = BGS_Y1_FOLDER + "bgsy3_lost_appmag_zphot_to_z_map.dat"
 BGS_Y3_DN4000_LOOKUP_FILE = BGS_Y3_FOLDER_LOA + "bgsy3_dn4000_lookup.pkl"
 
+# not required; these are built from emcee chains to give systematic error bar estimates
 FSAT_VALUES_FROM_LOGS = OUTPUT_FOLDER + "fsat_values_from_log.npy"
 LHMR_VALUES_FROM_LOGS = OUTPUT_FOLDER + "lhmr_values_from_log.npy"
 LSAT_VALUES_FROM_LOGS = OUTPUT_FOLDER + "lsat_values_from_log.npy"

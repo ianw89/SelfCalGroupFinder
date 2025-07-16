@@ -140,21 +140,25 @@ def add_mag_columns(table):
         z_obs = table['Z'].data.data
     else:
         z_obs = table['Z']
-        z_obs = np.where(z_obs.astype("<i8") == 999999, np.nan, z_obs)
+        z_obs = np.where(z_obs.astype("<i8") > 50, np.nan, z_obs)
 
-    # Where z_obs is nan, use the photo-z
+    # Where z_obs is nan, use the photo-z for absolute magnitude conversions
     speczcount = (~np.isnan(z_obs)).sum()
     z_obs = np.where(np.isnan(z_obs), table['Z_PHOT'], z_obs)
     stillmissing = np.isnan(z_obs).sum()
     photozcount = (~np.isnan(z_obs)).sum() - speczcount
-    print(f"For absolute magnitude conversions, we have {speczcount:,} using spec-z, {photozcount:,} using photo-z, and {stillmissing:,} with neither.")
+    print(f"For absolute magnitude conversions, we have {speczcount:,} using spec-z, {photozcount:,} using photo-z, and {stillmissing:,} with neither.", flush=True)
 
     # nans for lost galaxies will propagate through the calculations as desired
     abs_mag_R = app_mag_to_abs_mag(app_mag_r, z_obs)
     abs_mag_R_k = k_correct(abs_mag_R, z_obs, g_r, band='r')
+    abs_mag_R_k_BEST = np.copy(table['ABSMAG01_SDSS_R'])
+    abs_mag_R_k_BEST = np.where(np.isnan(abs_mag_R_k_BEST), abs_mag_R_k, abs_mag_R_k_BEST)
     abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_obs)
     abs_mag_G_k = k_correct(abs_mag_G, z_obs, g_r, band='g')
-    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k) 
+    abs_mag_G_k_BEST = np.copy(table['ABSMAG01_SDSS_G'])
+    abs_mag_G_k_BEST = np.where(np.isnan(abs_mag_G_k_BEST), abs_mag_G_k, abs_mag_G_k_BEST)
+    log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k_BEST) 
     G_R_k = abs_mag_G_k - abs_mag_R_k # based on the polynomial k-corr
     G_R_k_fastspecfit = table['ABSMAG01_SDSS_G'] - table['ABSMAG01_SDSS_R'] # based on fastspecfit k-corr
     G_R_BEST = np.where(np.isnan(G_R_k_fastspecfit), G_R_k, G_R_k_fastspecfit)
@@ -166,9 +170,12 @@ def add_mag_columns(table):
     table.add_column(abs_mag_R_k, name='ABS_MAG_R_K')
     table.add_column(abs_mag_G, name='ABS_MAG_G')
     table.add_column(abs_mag_G_k, name='ABS_MAG_G_K')
+    table.add_column(abs_mag_R_k_BEST, name='ABS_MAG_R_K_BEST') 
+    table.add_column(abs_mag_G_k_BEST, name='ABS_MAG_G_K_BEST')
     table.add_column(log_L_gal, name='LOG_L_GAL')
     table.add_column(G_R_BEST, name='G_R_BEST')
     table.add_column(quiescent, name='QUIESCENT') 
+
     #table.add_column(quiescent_alt, name='QUIESCENT_KMEANS')
     
 
@@ -244,29 +251,31 @@ def read_fastspecfit_sv3():
 def read_fastspecfit_y1():
     if not os.path.exists(BGS_Y1_FASTSPEC_FILE):
         print (f"BGS_Y1_FASTSPEC_FILE does not exist. Building from '{NERSC_BGS_IRON_FASTSPECFIT_DIR}'")
-        orig = NERSC_BGS_IRON_FASTSPECFIT_DIR + "fastspec-iron-main-bright.fits"
-        hdul = fits.open(orig, memmap=True)
-        fastspecfit_table = Table([
-            hdul[1].data['TARGETID'], 
-            hdul[1].data['DN4000'], 
-            hdul[1].data['DN4000_MODEL'], 
-            hdul[1].data['ABSMAG01_SDSS_G'], 
-            hdul[1].data['ABSMAG01_IVAR_SDSS_G'], 
-            hdul[1].data['ABSMAG01_SDSS_R'], 
-            hdul[1].data['ABSMAG01_IVAR_SDSS_R'], 
-            hdul[1].data['SFR'], 
-            hdul[1].data['LOGMSTAR'],
-            hdul[1].data['HALPHA_EW'],
-            hdul[1].data['HALPHA_EW_IVAR'],
-            hdul[1].data['HBETA_EW'],
-            hdul[1].data['HBETA_EW_IVAR'],
-            ], 
-            names=('TARGETID', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
-        hdul.close()
-        fastspecfit_table.write(BGS_Y1_FASTSPEC_FILE, format='fits', overwrite=True)
-        return fastspecfit_table
+        file = NERSC_BGS_IRON_FASTSPECFIT_DIR + "fastspec-iron-main-bright.fits"
+    else:
+        file = BGS_Y1_FASTSPEC_FILE
 
-    return Table.read(BGS_Y1_FASTSPEC_FILE, format='fits')
+    hdul = fits.open(file, memmap=True)
+    fsf_tbl = Table([
+        hdul[1].data['TARGETID'], 
+        hdul[1].data['DN4000'], 
+        hdul[1].data['DN4000_MODEL'], 
+        hdul[1].data['ABSMAG01_SDSS_G'], 
+        hdul[1].data['ABSMAG01_IVAR_SDSS_G'], 
+        hdul[1].data['ABSMAG01_SDSS_R'], 
+        hdul[1].data['ABSMAG01_IVAR_SDSS_R'], 
+        hdul[1].data['SFR'], 
+        hdul[1].data['LOGMSTAR'],
+        hdul[1].data['HALPHA_EW'],
+        hdul[1].data['HALPHA_EW_IVAR'],
+        hdul[1].data['HBETA_EW'],
+        hdul[1].data['HBETA_EW_IVAR'],
+        ], 
+        names=('TARGETID', 'DN4000', 'DN4000_MODEL', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
+    hdul.close()
+    if not os.path.exists(BGS_Y1_FASTSPEC_FILE):
+        fsf_tbl.write(BGS_Y1_FASTSPEC_FILE, format='fits', overwrite=True)
+    return fsf_tbl
 
 def read_fastspecfit_y3():
     if not os.path.exists(BGS_Y3_FASTSPEC_FILE):
@@ -311,7 +320,7 @@ def read_fastspecfit_y3():
     return Table.read(BGS_Y3_FASTSPEC_FILE, format='fits')
 
 def add_photometric_columns(existing_table, version: str):
-    print(f"Adding extra photometric columns.")
+    print(f"Adding extra photometric columns.", flush=True)
     if version == 'sv3':
         if os.path.exists(BGS_SV3_COMBINED_PHOTOMETRIC_CATALOG):
             photo_table = Table.read(BGS_SV3_COMBINED_PHOTOMETRIC_CATALOG, format='fits') # Contains SV3
@@ -354,11 +363,12 @@ def add_photometric_columns(existing_table, version: str):
     # There are duplicates in photometric table as it combined all surveys and potential / observed tables. 
     final_table = unique(final_table, 'TARGETID')
     
-    print(f"  Original len={len(existing_table):,}, photometric len={len(photo_table):,}, final len={len(final_table):,}.")
+    print(f"  Original len={len(existing_table):,}, photometric len={len(photo_table):,}, final len={len(final_table):,}.", flush=True)
 
     return final_table
 
 def add_fastspecfit_columns(main_table, version:str):
+    print("Adding fastspecfit columns to table.", flush=True)
     if version == 'sv3':
         fastspecfit_table = read_fastspecfit_sv3()
     elif version == '1':
@@ -393,7 +403,7 @@ def read_tiles_Y3_main():
     return tiles_df
 
 def add_NTILE_MINE_to_table(table_file :str|Table, year: str):
-    print("Adding NTILE_MINE to table.")
+    print("Adding NTILE_MINE to table.", flush=True)
     if year == "sv3":
         tiles_df = read_tiles_Y3_sv3()
     elif year == "1":
@@ -422,8 +432,9 @@ def add_NTILE_MINE_to_table(table_file :str|Table, year: str):
 
 
 def create_merged_file(orig_table_file : str, merged_file : str, year : str, photoz_wspec=True):
+    print(f"CREATING MERGED FILE {merged_file} for year {year}.", flush=True)
     table = Table.read(orig_table_file, format='fits')
-    print(f"Read {len(table)} galaxies from {orig_table_file}")
+    print(f"Read {len(table)} galaxies from {orig_table_file}", flush=True)
 
     # Select required columned from LSS catalog 
     table.keep_columns(['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS'])
@@ -432,13 +443,13 @@ def create_merged_file(orig_table_file : str, merged_file : str, year : str, pho
     # Add additional derived columns from fastspecfit
     # The lost galaxies will not have fastspecfit rows as they have no spectra
     table = add_fastspecfit_columns(table, year)
-
-    # Save off progress so far
     table.write(merged_file, format='fits', overwrite='True')
+    print("FSF Joined", flush=True)
 
     # Add extra columns that were cut from LSS Catalogs from the photometric VAC
     table = add_photometric_columns(table, year)
     table.write(merged_file, format='fits', overwrite='True')
+    print("Photometric VAC Joined", flush=True)
 
     # Add photo-zs
     if photoz_wspec:
@@ -446,14 +457,17 @@ def create_merged_file(orig_table_file : str, merged_file : str, year : str, pho
     else:
         table = add_photz_columns(merged_file, IAN_PHOT_Z_FILE_NOSPEC)
     table.write(merged_file, format='fits', overwrite=True)
+    print("Photo-z Joined", flush=True)
 
     # Derive some luminosity / color related properties
     add_mag_columns(table)
     table.write(merged_file, format='fits', overwrite='True')
+    print("Mag Calculations Joined", flush=True)
 
     # Add information on the nearest tiles to each target for Npass filtering later
     add_NTILE_MINE_to_table(table, year)
     table.write(merged_file, format='fits', overwrite='True')
+    print("NTILE_MINE Joined", flush=True)
 
 
 
