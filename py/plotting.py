@@ -14,7 +14,7 @@ from calibrationdata import *
 # np.array(zip(*[line.split() for line in f])[1], dtype=float)
 
 DPI_PAPER = 600
-DPI = DPI_PAPER
+DPI = 250
 FONT_SIZE_DEFAULT = 16
 
 LGAL_XMINS = [6E7, 1E8]
@@ -1040,7 +1040,7 @@ def hod_plot(gc: GroupCatalog, pretty=True):
             ax.set_xlabel('log($M_h$) [$M_\odot / h$]')
             if pretty:
                 ax.set_xlim(10.0, 15.0)
-                ax.set_ylim(-3, 2)
+                ax.set_ylim(-2, 2)
             else:
                 ax.set_xlim(10.0, 15.5)
                 ax.set_ylim(-5, 2)

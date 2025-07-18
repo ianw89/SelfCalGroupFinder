@@ -7,7 +7,28 @@ WORK_DIR="/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder"
 PYTHON_CMD="python3 py/exec.py mcmc 14" # number is node number minus 1
 OUTPUT_FILE="y1full8_mcmc.out"
 
-# Function to process a single node
+
+kill_node() {
+    local node=$1
+    local node_num=${node//[!0-9]/}
+    local node_output_file="${OUTPUT_FILE/.out/_$node.out}"
+       echo "Processing node: $node"
+    
+    ssh -T $node << EOF
+        echo "Connected to $node"
+        
+        # Kill existing python3 processes for user
+        echo "Killing existing python3 processes for $USERNAME on $node..."
+        pkill -u $USERNAME python3
+        sleep 5
+        
+        echo "python3 processes on $node:"
+        pgrep -u $USERNAME python3
+EOF
+    
+    echo "----------------------------------------"
+}
+
 process_node() {
     local node=$1
     local node_num=${node//[!0-9]/}
@@ -20,7 +41,7 @@ process_node() {
         # Kill existing python3 processes for user
         echo "Killing existing python3 processes for $USERNAME on $node..."
         pkill -u $USERNAME python3
-        sleep 2
+        sleep 5
         
         # Change to working directory
         cd $WORK_DIR
@@ -46,6 +67,7 @@ echo "=========================================="
 
 # Process each node
 for node in "${NODES[@]}"; do
+    #kill_node $node
     process_node $node
 done
 
