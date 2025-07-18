@@ -179,23 +179,19 @@ void lsat_model()
   int i, j, k, n, nt, nhb[150], nhr[150], im, ihm, ix;
   float *mx, *lx, lsatb[150], lsatr[150], *m2x, x;
   float ratio[150];
-  int **nhrx, **nhbx;
-  float **lsatbx, **lsatrx;
-  int **nhrx2, **nhbx2;
-  float **lsatbx2, **lsatrx2;
   int NBINS2;
   float dpropx, M0_PROPX = 8.75, DM_PROPX = 0.5;
   double lsat;
   int nsat;
-  nhrx = imatrix(0, 5, -20, 20);
-  nhbx = imatrix(0, 5, -20, 20);
-  lsatbx = matrix(0, 5, -20, 20);
-  lsatrx = matrix(0, 5, -20, 20);
+  int **nhrx = imatrix(0, 5, -20, 20);
+  int **nhbx = imatrix(0, 5, -20, 20);
+  float **lsatbx = matrix(0, 5, -20, 20);
+  float **lsatrx = matrix(0, 5, -20, 20);
 
-  nhrx2 = imatrix(0, 5, -20, 20);
-  nhbx2 = imatrix(0, 5, -20, 20);
-  lsatbx2 = matrix(0, 5, -20, 20);
-  lsatrx2 = matrix(0, 5, -20, 20);
+  int **nhrx2 = imatrix(0, 5, -20, 20);
+  int **nhbx2 = imatrix(0, 5, -20, 20);
+  float **lsatbx2 = matrix(0, 5, -20, 20);
+  float **lsatrx2 = matrix(0, 5, -20, 20);
 
   // this is binning for the mocks (rnage = -2,2)
   NBINS2 = 10;
@@ -355,8 +351,8 @@ void lsat_model()
   }
 
   if (SECOND_PARAMETER == 0)
-    return;
-
+    goto CLEANUP;
+  
   // check if we're doing the FIT3 single bin
   if (DM_PROPX > 10)
   {
@@ -385,7 +381,7 @@ void lsat_model()
     for (i = -NBINS2; i <= NBINS2; ++i)
       fprintf(fp, "%.1f %e\n", i * dpropx, lsatbx[0][i] / (nhbx[0][i] + 1.0E-10) * nsat / lsat);
     fclose(fp);
-    return;
+    goto CLEANUP;
   }
   // print out the correlations with propx
   // at fixed stellar mass
@@ -412,7 +408,7 @@ void lsat_model()
   fclose(fp);
 
   if (SECOND_PARAMETER == 1)
-    return;
+    goto CLEANUP;
 
   // print out the correlations with propx
   // at fixed stellar mass
@@ -437,6 +433,21 @@ void lsat_model()
             lsatbx2[4][i] / (nhbx2[4][i] + 1.0E-10));
   }
   fclose(fp);
+
+
+  CLEANUP:
+  // Free the allocated memory
+  free_vector(mx, 1, nt);
+  free_vector(lx, 1, nt);
+  free_vector(m2x, 1, nt);
+  free_imatrix(nhrx, 0, 5, -20, 20);
+  free_imatrix(nhbx, 0, 5, -20, 20);
+  free_matrix(lsatbx, 0, 5, -20, 20);
+  free_matrix(lsatrx, 0, 5, -20, 20);
+  free_imatrix(nhrx2, 0, 5, -20, 20);
+  free_imatrix(nhbx2, 0, 5, -20, 20);
+  free_matrix(lsatbx2, 0, 5, -20, 20);
+  free_matrix(lsatrx2, 0, 5, -20, 20);
 
   return;
 }
