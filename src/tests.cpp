@@ -218,56 +218,28 @@ void test_psat() {
 }
 
 
-void test_func_match_nhost_consistency() {
-    printf("=== FUNC_MATCH_NHOST CONSISTENCY TESTS ===\n");
+void test_func_match_nhost_baseline() {
+    printf("=== FUNC_MATCH_NHOST BASELINE TESTS ===\n");
     float loggalden = 1e-5; // not sure at all if this is a reasonable value but it doesn't matter
     float tol = 1e-5; // Acceptable relative difference
+
+    float baseline[] = {-0.0000100000, -0.0000099998, -0.0000099740, -0.0000094658, -0.0000057188, 0.0000103041, 0.0000608401, 0.0001940445, 0.0005124758, 0.0012343820, 0.0028256753, 0.0062867291, 0.0137773650, 0.0299867131, 0.0651531070, 0.1417509466, 0.3093677461, 0.6779714823, 1.4924468994, 3.2999482155};
 
     // Test over a range of halo masses
     for (int i = 0; i < 20; ++i) {
         float logmass = log(HALO_MAX) - i * (log(HALO_MAX) - log(HALO_MIN)) / 21.0;
-
-        float old_val = func_match_nhost_old(logmass, loggalden);
         float new_val = func_match_nhost(logmass, loggalden);
-
-        printf("mass=%.3e, old=%.6e, new=%.6e, rel_diff=%.2g\n", exp(logmass), old_val, new_val, fabs(old_val-new_val)/fabs(old_val));
-        assert(fabs(old_val - new_val) < tol * fabs(old_val) + 1e-8 && "func_match_nhost results changed!");
+        printf("mass=%.3e, old=%.6e, new=%.6e, rel_diff=%.2g\n", exp(logmass), baseline[i], new_val, fabs(baseline[i]-new_val)/fabs(baseline[i]));
+        assert(fabs(baseline[i] - new_val) < tol * fabs(baseline[i]) + 1e-8 && "func_match_nhost results changed!");
     }
-    printf(" *** func_match_nhost consistency tests passed.\n\n");
+    printf(" *** func_match_nhost baseline tests passed.\n\n");
 }
-
-void test_func_match_nhost_speed() {
-    printf("=== FUNC_MATCH_NHOST SPEED TEST ===\n");
-    float loggalden = 1e-5; // not sure at all if this is a reasonable value but it doesn't matter
-    int n_trials = 1000000;
-    double t1, t2;
-
-    // Time func_match_nhost
-    t1 = omp_get_wtime();
-    for (int i = 0; i < n_trials; ++i) {
-        func_match_nhost(log(1e13), loggalden);
-    }
-    t2 = omp_get_wtime();
-    printf("func_match_nhost: %d trials took %.6f seconds\n", n_trials, t2 - t1);
-
-    // Time func_match_nhost_old
-    t1 = omp_get_wtime();
-    for (int i = 0; i < n_trials; ++i) {
-        func_match_nhost_old(log(1e13), loggalden);
-    }
-    t2 = omp_get_wtime();
-    printf("func_match_nhost_old: %d trials took %.6f seconds\n", n_trials, t2 - t1);
-
-    printf(" *** func_match_nhost speed test complete.\n\n");
-}
-
 
 int main(int argc, char **argv) {
 
     setup_rng();
 
-    test_func_match_nhost_consistency();
-    test_func_match_nhost_speed();
+    test_func_match_nhost_baseline();
     test_poisson_deviate_speed();
     test_poisson_deviate_basic();
     test_poisson_deviate_edge_cases();
