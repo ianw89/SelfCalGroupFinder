@@ -797,6 +797,8 @@ void lsat_model_scatter()
 
   LOG_INFO("lsat_model_scatter> lsat_groups2.out written\n");
 
+  free_vector(mvir, 1, NHALO);
+  free_ivector(indx, 1, NHALO);
   return;
 }
 
