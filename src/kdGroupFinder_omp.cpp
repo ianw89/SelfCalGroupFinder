@@ -5,6 +5,7 @@
 #include <time.h>
 #include <assert.h>
 #include <sys/time.h>
+#include <iostream>
 #include <omp.h>
 #include "libs/nanoflann.hpp"
 #include "groups.hpp"
@@ -85,8 +86,6 @@ int MAX_ITER = 5; // default is to go until fsat 0.002 convergence; can provide 
 int ALLOW_EARLY_EXIT = 0; // default is to not allow early exit, but this is used in MCMC to speedups
 FILE *MSG_PIPE = NULL; // default is no message pipe
 
-// This is only called once right now. 
-// Maybe later we can make it more dynamic for MCMC purposes but think about memory management.
 void groupfind()
 {
   FILE *fp;
@@ -97,10 +96,12 @@ void groupfind()
   double galden, pt[3], t_start_findsats, t_end_findsats, t_start_iter, t_end_iter, t_alliter_s, t_alliter_e; // galden (galaxy density) only includes centrals, because only they get halos
   double *fsat_arr;
 
-  // xtmp stores the values of what we sort by. itmp stores the index in the GAL array. It' gets sorted and we find sats in that order.
-  // Initially it gets setup with the LGAL values; after it gets setup with the LTOT values (the effective length becomes ngrp then)
-  static int *permanent_id, *itmp, *flag;
-  static float volume, *xtmp, *lumshift; 
+
+  static std::vector<int> flag;
+  static float volume; 
+  // xtmp stores the values of what we sort by and the index in the GAL array (first, second). It gets sorted and we find sats in that order.
+  // Initially it gets setup with the lgal values; after it gets setup with the lgrp values (the effective length becomes ngrp then).
+  static std::vector<std::pair<float,int>> xtmp;
   static int first_call = 1, ngrp;
   static GalaxyKDTree *tree = nullptr;
 
@@ -113,7 +114,7 @@ void groupfind()
     NGAL = filesize(fp);
     LOG_INFO("Allocating space for [%d] galaxies\n", NGAL);
     GAL = (struct galaxy*) calloc(NGAL, sizeof(struct galaxy));
-    flag = ivector(0, NGAL - 1);
+    flag.resize(NGAL);
 
     // For volume-limited samples, we calculate the volume and put that in the vmax
     // property of each galxaxy.
@@ -178,35 +179,32 @@ void groupfind()
       LOG_INFO("Number density= %e %e\n", NGAL / volume, galden);
       GALAXY_DENSITY = NGAL / volume;
     }
+
+    xtmp.resize(NGAL);
+
   } // end of first call code
   else {
     LOG_INFO("Reusing existing GAL array. Recalculating properties.\n", NGAL);
     recalc_galprops();
   }
 
-  // For the first group finding iteration, sort by LGAL / stellar mass
-  xtmp = vector(1, NGAL); // group property that is abundance matched on (the values)
-  itmp = ivector(1, NGAL); // index in the GAL array
-  permanent_id = ivector(1, NGAL);
-  for (int i = 1; i <= NGAL; ++i)
+  // ************************************************************************************
+  // For the first group finding iteration, sort by LGAL / stellar mass for SHAM
+  // ************************************************************************************
+  for (int i = 0; i < NGAL; ++i)
   {
     // Used to not multiply by chiweight here. (only in main iterations). But why not? Seems reasonable here too.
-    xtmp[i] = -(GAL[i-1].lum) * GAL[i-1].chiweight; 
-    itmp[i] = i-1;
+    xtmp[i] = std::make_pair(-(GAL[i].lum) * GAL[i].chiweight, i);
   }
-  //LOG_INFO("itmp initial: ");
-  //for (i = 1; i <= NGAL; ++i)
-  //  LOG_INFO("%d ", itmp[i]);
-  //LOG_INFO("\n");
 
   LOG_INFO("Sorting galaxies...\n");
-  sort2(NGAL, xtmp, itmp);
-  LOG_INFO("Done sorting galaxies.\n");
+  float tsort = omp_get_wtime();
+  std::sort(xtmp.begin(), xtmp.end());
+  float tsort2 = omp_get_wtime() - tsort;
+  LOG_INFO("Done sorting galaxies in %.3f seconds.\n", tsort2);
 
-  //LOG_INFO("itmp after sort2 by LGAL: ");
-  //for (i = 1; i <= NGAL; ++i)
-  //  LOG_INFO("%d ", itmp[i]);
-  //LOG_INFO("\n");
+  //for (int i = 0; i < NGAL; ++i)
+  //  std::cerr << "xtmp[" << i << "] = (" << xtmp[i].first << ", " << xtmp[i].second << ")\n";
 
   // do the inverse-abundance matching
   density2host_halo(0.01); // TODO delete?
@@ -217,9 +215,9 @@ void groupfind()
   if (FLUXLIM)
     density2host_halo_zbins3(-1, 0);
 
-  for (int i1 = 1; i1 <= NGAL; ++i1)
+  for (int i1 = 0; i1 < NGAL; ++i1)
   {
-    int i = itmp[i1];
+    int i = xtmp[i1].second;
     GAL[i].grp_rank = i1;
     // Set the galaxy's halo mass
     if (FLUXLIM)
@@ -234,7 +232,6 @@ void groupfind()
     GAL[i].psat = 0;
   }
   LOG_INFO("Done inverse-sham.\n");
-  // assume that NGAL=NGROUP at first
   ngrp = NGAL;
 
   // Create the 3D KD tree for fast lookup of nearby galaxies
@@ -260,7 +257,7 @@ void groupfind()
     t_start_iter = omp_get_wtime();
 
     // Reset group properties except the halo mass
-    // (We have the itmp array from the last iteration with the previous LGRP values sorted already)
+    // (We have the xtmp array from the last iteration with the previous LGRP values sorted already)
     for (int j = 0; j < NGAL; ++j)
     {
       GAL[j].igrp = -1;
@@ -277,24 +274,23 @@ void groupfind()
     t_start_findsats = omp_get_wtime();
     int i1_par, i_par;
 #pragma omp parallel for private(i1_par, i_par)
-    for (i1_par = 1; i1_par <= ngrp_prev; ++i1_par)
+    for (i1_par = 0; i1_par < ngrp_prev; ++i1_par)
     {
-      i_par = itmp[i1_par];
+      i_par = xtmp[i1_par].second;
       flag[i_par] = 0;
       find_satellites(i_par, tree);
     }
     t_end_findsats = omp_get_wtime();
 
     // After finding satellites, now set some properties on the centrals
-    for (int i1 = 1; i1 <= ngrp_prev; ++i1)
+    for (int i1 = 0; i1 < ngrp_prev; ++i1)
     {
-      int i = itmp[i1];
+      int i = xtmp[i1].second;
       if (GAL[i].psat <= 0.5)
       {
         GAL[i].igrp = i;
+        xtmp[ngrp] = std::make_pair(lgrp_to_matching_rank(i), i);
         ngrp++;
-        xtmp[ngrp] = lgrp_to_matching_rank(i);
-        itmp[ngrp] = i;
         GAL[i].listid = ngrp;
       }
     }
@@ -314,10 +310,9 @@ void groupfind()
     {
       if (flag[j_par] && GAL[j_par].psat <= 0.5)
       {
-        ngrp++;
         GAL[j_par].igrp = j_par;
-        xtmp[ngrp] = lgrp_to_matching_rank(j_par);
-        itmp[ngrp] = j_par;
+        xtmp[ngrp] = std::make_pair(lgrp_to_matching_rank(j_par), j_par);
+        ngrp++;
         GAL[j_par].listid = ngrp;
       }
     }
@@ -334,31 +329,31 @@ void groupfind()
       if (GAL[GAL[k].igrp].igrp != GAL[k].igrp) { 
          // Consider this a central now, next loop will process it.
         //LOG_WARN("WARNING - psat>0.5 galaxy %d points to central %d which isn't a central!\n", k, GAL[k].igrp);
-        ngrp++;  
         GAL[k].igrp = k;
         GAL[k].psat = 0.0;
         GAL[k].nsat = 0;
-        GAL[k].lgrp = GAL[k].lum;      
-        xtmp[ngrp] = lgrp_to_matching_rank(k);
-        itmp[ngrp] = k;
+        GAL[k].lgrp = GAL[k].lum;
+        xtmp[ngrp] = std::make_pair(lgrp_to_matching_rank(k), k);
+        ngrp++;  
         GAL[k].listid = ngrp;
       }
     }
     #ifndef OPTIMIZE
     else if (GAL[k].igrp != k) {
-      LOG_ERROR("ERROR - psat<=0.5 galaxy %d not it's own central (N_SAT=%d)\n", k, GAL[k].nsat);
+        LOG_ERROR("ERROR - psat<=0.5 galaxy %d not it's own central. igrp=%d, (N_SAT=%d)\n", k, GAL[k].igrp, GAL[k].nsat);
     }
     #endif
   }
 
     // Find new group centers if option enabled (its NOT)
+    // Jeremy says this never worked anyway.
     // TODO: This might be broken, it's not been tested since the fork
     /*
     if (RECENTERING && niter != MAX_ITER)
     {
-      for (j = 1; j <= ngrp; ++j)
+      for (j = 0; j < ngrp; ++j)
       {
-        i = itmp[j];
+        i = xtmp[j].second;
         if (GAL[i].mass > 5e12 && GAL[i].psat <= 0.5)
         {
           icen_new = group_center(i, kd);
@@ -371,7 +366,7 @@ void groupfind()
           {
             // transfer the halo values
             LOG_VERBOSE("REC %d %d %d %d\n",niter, i, icen_new, j);
-            itmp[j] = icen_new;
+            xtmp[j].second = icen_new; // why not xtemp.first?
             GAL[i].psat = 1;
             GAL[i].igrp = icen_new; // need to swap all of them, fyi...
             GAL[icen_new].psat = 0;
@@ -385,21 +380,19 @@ void groupfind()
     */
 
     // sort groups by their total group luminosity / stellar mass for next time
-    sort2(ngrp, xtmp, itmp);
+    std::sort(xtmp.begin(), xtmp.begin() + ngrp);
 
-    //LOG_INFO("itmp after sort2 by LTOT: ");
-    //for (i = 1; i <= NGAL; ++i)
-    //  LOG_INFO("%d ", itmp[i]);
-    //LOG_INFO("\n");
+    //for (int i = 0; i < NGAL; ++i)
+    //  std::cerr << "xtmp[" << i << "] = (" << xtmp[i].first << ", " << xtmp[i].second << ")\n";
 
     // Re-assign the halo masses to each central
     nsat_tot = galden = 0;
     // reset the sham counters
     if (FLUXLIM)
       density2host_halo_zbins3(-1, 0);
-    for (int j = 1; j <= ngrp; ++j)
+    for (int j = 0; j < ngrp; ++j)
     {
-      int i = itmp[j];
+      int i = xtmp[j].second; // Sorted index
       GAL[i].grp_rank = j;
       galden += 1 / GAL[i].vmax;
       if (FLUXLIM)
@@ -453,7 +446,7 @@ void groupfind()
     // Centrals
     else {
       if (GAL[j].igrp != j) {
-        LOG_ERROR("FINAL ERROR - psat<=0.5 galaxy %d not it's own central (N_SAT=%d)\n", j, GAL[j].nsat);
+        LOG_ERROR("FINAL ERROR - psat<=0.5 galaxy %d not it's own central. igrp=%d, (N_SAT=%d)\n", j, GAL[j].igrp, GAL[j].nsat);
       }
     }
   }
@@ -473,7 +466,6 @@ void groupfind()
   
   // Free all dynamically allocated memory that we don't reuse in future groupfind() calls (ITERATIVE MODE)
   free(fsat_arr);
-  // If I ever need to remake the static arrays or the KD-tree, free the old stuff here
 }
 
 
@@ -491,7 +483,6 @@ void recalc_galprops() {
 
 /* Here is the main code to find satellites for a given central galaxy
  */
-//void find_satellites(int icen, struct kdtree *kd)
 void find_satellites(int icen, GalaxyKDTree *tree)
 {
   int j, k;

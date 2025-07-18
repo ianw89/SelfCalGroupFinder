@@ -141,7 +141,7 @@ float zbrent(float (*func)(float, float), float x1, float x2, float tol, float g
  */
 void update_galaxy_halo_props(struct galaxy *galaxy);
 
-void groupfind(void);
+void groupfind();
 float distance_redshift(float z);
 float density2host_halo_zbins3(float z, float vmax);
 float density2host_halo(float galaxy_density);
