@@ -1000,11 +1000,11 @@ def is_quiescent_BGS_dn4000(logLgal, Dn4000, gmr):
     Dcrit = get_Dn4000_crit(logLgal)
     missing = np.isnan(Dn4000)
     results = np.where(missing, is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
-    print(f"Quiescent Fraction for Dn4000: {np.mean(results[~missing]):.2%} (N={np.sum(~missing)})")
-    print(f"Quiescent Fraction for missing: {np.mean(results[missing]):.2%} (N={np.sum(missing)})")
+    #print(f"Quiescent Fraction for Dn4000: {np.mean(results[~missing]):.2%} (N={np.sum(~missing)})")
+    #print(f"Quiescent Fraction for missing: {np.mean(results[missing]):.2%} (N={np.sum(missing)})")
     very_blue = gmr < EXTREMAL_BLUE_COLOR_CUT
     results = np.where(very_blue, False, results)
-    print(f"Overall Quiescent Fraction after very blue cut: {np.mean(results):.2%}")
+    #print(f"Overall Quiescent Fraction after very blue cut: {np.mean(results):.2%}")
     return results
 
 

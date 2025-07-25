@@ -2260,35 +2260,30 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla v2", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE, {'frac_area': 0.179}))
         if sdss_vanilla.all_data is not None:
             sdss_has_specz = z_flag_is_spectro_z(sdss_vanilla.all_data.Z_ASSIGNED_FLAG)
-            observed_sdss = sdss_vanilla.all_data.loc[sdss_has_specz]
+            observed_sdss = sdss_vanilla.all_data.loc[sdss_has_specz].reset_index(drop=True)
 
-            sdss_catalog = coord.SkyCoord(ra=observed_sdss.RA.to_numpy()*u.degree, dec=observed_sdss['DEC'].to_numpy()*u.degree, frame='icrs')
+            sdss_catalog = coord.SkyCoord(ra=observed_sdss['RA'].to_numpy()*u.degree, dec=observed_sdss['DEC'].to_numpy()*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[idx_unobserved]*u.degree, dec=dec[idx_unobserved]*u.degree, frame='icrs')
             print(f"Matching {len(to_match):,} lost galaxies to {len(sdss_catalog):,} SDSS galaxies")
             idx, d2d, d3d = coord.match_coordinates_sky(to_match, sdss_catalog, nthneighbor=1, storekdtree=False)
             ang_dist = d2d.to(u.arcsec).value
-            sdss_z = sdss_vanilla.all_data.iloc[idx]['Z'].to_numpy()
+            sdss_z = observed_sdss.iloc[idx]['Z'].to_numpy() # z from closest SDSS galaxy match
 
             # if angular distance is < 1", then we consider it a match to SDSS catalog and copy over it's z
             ANGULAR_DISTANCE_MATCH = 1.0
             matched = ang_dist < ANGULAR_DISTANCE_MATCH
 
             print(f"{matched.sum():,} of {first_need_redshift_count:,} lost galaxies matched to {len(sdss_catalog):,} SDSS galaxies)")
+            idx_from_sloan = idx_unobserved[matched]
 
-            # If sloan z is very different from z_phot, we should probably not use it
-            # This is a bit of a hack to avoid using the SDSS z for galaxies that are likely to be wrong
-            # TODO but what if it's just a really bad photo-z? Spot check some of these...
-            matched = np.logical_and(matched, np.abs(z_phot[idx_unobserved] - sdss_z) < 0.1)
-            print(f"{matched.sum():,} are reasonable matches given the photo-z.")
-            
             z_eff[idx_unobserved] = np.where(matched, sdss_z, np.nan) # Set to SDSS redshift of nan if not matched
             z_assigned_flag[idx_unobserved] = np.where(matched, AssignedRedshiftFlag.SDSS_SPEC.value, -4) 
             
             # Take Dn4000 and QUIESCENT from SDSS, keep the magnitude related things as DESI calculations
-            idx_from_sloan = idx_unobserved[matched]
             update_properties_for_indices(idx_from_sloan, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent)
-            np.put(dn4000_model, idx_from_sloan, observed_sdss.iloc[idx]['DN4000'].to_numpy())
-            np.put(quiescent, idx_from_sloan, observed_sdss.iloc[idx]['QUIESCENT'].to_numpy())
+            #print(len(idx_from_sloan), len(observed_sdss.iloc[idx][matched]['DN4000'].to_numpy()))
+            np.put(dn4000_model, idx_from_sloan, observed_sdss.iloc[idx][matched]['DN4000'].to_numpy())
+            np.put(quiescent, idx_from_sloan, observed_sdss.iloc[idx][matched]['QUIESCENT'].to_numpy())
             unobserved[idx_unobserved] = np.where(matched, False, unobserved[idx_unobserved])
             observed = np.invert(unobserved)
             idx_unobserved = np.flatnonzero(unobserved)
@@ -2392,7 +2387,6 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
             print(f"Assigning missing redshifts complete.")   
     
     assert np.isnan(z_eff).sum() == 0
-
 
     print(f"Neighbor usage %: {z_flag_is_neighbor(z_assigned_flag).sum() / z_flag_is_not_spectro_z(z_assigned_flag).sum() * 100:.2f}")
 
