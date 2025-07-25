@@ -169,9 +169,6 @@ class NNAnalyzer_cic():
         #print("App mag bin markers", APP_MAG_BINS)
 
         # T_POBS N_Q T_Q N_Z T_APPMAG N_ANG_DIST N_ABSMAG
-        # TODO have neighbor number be one of these and then I can integrate over it to 
-        # have more overall pairs to evaluate.
-        # Then it also lets me analyze affect of increasing neighbor number
         self.reset_bins()
 
         #print(self.all_ang_bincounts.shape)

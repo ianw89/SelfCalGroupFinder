@@ -182,7 +182,6 @@ def mode_to_str(mode: Mode):
     
 
 class AssignedRedshiftFlag(Enum):
-    # TODO switch to using this enum
     PHOTO_Z = -3 # photo-z from legacy catalog; see paper
     PSEUDO_RANDOM = -2 # pseudo-randomly assigned redshift using our methods; see paper
     SDSS_SPEC = -1 # spectroscopic redshfit taken from SDSS

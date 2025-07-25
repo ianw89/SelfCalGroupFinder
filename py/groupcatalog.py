@@ -333,7 +333,6 @@ class GroupCatalog:
             print("Starting fresh")
             # Start fresh using IC's centered around known good values
             if self.sampler.ndim == 10:
-                # TODO improve the starting random walker locations
                 initial = GOOD_TEN_PARAMETERS[3]
             elif self.sampler.ndim == 14:
                 initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
@@ -374,7 +373,6 @@ class GroupCatalog:
     def lnprob(self, theta):
         lp = self.lnprior(theta)
 
-        # TODO also return lhmr, lsat as blob metadata
         # Want to avoid a postprocess() call in MCMC loop, so things are calculated in C GF and sent via a pipe to us.
         like = self.lnlike(theta)
         return lp + like[0], like[1]
@@ -768,14 +766,6 @@ class GroupCatalog:
                 return False
             
             self.proc = None
-        #if popmock:
-        #    # TODO switch these to use pipe instead of file
-        #    hodout = f'{self.output_folder}hod.out'
-        #    hodfitout = f'{self.output_folder}hod_fit.out'
-        #    if os.path.exists(hodout):
-        #        self.hod = np.loadtxt(hodout, skiprows=4, dtype='float', delimiter=' ')
-        #    if os.path.exists(hodfitout):
-        #        self.hodfit = np.loadtxt(hodfitout, skiprows=4, dtype='float', delimiter=' ')
 
         t2 = time.time()
         print(f"run_group_finder() took {t2-t1:.1f} seconds.")
@@ -837,11 +827,6 @@ class GroupCatalog:
             self.f_sat_sf = self.all_data.loc[~self.all_data['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
             self.f_sat_q = self.all_data.loc[self.all_data['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
             self.Lgal_counts = self.all_data.groupby('LGAL_BIN', observed=False).RA.count()
-
-            # TODO this is incomplete; just counting galaxies right now
-            #self.f_sat_cic = cic_binning(self.all_data['L_GAL'].to_numpy(), [self.L_gal_bins])
-            #self.f_sat_sf_cic = cic_binning(self.all_data.loc[~self.all_data['QUIESCENT'], 'L_GAL'].to_numpy(), [self.L_gal_bins])
-            #self.f_sat_q_cic = cic_binning(self.all_data.loc[self.all_data['QUIESCENT'], 'L_GAL'].to_numpy(), [self.L_gal_bins])
 
             # Setup some convenience subsets of the DataFrame
             self.centrals = self.all_data.loc[self.all_data.index == self.all_data['IGRP']]
@@ -1099,21 +1084,6 @@ class SDSSGroupCatalog(GroupCatalog):
         self.mag_cut = 17.7
         self.GF_props = gfprops
         self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
-
-        # TODO BUG right volumes?
-        #Volume of bin 0 is 344276.781250
-        #Volume of bin 1 is 1321019.625000
-        #Volume of bin 2 is 4954508.500000
-        #Volume of bin 3 is 18012528.000000
-        #Volume of bin 4 is 62865016.000000
-
-        # Copied from Jeremy's groupfind_mcmc.py
-        #volume = [ 3.181e+05, 1.209e+06, 4.486e+06, 1.609e+07, 5.517e+07 ] # if including -17
-        #volume = [ 1.209e+06, 4.486e+06, 1.609e+07, 5.517e+07 ] #if starting at -18
-        #volume = [  1.721e+06, 6.385e+06, 2.291e+07, 7.852e+07 ] # actual SDSS
-
-        #self.x_volume = np.array([1321019, 4954508, 18012528, 62865016]) 
-        #vfac = (self.x_volume/250.0**3)**.5 # factor by which to multiply errors
 
     def postprocess(self):
         origprops = pd.read_csv(self.preprocess_file, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
