@@ -352,19 +352,25 @@ def LHMR_scatter_savederr(f: GroupCatalog):
   
 
 def fsat_with_err_from_saved(gc: GroupCatalog):
-    fsat_std, fsatr_std, fsatb_std, fsat_mean, fsatr_mean, fsatb_mean = fsat_variance_from_saved()
+    fsat_err, fsatr_err, fsatb_err, fsat_mean, fsatr_mean, fsatb_mean = fsat_variance_from_saved()
     
-    # TODO
+    print(len(LogLgal_bins), len(gc.fsatr), len(fsatr_err))
+
+    print(fsatr_err)
+
     plt.figure()
-    plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
-    plt.errorbar(L_gal_bins, fsatr_mean, yerr=fsatr_std, fmt='.', color='r', label='Quiescent', capsize=3, alpha=0.7)
-    plt.errorbar(L_gal_bins, fsatb_mean, yerr=fsatb_std, fmt='.', color='b', label='Star-forming', capsize=3, alpha=0.7)
-    plt.xlabel('$L_{\mathrm{gal}}$')
-    plt.ylabel(r'$\langle f_{\mathrm{sat}} \rangle$')
+    #plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
+    plt.errorbar(LogLgal_bins, gc.fsatr, yerr=fsatr_err, fmt='.', color='r', label='Quiescent', capsize=3, alpha=0.7)
+    plt.errorbar(LogLgal_bins, gc.fsatb, yerr=fsatb_err, fmt='.', color='b', label='Star-forming', capsize=3, alpha=0.7)
+    plt.xlabel('$L_{\mathrm{gal}}~[L_{\odot}~/h^2]$')
+    plt.ylabel('$f_{\mathrm{sat}}$')
     plt.legend()
-    plt.xscale('log')
-    plt.xlim(1E7, 2E11)
+    plt.xlim(8,LOG_LGAL_MAX_TIGHT)
     plt.ylim(0.0, 1.0)
+    plt.twiny()
+    plt.xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
+    plt.xticks(np.arange(-23, -12, 1))
+    plt.xlabel("$M_r$ - 5log(h)")
     plt.tight_layout()
     plt.show()
 
