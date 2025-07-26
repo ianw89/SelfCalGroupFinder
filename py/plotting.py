@@ -21,6 +21,7 @@ LGAL_XMINS = [6E7, 1E8]
 
 LGAL_MIN = 1E7
 LGAL_MAX_TIGHT = 2E11
+LOG_LGAL_MAX_TIGHT = np.log10(LGAL_MAX_TIGHT)
 LGAL_MAX = 4E11
 
 MSTAR_MIN = 1E7
@@ -89,7 +90,7 @@ def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHO
 
     plt.loglog()    
     plt.ylabel("$<N_{gal}>$")    
-    plt.xlabel('$M_{halo}$')
+    plt.xlabel('$M_h$')
     plt.title(f"Halo Occupancy for \'{name}\' (L>$10^{{{np.log10(HOD_LGAL_CUT):.1f}}}$)")
     plt.legend()
     plt.xlim(MHALO_MIN, MHALO_MAX)
@@ -124,29 +125,29 @@ def single_plots(d: GroupCatalog, truth_on=False):
     means = np.log10(d.centrals[~d.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted))
     scatter = d.centrals.loc[~d.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_std_vmax_weighted)
     plt.errorbar(np.log10(d.L_gal_labels), means, yerr=scatter, label=get_dataset_display_name(d), color='blue', elinewidth=1, alpha=0.6)
-    plt.ylabel('($log_{10}(M_{halo})~[M_\\odot / h]$')
-    plt.xlabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.ylabel('(log$(M_h)~[M_\\odot / h]$')
+    plt.xlabel('log$(L_{cen})~[L_\odot / h^2]$')
     plt.title("Luminosity Halo Mass Relation (Centrals)")
     plt.ylim(10,15)
-    plt.xlim(7,np.log10(LGAL_MAX_TIGHT))
+    plt.xlim(7,LOG_LGAL_MAX_TIGHT)
     plt.grid(True)
     plt.twiny()
-    plt.xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
+    plt.xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
     plt.xticks(np.arange(-23, -13, 1))
     plt.xlabel("$M_r$ - 5log(h)")
     plt.draw()
 
     # LHMR
     plt.figure(dpi=DPI)
-    means = np.log10(d.centrals[d.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted))
+    means = d.centrals[d.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
     scatter = d.centrals.loc[d.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
     plt.errorbar(np.log10(d.labels), means, yerr=scatter, label=get_dataset_display_name(d), color='red', elinewidth=1)
-    means = np.log10(d.centrals[~d.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted))
+    means = d.centrals[~d.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
     scatter = d.centrals.loc[~d.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
     plt.errorbar(np.log10(d.labels), means, yerr=scatter, label=get_dataset_display_name(d), color='blue', elinewidth=1, alpha=0.6)
-    plt.xlabel('($log_{10}(M_{halo})~[M_\\odot / h]$')
-    plt.ylabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
-    plt.title("Luminosity Halo Mass Relation (Centrals)")
+    plt.xlabel('(log$(M_h)~[M_\\odot / h]$')
+    plt.ylabel('log$(L_{cen})~[L_\odot / h^2]$')
+    plt.title("Luminosity Halo Mass Relation (Centrals, With Scatter)")
     plt.xlim(10,15)
     plt.ylim(7,np.log10(LGAL_MAX_TIGHT))
     plt.grid(True)
@@ -195,39 +196,39 @@ def LHMR_withscatter(*catalogs):
     # LHMR
     plt.figure(dpi=DPI)
     for f in catalogs:        
-        means = np.log10(f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted))
+        means = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
         scatter = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
         plt.errorbar(np.log10(f.labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
-    plt.xlabel('($log_{10}(M_{halo})~[M_\\odot]$')
-    plt.ylabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.xlabel('(log$(M_h)~[M_\\odot /h])$')
+    plt.ylabel('log$(L_{cen})~[L_\odot / h^2]$')
     plt.title("Central Luminosity vs. Halo Mass")
     legend(catalogs)
     plt.xlim(10,15)
-    plt.ylim(7,np.log10(LGAL_MAX_TIGHT))
+    plt.ylim(7,LOG_LGAL_MAX_TIGHT)
     plt.draw()
 
     # RED LHMR
     plt.figure(dpi=DPI)
     for f in catalogs:  
-        means = np.log10(f.centrals[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted))
+        means = f.centrals[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
         scatter = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
         plt.errorbar(np.log10(f.labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
-    plt.xlabel('($log_{10}(M_{halo})~[M_\\odot]$')
-    plt.ylabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.xlabel('(log$(M_h)~[M_\\odot]$')
+    plt.ylabel('log$(L_{cen})~[L_\odot / h^2]$')
     plt.title("Red Central Luminosity vs. Halo Mass")
     legend(catalogs)
     plt.xlim(10,15)
-    plt.ylim(7,np.log10(LGAL_MAX_TIGHT))
+    plt.ylim(7,LOG_LGAL_MAX_TIGHT)
     plt.draw()
 
     # BLUE LHMR
     plt.figure(dpi=DPI)
     for f in catalogs:
-        means = np.log10(f.centrals[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted))
+        means = f.centrals[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
         scatter = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
         plt.errorbar(np.log10(f.labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
-    plt.xlabel('($log_{10}(M_{halo})~[M_\\odot]$')
-    plt.ylabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.xlabel('(log$(M_h)~[M_\\odot]$')
+    plt.ylabel('log$(L_{cen})~[L_\odot / h^2]$')
     plt.title("Blue Central Luminosity vs. Halo Mass")
     legend(catalogs)
     plt.xlim(10,15)
@@ -240,12 +241,12 @@ def LHMR_withscatter(*catalogs):
         means = np.log10(f.centrals[f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted))
         scatter = f.centrals.loc[f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_std_vmax_weighted)
         plt.errorbar(np.log10(f.L_gal_labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
-    plt.ylabel('($log_{10}(M_{halo})~[M_\\odot]$')
-    plt.xlabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.ylabel('(log$(M_h)~[M_\\odot]$')
+    plt.xlabel('log$(L_{cen})~[L_\odot / h^2]$')
     plt.title("Red Central Luminosity vs. Halo Mass")
     legend(catalogs)
     plt.ylim(10,15)
-    plt.xlim(7,np.log10(LGAL_MAX_TIGHT))
+    plt.xlim(7,LOG_LGAL_MAX_TIGHT)
     plt.draw()
 
     # BLUE LHMR Inverted
@@ -254,64 +255,105 @@ def LHMR_withscatter(*catalogs):
         means = np.log10(f.centrals[~f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted))
         scatter = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_std_vmax_weighted)
         plt.errorbar(np.log10(f.L_gal_labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
-    plt.ylabel('($log_{10}(M_{halo})~[M_\\odot]$')
-    plt.xlabel('$log_{10}(L_{cen})~[L_\odot / h^2]$')
+    plt.ylabel('(log$(M_h)~[M_\\odot]$')
+    plt.xlabel('log$(L_{cen})~[L_\odot / h^2]$')
     plt.title("Blue Central Luminosity vs. Halo Mass")
     legend(catalogs)
     plt.ylim(10,15)
-    plt.xlim(7,np.log10(LGAL_MAX_TIGHT))
+    plt.xlim(7,LOG_LGAL_MAX_TIGHT)
     plt.draw()
 
-def LHMR_plots(*catalogs):
+def LHMR_from_logs():
+    lhmr_r_mean, lhmr_r_std, lhmr_r_scatter_mean, lhmr_r_scatter_std, lhmr_b_mean, lhmr_b_std, lhmr_b_scatter_mean, lhmr_b_scatter_std, lhmr_all_mean, lhmr_all_std, lhmr_all_scatter_mean, lhmr_all_scatter_std = lhmr_variance_from_saved()
 
-    # Overall LHMR
-    plt.figure(dpi=DPI)
-    for f in catalogs:        
-        means = f.centrals.groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-        scatter = f.centrals.groupby('Mh_bin', observed=False)['L_GAL'].std()
-        plt.plot(f.labels, means, label=get_dataset_display_name(f), color=f.color)
+    plt.figure()
+    plt.errorbar(Mhalo_labels, lhmr_all_mean, yerr=lhmr_all_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
+    plt.errorbar(Mhalo_labels, lhmr_b_mean, yerr=lhmr_b_std, fmt='.', color='b', label='Star-forming', capsize=3, alpha=0.7)
+    plt.errorbar(Mhalo_labels, lhmr_r_mean, yerr=lhmr_r_std, fmt='.', color='r', label='Quiescent', capsize=3, alpha=0.7)
+    plt.xlabel('log$(M_h~[M_\\odot]$')
+    plt.ylabel(r'$\langle L_{\mathrm{cen}} \rangle$')
+    plt.title("Mean Central Luminosity vs. Halo Mass")
+    plt.legend()
     plt.xscale('log')
     plt.yscale('log')
-    plt.xlabel('$M_{halo}$')
-    plt.ylabel('$L_{cen}~[L_\odot / h^2$')
-    plt.title("Central Luminosity vs. Halo Mass")
-    legend(catalogs)
-    plt.xlim(1E10,MHALO_MAX)
-    plt.ylim(3E7,2E12)
+    plt.xlim(1E10, 1E15)
+    plt.ylim(1E7, 5E11)
+    plt.tight_layout()
+    plt.show()
+
+    plt.figure()
+    plt.errorbar(Mhalo_labels, lhmr_all_scatter_mean, yerr=lhmr_all_scatter_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
+    plt.errorbar(Mhalo_labels, lhmr_b_scatter_mean, yerr=lhmr_b_scatter_std, fmt='.', color='b', label='Star-forming', capsize=3, alpha=0.7)
+    plt.errorbar(Mhalo_labels, lhmr_r_scatter_mean, yerr=lhmr_r_scatter_std, fmt='.', color='r', label='Quiescent', capsize=3, alpha=0.7)
+    plt.xlabel('log$(M_h~[M_\\odot]$')
+    plt.ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}})}~$[dex]')
+    plt.title("Central Luminosity Scatter vs. Halo Mass")
+    plt.legend()
+    plt.xscale('log')
+    plt.xlim(1E10, 1E15)
+    plt.tight_layout()
+    plt.show()
+
+
+def LHMR_savederr(f: GroupCatalog):
+
+    means_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    means_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+
+    lhmr_r_mean, lhmr_r_err, lhmr_r_scatter_mean, lhmr_r_scatter_err, lhmr_b_mean, lhmr_b_err, lhmr_b_scatter_mean, lhmr_b_scatter_err, lhmr_all_mean, lhmr_all_err, lhmr_all_scatter_mean, lhmr_all_scatter_err = lhmr_variance_from_saved()
+
+    # This should reproduce what plt does when you say .yscale('log') with errors.
+    def safe_log_err(mean, err):
+        with np.errstate(divide='ignore', invalid='ignore'):
+            lower = np.where(10**mean - err > 0, mean - np.log10(10**mean - err), mean)
+            upper = np.log10(10**mean + err) - mean
+            return lower, upper
+
+    yerr_b_lower, yerr_b_upper = safe_log_err(means_b, lhmr_b_err)
+    yerr_r_lower, yerr_r_upper = safe_log_err(means_r, lhmr_r_err)
+
+    plt.figure()
+    #plt.errorbar(Mhalo_labels, lhmr_all_mean, yerr=lhmr_all_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
+    plt.errorbar(np.log10(Mhalo_labels), means_b, yerr=[yerr_b_lower, yerr_b_upper], fmt='.', color='b', label='SF Centrals', capsize=3, alpha=0.7)
+    plt.errorbar(np.log10(Mhalo_labels), means_r, yerr=[yerr_r_lower, yerr_r_upper], fmt='.', color='r', label='Q Centrals', capsize=3, alpha=0.7)
+    plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
+    plt.ylabel(r'log$(\langle L_{\mathrm{cen}} \rangle / [L_{\odot} /h^2])$')
+    plt.xlim(10,15)
+    plt.ylim(7,LOG_LGAL_MAX_TIGHT)
+    plt.yscale
+    plt.legend()
+    plt.twinx()
+    plt.ylim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
+    plt.yticks(np.arange(-23, -12, 1))
+    plt.ylabel("$M_r$ - 5log(h)")
+
+def LHMR_scatter_savederr(f: GroupCatalog):
+
+    scatter_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
+    scatter_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_std_vmax_weighted)
+
+    lhmr_r_mean, lhmr_r_err, lhmr_r_scatter_mean, lhmr_r_scatter_err, lhmr_b_mean, lhmr_b_err, lhmr_b_scatter_mean, lhmr_b_scatter_err, lhmr_all_mean, lhmr_all_err, lhmr_all_scatter_mean, lhmr_all_scatter_err = lhmr_variance_from_saved()
+
+    # Scatter is computed as lognormal. The error is the scatter is linear that that space.
+    plt.figure()
+    plt.errorbar(np.log10(Mhalo_labels), scatter_b, yerr=lhmr_b_scatter_err, fmt='.', color='b', label='SF Centrals', capsize=3, alpha=0.7)
+    plt.errorbar(np.log10(Mhalo_labels), scatter_r, yerr=lhmr_r_scatter_err, fmt='.', color='r', label='Q Centrals', capsize=3, alpha=0.7)
+    plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
+    plt.ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}}~/~[L_{\odot} /h^2])}$')
+    plt.legend()
+    plt.xlim(10,15)
+    plt.ylim(0.0, 0.4)
+    plt.legend()
+    plt.twinx()
+    plt.ylim(0, np.abs(log_solar_L_to_abs_mag_r(9.4) - log_solar_L_to_abs_mag_r(9)))
+    plt.ylabel(r'$\sigma_{M_r}$')
     plt.draw()
 
-    # RED LHMR Inverted
-    plt.figure(dpi=DPI)
-    for f in catalogs:
-        means = f.centrals[f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted)
-        plt.plot(f.L_gal_labels, means, label=get_dataset_display_name(f), color=f.color)
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.ylabel('$M_{halo}$')
-    plt.xlabel('$L_{cen}~[L_\odot / h^2$')
-    plt.title("Red Central Luminosity vs. Halo Mass")
-    legend(catalogs)
-    plt.ylim(1E10,MHALO_MAX)
-    plt.xlim(3E7,2E12)
-    plt.draw()
-
-    # BLUE LHMR Inverted
-    plt.figure(dpi=DPI)
-    for f in catalogs:
-        means = f.centrals[~f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted)
-        plt.plot(f.L_gal_labels, means, label=get_dataset_display_name(f), color=f.color)
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.ylabel('$M_{halo}$')
-    plt.xlabel('$L_{cen}~[L_\odot / h^2$')
-    plt.title("Blue Central Luminosity vs. Halo Mass")
-    legend(catalogs)
-    plt.ylim(1E10,MHALO_MAX)
-    plt.xlim(3E7,2E12)
-    plt.draw()
+  
 
 def fsat_with_err_from_saved(gc: GroupCatalog):
     fsat_std, fsatr_std, fsatb_std, fsat_mean, fsatr_mean, fsatb_mean = fsat_variance_from_saved()
+    
     # TODO
     plt.figure()
     plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
@@ -335,11 +377,6 @@ def plots(*catalogs, show_err=None, truth_on=False):
 
     completeness_stats(catalogs)
 
-    # TODO: I believe that Mh and Mstar don't have any h factors, but should double check.
-    # Probably depends on what was given to the group finder?
-
-    #LHMR_plots_logerr(*catalogs)
-
     """
     # SHMR
     plt.figure(dpi=DPI)
@@ -350,7 +387,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         #plt.errorbar(f.labels, mcen_means, yerr=mcen_scatter, label=get_dataset_display_name(f), color=f.color)
     plt.xscale('log')
     plt.yscale('log')
-    plt.xlabel('$M_{halo}$')
+    plt.xlabel('$M_h$')
     plt.ylabel('$M_{\\star}$')
     legend(datasets)
     plt.xlim(1E10,1E15)
@@ -367,8 +404,8 @@ def plots(*catalogs, show_err=None, truth_on=False):
         #plt.errorbar(f.labels, mcen_means/f.labels, yerr=mcen_scatter/f.labels, label=get_dataset_display_name(f), color=f.color)
     plt.xscale('log')
     plt.yscale('log')
-    plt.xlabel('$M_{halo}$')
-    plt.ylabel('$M_{\\star}/M_{halo}$')
+    plt.xlabel('$M_h$')
+    plt.ylabel('$M_{\\star}/M_h$')
     legend(datasets)
     plt.xlim(1E10,1E15)
     #plt.ylim(1E6,3E12)
@@ -975,11 +1012,9 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
             qf_gmr = f.centrals.groupby(groupby_property, observed=False).apply(qf_BGS_gmr_vmax_weighted)
             qf_dn4000 = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
             qf_dn4000model = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000MODEL_smart_eq_vmax_weighted)
-            qf_dn4000model_hard = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000MODEL_1_6_vmax_weighted)
             plt.plot(getattr(f, label_property), qf_gmr, '.', label=f'(g-r)^0.1 < {GLOBAL_RED_COLOR_CUT}', color='b')
             plt.plot(getattr(f, label_property), qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
             plt.plot(getattr(f, label_property), qf_dn4000model, '-', label='Dn4000_M Eq. 1', color='purple')
-            plt.plot(getattr(f, label_property), qf_dn4000model_hard, '-', label='Dn4000_M > 1.6', color='orange')
         else:
            plt.plot(getattr(f, label_property), data.groupby(groupby_property, observed=False).apply(qf_vmax_weighted), f.marker, label=get_dataset_display_name(f), color=f.color)
 
@@ -1203,7 +1238,7 @@ def group_finder_centrals_halo_masses_plots(all_df, comparisons):
     axes.set_xscale('log')
     axes.set_ylim(-0.2, 0.2)
     axes.set_xlim(5E10,2E15)
-    axes.set_xlabel('$M_{halo}$')
+    axes.set_xlabel('$M_h$')
     axes.set_ylabel('Change in log(M)')
     axes.axline((3E10,0), (3E15,0), linestyle='--', color='k')
     #axes.set_title("Group Finder Halo Masses of Centrals")
@@ -1212,7 +1247,7 @@ def group_finder_centrals_halo_masses_plots(all_df, comparisons):
     #axes[1].set_xscale('log')
     #axes[1].set_yscale('log')
     #axes[1].set_xlim(5E10,2E15)
-    #axes[1].set_xlabel('$M_{halo}$')
+    #axes[1].set_xlabel('$M_h$')
     #axes[1].set_ylabel('Density of Galaxies')
     #axes[1].set_title("Group Finder Halo Masses of Centrals")
 
@@ -2052,6 +2087,7 @@ def examine_groups_near(target, data: pd.DataFrame, nearby_angle: coord.Angle = 
         #plt.text(nearby.iloc[k].RA, nearby.iloc[k]['DEC'] - 0.004, "$B_s$={0:.3f}".format(nearby.iloc[k]['BSAT']), size=textsize)
         if not nearby.iloc[k]['IS_SAT']:
             plt.text(nearby.iloc[k].RA, nearby.iloc[k]['DEC'] - 0.0080, "$M_h$={0:.1f}".format(np.log10(nearby.iloc[k]['M_HALO'])), size=textsize)
+            #plt.text(nearby.iloc[k].RA, nearby.iloc[k]['DEC'], "{0:.3f}".format(nearby.iloc[k]['Z']), size=textsize)
 
     plt.xlim(ra_map_min, ra_map_max)
     plt.ylim(dec_map_min, dec_map_max)

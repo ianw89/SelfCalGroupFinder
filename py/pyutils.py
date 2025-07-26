@@ -663,21 +663,24 @@ class dn4000lookup:
         self.METRIC_GMR = 5
         if file is None or os.path.isfile(file) is False:
             raise ValueError(f"File {file} does not exist. The Dn4000 lookup table must be built first; see BGS_study.ipynb.")
-        self.tree, self.dn4000_lookup = pickle.load(open(file, 'rb'))
+        self.tree, self.dn4000_values, self.logmstar_values = pickle.load(open(file, 'rb'))
 
     def query(self, abs_mag_array, gmr_array, k=50):
         query_points = np.vstack((abs_mag_array * self.METRIC_MAG, gmr_array * self.METRIC_GMR)).T  # Scale the query points
         distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points
-        print(np.shape(distances), np.shape(indices))
+        #print(np.shape(distances), np.shape(indices))
 
         # Pick random neighbors for each query point, weighted by distance
-        values = []
+        dn4000_toreturn = []
+        logmstar_toreturn = []
         for i in range(len(query_points)):
-            p = (1 / distances[i]) / np.sum(1 / distances[i])
-            values.append(np.random.choice(self.dn4000_lookup[indices[i]], p=p, size=1)[0])
-        
-        return np.array(values)
-    
+            wt = (1 / distances[i]) / np.sum(1 / distances[i])
+            idx = np.random.choice(indices[i], p=wt, size=1)[0]
+            dn4000_toreturn.append(self.dn4000_values[idx])
+            logmstar_toreturn.append(self.logmstar_values[idx])
+
+        return np.array(dn4000_toreturn), np.array(logmstar_toreturn)
+
 
 
 ###############################################
