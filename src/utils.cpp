@@ -111,10 +111,10 @@ float compute_p_proj(float mass, float dr, float rad, float ang_rad)
  * dz is the redshift difference between the galaxy and the group center times the speed of light
  * sigmav is the velocity dispersion of the group
  */
-float compute_p_z(float dz, float sigmav)
+float compute_p_z(float cdz, float sigmav)
 {
   // presumably sigmav is comoving otherwise need (1+z_group) factor next to each one
-  return exp(-dz * dz / (2 * sigmav * sigmav)) * SPEED_OF_LIGHT / (RT2PI * sigmav);
+  return exp(-cdz * cdz / (2 * sigmav * sigmav)) * SPEED_OF_LIGHT / (RT2PI * sigmav);
 }
 
 int search(int n, float *x, float val)

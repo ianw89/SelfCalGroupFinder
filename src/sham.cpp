@@ -130,41 +130,6 @@ float density2host_halo_zbins3(float z, float vmax)
 #undef NZBIN
 }
 
-float func_match_nhost_old(float mass, float galdensity)
-{
-  static int flag = 1, n = 100;
-  static float *mh, *ms, *mx, *nh, mlo, mhi, dlogm, mmax;
-  int i;
-  float a, maglo, maghi, dmag, m, n1, n2;
-
-  // First time setup, will read in a halo mass function file
-  if (flag)
-  {
-    flag = 0;
-    mh = vector(1, n);
-    nh = vector(1, n);
-    mx = vector(1, n);
-
-    mlo = HALO_MIN;
-    mhi = HALO_MAX;
-    dlogm = log(mhi / mlo) / n;
-
-    for (i = 1; i <= n; ++i)
-    {
-      mh[i] = exp((i - 0.5) * dlogm) * mlo;
-      n1 = qromo(halo_abundance2_old, log(mh[i]), log(HALO_MAX), midpnt);
-      nh[i] = log(n1);
-      mh[i] = log(mh[i]);
-    }
-    spline(mh, nh, n, 1.0E+30, 1.0E+30, mx);
-  }
-
-  // Interpolate the halo mass function
-  splint(mh, nh, mx, n, mass, &a);
-  return exp(a) - galdensity;
-}
-
-
 float func_match_nhost(float mass, float galdensity)
 {
     static int flag = 1, n = 100;
@@ -203,53 +168,12 @@ float func_match_nhost(float mass, float galdensity)
     a = gsl_spline_eval_extrap(spline, mh, nh, n, mass, acc);
     return exp(a) - galdensity;
 }
-    
-
-float halo_abundance2_old(float m)
-{
-  m = exp(m);
-  return halo_abundance_old(m) * m;
-}
-
 
 float halo_abundance2(float m)
 {
   m = exp(m);
   return halo_abundance(m) * m;
 }
-
-float halo_abundance_old(float m)
-{
-  int i;
-  FILE *fp;
-  float a;
-  static int n = 0;
-  static float *x, *y, *z;
-  char aa[1000];
-
-  if (!n)
-  {
-    fp = openfile(HALO_MASS_FUNC_FILE);
-    // fp = openfile("wmap1.massfunc");
-    // fp = openfile("s8_0.7.massfunc");
-    n = filesize(fp);
-    x = vector(1, n);
-    y = vector(1, n);
-    z = vector(1, n);
-    for (i = 1; i <= n; ++i)
-    {
-      fscanf(fp, "%f %f", &x[i], &y[i]);
-      x[i] = log(x[i]);
-      y[i] = log(y[i]);
-      fgets(aa, 1000, fp);
-    }
-    spline(x, y, n, 1.0E+30, 1.0E+30, z);
-    fclose(fp);
-  }
-  splint(x, y, z, n, log(m), &a);
-  return exp(a);
-}
-
 
 float halo_abundance(float m)
 {

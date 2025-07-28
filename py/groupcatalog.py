@@ -47,13 +47,13 @@ TYPE_DOUBLE = 1
 NO_TRUTH_Z = -99.99
 
 # Shared bins for various purposes
-Mhalo_bins = np.logspace(9, 15.4, 155-90)
+Mhalo_bins = np.logspace(9, 15.5, 156-90)
 Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1] 
 
 Lgal_bins_for_lsat = np.linspace(8.8, 10.7, 20)
 
-mstar_bins = np.logspace(6, 13, 30)
-mstar_labels = mstar_bins[0:len(mstar_bins)-1]
+logmstar_bins = np.linspace(6, 13, 30)
+logmstar_labels = logmstar_bins[0:len(logmstar_bins)-1]
 
 Mr_gal_bins = log_solar_L_to_abs_mag_r(np.log10(L_gal_bins))
 Mr_gal_labels = log_solar_L_to_abs_mag_r(np.log10(L_gal_labels))
@@ -333,7 +333,6 @@ class GroupCatalog:
             print("Starting fresh")
             # Start fresh using IC's centered around known good values
             if self.sampler.ndim == 10:
-                # TODO improve the starting random walker locations
                 initial = GOOD_TEN_PARAMETERS[3]
             elif self.sampler.ndim == 14:
                 initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
@@ -374,7 +373,6 @@ class GroupCatalog:
     def lnprob(self, theta):
         lp = self.lnprior(theta)
 
-        # TODO also return lhmr, lsat as blob metadata
         # Want to avoid a postprocess() call in MCMC loop, so things are calculated in C GF and sent via a pipe to us.
         like = self.lnlike(theta)
         return lp + like[0], like[1]
@@ -526,7 +524,7 @@ class GroupCatalog:
             'G_R',
             'IS_SAT', 
             'QUIESCENT', 
-            'MSTAR' 
+            'LOGMSTAR' 
         ]
         for c in columns_to_write.copy():
             if c not in self.all_data.columns:
@@ -548,7 +546,7 @@ class GroupCatalog:
                 'VMAX': u.Mpc**3,
                 'M_HALO': u.solMass,
                 'L_TOT': u.solLum,
-                'MSTAR': u.solMass
+                'LOGMSTAR': u.solMass
             } # Others are dimensionless
             )
         
@@ -768,14 +766,6 @@ class GroupCatalog:
                 return False
             
             self.proc = None
-        #if popmock:
-        #    # TODO switch these to use pipe instead of file
-        #    hodout = f'{self.output_folder}hod.out'
-        #    hodfitout = f'{self.output_folder}hod_fit.out'
-        #    if os.path.exists(hodout):
-        #        self.hod = np.loadtxt(hodout, skiprows=4, dtype='float', delimiter=' ')
-        #    if os.path.exists(hodfitout):
-        #        self.hodfit = np.loadtxt(hodfitout, skiprows=4, dtype='float', delimiter=' ')
 
         t2 = time.time()
         print(f"run_group_finder() took {t2-t1:.1f} seconds.")
@@ -837,11 +827,6 @@ class GroupCatalog:
             self.f_sat_sf = self.all_data.loc[~self.all_data['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
             self.f_sat_q = self.all_data.loc[self.all_data['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
             self.Lgal_counts = self.all_data.groupby('LGAL_BIN', observed=False).RA.count()
-
-            # TODO this is incomplete; just counting galaxies right now
-            #self.f_sat_cic = cic_binning(self.all_data['L_GAL'].to_numpy(), [self.L_gal_bins])
-            #self.f_sat_sf_cic = cic_binning(self.all_data.loc[~self.all_data['QUIESCENT'], 'L_GAL'].to_numpy(), [self.L_gal_bins])
-            #self.f_sat_q_cic = cic_binning(self.all_data.loc[self.all_data['QUIESCENT'], 'L_GAL'].to_numpy(), [self.L_gal_bins])
 
             # Setup some convenience subsets of the DataFrame
             self.centrals = self.all_data.loc[self.all_data.index == self.all_data['IGRP']]
@@ -1100,30 +1085,13 @@ class SDSSGroupCatalog(GroupCatalog):
         self.GF_props = gfprops
         self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
 
-        # TODO BUG right volumes?
-        #Volume of bin 0 is 344276.781250
-        #Volume of bin 1 is 1321019.625000
-        #Volume of bin 2 is 4954508.500000
-        #Volume of bin 3 is 18012528.000000
-        #Volume of bin 4 is 62865016.000000
-
-        # Copied from Jeremy's groupfind_mcmc.py
-        #volume = [ 3.181e+05, 1.209e+06, 4.486e+06, 1.609e+07, 5.517e+07 ] # if including -17
-        #volume = [ 1.209e+06, 4.486e+06, 1.609e+07, 5.517e+07 ] #if starting at -18
-        #volume = [  1.721e+06, 6.385e+06, 2.291e+07, 7.852e+07 ] # actual SDSS
-
-        #self.x_volume = np.array([1321019, 4954508, 18012528, 62865016]) 
-        #vfac = (self.x_volume/250.0**3)**.5 # factor by which to multiply errors
-
     def postprocess(self):
         origprops = pd.read_csv(self.preprocess_file, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
-        galprops = pd.read_csv(self.galprops_file, delimiter=' ', names=('MAG_G', 'MAG_R', 'SIGMA_V', 'DN4000', 'CONCENTRATION', 'LOG_M_STAR', 'Z_ASSIGNED_FLAG'))
-        galprops['G_R'] = galprops['MAG_G'] - galprops['MAG_R'] 
-        galprops.rename(columns={'MAG_R': 'APP_MAG_R'}, inplace=True)
+        galprops = pd.read_csv(self.galprops_file, delimiter=' ', names=('MAG_G', 'app_mag_r', 'SIGMA_V', 'DN4000', 'CONCENTRATION', 'LOGMSTAR', 'Z_ASSIGNED_FLAG'))
+        galprops['G_R'] = galprops['MAG_G'] - galprops['app_mag_r'] 
         galprops['QUIESCENT'] = origprops['QUIESCENT'].astype(bool)
         self.all_data = read_and_combine_gf_output(self, galprops)
-        self.all_data['MSTAR'] = np.power(10, self.all_data.LOG_M_STAR)
-        self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['MSTAR'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
+        self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['LOGMSTAR'], bins = logmstar_bins, labels = logmstar_labels, include_lowest = True)
         super().postprocess()
 
 class SDSSPublishedGroupCatalog(GroupCatalog):
@@ -1160,11 +1128,10 @@ class SDSSPublishedGroupCatalog(GroupCatalog):
         origprops = pd.read_csv(SDSS_v1_DAT_FILE, delimiter=' ', names=
                                 ('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
         galprops = pd.read_csv(SDSS_v1_1_GALPROPS_FILE, delimiter=' ', names=
-                               ('MAG_G', 'MAG_R', 'SIGMA_V', 'DN4000', 'CONCENTRATION', 'LOG_M_STAR', 'Z_ASSIGNED_FLAG'))
-        galprops['G_R'] = galprops['MAG_G'] - galprops['MAG_R'] 
+                               ('MAG_G', 'app_mag_r', 'SIGMA_V', 'DN4000', 'CONCENTRATION', 'LOGMSTAR', 'Z_ASSIGNED_FLAG'))
+        galprops['G_R'] = galprops['MAG_G'] - galprops['app_mag_r'] 
         galprops['QUIESCENT'] = origprops['QUIESCENT'].astype(bool)
-        galprops.rename(columns={'MAG_R': "app_mag"}, inplace=True)
-        
+
         main_df = pd.read_csv(self.GF_outfile, delimiter=' ', names=
                               ('RA', 'DEC', 'Z', 'L_GAL', 'VMAX', 'P_SAT', 'M_HALO', 'N_SAT', 'L_TOT', 'IGRP', 'WEIGHT'))
         
@@ -1179,8 +1146,7 @@ class SDSSPublishedGroupCatalog(GroupCatalog):
         df['LGAL_BIN'] = pd.cut(x = df['L_GAL'], bins = self.L_gal_bins, labels = self.L_gal_labels, include_lowest = True)
 
         self.all_data = df
-        self.all_data['MSTAR'] = np.power(10, self.all_data.LOG_M_STAR)
-        self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['MSTAR'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
+        self.all_data['Mstar_bin'] = pd.cut(x = self.all_data['LOGMSTAR'], bins = logmstar_bins, labels = logmstar_labels, include_lowest = True)
         super().postprocess()
 
 class TestGroupCatalog(GroupCatalog):
@@ -1330,8 +1296,6 @@ class UchuuGroupCatalog(GroupCatalog):
 
 class BGSGroupCatalog(GroupCatalog):
     
-    extra_prop_df: pd.DataFrame = None
-
     def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, ffc:bool=True, drop_passes: int = 0, data_cut: str = "Y1-Iron", gfprops=None, extra_params = None, caldata_ctor=None):
         super().__init__(name)
         self.mode = mode
@@ -1475,18 +1439,8 @@ class BGSGroupCatalog(GroupCatalog):
         bad = df.loc[np.isnan(df.L_GAL)]
         if len(bad) > 0:
             print(f"Warning: {len(bad)} galaxies have nan L_GAL.")
-
-        # Get extra fastspecfit columns. Could have threaded these through with galprops
-        # But if they aren't used in group finding or preprocessing this is easier to update
-        if BGSGroupCatalog.extra_prop_df is None:
-            print("Getting fastspecfit data...", end='\r')
-            BGSGroupCatalog.extra_prop_df = get_extra_bgs_fastspectfit_data()
-            print("Getting fastspecfit data... done")
         
-        prior_len = len(df)
-        df = pd.merge(df, BGSGroupCatalog.extra_prop_df, on='TARGETID', how='left')
-        assert prior_len == len(df)
-        df['Mstar_bin'] = pd.cut(x = df['MSTAR'], bins = mstar_bins, labels = mstar_labels, include_lowest = True)
+        df['Mstar_bin'] = pd.cut(x = df['LOGMSTAR'], bins = logmstar_bins, labels = logmstar_labels, include_lowest = True)
 
         self.all_data = df
 
@@ -1726,28 +1680,9 @@ class BGSGroupCatalog(GroupCatalog):
         t2 = time.time()
         print(f"Jackknife error of wp complete in {t2-t1:.2} seconds.")
 
-
     def refresh_df_views(self):
         super().refresh_df_views()
         self.add_bootstrapped_f_sat()
-
-
-def get_extra_bgs_fastspectfit_data():
-    fname = OUTPUT_FOLDER + 'bgs_mstar.pkl'
-    if os.path.isfile(fname):
-        return pickle.load(open(fname, 'rb'))
-    else:
-        hdul = fits.open(BGS_Y1_FASTSPEC_FILE, memmap=True)
-        data = hdul[1].data
-        fastspecfit_id = data['TARGETID']
-        log_mstar = data['LOGMSTAR'].astype("<f8")
-        mstar = np.power(10, log_mstar)
-        #Dn4000 = data['DN4000'].astype("<f8")
-        hdul.close()
-
-        df = pd.DataFrame({'TARGETID': fastspecfit_id, 'MSTAR': mstar})
-        pickle.dump(df, open(fname, 'wb'))
-        return df
 
 
 def filter_SV3_to_avoid_edges(gc: GroupCatalog, INNER_RADIUS = 1.3):
@@ -1857,7 +1792,7 @@ def add_halo_columns(catalog: GroupCatalog):
     # Luminosity distance to z_obs
     #df.loc[:, 'ldist_true'] = z_to_ldist(df.z_obs.to_numpy())
 
-def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent):
+def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent, logmstar):
     """
     Updates the properties for the given indices in the arrays. This is used for lost galaxies when we assigned
     redshifts to them.
@@ -1887,7 +1822,9 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     lookup = dn4000lookup()
     assert np.isnan(abs_mag_R_k[idx]).any() == False, f"abs_mag_R_k[idx] has NaN values at {np.where(np.isnan(abs_mag_R_k[idx]))}"
     assert np.isnan(G_R_k[idx]).any() == False, f"G_R_k[idx] has NaN values at {np.where(np.isnan(G_R_k[idx]))}"
-    np.put(dn4000_model, idx, lookup.query(abs_mag_R_k[idx], G_R_k[idx]))
+    dn4000_values, logmstar_values = lookup.query(abs_mag_R_k[idx], G_R_k[idx])
+    np.put(dn4000_model, idx, dn4000_values)
+    np.put(logmstar, idx, logmstar_values)
     np.put(quiescent, idx, is_quiescent_BGS_dn4000(log_L_gal[idx], dn4000_model[idx], G_R_k[idx]))
 
 def get_footprint_fraction(data_cut, mode, num_passes_required):
@@ -2041,6 +1978,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     gmr_best = get_tbl_column(table, 'G_R_BEST', required=True) # absolute G-R using fastspecfit k-corr when possible or polynomial for unobserved
     log_L_gal = get_tbl_column(table, 'LOG_L_GAL', required=True)
     quiescent = get_tbl_column(table, 'QUIESCENT', required=True)
+    logmstar = get_tbl_column(table, 'LOGMSTAR', required=True)
     p_obs = get_tbl_column(table, 'PROB_OBS')
     z_sv3 = get_tbl_column(table, 'Z_SV3')
     if p_obs is None:
@@ -2241,6 +2179,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     z_phot = z_phot[keep]
     unobserved = unobserved[keep]
     no_truth_z = no_truth_z[keep]
+    logmstar = logmstar[keep]
 
     observed = np.invert(unobserved)
     idx_unobserved = np.flatnonzero(unobserved)
@@ -2258,37 +2197,32 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     ############################################################################
     if unobserved.sum() > 0 and sdss_fill:
         sdss_vanilla = deserialize(SDSSGroupCatalog("SDSS Vanilla v2", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE, {'frac_area': 0.179}))
+        if 'LOGMSTAR' not in sdss_vanilla.all_data.columns:
+            sdss_vanilla.all_data['LOGMSTAR'] = np.log10(sdss_vanilla.all_data['MSTAR'])
         if sdss_vanilla.all_data is not None:
             sdss_has_specz = z_flag_is_spectro_z(sdss_vanilla.all_data.Z_ASSIGNED_FLAG)
-            observed_sdss = sdss_vanilla.all_data.loc[sdss_has_specz]
+            observed_sdss = sdss_vanilla.all_data.loc[sdss_has_specz].reset_index(drop=True)
 
-            sdss_catalog = coord.SkyCoord(ra=observed_sdss.RA.to_numpy()*u.degree, dec=observed_sdss['DEC'].to_numpy()*u.degree, frame='icrs')
+            sdss_catalog = coord.SkyCoord(ra=observed_sdss['RA'].to_numpy()*u.degree, dec=observed_sdss['DEC'].to_numpy()*u.degree, frame='icrs')
             to_match = coord.SkyCoord(ra=ra[idx_unobserved]*u.degree, dec=dec[idx_unobserved]*u.degree, frame='icrs')
             print(f"Matching {len(to_match):,} lost galaxies to {len(sdss_catalog):,} SDSS galaxies")
             idx, d2d, d3d = coord.match_coordinates_sky(to_match, sdss_catalog, nthneighbor=1, storekdtree=False)
             ang_dist = d2d.to(u.arcsec).value
-            sdss_z = sdss_vanilla.all_data.iloc[idx]['Z'].to_numpy()
+            sdss_z = observed_sdss.iloc[idx]['Z'].to_numpy() # z from closest SDSS galaxy match
 
             # if angular distance is < 1", then we consider it a match to SDSS catalog and copy over it's z
             ANGULAR_DISTANCE_MATCH = 1.0
             matched = ang_dist < ANGULAR_DISTANCE_MATCH
+            idx_from_sloan = idx_unobserved[matched]
 
-            print(f"{matched.sum():,} of {first_need_redshift_count:,} lost galaxies matched to {len(sdss_catalog):,} SDSS galaxies)")
-
-            # If sloan z is very different from z_phot, we should probably not use it
-            # This is a bit of a hack to avoid using the SDSS z for galaxies that are likely to be wrong
-            # TODO but what if it's just a really bad photo-z? Spot check some of these...
-            matched = np.logical_and(matched, np.abs(z_phot[idx_unobserved] - sdss_z) < 0.1)
-            print(f"{matched.sum():,} are reasonable matches given the photo-z.")
-            
             z_eff[idx_unobserved] = np.where(matched, sdss_z, np.nan) # Set to SDSS redshift of nan if not matched
             z_assigned_flag[idx_unobserved] = np.where(matched, AssignedRedshiftFlag.SDSS_SPEC.value, -4) 
             
             # Take Dn4000 and QUIESCENT from SDSS, keep the magnitude related things as DESI calculations
-            idx_from_sloan = idx_unobserved[matched]
-            update_properties_for_indices(idx_from_sloan, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent)
-            np.put(dn4000_model, idx_from_sloan, observed_sdss.iloc[idx]['DN4000'].to_numpy())
-            np.put(quiescent, idx_from_sloan, observed_sdss.iloc[idx]['QUIESCENT'].to_numpy())
+            update_properties_for_indices(idx_from_sloan, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent, logmstar)
+            np.put(dn4000_model, idx_from_sloan, observed_sdss.iloc[idx][matched]['DN4000'].to_numpy())
+            np.put(quiescent, idx_from_sloan, observed_sdss.iloc[idx][matched]['QUIESCENT'].to_numpy())
+            np.put(logmstar, idx_from_sloan, observed_sdss.iloc[idx][matched]['LOGMSTAR'].to_numpy())
             unobserved[idx_unobserved] = np.where(matched, False, unobserved[idx_unobserved])
             observed = np.invert(unobserved)
             idx_unobserved = np.flatnonzero(unobserved)
@@ -2393,12 +2327,11 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     
     assert np.isnan(z_eff).sum() == 0
 
-
     print(f"Neighbor usage %: {z_flag_is_neighbor(z_assigned_flag).sum() / z_flag_is_not_spectro_z(z_assigned_flag).sum() * 100:.2f}")
 
     # Now that we have redshifts for lost galaxies, we can calculate the rest of the properties
     if len(idx_unobserved) > 0:
-        update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent)
+        update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent, logmstar)
 
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
 
@@ -2444,6 +2377,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         'Z_PHOT': z_phot[final_selection].astype("<f8"),
         'Z_OBS': z_obs[final_selection].astype("<f8"),
         'QUIESCENT': quiescent[final_selection].astype("bool"), 
+        'LOGMSTAR': logmstar[final_selection].astype("<f8"),
     })
     galprops.to_pickle(outname_base + "_galprops.pkl")  
     t2 = time.time()
@@ -2585,49 +2519,49 @@ def read_and_combine_gf_output(gc: GroupCatalog, galprops_df):
 
 def count_vmax_weighted(series):
     if len(series) == 0:
-        return 0
+        return np.nan
     else:
         return len(series) / np.average(series['VMAX'])
 
 def fsat_truth_vmax_weighted(series):
     if len(series) == 0:
-        return 0
+        return np.nan
     else:
         return np.average(series['IS_SAT_T'], weights=1/series['VMAX'])
     
 def fsat_vmax_weighted(series):
     if len(series) == 0:
-        return 0
+        return np.nan
     else:
         return np.average(series['IS_SAT'], weights=1/series['VMAX'])
 
 def Mhalo_vmax_weighted(series):
     if len(series) == 0:
-        return 0
+        return np.nan
     else:
         return np.average(series['M_HALO'], weights=1/series['VMAX'])
     
 def Mhalo_std_vmax_weighted(series):
     if len(series) == 0:
-        return 0
+        return np.nan
     else:
         totweight = np.sum(1/series['VMAX'])
         mu = np.log10(Mhalo_vmax_weighted(series))
         values = np.log10(series['M_HALO'])
         return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
 
-def Lgal_vmax_weighted(series):
-    if len(series) == 0:
-        return 0
+def LogLgal_vmax_weighted(series):
+    if len(series) <= 4:
+        return np.nan
     else:
-        return np.average(series['L_GAL'], weights=1/series['VMAX'])
+        return np.log10(np.average(series['L_GAL'], weights=1/series['VMAX']))
 
 def LogLgal_std_vmax_weighted(series):
-    if len(series) == 0:
-        return 0
+    if len(series) <= 4:
+        return np.nan
     else:
         totweight = np.sum(1/series['VMAX'])
-        mu = np.log10(Lgal_vmax_weighted(series))
+        mu = LogLgal_vmax_weighted(series)
         values = np.log10(series['L_GAL'])
         return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
 
@@ -2649,52 +2583,45 @@ def z_flag_is_not_spectro_z(arr):
 def mstar_vmax_weighted(series):
     if len(series) == 0:
         return 0
-    else:
-        if 'Z_ASSIGNED_FLAG' in series.columns:
-            should_mask = np.logical_or(series.Z_ASSIGNED_FLAG != 0, np.isnan(series['MSTAR']))
-        else:
-            should_mask = np.isnan(series['MSTAR'])
-        masked_mstar = np.ma.masked_array(series['MSTAR'], should_mask)
-        masked_vmax = np.ma.masked_array(series['VMAX'], should_mask)
-        return np.average(masked_mstar, weights=1/masked_vmax)
+    return np.log10(np.average(np.power(10, series['LOGMSTAR']), weights=1/series['VMAX']))
 
 # TODO not sure right way to do std error for this sort of data
 def mstar_std_vmax_weighted(series):
     if len(series) == 0:
-        return 0
+        return np.nan
     else:
-        should_mask = np.logical_or(series.Z_ASSIGNED_FLAG != 0, np.isnan(series['MSTAR']))
-        masked_mstar = np.ma.masked_array(series['MSTAR'], should_mask)
+        should_mask = np.logical_or(series.Z_ASSIGNED_FLAG != 0, np.isnan(series['LOGMSTAR']))
+        masked_mstar = np.ma.masked_array(series['LOGMSTAR'], should_mask)
         masked_vmax = np.ma.masked_array(series['VMAX'], should_mask)
         return np.sqrt(np.average((masked_mstar - mstar_vmax_weighted(series))**2, weights=1/masked_vmax))
 
 def qf_vmax_weighted(series):
     if len(series) == 0:
-        return 0
+        return np.nan
     else:
         return np.average(series['QUIESCENT'], weights=1/series['VMAX'])
 
 def qf_Dn4000MODEL_smart_eq_vmax_weighted(series):
     if len(series) == 0:
-        return 0
+        return np.nan
     else:
         return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
 
 def qf_Dn4000_smart_eq_vmax_weighted(series):
     if len(series) == 0:
-        return 0
+        return np.nan
     else:
         return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000'], series.G_R), weights=1/series['VMAX'])
 
 def qf_BGS_gmr_vmax_weighted(series):
     if len(series) == 0:
-        return 0
+        return np.nan
     else:
         return np.average(is_quiescent_BGS_gmr(series['LOGLGAL'], series.G_R), weights=1/series['VMAX'])
     
 def nsat_vmax_weighted(series):
     if len(series) == 0:
-        return 0
+        return np.nan
     else:
         print(series['N_SAT'])
         return np.average(series['N_SAT'], weights=1/series['VMAX'])

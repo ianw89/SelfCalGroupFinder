@@ -82,7 +82,7 @@ int SECOND_PARAMETER = 0; // default is no extra per-galaxy parameters
 int SILENT = 0; // TODO make this work
 int VERBOSE = 0; // TODO make this work
 int POPULATE_MOCK = 0; // default is do not populate mock
-int MAX_ITER = 5; // default is to go until fsat 0.002 convergence; can provide a number in parametrs instead
+int MAX_ITER = 5; // default is to go until fsat 0.001 convergence; can provide a number in parametrs instead
 int ALLOW_EARLY_EXIT = 0; // default is to not allow early exit, but this is used in MCMC to speedups
 FILE *MSG_PIPE = NULL; // default is no message pipe
 
@@ -225,7 +225,7 @@ void groupfind()
     else
     {
       galden += 1 / GAL[i].vmax;
-      GAL[i].mass = density2host_halo(galden); // TODO is this right? we haven't counted galden fully yet?
+      GAL[i].mass = density2host_halo(galden);
     }
     // Set other properties derived from that
     update_galaxy_halo_props(&GAL[i]);
@@ -486,7 +486,7 @@ void recalc_galprops() {
 void find_satellites(int icen, GalaxyKDTree *tree)
 {
   int j, k;
-  float dx, dy, dz, theta, prob_ang, vol_corr, prob_rad, grp_lum, p0;
+  float dx, dy, theta, prob_ang, vol_corr, prob_rad, grp_lum, p0;
   float bprob;
   std::vector<nanoflann::ResultItem<unsigned int, float>> ret_matches;
   nanoflann::SearchParameters params = nanoflann::SearchParameters();
@@ -544,8 +544,8 @@ void find_satellites(int icen, GalaxyKDTree *tree)
 
     // Now determine the probability of being a satellite
     //(both projected onto the sky, and along the line of sight).
-    dz = fabs(GAL[icen].redshift - GAL[j].redshift) * SPEED_OF_LIGHT;
-    p0 = psat(&GAL[icen], theta, dz, GAL[j].bprob);
+    float cdz = fabs(GAL[icen].redshift - GAL[j].redshift) * SPEED_OF_LIGHT;
+    p0 = psat(&GAL[icen], theta, cdz, GAL[j].bprob);
 
     // Keep track of the highest psat so far
     if (p0 > GAL[j].psat)

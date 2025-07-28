@@ -84,6 +84,8 @@ QUIESCENT_BINS = np.array([0.0, 1.0])
 
 L_gal_bins = np.logspace(6, 12.5, 40)
 L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1]
+LogLgal_bins = np.log10(L_gal_bins)
+LogLgal_labels = LogLgal_bins[0:len(LogLgal_bins)-1]
 
 ################################
 
@@ -182,7 +184,6 @@ def mode_to_str(mode: Mode):
     
 
 class AssignedRedshiftFlag(Enum):
-    # TODO switch to using this enum
     PHOTO_Z = -3 # photo-z from legacy catalog; see paper
     PSEUDO_RANDOM = -2 # pseudo-randomly assigned redshift using our methods; see paper
     SDSS_SPEC = -1 # spectroscopic redshfit taken from SDSS
@@ -664,21 +665,24 @@ class dn4000lookup:
         self.METRIC_GMR = 5
         if file is None or os.path.isfile(file) is False:
             raise ValueError(f"File {file} does not exist. The Dn4000 lookup table must be built first; see BGS_study.ipynb.")
-        self.tree, self.dn4000_lookup = pickle.load(open(file, 'rb'))
+        self.tree, self.dn4000_values, self.logmstar_values = pickle.load(open(file, 'rb'))
 
     def query(self, abs_mag_array, gmr_array, k=50):
         query_points = np.vstack((abs_mag_array * self.METRIC_MAG, gmr_array * self.METRIC_GMR)).T  # Scale the query points
         distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points
-        print(np.shape(distances), np.shape(indices))
+        #print(np.shape(distances), np.shape(indices))
 
         # Pick random neighbors for each query point, weighted by distance
-        values = []
+        dn4000_toreturn = []
+        logmstar_toreturn = []
         for i in range(len(query_points)):
-            p = (1 / distances[i]) / np.sum(1 / distances[i])
-            values.append(np.random.choice(self.dn4000_lookup[indices[i]], p=p, size=1)[0])
-        
-        return np.array(values)
-    
+            wt = (1 / distances[i]) / np.sum(1 / distances[i])
+            idx = np.random.choice(indices[i], p=wt, size=1)[0]
+            dn4000_toreturn.append(self.dn4000_values[idx])
+            logmstar_toreturn.append(self.logmstar_values[idx])
+
+        return np.array(dn4000_toreturn), np.array(logmstar_toreturn)
+
 
 
 ###############################################
@@ -1000,11 +1004,11 @@ def is_quiescent_BGS_dn4000(logLgal, Dn4000, gmr):
     Dcrit = get_Dn4000_crit(logLgal)
     missing = np.isnan(Dn4000)
     results = np.where(missing, is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
-    print(f"Quiescent Fraction for Dn4000: {np.mean(results[~missing]):.2%} (N={np.sum(~missing)})")
-    print(f"Quiescent Fraction for missing: {np.mean(results[missing]):.2%} (N={np.sum(missing)})")
+    #print(f"Quiescent Fraction for Dn4000: {np.mean(results[~missing]):.2%} (N={np.sum(~missing)})")
+    #print(f"Quiescent Fraction for missing: {np.mean(results[missing]):.2%} (N={np.sum(missing)})")
     very_blue = gmr < EXTREMAL_BLUE_COLOR_CUT
     results = np.where(very_blue, False, results)
-    print(f"Overall Quiescent Fraction after very blue cut: {np.mean(results):.2%}")
+    #print(f"Overall Quiescent Fraction after very blue cut: {np.mean(results):.2%}")
     return results
 
 
