@@ -1828,51 +1828,28 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     np.put(quiescent, idx, is_quiescent_BGS_dn4000(log_L_gal[idx], dn4000_model[idx], G_R_k[idx]))
 
 def get_footprint_fraction(data_cut, mode, num_passes_required):
-    # These are calculated from randoms in BGS_study.ipynb
+    if mode == Mode.ALL.value:
+        num_passes_required = 1 # ALL mode for simulations
+
+    from footprintmanager import FootprintManager
+    mgr = FootprintManager() # See bottom on BGS_study.ipynb to print all these out
+    
     if data_cut == "Y1-Iron":
-        # For Y1-Iron  
-        FOOTPRINT_FRAC_1pass = 0.1876002 # 7739 deg^2
-        FOOTPRINT_FRAC_2pass = 0.1153344 # 4758 deg^2
-        FOOTPRINT_FRAC_3pass = 0.0649677 # 2680 deg^2
-        FOOTPRINT_FRAC_4pass = 0.0228093 # 940 deg^2
-        # 0% 5pass coverage
+        return mgr.get_footprint("Y1", 'all', num_passes_required)
     elif data_cut == "Y1-Iron-Mini":
-        FOOTPRINT_FRAC_1pass = 141.6 / DEGREES_ON_SPHERE 
-        FOOTPRINT_FRAC_2pass = 141.6 / DEGREES_ON_SPHERE 
-        FOOTPRINT_FRAC_3pass = 141.6 / DEGREES_ON_SPHERE 
+        return 141.6 / DEGREES_ON_SPHERE 
     elif data_cut == "Y3-Kibo" or data_cut == "Y3-Loa":
-        FOOTPRINT_FRAC_1pass = 0.30968189465008605 # 12775 deg^2
-        FOOTPRINT_FRAC_2pass = 0.2859776210215015 # 11797 deg^2
-        FOOTPRINT_FRAC_3pass = 0.23324031706784962 # 9621 deg^2
-        FOOTPRINT_FRAC_4pass = 0.1148695997866822 # 4738 deg^2
+        return mgr.get_footprint("Y3", 'all', num_passes_required)
     elif data_cut == "sv3":
+        return mgr.get_footprint("SV3-18", 'all', num_passes_required)
         # These are for the 18/20 patches being used. We dropped two due to poor Y3 overlap.
-        FOOTPRINT_FRAC_1pass =  156.2628 / DEGREES_ON_SPHERE 
-        FOOTPRINT_FRAC_10pass = 124.2812 / DEGREES_ON_SPHERE 
     elif data_cut == "Y3-Kibo-SV3Cut" or data_cut == "Y3-Loa-SV3Cut":
         # Here the data was cut to the SV3 10p footprint. 
         # But the num_passes is now referring to actualy Y3 main survey passes.
-        FOOTPRINT_FRAC_1pass = 124.2812 / DEGREES_ON_SPHERE 
-        # Not computed for other situations.
+        return mgr.get_footprint("SV3-18", 'all', 10)
     else:
         print("Invalid data cut. Exiting.")
         exit(2)
-
-    # TODO update footprint with new calculation from ANY. It shouldn't change.
-    if mode == Mode.ALL.value or num_passes_required == 1:
-        return FOOTPRINT_FRAC_1pass
-    elif num_passes_required == 2:
-        return FOOTPRINT_FRAC_2pass
-    elif num_passes_required == 3:
-        return FOOTPRINT_FRAC_3pass
-    elif num_passes_required == 4:
-        return FOOTPRINT_FRAC_4pass
-    elif num_passes_required == 10:
-        return FOOTPRINT_FRAC_10pass
-    else:
-        print(f"Need footprint calculation for num_passes_required = {num_passes_required}. Exiting")
-        exit(2)        
-        
 
 def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, sdss_fill, num_passes_required, drop_passes, data_cut, extra_params, ffc):
     """
@@ -1952,17 +1929,17 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         unobserved = table['Z'].astype("<i8") >  100
         no_truth_z = unobserved.copy()
 
-    obj_type = get_tbl_column(table, 'SPECTYPE')
-    deltachi2 = get_tbl_column(table, 'DELTACHI2')
+    obj_type = get_tbl_column(table, 'SPECTYPE', required=True)
+    deltachi2 = get_tbl_column(table, 'DELTACHI2', required=True)
     ff_g = get_tbl_column(table, 'FRACFLUX_G')
     ff_r = get_tbl_column(table, 'FRACFLUX_R')
     ff_z = get_tbl_column(table, 'FRACFLUX_Z')
     dec = get_tbl_column(table, 'DEC', required=True)
     ra = get_tbl_column(table, 'RA', required=True)
     maskbits = get_tbl_column(table, 'MASKBITS')
-    ref_cat = get_tbl_column(table, 'REF_CAT')
+    #ref_cat = get_tbl_column(table, 'REF_CAT')
     tileid = get_tbl_column(table, 'TILEID')
-    target_id = get_tbl_column(table, 'TARGETID')
+    target_id = get_tbl_column(table, 'TARGETID', required=True)
     ntid = get_tbl_column(table, 'NEAREST_TILEIDS')
     if ntid is not None:
         ntid = ntid[:,0] # just need to nearest tile for our purposes
@@ -1979,11 +1956,9 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     log_L_gal = get_tbl_column(table, 'LOG_L_GAL', required=True)
     quiescent = get_tbl_column(table, 'QUIESCENT', required=True)
     logmstar = get_tbl_column(table, 'LOGMSTAR', required=True)
-    p_obs = get_tbl_column(table, 'PROB_OBS')
+    p_obs = get_tbl_column(table, 'PROB_OBS', required=True)
     z_sv3 = get_tbl_column(table, 'Z_SV3')
-    if p_obs is None:
-        print("WARNING: PROB_OBS column not found in FITS file. Using 0.689 for all unobserved galaxies.")
-        p_obs = np.ones(len(z_obs)) * 0.689
+    photsys = get_tbl_column(table, 'PHOTSYS', required=True)
     nan_pobs = np.isnan(p_obs)
     if np.any(nan_pobs):
         print(f"WARNING: {np.sum(nan_pobs)} galaxies have nan p_obs. Setting those to 0.689, the mean of Y3.")
@@ -1992,10 +1967,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if z_phot is None:
         print("WARNING: Z_PHOT column not found in FITS file. Will be set to nan for all.")
         z_phot = np.ones(len(z_obs)) * np.nan
-    dn4000_model = get_tbl_column(table, 'DN4000_MODEL')
-    if dn4000_model is None:
-        print("WARNING: DN4000_MODEL column not found in FITS file. Will be set to 0 for all.")
-        dn4000_model = np.zeros(len(z_obs))
+    dn4000_model = get_tbl_column(table, 'DN4000_MODEL', required=True)
 
     # A manually curated list of bad targets, usually from visual inspection of images
     bad_targets = [39627705590745283, 39628011489723373]
@@ -2033,7 +2005,12 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     keep &= table['NTILE_MINE'] >= num_passes_required
     print(f"After NTILE_MINE >= {num_passes_required} cut: {keep.sum():,}")
 
-    keep &= app_mag_r < APP_MAG_CUT
+    offset = 0.04 # N gets this offset in the app_mag_r cut
+    # assert PHOTSYS is N or S for everything
+    if not np.all(np.isin(photsys, [b"N", b"S"])):
+        print("ERROR: PHOTSYS column has values other than N or S. Exiting.")
+        exit(2)
+    keep &= np.where(photsys == b"N", app_mag_r < (APP_MAG_CUT + offset), (app_mag_r < APP_MAG_CUT))
     print(f"After app_mag_r < {APP_MAG_CUT} cut: {keep.sum():,}")
 
     keep &= ~np.isin(target_id, bad_targets)
@@ -2064,7 +2041,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     deltachi2_filter = deltachi2 > 40 # Ensures that there wasn't another z with similar likelihood from the z fitting code
     
     # Roughly remove HII regions of low z, high angular size galaxies (SGA catalog)
-    if maskbits is not None and ref_cat is not None:
+    if maskbits is not None:
         sga_collision = keep & ((maskbits & MASKBITS['GALAXY']) != 0)
 
         # TODO also use morphology. If extended, do not include in the possible cutlist
@@ -2111,7 +2088,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         #        print(f"{r},{d},{t}", file=f)
 
     else:
-        print("WARNING: missing MASKBITS or REF_CAT columns. No shredding elimination possible.")
+        print("WARNING: missing MASKBITS columns. No shredding elimination possible.")
 
  
     # Fiberflux cuts, too remove confusing overlapping objects which likely have bad spectra.
@@ -2180,6 +2157,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     unobserved = unobserved[keep]
     no_truth_z = no_truth_z[keep]
     logmstar = logmstar[keep]
+    photsys = photsys[keep]
 
     observed = np.invert(unobserved)
     idx_unobserved = np.flatnonzero(unobserved)
