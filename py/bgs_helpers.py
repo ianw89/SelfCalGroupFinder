@@ -6,6 +6,7 @@ import astropy.io.fits as fits
 from astropy.table import Table,join,vstack,unique,QTable
 import sys
 import pickle
+import fitsio
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -74,7 +75,7 @@ def determine_unobserved_from_z(column):
             unobserved = np.isnan(column)
         else:
             # Some older versions have sentinal value instead.
-            unobserved = column.astype("<i8") == 999999
+            unobserved = column.astype("<i8") > 50
 
     return unobserved
 
@@ -526,11 +527,6 @@ def supplement_sv3_merged_file_with_y3(orig_path, supplemental_path, combined_pa
     print(f"{len(y3_table)} galaxies will be added for SV3 NN catalog")
     assert (y3_table['NTILE_MINE'] > 9).sum() == 0, "Y3 shouldn't add any galaxies that will go into the catalog"
 
-    # if the y3 table doesn't have prob_obs as is the case in JURA, add a prob_obs with 0.5 for everything
-    #if 'PROB_OBS' not in y3_table.columns:
-    #    print("PROB_OBS column missing from Y3")
-    #    y3_table.add_column(np.full(len(y3_table), 0.5), name="PROB_OBS")
-
     # Find targets in Y3 that are already in SV3
     y3_in_sv3 = np.isin(y3_table['TARGETID'], sv3_table['TARGETID'])
     sv3_in_y3 = np.isin(sv3_table['TARGETID'], y3_table['TARGETID'])
@@ -575,16 +571,13 @@ def fix_columns_in_phot_z_file(f):
 # Run this after building photo-z file
 #fix_columns_in_phot_z_file(IAN_PHOT_Z_FILE_NOSPEC)
 
-def read_randoms(base, n):
-    rtable = Table.read(base.replace("X", str(n)), format='fits')
-    r_dec = rtable['DEC'].astype("<f8")
-    r_ra = rtable['RA'].astype("<f8")
-    r_ntiles = rtable['NTILE'].astype("<i8")
+def read_randoms(base: str, n: int) -> pd.DataFrame:
+    rtable = fitsio.read(base.replace("X", str(n)), columns=['RA', 'DEC', 'NTILE', 'PHOTSYS'])
 
-    randoms_df = pd.DataFrame({'RA': r_ra, 'DEC': r_dec, 'NTILE': r_ntiles})
+    randoms_df = pd.DataFrame({'RA': rtable['RA'].astype("<f8"), 'DEC': rtable['DEC'].astype("<f8"), 'NTILE': rtable['NTILE'].astype("<i8"), 'PHOTSYS': rtable['PHOTSYS']})
 
-    if 'WEIGHT' in rtable.columns:
-        randoms_df['WEIGHT'] = rtable['WEIGHT'].astype("<f8")
+    #if 'WEIGHT' in rtable.columns:
+    #    randoms_df['WEIGHT'] = rtable['WEIGHT'].astype("<f8")
 
     return randoms_df
 
