@@ -366,9 +366,9 @@ def photoz_plus_metric_4(z_guessed: np.ndarray[float], z_truth: np.ndarray[float
     # The mean of them all is a sufficient statistic
     return - np.mean(score)
 
-def get_app_mag(FLUX):
+def get_app_mag(flux):
     """This converts nanomaggies into Pogson magnitudes"""
-    return 22.5 - 2.5*np.log10(FLUX)
+    return 22.5 - 2.5*np.log10(flux.clip(1e-16))
 
     #g = 22.5 - 2.5*np.log10(gflux.clip(1e-16))
     #r = 22.5 - 2.5*np.log10(rflux.clip(1e-16))

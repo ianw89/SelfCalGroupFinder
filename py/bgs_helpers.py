@@ -177,15 +177,15 @@ def add_mag_columns(table):
     table.add_column(quiescent, name='QUIESCENT') 
 
     #table.add_column(quiescent_alt, name='QUIESCENT_KMEANS')
+    return table
     
 
 
-def add_photz_columns(table_file :str, phot_z_file):
+def add_photz_columns(table, phot_z_file):
     """
     Reads an astropy table and adds columns from the legacy survey file we built (photo-z, etc.).
     """
     print("Adding photo-z columns to table.")
-    table = Table.read(table_file, format='fits')
 
     if 'Z_PHOT' in table.columns:
         print("Z_PHOT already in table, replacing it.")
@@ -427,7 +427,7 @@ def add_NTILE_MINE_to_table(table_file :str|Table, year: str):
     else:
         raise ValueError("Year must be 1 or 3")
     
-    if table_file is str:
+    if isinstance(table_file, str):
         table = Table.read(table_file, format='fits')
     elif isinstance(table_file, Table):
         table = table_file
@@ -445,43 +445,48 @@ def add_NTILE_MINE_to_table(table_file :str|Table, year: str):
     return table
 
 
-def create_merged_file(orig_table_file : str, merged_file : str, year : str, photoz_wspec=True):
-    print(f"CREATING MERGED FILE {merged_file} for year {year}.", flush=True)
-    table = Table.read(orig_table_file, format='fits')
-    print(f"Read {len(table)} galaxies from {orig_table_file}", flush=True)
+def create_merged_file(orig_tbl_fn : str, merged_fn : str, year : str, photoz_wspec=True):
+    print(f"CREATING MERGED FILE {merged_fn} for year {year}.", flush=True)
+    columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS']
+    if ON_NERSC:
+        import fitsio
+        table = Table(fitsio.read(orig_tbl_fn, columns=columns))
+    else:
+        table = Table.read(orig_tbl_fn, format='fits')
+        table.keep_columns(columns)
 
-    # Select required columned from LSS catalog 
-    table.keep_columns(['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS'])
+    print(f"Read {len(table)} galaxies from {orig_tbl_fn}", flush=True)
     table.rename_column('Z_not4clus', 'Z')
 
     # Add additional derived columns from fastspecfit
     # The lost galaxies will not have fastspecfit rows as they have no spectra
     table = add_fastspecfit_columns(table, year)
-    table.write(merged_file, format='fits', overwrite='True')
+    #table.write(merged_file, format='fits', overwrite='True')
     print("FSF Joined", flush=True)
 
     # Add extra columns that were cut from LSS Catalogs from the photometric VAC
     table = add_photometric_columns(table, year)
-    table.write(merged_file, format='fits', overwrite='True')
+    #table.write(merged_file, format='fits', overwrite='True')
     print("Photometric VAC Joined", flush=True)
 
     # Add photo-zs
     if photoz_wspec:
-        table = add_photz_columns(merged_file, IAN_PHOT_Z_FILE_WSPEC)
+        table = add_photz_columns(table, IAN_PHOT_Z_FILE_WSPEC)
     else:
-        table = add_photz_columns(merged_file, IAN_PHOT_Z_FILE_NOSPEC)
-    table.write(merged_file, format='fits', overwrite=True)
+        table = add_photz_columns(table, IAN_PHOT_Z_FILE_NOSPEC)
+    #table.write(merged_file, format='fits', overwrite=True)
     print("Photo-z Joined", flush=True)
 
     # Derive some luminosity / color related properties
-    add_mag_columns(table)
-    table.write(merged_file, format='fits', overwrite='True')
+    table = add_mag_columns(table)
+    #table.write(merged_file, format='fits', overwrite='True')
     print("Mag Calculations Joined", flush=True)
 
     # Add information on the nearest tiles to each target for Npass filtering later
-    add_NTILE_MINE_to_table(table, year)
-    table.write(merged_file, format='fits', overwrite='True')
+    table = add_NTILE_MINE_to_table(table, year)
     print("NTILE_MINE Joined", flush=True)
+    table.write(merged_fn, format='fits', overwrite='True')
+    print("Merged file written.")
 
 
 
