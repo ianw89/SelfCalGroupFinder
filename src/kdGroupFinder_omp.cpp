@@ -591,13 +591,13 @@ void find_satellites(int icen, GalaxyKDTree *tree)
   if (!FLUXLIM)
   {
     // TODO BUG I switched nsat to be int, will this be busted?
-    dz = SPEED_OF_LIGHT * fabs(GAL[icen].redshift - MINREDSHIFT);
-    vol_corr = 1 - (0.5 * erfc(dz / (ROOT2 * GAL[icen].sigmav)));
+    float cdz = SPEED_OF_LIGHT * fabs(GAL[icen].redshift - MINREDSHIFT);
+    vol_corr = 1 - (0.5 * erfc(cdz / (ROOT2 * GAL[icen].sigmav)));
     GAL[icen].nsat /= vol_corr;
     GAL[icen].lgrp /= vol_corr;
 
-    dz = SPEED_OF_LIGHT * fabs(GAL[icen].redshift - MAXREDSHIFT);
-    vol_corr = 1 - (0.5 * erfc(dz / (ROOT2 * GAL[j].sigmav)));
+    cdz = SPEED_OF_LIGHT * fabs(GAL[icen].redshift - MAXREDSHIFT);
+    vol_corr = 1 - (0.5 * erfc(cdz / (ROOT2 * GAL[j].sigmav)));
     GAL[icen].nsat /= vol_corr;
     GAL[icen].lgrp /= vol_corr;
   }
