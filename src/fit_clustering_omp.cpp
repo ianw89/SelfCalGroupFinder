@@ -87,8 +87,8 @@ void write_hodfit() {
 
 void write_hodinner(int type) {
   if (MSG_PIPE != NULL) {
-    if (type == MSG_HOD) LOG_INFO("Writing HOD to pipe\n");
-    else LOG_INFO("Writing HOD FIT to pipe\n");
+    if (type == MSG_HOD) LOG_VERBOSE("Writing HOD to pipe\n");
+    else LOG_VERBOSE("Writing HOD FIT to pipe\n");
     uint8_t resp_msg_type = type;
     uint8_t resp_data_type = TYPE_DOUBLE;
     uint32_t rows = MAX_HALO_IDX - MIN_HALO_IDX;
@@ -329,7 +329,7 @@ void lsat_model()
   int count = (i_end - i_start + 1); 
   if (MSG_PIPE != NULL)
   {
-    LOG_INFO("Writing LSAT to pipe\n");
+    LOG_VERBOSE("Writing LSAT to pipe\n");
     uint8_t resp_msg_type = MSG_LSAT;
     uint8_t resp_data_type = TYPE_FLOAT;
     uint32_t resp_count = count*2;
@@ -347,7 +347,7 @@ void lsat_model()
       // Format: log(L or M*) <Lsat_r> <Lsat_b> nhr nhb
       fprintf(fp, "%f %e %e %d %d\n", i / 10.0, lsatr[i], lsatb[i], nhr[i], nhb[i]);
     fclose(fp);
-    LOG_INFO("lsat_model> lsat_groups.out written\n");
+    LOG_VERBOSE("lsat_model> lsat_groups.out written\n");
   }
 
   if (SECOND_PARAMETER == 0)
@@ -679,7 +679,7 @@ void tabulate_hods()
   // Print off the LHMR
   if (MSG_PIPE != NULL)
   {
-    LOG_INFO("Writing LHMR to pipe\n");
+    LOG_VERBOSE("Writing LHMR to pipe\n");
     uint8_t resp_msg_type = MSG_LHMR;
     uint8_t resp_data_type = TYPE_DOUBLE;
     uint32_t resp_count = (MAX_HALO_IDX-MIN_HALO_IDX) * 3 * 2; // 65 bins, all/red/blue, mean/scatter
@@ -699,7 +699,7 @@ void tabulate_hods()
     for (i = MIN_HALO_IDX; i < MAX_HALO_IDX; ++i)
     {
       // Format is: <log10(M_h)> <mean_cenr> <std_cenr> <mean_cenb> <std_cenb> <mean_cen> <std_cen>
-      LOG_INFO("LHMR> %.2f %e %e %e %e %e %e\n", i / 10.0,
+      LOG_VERBOSE("LHMR> %.2f %e %e %e %e %e %e\n", i / 10.0,
               mean_cenr[i], std_cenr[i], mean_cenb[i], std_cenb[i],
               mean_cen[i], std_cen[i]);
     }
@@ -1001,7 +1001,7 @@ void populate_simulation_omp(int imag, SampleType type)
   }
   mag = imag * imag_mult + imag_offset;
 
-  LOG_INFO("popsim> starting population for imag=%d, type=%d, mag=%d\n", imag, type, mag);
+  LOG_VERBOSE("popsim> starting population for imag=%d, type=%d, mag=%d\n", imag, type, mag);
 
   switch (type) 
   {

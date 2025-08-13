@@ -2,6 +2,7 @@ import sys
 import time
 import asyncio
 import concurrent.futures
+import os
 from multiprocessing import Pool
 
 # EXAMPLE USAGE
@@ -17,8 +18,10 @@ execution_mode = 'once' # or 'clustering' or 'mcmc'
 mcmcnum = None # Will make a new folder
 mcmc_iter = 1000 # x 20 walkers
 
-if './SelfCalGroupFinder/py/' not in sys.path:
-    sys.path.append('./SelfCalGroupFinder/py/')
+current_file_path = os.path.realpath(__file__)
+current_directory = os.path.dirname(current_file_path)
+parent_directory = os.path.dirname(current_directory)
+sys.path.append(parent_directory)
 from groupcatalog import *
 import catalog_definitions as cat
 from dataloc import *

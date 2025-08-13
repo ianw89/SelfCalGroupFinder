@@ -238,18 +238,6 @@ bgs_y3_fiberonly_1pass = BGSGroupCatalog("Observed BGS Y3 <19.5 1pass", Mode.FIB
 bgs_y3_fiberonly_1pass.marker = '.'
 #0.004 = 4.5
 # To translate between old sigma and new one, use new = -log10(2*old^2)
-bgs_sv3_pz_1_10p = BGSGroupCatalog(
-    "Photo-z Plus v1 BGS sv3 10pass", 
-    Mode.PHOTOZ_PLUS_v1, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    data_cut='sv3', 
-    sdss_fill=True, 
-    extra_params=(5, (0.8, 1.0, 4.5, 4.0)), 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_pz_1_10p.color = [0.0, 1.0, 1.0]
 
 bgs_sv3_pz_2_4_10p = BGSGroupCatalog(
     "Photo-z Plus v2.4 BGS sv3 10pass", 
@@ -530,21 +518,12 @@ mxxl_list : list[GroupCatalog] = [
     #mxxl_simple_4_c,
 ]
 bgs_sv3_list : list[GroupCatalog] = [
-    #bgs_sv3_nn_10p,
-    #bgs_sv3_nn_7p,
+    bgs_sv3_nn_10p,
     bgs_sv3_fiberonly_10p,
-    #bgs_sv3_simple_4_10p,
-    #bgs_sv3_simple_4_7p,
-    #bgs_sv3_simple_5_7p,
-    #bgs_sv3_pz_1_10p,
-    #bgs_sv3_pz_2_0_7p,
+    bgs_sv3_simple_4_10p,
     bgs_sv3_pz_2_4_10p, 
-    bgs_sv3_pz_2_4_10p_c1, # Truthiest catalog
+    bgs_sv3_pz_2_4_10p_c1, 
     bgs_sv3_pz_2_4_10p_c2, # Truthiest catalog
-    #bgs_sv3_pz_1_0_7p,
-    #bgs_sv3_pz_2_4_7p,
-    #bgs_sv3_pz_2_5_7p,
-    #bgs_sv3_pz_3_1_7p,
     bgs_y3_like_sv3_pz_2_4,
     bgs_y3_like_sv3_pz_2_4_c1,
     bgs_y3_like_sv3_pz_2_4_c2,
