@@ -18,7 +18,7 @@
 
 // Definitions
 #define MAXBINS 10 // This is the max number of magnitude bins we use for the HOD. The actual amount we use is read in from VOLUME_BINS_FILE
-#define MAX_SATELLITES 1000 // Print a warning and cap the number of satellites to this if it is exceeded. Likely bad parameters.
+#define MAX_SATELLITES 1500 // Print a warning and cap the number of satellites to this if it is exceeded. Likely bad parameters.
 #define HALO_BINS 200 // log10(M_halo) / 0.1
 #define MIN_HALO_IDX 90 // log10(M_halo) = 9.0
 #define MAX_HALO_IDX 155 // log10(M_halo) = 9.0
