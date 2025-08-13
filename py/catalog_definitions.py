@@ -330,123 +330,6 @@ bgs_y3_like_sv3_hybrid_mcmc_new = BGSGroupCatalog(
     gfprops=GF_PROPS_BGS_COLORS_C1.copy()
 )
 
-bgs_sv3_pz_2_4_10p_old = BGSGroupCatalog(
-    "Photo-z Plus v2.4 BGS sv3 10pass OLD", 
-    Mode.PHOTOZ_PLUS_v2, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    data_cut='sv3', 
-    sdss_fill=True, 
-    extra_params=PZP_PARAMS_V24, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_pz_2_4_10p_old.color = 'k'
-
-bgs_sv3_pz_1_0_7p = BGSGroupCatalog(
-    "Photo-z Plus v1 BGS sv3 7pass", 
-    Mode.PHOTOZ_PLUS_v1, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=3, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    extra_params=(5, (0.8, 1.0, 4.5, 4.0)), 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_pz_1_0_7p.color = 'g'
-
-bgs_sv3_pz_2_0_7p = BGSGroupCatalog(
-    "Photo-z Plus v2.0 BGS sv3 7pass", 
-    Mode.PHOTOZ_PLUS_v2, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=3, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    extra_params=(1, [0.0, 0.0, 3.0]), 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_pz_2_0_7p.color = 'red'
-
-bgs_sv3_pz_2_4_8p = BGSGroupCatalog(
-    "Photo-z Plus v2.4 BGS sv3 8pass", 
-    Mode.PHOTOZ_PLUS_v2, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=2, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    extra_params=PZP_PARAMS_V24, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_pz_2_4_8p.color = 'orange'
-
-bgs_sv3_pz_2_4_7p = BGSGroupCatalog(
-    "Photo-z Plus v2.4 BGS sv3 7pass", 
-    Mode.PHOTOZ_PLUS_v2, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=3, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    extra_params=PZP_PARAMS_V24, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_pz_2_4_7p.color = 'darkorange'
-
-bgs_sv3_pz_2_4_6p = BGSGroupCatalog(
-    "Photo-z Plus v2.4 BGS sv3 6pass", 
-    Mode.PHOTOZ_PLUS_v2, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=4, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    extra_params=PZP_PARAMS_V24, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_pz_2_4_6p.color = 'darkorange'
-
-bgs_sv3_pz_3_0_7p = BGSGroupCatalog(
-    "Photo-z Plus v3.0 BGS sv3 7pass", 
-    Mode.PHOTOZ_PLUS_v3, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=3, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    extra_params=(
-        4, 
-        [0.8104, 0.9215, 2.867], 
-        [0.9102, 0.7376, 3.0275], 
-        [0.8986, 1.0397, 2.6287], 
-        [0.7488, 0.9489, 2.9319]
-    ), 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_pz_3_0_7p.color = [0.45, 0.40, 0.0]
-
-bgs_sv3_pz_3_1_7p = BGSGroupCatalog(
-    "Photo-z Plus v3.1 BGS sv3 7pass", 
-    Mode.PHOTOZ_PLUS_v3, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=3, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    extra_params=PZP_PARAMS_V24, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_pz_3_1_7p.color = 'purple'
-
 bgs_y3_like_sv3_pz_2_4 = BGSGroupCatalog(
     "Photo-z Plus v2.4 BGS Y3 like-sv3", 
     Mode.PHOTOZ_PLUS_v2, 
@@ -587,161 +470,17 @@ bgs_sv3_simple_4_10p = BGSGroupCatalog(
 )
 bgs_sv3_simple_4_10p.color = [0.0, 1.0, 0.0]
 
-bgs_sv3_simple_4_9p = BGSGroupCatalog(
-    "Simple v4 BGS sv3 9pass", 
-    Mode.SIMPLE_v4, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=1, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_simple_4_9p.color = [0.0, 0.9, 0.0]
-
-bgs_sv3_simple_4_8p = BGSGroupCatalog(
-    "Simple v4 BGS sv3 8pass", 
-    Mode.SIMPLE_v4, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=2, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_simple_4_8p.color = [0.0, 0.8, 0.0]
-
-bgs_sv3_simple_4_7p = BGSGroupCatalog(
-    "Simple v4 BGS sv3 7pass", 
-    Mode.SIMPLE_v4, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=3, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_simple_4_7p.color = [0.0, 0.7, 0.0]
-
-bgs_sv3_simple_4_6p = BGSGroupCatalog(
-    "Simple v4 BGS sv3 6pass", 
-    Mode.SIMPLE_v4, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=4, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_simple_4_6p.color = [0.0, 0.6, 0.0]
-
-bgs_sv3_simple_4_5p = BGSGroupCatalog(
-    "Simple v4 BGS sv3 5pass", 
-    Mode.SIMPLE_v4, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=5, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_simple_4_5p.color = [0.0, 0.5, 0.0]
-
-bgs_sv3_simple_4_4p = BGSGroupCatalog(
-    "Simple v4 BGS sv3 4pass", 
-    Mode.SIMPLE_v4, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=6, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_simple_4_4p.color = [0.0, 0.4, 0.0]
-
-bgs_sv3_simple_4_3p = BGSGroupCatalog(
-    "Simple v4 BGS sv3 3pass", 
-    Mode.SIMPLE_v4, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=7, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_simple_4_3p.color = [0.0, 0.3, 0.0]
-
-bgs_sv3_simple_4_2p = BGSGroupCatalog(
-    "Simple v4 BGS sv3 2pass", 
-    Mode.SIMPLE_v4, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=8, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_simple_4_2p.color = [0.0, 0.2, 0.0]
-
-bgs_sv3_simple_4_1p = BGSGroupCatalog(
-    "Simple v4 BGS sv3 1pass", 
-    Mode.SIMPLE_v4, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=9, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_simple_4_1p.color = [0.0, 0.1, 0.0]
-
 bgs_sv3_nn_10p = BGSGroupCatalog(
     "NN BGS sv3 10pass", 
     Mode.NEAREST_NEIGHBOR, 
     19.5, 
     21.0, 
     num_passes=10, 
-    drop_passes=0, 
     data_cut='sv3', 
     sdss_fill=True, 
     gfprops=GF_PROPS_BGS_VANILLA.copy()
 )
 bgs_sv3_nn_10p.color = [1.0, 1.0, 0.0]
-
-bgs_sv3_nn_7p = BGSGroupCatalog(
-    "NN BGS sv3 7pass", 
-    Mode.NEAREST_NEIGHBOR, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=3, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_nn_7p.color = [0.7, 0.7, 0.0]
-
-bgs_sv3_nn_6p = BGSGroupCatalog(
-    "NN BGS sv3 6pass", 
-    Mode.NEAREST_NEIGHBOR, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=4, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_nn_6p.color = [0.6, 0.6, 0.0]
 
 bgs_sv3_fiberonly_10p = BGSGroupCatalog(
     "Observed BGS sv3 10pass", 
@@ -754,21 +493,6 @@ bgs_sv3_fiberonly_10p = BGSGroupCatalog(
     gfprops=GF_PROPS_BGS_VANILLA.copy()
 )
 bgs_sv3_fiberonly_10p.color = 'r'
-
-bgs_sv3_simple_5_7p = BGSGroupCatalog(
-    "Simple v5 BGS sv3 7pass", 
-    Mode.SIMPLE_v5, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    drop_passes=3, 
-    data_cut='sv3', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_simple_5_7p.color = [0.0, 0.7, 0.0]
-
-
 
 
 
