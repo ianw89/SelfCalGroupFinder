@@ -17,7 +17,7 @@ DPI_PAPER = 600
 DPI = 250
 FONT_SIZE_DEFAULT = 16
 
-LGAL_XMINS = [6E7, 1E8]
+LGAL_XMINS = [1E8]
 
 LGAL_MIN = 1E7
 LGAL_MAX_TIGHT = 2E11
@@ -360,9 +360,9 @@ def fsat_with_err_from_saved(gc: GroupCatalog):
 
     plt.figure()
     #plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
-    plt.errorbar(LogLgal_bins, gc.fsatr, yerr=fsatr_err, fmt='.', color='r', label='Quiescent', capsize=3, alpha=0.7)
-    plt.errorbar(LogLgal_bins, gc.fsatb, yerr=fsatb_err, fmt='.', color='b', label='Star-forming', capsize=3, alpha=0.7)
-    plt.xlabel('$L_{\mathrm{gal}}~[L_{\odot}~/h^2]$')
+    plt.errorbar(LogLgal_bins, gc.fsatr, yerr=fsatr_err, fmt='.', color='r', label='Quiescent', markersize=6, capsize=3, alpha=1.0)
+    plt.errorbar(LogLgal_bins, gc.fsatb, yerr=fsatb_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=3, alpha=1.0)
+    plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~/h^2])$')
     plt.ylabel('$f_{\mathrm{sat}}$')
     plt.legend()
     plt.xlim(8,LOG_LGAL_MAX_TIGHT)
@@ -372,7 +372,6 @@ def fsat_with_err_from_saved(gc: GroupCatalog):
     plt.xticks(np.arange(-23, -12, 1))
     plt.xlabel("$M_r$ - 5log(h)")
     plt.tight_layout()
-    plt.show()
 
 def plots(*catalogs, show_err=None, truth_on=False):
     catalogs = list(catalogs)
@@ -1108,59 +1107,64 @@ def hod_plot(gc: GroupCatalog, pretty=True):
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
 
-
 def proj_clustering_plot(gc: GroupCatalog):
     caldata = gc.caldata
     num = caldata.bincount
     mag_start = caldata.magbins[0]
 
-    fig,axes=plt.subplots(nrows=1, ncols=num, figsize=(2+3*num,4), dpi=DPI)
-    fig.suptitle(gc.name)
+    # Calculate number of columns for two rows
+    nrows = 2
+    ncols = int(np.ceil(num / nrows))
+
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(2 + 3 * ncols, 4 * nrows), dpi=DPI)
+    axes = np.array(axes).reshape(-1)  # flatten for easy indexing
 
     overall, clust_r, clust_b, clust_nosep, lsat = gc.chisqr()
 
-    idx = 0
-    for idx in range(len(caldata.magbins)-1):
+    for idx in range(len(caldata.magbins) - 1):
         i = abs(caldata.magbins[idx])
 
-        if caldata.color_separation[idx]:
+        ax = axes[idx]
 
+        if caldata.color_separation[idx]:
             wp, wp_err, radius = caldata.get_wp_red(i)
-            axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkred', capsize=3, ecolor='k')
+            ax.errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkred', capsize=3, ecolor='k')
 
             wp_mock, wp_mock_err = gc.get_mock_wp(i, 'red', wp_err)
-            axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='r', alpha=0.6)
+            ax.errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='r', alpha=0.6)
 
             wp, wp_err, radius = caldata.get_wp_blue(i)
-            axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkblue', capsize=3, ecolor='k')
+            ax.errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkblue', capsize=3, ecolor='k')
 
             wp_mock, wp_mock_err = gc.get_mock_wp(i, 'blue', wp_err)
-            axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='b', alpha=0.6)
-            
+            ax.errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='b', alpha=0.6)
+
             # Put text of the chisqr value in plot
-            axes[idx].text(0.6, 0.9, f"$\chi^2_r$: {clust_r[i+mag_start]:.1f}", transform=axes[idx].transAxes)
-            axes[idx].text(0.6, 0.8, f"$\chi^2_b$: {clust_b[i+mag_start]:.1f}", transform=axes[idx].transAxes)
+            ax.text(0.6, 0.9, f"$\chi^2_r$: {clust_r[i+mag_start]:.1f}", transform=ax.transAxes)
+            ax.text(0.6, 0.8, f"$\chi^2_b$: {clust_b[i+mag_start]:.1f}", transform=ax.transAxes)
 
         else:
             wp, wp_err, radius = caldata.get_wp_all(i)
-            axes[idx].errorbar(radius, wp, yerr=wp_err, fmt='.', color='k', capsize=3, ecolor='k')
+            ax.errorbar(radius, wp, yerr=wp_err, fmt='.', color='k', capsize=3, ecolor='k')
 
             wp_mock, wp_mock_err = gc.get_mock_wp(i, 'all', wp_err)
-            axes[idx].errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='k', alpha=0.6)
+            ax.errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='k', alpha=0.6)
 
             # Put text of the chisqr value in plot
-            axes[idx].text(0.6, 0.9, f"$\chi^2$: {clust_nosep[i+mag_start]:.1f}", transform=axes[idx].transAxes)
+            ax.text(0.6, 0.9, f"$\chi^2$: {clust_nosep[i+mag_start]:.1f}", transform=ax.transAxes)
 
         # Plot config
-        axes[idx].set_xscale('log')
-        axes[idx].set_yscale('log')
-        axes[idx].set_xlabel('$r_p$ [Mpc/h]')
-        axes[idx].set_ylabel('$w_p(r_p)$')
-        axes[idx].set_ylim(3,4000)
-        axes[idx].set_title(f'[{i}, {caldata.magbins[idx+1]}]')
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_xlabel('$r_p$ [Mpc/h]')
+        ax.set_ylabel('$w_p(r_p)$')
+        ax.set_ylim(1, 4000)
+        ax.set_title(f'[{-i}, {caldata.magbins[idx+1]}]')
 
-        idx = idx + 1
-    
+    # Hide unused axes if any
+    for j in range(len(caldata.magbins) - 1, nrows * ncols):
+        fig.delaxes(axes[j])
+
     fig.tight_layout()
 
 def lsat_data_compare_plot(gc: GroupCatalog):
@@ -1195,16 +1199,23 @@ def lsat_compare_plot(data, lsat_r, lsat_b, lsat_r_std, lsat_b_std):
     axes.errorbar(obs_lcen, np.log10(obs_ratio), yerr=obs_ratio_err_log, fmt='o', color='k', markersize=3, capsize=3, ecolor='k', label='SDSS Data')
     
     if lsat_r_std is not None and lsat_b_std is not None:
-        axes.errorbar(obs_lcen, np.log10(ratio), yerr=ratio_err_log, fmt='-', color='purple', markersize=3, capsize=3, ecolor='purple', label='Group Finder Data', alpha=0.7)
+        axes.errorbar(obs_lcen, np.log10(ratio), yerr=ratio_err_log, fmt='-', color='purple', markersize=3, capsize=3, ecolor='purple', label='Group Finder', alpha=0.8)
     else:
-        axes.plot(obs_lcen, np.log10(ratio), '-', color='purple', label='Group Finder Data', alpha=0.7)
-    axes.set_ylabel('log $L_{sat}^{q}/L_{sat}^{sf}$')
-    axes.set_xlabel('log $L_{cen}~[L_\odot / h^2]$')
+        axes.plot(obs_lcen, np.log10(ratio), '-', color='purple', label='Group Finder', alpha=0.8)
+    axes.set_ylabel('log$(L_{sat}^{q}/L_{sat}^{sf})$')
+    axes.set_xlabel('log$(L_{cen}~/~[L_\odot / h^2])$')
     axes.set_ylim(-0.2, 0.5)
     axes.legend()
 
     # Put text of the chisqr value in plot
     axes.text(.4,.93, f"$\chi^2$: {np.sum(chisqr):.1f}", transform=axes.transAxes)
+
+    # Twin x for Mr
+    ax2=axes.twiny()
+    ax2.plot(obs_lcen, np.log10(obs_ratio), ls="")
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(obs_lcen[0]), log_solar_L_to_abs_mag_r(obs_lcen[-1]))
+    ax2.set_xlabel("$M_r$ - 5log($h$)")
+    
 
     #axes[1].plot(obs_lcen, np.log10(lsat_r), label='GF Quiescent', color='r')
     #axes[1].plot(obs_lcen, np.log10(lsat_b), label='GF Star-forming', color='b')
