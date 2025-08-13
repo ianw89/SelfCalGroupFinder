@@ -1311,7 +1311,7 @@ class BGSGroupCatalog(GroupCatalog):
         self.centered = None # SV3 Centered version shortcut.
         self.extra_params = extra_params
         self.GF_props = gfprops
-        frac_area = get_footprint_fraction(data_cut, mode, num_passes)
+        frac_area = get_footprint_deg(data_cut, mode, num_passes) / DEGREES_ON_SPHERE
         self.GF_props['frac_area'] = frac_area
         if caldata_ctor is None:
             self.caldata = CalibrationData.BGS_Y1_8bin(self.mag_cut, self.GF_props['frac_area'])
@@ -1812,7 +1812,7 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
         print(f"abs_mag_R[idx]: {abs_mag_R[idx][nanindex]}")
     assert np.isnan(abs_mag_R[idx]).any() == False, f"abs_mag_R[idx] has NaN values at {np.where(np.isnan(abs_mag_R[idx]))}"
     np.put(abs_mag_R_k, idx, k_correct(abs_mag_R[idx], z_eff[idx], g_r_apparent[idx], band='r'))
-    np.put(abs_mag_R_k_BEST, idx, abs_mag_R_k[idx]) # won't overwrite the FSF ones because this only happens for lost galaxies
+    np.put(abs_mag_R_k_BEST, idx, abs_mag_R_k[idx]) # won't overwrite the FSF ones because this only happens for lost galaxies (or bad spectro-z where we wanna overwrite anyway)
     np.put(abs_mag_G, idx, app_mag_to_abs_mag(app_mag_g[idx], z_eff[idx]))
     np.put(abs_mag_G_k, idx, k_correct(abs_mag_G[idx], z_eff[idx], g_r_apparent[idx], band='g'))
     np.put(abs_mag_G_k_BEST, idx, abs_mag_G_k[idx])
@@ -1827,7 +1827,7 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     np.put(logmstar, idx, logmstar_values)
     np.put(quiescent, idx, is_quiescent_BGS_dn4000(log_L_gal[idx], dn4000_model[idx], G_R_k[idx]))
 
-def get_footprint_fraction(data_cut, mode, num_passes_required):
+def get_footprint_deg(data_cut, mode, num_passes_required):
     if mode == Mode.ALL.value:
         num_passes_required = 1 # ALL mode for simulations
 
@@ -1837,7 +1837,7 @@ def get_footprint_fraction(data_cut, mode, num_passes_required):
     if data_cut == "Y1-Iron":
         return mgr.get_footprint("Y1", 'all', num_passes_required)
     elif data_cut == "Y1-Iron-Mini":
-        return 141.6 / DEGREES_ON_SPHERE 
+        return 141.6
     elif data_cut == "Y3-Kibo" or data_cut == "Y3-Loa":
         return mgr.get_footprint("Y3", 'all', num_passes_required)
     elif data_cut == "sv3":
@@ -1869,7 +1869,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if extra_params is not None and Mode.is_photoz_plus(mode) == False:
         raise ValueError("Extra parameters are only for the PHOTOZ_PLUS_v1 mode.")
 
-    frac_area = get_footprint_fraction(data_cut, mode, num_passes_required)
+    frac_area = get_footprint_deg(data_cut, mode, num_passes_required) / DEGREES_ON_SPHERE
     wants_MCMC = False
 
     if mode == Mode.ALL.value:

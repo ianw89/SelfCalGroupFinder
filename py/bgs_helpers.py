@@ -12,7 +12,7 @@ if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from pyutils import *
 from dataloc import *
-from fetch_build_photometric_catalog import prepare_photo_vac
+from scripts.fetch_build_photometric_catalog import prepare_photo_vac
 
 # I built this list of tiles by looking at https://www.legacysurvey.org/viewer-desi and viewing DESI EDR tiles (look for SV3)
 sv3_regions = [
@@ -75,7 +75,7 @@ def determine_unobserved_from_z(column):
             unobserved = np.isnan(column)
         else:
             # Some older versions have sentinal value instead.
-            unobserved = column.astype("<i8") > 50
+            unobserved = column.astype("<f8") > 50
 
     return unobserved
 
