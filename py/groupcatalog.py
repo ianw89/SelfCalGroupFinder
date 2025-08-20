@@ -499,7 +499,7 @@ class GroupCatalog:
             assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
 
         assert np.isclose(self.f_sat_q.to_numpy()[6:34], self.fsatr[6:34], atol=1e-4).all()
-        assert np.isclose(self.f_sat_b.to_numpy()[6:34], self.fsatsf[6:34], atol=1e-4).all()
+        assert np.isclose(self.f_sat_sf.to_numpy()[6:34], self.fsatb[6:34], atol=1e-4).all()
         
 
     def write_sharable_output_file(self, name=None):

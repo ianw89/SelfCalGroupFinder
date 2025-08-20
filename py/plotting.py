@@ -349,7 +349,6 @@ def LHMR_scatter_savederr(f: GroupCatalog):
     plt.ylabel(r'$\sigma_{M_r}$')
     plt.draw()
 
-  
 
 def fsat_with_bootstrapped_err(gc: GroupCatalog):
     plt.figure()
@@ -362,30 +361,32 @@ def fsat_with_bootstrapped_err(gc: GroupCatalog):
     plt.xlim(8,LOG_LGAL_MAX_TIGHT)
     plt.ylim(0.0, 1.0)
     plt.twiny()
+    plt.xticks(np.arange(-23, -10, 1))
     plt.xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
-    plt.xticks(np.arange(-23, -12, 1))
     plt.xlabel("$M_r$ - 5log(h)")
     plt.tight_layout()
 
-def fsat_with_err_from_saved(gc: GroupCatalog):
+def fsat_with_err_from_saved(gc: GroupCatalog, add_boostrapped_err=False, show_all=False):
     fsat_err, fsatr_err, fsatb_err, fsat_mean, fsatr_mean, fsatb_mean = fsat_variance_from_saved()
+
+    if add_boostrapped_err: # Conservative: add bootstrap error linearly, not in quadrature.
+        fsat_err = fsat_err + gc.fsat_bootstrap_err
+        fsatr_err = fsatr_err + gc.fsat_q_bootstrap_err
+        fsatb_err = fsatb_err + gc.fsat_sf_bootstrap_err
     
-    print(len(LogLgal_labels), len(gc.fsatr), len(fsatr_err))
-
-    print(fsatr_err)
-
     plt.figure()
-    #plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
-    plt.errorbar(LogLgal_labels, gc.fsatr, yerr=fsatr_err, fmt='.', color='r', label='Quiescent', markersize=6, capsize=3, alpha=1.0)
+    if show_all:
+        plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_err, fmt='.', color='k', label='All', markersize=6, capsize=3, alpha=1.0)
+    plt.errorbar(LogLgal_labels[14:], gc.fsatr[14:], yerr=fsatr_err[14:], fmt='.', color='r', label='Quiescent', markersize=6, capsize=3, alpha=1.0)
     plt.errorbar(LogLgal_labels, gc.fsatb, yerr=fsatb_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=3, alpha=1.0)
     plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~/h^2])$')
     plt.ylabel('$f_{\mathrm{sat}}$')
     plt.legend()
-    plt.xlim(8,LOG_LGAL_MAX_TIGHT)
+    plt.xlim(7,LOG_LGAL_MAX_TIGHT)
     plt.ylim(0.0, 1.0)
     plt.twiny()
-    plt.xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
-    plt.xticks(np.arange(-23, -12, 1))
+    plt.xticks(np.arange(-23, -9, 1))
+    plt.xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
     plt.xlabel("$M_r$ - 5log(h)")
     plt.tight_layout()
 

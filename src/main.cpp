@@ -408,7 +408,7 @@ void write_fsat() {
   float logbin_interval = (12.5 - 6.0) / FSAT_BINS;
   float numr[FSAT_BINS], numb[FSAT_BINS], satsr[FSAT_BINS], satsb[FSAT_BINS], fsat[FSAT_BINS], fsatr[FSAT_BINS], fsatb[FSAT_BINS];
   int ibin, i;
-  int nsats = 0;
+  float nsats = 0;
   for (i = 0; i < FSAT_BINS; ++i)
   {
     numr[i] = numb[i] = satsr[i] = satsb[i] = fsat[i] = fsatr[i] = fsatb[i] = 0;
@@ -423,16 +423,16 @@ void write_fsat() {
       continue;
     if (GAL[i].color > 0.8)
     {
-      ++numr[ibin];
+      numr[ibin] += 1/GAL[i].vmax;
       if (GAL[i].psat > 0.5) {
-        ++satsr[ibin];
+        satsr[ibin] += 1/GAL[i].vmax;
       }
     }
     else
     {
-      ++numb[ibin];
+      numb[ibin] += 1/GAL[i].vmax;
       if (GAL[i].psat > 0.5) {
-        ++satsb[ibin];
+        satsb[ibin] += 1/GAL[i].vmax;
       }
     }
   }
