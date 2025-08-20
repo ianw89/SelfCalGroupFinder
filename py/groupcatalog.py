@@ -227,6 +227,14 @@ class GroupCatalog:
         self.hod : np.ndarray = None # Raw HOD
         self.hodfit : np.ndarray = None # HOD with modifications; this is what was used to populate mocks
 
+        # Bootstrapped error estimates
+        self.fsat_bootstrap_err: np.ndarray = None
+        self.fsat_sf_bootstrap_err: np.ndarray = None
+        self.fsat_q_bootstrap_err: np.ndarray = None
+        self.lhmr_bootstrap_err: np.ndarray = None
+        self.lhmr_sf_bootstrap_err: np.ndarray = None
+        self.lhmr_q_bootstrap_err: np.ndarray = None
+
     def __getstate__(self):
         state = self.__dict__.copy()
         for key in ['proc', 'pipereader', 'outstream']:
@@ -1391,10 +1399,10 @@ class BGSGroupCatalog(GroupCatalog):
             print("Skipping pre-processing")
         return super().run_group_finder(popmock=popmock, silent=silent, verbose=verbose, profile=profile, interactive=interactive)
 
-    def add_bootstrapped_f_sat(self, N_ITERATIONS = 300):
-        print("Bootstrapping for fsat error estimate...")
+    def bootstrap_statistics(self, N_ITERATIONS = 300):
+        print("Bootstrapping...")
 
-        relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT']
+        relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'L_GAL']
         df = self.all_data
         t1 = time.time()
 
@@ -1423,20 +1431,28 @@ class BGSGroupCatalog(GroupCatalog):
         else:
             def bootstrap_iteration(indexes: np.ndarray):
                 alt_df = df.iloc[indexes][relevent_columns]
+
                 f_sat = alt_df.groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
                 f_sat_sf = alt_df.loc[alt_df['QUIESCENT'] == False].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
                 f_sat_q = alt_df.loc[alt_df['QUIESCENT'] == True].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-                return f_sat, f_sat_sf, f_sat_q
+                lhmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+                lhmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+                lhmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+
+                return f_sat, f_sat_sf, f_sat_q, lhmr, lhmr_sf, lhmr_q
 
             results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(df)), len(df), replace=True)) for _ in range(N_ITERATIONS))
 
 
-        f_sat_realizations, f_sat_sf_realizations, f_sat_q_realizations = zip(*results)
+        f_sat_realizations, f_sat_sf_realizations, f_sat_q_realizations, lhmr_realizations, lhmr_sf_realizations, lhmr_q_realizations = zip(*results)
 
         # Save off the bootstrapped std estimates
         self.fsat_bootstrap_err = np.std(f_sat_realizations, axis=0)
         self.fsat_sf_bootstrap_err = np.std(f_sat_sf_realizations, axis=0)
         self.fsat_q_bootstrap_err = np.std(f_sat_q_realizations, axis=0)
+        self.lhmr_bootstrap_err = np.std(lhmr_realizations, axis=0)
+        self.lhmr_sf_bootstrap_err = np.std(lhmr_sf_realizations, axis=0)
+        self.lhmr_q_bootstrap_err = np.std(lhmr_q_realizations, axis=0)
 
         t2 = time.time()
         print(f"Bootstrapping complete in {t2-t1:.2f} seconds.")
@@ -1694,7 +1710,7 @@ class BGSGroupCatalog(GroupCatalog):
 
     def refresh_df_views(self):
         super().refresh_df_views()
-        self.add_bootstrapped_f_sat()
+        self.bootstrap_statistics()
 
 
 def filter_SV3_to_avoid_edges(gc: GroupCatalog, INNER_RADIUS = 1.3):
@@ -2540,6 +2556,12 @@ def Mhalo_std_vmax_weighted(series):
         mu = np.log10(Mhalo_vmax_weighted(series))
         values = np.log10(series['M_HALO'])
         return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
+    
+def Lgal_vmax_weighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        return np.average(series['L_GAL'], weights=1/series['VMAX'])
 
 def LogLgal_vmax_weighted(series):
     if len(series) <= 4:

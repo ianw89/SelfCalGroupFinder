@@ -295,8 +295,9 @@ def LHMR_from_logs():
     plt.show()
 
 
-def LHMR_savederr(f: GroupCatalog):
+def LHMR_savederr(f: GroupCatalog, add_boostrapped_err=False, show_all=False):
 
+    mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
     means_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
     means_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
 
@@ -309,11 +310,18 @@ def LHMR_savederr(f: GroupCatalog):
             upper = np.log10(10**mean + err) - mean
             return lower, upper
 
+    if add_boostrapped_err:
+        lhmr_r_err = lhmr_r_err + f.lhmr_q_bootstrap_err
+        lhmr_b_err = lhmr_b_err + f.lhmr_sf_bootstrap_err
+        lhmr_all_err = lhmr_all_err + f.lhmr_bootstrap_err
+
+    yerr_all_lower, yerr_all_upper = safe_log_err(mean_all, lhmr_all_err)
     yerr_b_lower, yerr_b_upper = safe_log_err(means_b, lhmr_b_err)
     yerr_r_lower, yerr_r_upper = safe_log_err(means_r, lhmr_r_err)
 
     plt.figure()
-    #plt.errorbar(Mhalo_labels, lhmr_all_mean, yerr=lhmr_all_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
+    if show_all:
+        plt.errorbar(np.log10(Mhalo_labels), mean_all, yerr=[yerr_all_lower, yerr_all_upper], fmt='.', color='k', label='All', capsize=3, alpha=0.7)
     plt.errorbar(np.log10(Mhalo_labels), means_b, yerr=[yerr_b_lower, yerr_b_upper], fmt='.', color='b', label='SF Centrals', capsize=3, alpha=0.7)
     plt.errorbar(np.log10(Mhalo_labels), means_r, yerr=[yerr_r_lower, yerr_r_upper], fmt='.', color='r', label='Q Centrals', capsize=3, alpha=0.7)
     plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
