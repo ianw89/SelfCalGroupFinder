@@ -498,6 +498,10 @@ class GroupCatalog:
             bighalos = cens.loc[cens['Z'] < 0.1].sort_values('M_HALO', ascending=False).head(20)
             assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
 
+        assert np.isclose(self.f_sat_q.to_numpy()[6:34], self.fsatr[6:34], atol=1e-4).all()
+        assert np.isclose(self.f_sat_b.to_numpy()[6:34], self.fsatsf[6:34], atol=1e-4).all()
+        
+
     def write_sharable_output_file(self, name=None):
         if name is None:
             name = str.replace(self.GF_outfile, ".out", "_Catalog.csv").replace(" ", "_").replace("<", "").replace(">", "")
@@ -1387,23 +1391,19 @@ class BGSGroupCatalog(GroupCatalog):
             print("Skipping pre-processing")
         return super().run_group_finder(popmock=popmock, silent=silent, verbose=verbose, profile=profile, interactive=interactive)
 
-    def add_bootstrapped_f_sat(self, N_ITERATIONS = 100):
+    def add_bootstrapped_f_sat(self, N_ITERATIONS = 300):
+        print("Bootstrapping for fsat error estimate...")
 
+        relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT']
         df = self.all_data
+        t1 = time.time()
 
         if self.data_cut == 'sv3':
-            print("Bootstrapping for fsat error estimate...")
-            t1 = time.time()
             # label the SV3 region each galaxy is in
             df['region'] = tile_to_region(df['NTID'])
 
-            # Add bootstrapped error bars for fsat
-            f_sat_realizations = []
-            f_sat_sf_realizations = []
-            f_sat_q_realizations = []
-
+            # SV3 version of boostrapping is done at the level of the patches instead of per-galaxy
             def bootstrap_iteration(region_indices):
-                relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT']
                 alt_df = pd.DataFrame(columns=relevent_columns)
                 for idx in region_indices:
                     rows_to_add = df.loc[df.region == idx, relevent_columns]
@@ -1417,19 +1417,31 @@ class BGSGroupCatalog(GroupCatalog):
                 f_sat_q = alt_df[alt_df['QUIESCENT'] == True].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
                 return f_sat, f_sat_sf, f_sat_q
 
-            #results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
-            results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
+            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
+            #results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
 
-            f_sat_realizations, f_sat_sf_realizations, f_sat_q_realizations = zip(*results)
-
-            self.f_sat_err = np.std(f_sat_realizations, axis=0)
-            self.f_sat_sf_err = np.std(f_sat_sf_realizations, axis=0)
-            self.f_sat_q_err = np.std(f_sat_q_realizations, axis=0)
-
-            t2 = time.time()
-            print(f"Bootstrapping complete in {t2-t1:.2} seconds.")
         else:
-            pass
+            def bootstrap_iteration(indexes: np.ndarray):
+                alt_df = df.iloc[indexes][relevent_columns]
+                f_sat = alt_df.groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+                f_sat_sf = alt_df.loc[alt_df['QUIESCENT'] == False].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+                f_sat_q = alt_df.loc[alt_df['QUIESCENT'] == True].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+                return f_sat, f_sat_sf, f_sat_q
+
+            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(df)), len(df), replace=True)) for _ in range(N_ITERATIONS))
+
+
+        f_sat_realizations, f_sat_sf_realizations, f_sat_q_realizations = zip(*results)
+
+        # Save off the bootstrapped std estimates
+        self.fsat_bootstrap_err = np.std(f_sat_realizations, axis=0)
+        self.fsat_sf_bootstrap_err = np.std(f_sat_sf_realizations, axis=0)
+        self.fsat_q_bootstrap_err = np.std(f_sat_q_realizations, axis=0)
+
+        t2 = time.time()
+        print(f"Bootstrapping complete in {t2-t1:.2f} seconds.")
+
+
 
     def postprocess(self):
         print("Post-processing...")
@@ -2512,6 +2524,7 @@ def fsat_vmax_weighted(series):
         return np.nan
     else:
         return np.average(series['IS_SAT'], weights=1/series['VMAX'])
+        return np.average(series['IS_SAT'])
 
 def Mhalo_vmax_weighted(series):
     if len(series) == 0:

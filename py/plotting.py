@@ -351,17 +351,33 @@ def LHMR_scatter_savederr(f: GroupCatalog):
 
   
 
+def fsat_with_bootstrapped_err(gc: GroupCatalog):
+    plt.figure()
+    #plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
+    plt.errorbar(LogLgal_labels, gc.fsatr, yerr=gc.fsat_q_bootstrap_err, fmt='.', color='r', label='Quiescent', markersize=6, capsize=3, alpha=1.0)
+    plt.errorbar(LogLgal_labels, gc.fsatb, yerr=gc.fsat_sf_bootstrap_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=3, alpha=1.0)
+    plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~/h^2])$')
+    plt.ylabel('$f_{\mathrm{sat}}$')
+    plt.legend()
+    plt.xlim(8,LOG_LGAL_MAX_TIGHT)
+    plt.ylim(0.0, 1.0)
+    plt.twiny()
+    plt.xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
+    plt.xticks(np.arange(-23, -12, 1))
+    plt.xlabel("$M_r$ - 5log(h)")
+    plt.tight_layout()
+
 def fsat_with_err_from_saved(gc: GroupCatalog):
     fsat_err, fsatr_err, fsatb_err, fsat_mean, fsatr_mean, fsatb_mean = fsat_variance_from_saved()
     
-    print(len(LogLgal_bins), len(gc.fsatr), len(fsatr_err))
+    print(len(LogLgal_labels), len(gc.fsatr), len(fsatr_err))
 
     print(fsatr_err)
 
     plt.figure()
     #plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
-    plt.errorbar(LogLgal_bins, gc.fsatr, yerr=fsatr_err, fmt='.', color='r', label='Quiescent', markersize=6, capsize=3, alpha=1.0)
-    plt.errorbar(LogLgal_bins, gc.fsatb, yerr=fsatb_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=3, alpha=1.0)
+    plt.errorbar(LogLgal_labels, gc.fsatr, yerr=fsatr_err, fmt='.', color='r', label='Quiescent', markersize=6, capsize=3, alpha=1.0)
+    plt.errorbar(LogLgal_labels, gc.fsatb, yerr=fsatb_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=3, alpha=1.0)
     plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~/h^2])$')
     plt.ylabel('$f_{\mathrm{sat}}$')
     plt.legend()
@@ -469,7 +485,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         fig.set_dpi(DPI)
         for f in catalogs:
             if f is show_err:
-                plt.errorbar(f.L_gal_labels, f.f_sat, marker='.', linestyle='none', yerr=f.f_sat_err, label=get_dataset_display_name(f), color=f.color)
+                plt.errorbar(f.L_gal_labels, f.f_sat, marker='.', linestyle='none', yerr=f.fsat_bootstrap_err, label=get_dataset_display_name(f), color=f.color)
             else:
                 plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=get_dataset_display_name(f), color=f.color)
         if truth_on:
@@ -511,7 +527,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         fig.set_dpi(DPI)
         for f in catalogs:
             if f is show_err:
-                plt.errorbar(f.L_gal_labels, f.f_sat_sf, marker='.', linestyle='none', yerr=f.f_sat_sf_err, label=get_dataset_display_name(f), color=f.color)
+                plt.errorbar(f.L_gal_labels, f.f_sat_sf, marker='.', linestyle='none', yerr=f.fsat_sf_bootstrap_err, label=get_dataset_display_name(f), color=f.color)
             else:
                 plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, color=f.color, label=get_dataset_display_name(f))
 
@@ -534,7 +550,7 @@ def plots(*catalogs, show_err=None, truth_on=False):
         fig.set_dpi(DPI)
         for f in catalogs:
             if f is show_err:
-                plt.errorbar(f.L_gal_labels, f.f_sat_q, marker='.', linestyle='none', yerr=f.f_sat_q_err, label=get_dataset_display_name(f), color=f.color)
+                plt.errorbar(f.L_gal_labels, f.f_sat_q, marker='.', linestyle='none', yerr=f.fsat_q_bootstrap_err, label=get_dataset_display_name(f), color=f.color)
             else:
                 plt.plot(f.L_gal_labels, f.f_sat_q, f.marker, color=f.color, label=get_dataset_display_name(f))
 
@@ -844,19 +860,19 @@ def plots_color_split(*datasets, truth_on=False, total_on=False):
             #if not hasattr(f, 'f_sat_sf'):
             #    f.f_sat_sf = f.all_data[np.invert(f.all_data['QUIESCENT'])].groupby(['LGAL_BIN'], observed=False).apply(fsat_vmax_weighted)
             
-            if hasattr(f, 'f_sat_q_err'):
-                plt.errorbar(f.L_gal_labels, f.f_sat_q, yerr=f.f_sat_q_err, label="Quiescent", color='r')
+            if hasattr(f, 'fsat_q_bootstrap_err'):
+                plt.errorbar(f.L_gal_labels, f.f_sat_q, yerr=f.fsat_q_bootstrap_err, label="Quiescent", color='r')
             else:
                 plt.plot(f.L_gal_labels, f.f_sat_q, label="Quiescent", color='r')
                 
-            if hasattr(f, 'f_sat_sf_err'):
-                plt.errorbar(f.L_gal_labels, f.f_sat_sf, yerr=f.f_sat_sf_err, label="Star-forming", color='b')
+            if hasattr(f, 'fsat_sf_bootstrap_err'):
+                plt.errorbar(f.L_gal_labels, f.f_sat_sf, yerr=f.fsat_sf_bootstrap_err, label="Star-forming", color='b')
             else:
                 plt.plot(f.L_gal_labels, f.f_sat_sf, f.marker, label="Star-forming", color='b')
             
             if total_on:
-                if hasattr(f, 'f_sat_err'):
-                    plt.errorbar(f.L_gal_labels, f.f_sat, yerr=f.f_sat_err, label="Total", color='k')
+                if hasattr(f, 'fsat_bootstrap_err'):
+                    plt.errorbar(f.L_gal_labels, f.f_sat, yerr=f.fsat_bootstrap_err, label="Total", color='k')
                 else:
                     plt.plot(f.L_gal_labels, f.f_sat, label="Total", color='k')
 
@@ -1044,12 +1060,13 @@ def hod_plot(gc: GroupCatalog, pretty=True):
     Plot the HOD from a file, overlaying with a histogram of the number of halos (nhalo).
     """
     # Format is <M_h> [<ncenr_i> <nsatr_i> <ncenb_i> <nsatb_i> <nhalo_i> for each i mag bin]
-    for data in [gc.hod, gc.hodfit]:
+    lst = [gc.hod, gc.hodfit] if not pretty else [gc.hodfit]
+    for data in lst:
         n_cols = data.shape[1]
         n_lbins = (n_cols - 1) // 7
         if n_cols % 7 != 1:
             raise ValueError(f"Expected 7*n_lbins + 1 columns, got {n_cols} columns")
-        print(f"Found {n_lbins} luminosity bins")
+        #print(f"Found {n_lbins} luminosity bins")
 
         log_halo_mass = data[:, 0]
 
@@ -1069,15 +1086,17 @@ def hod_plot(gc: GroupCatalog, pretty=True):
             nhalo = data[:, 7 + lbin * 7]
 
             alpha = 0.6
-            if gc.caldata.color_separation[lbin]:
-                ax.plot(log_halo_mass, log_red_cen_fraction, 'r-', label='Red Cen', alpha=alpha)
-                ax.plot(log_halo_mass, log_red_sat_fraction, 'r--', label='Red Sat', alpha=alpha)
-                ax.plot(log_halo_mass, log_blue_cen_fraction, 'b-', label='Blue Cen', alpha=alpha)
-                ax.plot(log_halo_mass, log_blue_sat_fraction, 'b--', label='Blue Sat', alpha=alpha)
-            else:
-                ax.plot(log_halo_mass, log_all_cen_fraction, 'k-', label='All Cen', alpha=alpha)
-                ax.plot(log_halo_mass, log_all_sat_fraction, 'k--', label='All Sat', alpha=alpha)
-            ax.set_xlabel('log($M_h$) [$M_\odot / h$]')
+            #if gc.caldata.color_separation[lbin]:
+            ax.plot(log_halo_mass, log_red_cen_fraction, 'r-', label='Q Cen', alpha=alpha, linewidth=3)
+            ax.plot(log_halo_mass, log_red_sat_fraction, 'r--', label='Q Sat', alpha=alpha, linewidth=3)
+            ax.plot(log_halo_mass, log_blue_cen_fraction, 'b-', label='SF Cen', alpha=alpha, linewidth=3)
+            ax.plot(log_halo_mass, log_blue_sat_fraction, 'b--', label='SF Sat', alpha=alpha, linewidth=3)
+            #else:
+            #    ax.plot(log_halo_mass, log_all_cen_fraction, 'k-', label='All Cen', alpha=alpha, linewidth=3)
+            #    ax.plot(log_halo_mass, log_all_sat_fraction, 'k--', label='All Sat', alpha=alpha, linewidth=3)
+
+            if lbin / (ncols*2) >= 0.5:
+                ax.set_xlabel('log($M_h$ / [$M_\odot / h$])')
             if pretty:
                 ax.set_xlim(10.0, 15.0)
                 ax.set_ylim(-2, 2)

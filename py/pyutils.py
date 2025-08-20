@@ -82,7 +82,7 @@ ABS_MAG_MIDPOINTS = np.append(np.append([-23], 0.5*(ABS_MAG_BINS[1:-1] + ABS_MAG
 
 QUIESCENT_BINS = np.array([0.0, 1.0]) 
 
-L_gal_bins = np.logspace(6, 12.5, 40)
+L_gal_bins = np.logspace(6, 12.5, 41)
 L_gal_labels = L_gal_bins[0:len(L_gal_bins)-1]
 LogLgal_bins = np.log10(L_gal_bins)
 LogLgal_labels = LogLgal_bins[0:len(LogLgal_bins)-1]
