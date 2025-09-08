@@ -234,6 +234,15 @@ class GroupCatalog:
         self.lhmr_bootstrap_err: np.ndarray = None
         self.lhmr_sf_bootstrap_err: np.ndarray = None
         self.lhmr_q_bootstrap_err: np.ndarray = None
+        self.lhmr_scatter_bootstrap_err: np.ndarray = None
+        self.lhmr_sf_scatter_bootstrap_err: np.ndarray = None
+        self.lhmr_q_scatter_bootstrap_err: np.ndarray = None
+        self.shmr_bootstrap_err: np.ndarray = None
+        self.shmr_sf_bootstrap_err: np.ndarray = None
+        self.shmr_q_bootstrap_err: np.ndarray = None
+        self.shmr_scatter_bootstrap_err: np.ndarray = None
+        self.shmr_sf_scatter_bootstrap_err: np.ndarray = None
+        self.shmr_q_scatter_bootstrap_err: np.ndarray = None
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -1399,18 +1408,38 @@ class BGSGroupCatalog(GroupCatalog):
             print("Skipping pre-processing")
         return super().run_group_finder(popmock=popmock, silent=silent, verbose=verbose, profile=profile, interactive=interactive)
 
-    def bootstrap_statistics(self, N_ITERATIONS = 300):
+    def bootstrap_statistics(self, N_ITERATIONS = 1000):
         print("Bootstrapping...")
 
-        relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'L_GAL']
+        relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'L_GAL', 'LOGMSTAR']
         df = self.all_data
         t1 = time.time()
 
+        def get_statistics_for_df(alt_df: pd.DataFrame):
+            f_sat = alt_df.groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+            f_sat_sf = alt_df.loc[alt_df['QUIESCENT'] == False].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+            f_sat_q = alt_df.loc[alt_df['QUIESCENT'] == True].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+            lhmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+            lhmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+            lhmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+            lhmr_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted))
+            lhmr_sf_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted))
+            lhmr_q_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted))
+            shmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+            shmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+            shmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+            shmr_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted))
+            shmr_sf_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted))
+            shmr_q_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted))
+            
+            return f_sat, f_sat_sf, f_sat_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter
+
+
         if self.data_cut == 'sv3':
+            # SV3 version of boostrapping is done at the level of the patches instead of per-galaxy
             # label the SV3 region each galaxy is in
             df['region'] = tile_to_region(df['NTID'])
 
-            # SV3 version of boostrapping is done at the level of the patches instead of per-galaxy
             def bootstrap_iteration(region_indices):
                 alt_df = pd.DataFrame(columns=relevent_columns)
                 for idx in region_indices:
@@ -1420,10 +1449,7 @@ class BGSGroupCatalog(GroupCatalog):
                     else:
                         alt_df = rows_to_add
 
-                f_sat = alt_df.groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-                f_sat_sf = alt_df[alt_df['QUIESCENT'] == False].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-                f_sat_q = alt_df[alt_df['QUIESCENT'] == True].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-                return f_sat, f_sat_sf, f_sat_q
+                return get_statistics_for_df(alt_df)
 
             results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
             #results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
@@ -1431,28 +1457,29 @@ class BGSGroupCatalog(GroupCatalog):
         else:
             def bootstrap_iteration(indexes: np.ndarray):
                 alt_df = df.iloc[indexes][relevent_columns]
-
-                f_sat = alt_df.groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-                f_sat_sf = alt_df.loc[alt_df['QUIESCENT'] == False].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-                f_sat_q = alt_df.loc[alt_df['QUIESCENT'] == True].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-                lhmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-                lhmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-                lhmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-
-                return f_sat, f_sat_sf, f_sat_q, lhmr, lhmr_sf, lhmr_q
+                return get_statistics_for_df(alt_df)
 
             results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(df)), len(df), replace=True)) for _ in range(N_ITERATIONS))
 
 
-        f_sat_realizations, f_sat_sf_realizations, f_sat_q_realizations, lhmr_realizations, lhmr_sf_realizations, lhmr_q_realizations = zip(*results)
+        fsat_reals, fsat_sf_reals, fsat_q_reals, lhmr_reals, lhmr_sf_reals, lhmr_q_reals, lhmr_scatter_reals, lhmr_sf_scatter_reals, lhmr_q_scatter_reals, shmr_reals, shmr_sf_reals, shmr_q_reals, shmr_scatter_reals, shmr_sf_scatter_reals, shmr_q_scatter_reals = zip(*results)
 
         # Save off the bootstrapped std estimates
-        self.fsat_bootstrap_err = np.std(f_sat_realizations, axis=0)
-        self.fsat_sf_bootstrap_err = np.std(f_sat_sf_realizations, axis=0)
-        self.fsat_q_bootstrap_err = np.std(f_sat_q_realizations, axis=0)
-        self.lhmr_bootstrap_err = np.std(lhmr_realizations, axis=0)
-        self.lhmr_sf_bootstrap_err = np.std(lhmr_sf_realizations, axis=0)
-        self.lhmr_q_bootstrap_err = np.std(lhmr_q_realizations, axis=0)
+        self.fsat_bootstrap_err = np.std(fsat_reals, axis=0)
+        self.fsat_sf_bootstrap_err = np.std(fsat_sf_reals, axis=0)
+        self.fsat_q_bootstrap_err = np.std(fsat_q_reals, axis=0)
+        self.lhmr_bootstrap_err = np.std(lhmr_reals, axis=0)
+        self.lhmr_sf_bootstrap_err = np.std(lhmr_sf_reals, axis=0)
+        self.lhmr_q_bootstrap_err = np.std(lhmr_q_reals, axis=0)
+        self.lhmr_scatter_bootstrap_err = np.std(lhmr_scatter_reals, axis=0)
+        self.lhmr_sf_scatter_bootstrap_err = np.std(lhmr_sf_scatter_reals, axis=0)
+        self.lhmr_q_scatter_bootstrap_err = np.std(lhmr_q_scatter_reals, axis=0)
+        self.shmr_bootstrap_err = np.std(shmr_reals, axis=0)
+        self.shmr_sf_bootstrap_err = np.std(shmr_sf_reals, axis=0)
+        self.shmr_q_bootstrap_err = np.std(shmr_q_reals, axis=0)
+        self.shmr_scatter_bootstrap_err = np.std(shmr_scatter_reals, axis=0)
+        self.shmr_sf_scatter_bootstrap_err = np.std(shmr_sf_scatter_reals, axis=0)
+        self.shmr_q_scatter_bootstrap_err = np.std(shmr_q_scatter_reals, axis=0)
 
         t2 = time.time()
         print(f"Bootstrapping complete in {t2-t1:.2f} seconds.")
@@ -2558,7 +2585,7 @@ def Mhalo_std_vmax_weighted(series):
         return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
     
 def Lgal_vmax_weighted(series):
-    if len(series) == 0:
+    if len(series) <= 4:
         return np.nan
     else:
         return np.average(series['L_GAL'], weights=1/series['VMAX'])
@@ -2569,7 +2596,7 @@ def LogLgal_vmax_weighted(series):
     else:
         return np.log10(np.average(series['L_GAL'], weights=1/series['VMAX']))
 
-def LogLgal_std_vmax_weighted(series):
+def LogLgal_lognormal_scatter_vmax_weighted(series):
     if len(series) <= 4:
         return np.nan
     else:
@@ -2594,19 +2621,18 @@ def z_flag_is_not_spectro_z(arr):
     return ~z_flag_is_spectro_z(arr)
 
 def mstar_vmax_weighted(series):
-    if len(series) == 0:
-        return 0
-    return np.log10(np.average(np.power(10, series['LOGMSTAR']), weights=1/series['VMAX']))
+    if len(series) <= 4:
+        return np.nan
+    return np.average(np.power(10, series['LOGMSTAR']), weights=1/series['VMAX'])
 
-# TODO not sure right way to do std error for this sort of data
-def mstar_std_vmax_weighted(series):
-    if len(series) == 0:
+def LogMstar_lognormal_scatter_vmax_weighted(series):
+    if len(series) <= 4:
         return np.nan
     else:
-        should_mask = np.logical_or(series.Z_ASSIGNED_FLAG != 0, np.isnan(series['LOGMSTAR']))
-        masked_mstar = np.ma.masked_array(series['LOGMSTAR'], should_mask)
-        masked_vmax = np.ma.masked_array(series['VMAX'], should_mask)
-        return np.sqrt(np.average((masked_mstar - mstar_vmax_weighted(series))**2, weights=1/masked_vmax))
+        totweight = np.sum(1/series['VMAX'])
+        mu = np.log10(mstar_vmax_weighted(series))
+        values = series['LOGMSTAR']
+        return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
 
 def qf_vmax_weighted(series):
     if len(series) == 0:
