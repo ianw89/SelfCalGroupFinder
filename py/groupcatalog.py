@@ -30,6 +30,7 @@ from uchuu_to_dat import pre_process_uchuu
 from bgs_helpers import *
 import wp
 from calibrationdata import *
+from hod import fit_hod_models
 
 # Must keep this protocol syncronized with the C++ code in groups.hpp
 MSG_REQUEST = 0
@@ -488,6 +489,34 @@ class GroupCatalog:
         if len(best_params_list) > 0:
             return best_params_list[0][1]
         return None
+
+    def fit_hod_to_model_for_display(self):
+        if self.hod is None:
+            raise Exception("HOD data not available")
+        data = self.hod
+        n_cols = data.shape[1]
+        n_lbins = (n_cols - 1) // 7
+        if n_cols % 7 != 1:
+            raise ValueError(f"Expected 7*n_lbins + 1 columns, got {n_cols} columns")
+
+        log_Mhalo = data[:, 0]
+
+        self.hod_cen_red_popt = []
+        self.hod_sat_red_popt = []
+        self.hod_cen_blue_popt = []
+        self.hod_sat_blue_popt = []
+
+        for lbin in range(n_lbins):
+            log_r_cen_fraction = data[:, 1 + lbin * 7]
+            log_r_sat_fraction = data[:, 2 + lbin * 7]
+            log_b_cen_fraction = data[:, 3 + lbin * 7]
+            log_b_sat_fraction = data[:, 4 + lbin * 7]
+            hod_cen_red_popt, hod_sat_red_popt = fit_hod_models(log_Mhalo, log_r_cen_fraction, log_r_sat_fraction)
+            hod_cen_blue_popt, hod_sat_blue_popt = fit_hod_models(log_Mhalo, log_b_cen_fraction, log_b_sat_fraction)
+            self.hod_cen_red_popt.append(hod_cen_red_popt)
+            self.hod_sat_red_popt.append(hod_sat_red_popt)
+            self.hod_cen_blue_popt.append(hod_cen_blue_popt)
+            self.hod_sat_blue_popt.append(hod_sat_blue_popt)
 
     def sanity_tests(self):
         print(f"Running sanity tests on {self.name}")

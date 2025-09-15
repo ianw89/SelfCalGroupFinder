@@ -29,18 +29,23 @@ struct drand48_data *rng_buffers;
 
 /* Globals for the halos
  */
-float BOX_SIZE = 250.0;
-float BOX_EPSILON = 0.01;
+double BOX_SIZE = 250.0;
+double BOX_EPSILON = 0.01;
 
 /* Globals for the tabulated HODs */
 int NVOLUME_BINS = 0;
 // TODO replace these with dynamic sized arrays
+// These are the HOD in bins
 double ncenr[MAXBINS][HALO_BINS], nsatr[MAXBINS][HALO_BINS], ncenb[MAXBINS][HALO_BINS], nsatb[MAXBINS][HALO_BINS], ncen[MAXBINS][HALO_BINS], nsat[MAXBINS][HALO_BINS], nhalo[MAXBINS][HALO_BINS];
 double nhalo_int[MAXBINS][HALO_BINS]; // integer version of nhalo (no vmax weight)
-float maglim[MAXBINS];
+double maglim[MAXBINS]; // the fainter limit of the mag bin;the brighter limit is this - 1.0. 
 int color_sep[MAXBINS]; // 1 means do red/blue seperately, 0 means all together
-float maxz[MAXBINS]; 
-float volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
+double maxz[MAXBINS];  // the max redshift of the mag bin, calculated from the fainter mag limit
+double volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
+
+// These are the HOD in thresholds
+//double ncenr_th[MAXBINS][HALO_BINS], nsatr_th[MAXBINS][HALO_BINS], ncenb_th[MAXBINS][HALO_BINS], nsatb_th[MAXBINS][HALO_BINS], ncen_th[MAXBINS][HALO_BINS], nsat_th[MAXBINS][HALO_BINS], nhalo_th[MAXBINS][HALO_BINS];
+//double nhalo_int_th[MAXBINS][HALO_BINS]; // integer version of nhalo (no vmax weight)
 
 /* LHMR. Scatter is in in log space. */
 double mean_cen[HALO_BINS], mean_cenr[HALO_BINS], mean_cenb[HALO_BINS], std_cen[HALO_BINS], std_cenr[HALO_BINS], std_cenb[HALO_BINS];
@@ -527,6 +532,8 @@ void tabulate_hods()
         {
           w0 = 1 / volume[j];
           if (GAL[i].vmax < volume[j])
+            // TODO Should this ever happen?
+            //LOG_WARN("WARNING: vmax (%f) < volume (%f) for galaxy index %d. Using 1/vmax weight.\n", GAL[i].vmax, volume[j], i);
             w0 = 1 / GAL[i].vmax;
             if (!isfinite(w0)) {
               LOG_ERROR("ERROR: w0 is not finite for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
