@@ -1252,14 +1252,14 @@ def is_quiescent_BGS_gmr(logLgal, G_R_k):
 def fsat_variance_from_saved():
     """
     Load the fsat variance from the saved file.
-    Returns fsat std, fsatr std, fsatb std, fsat mean, fsatr mean, fsatb mean.
+    Returns fsat 68% confidence, fsatr 68% confidence, fsatb 68% confidence, fsat mean, fsatr mean, fsatb mean.
     """
     if os.path.exists(FSAT_VALUES_FROM_LOGS):
         fsat_arr, fsatr_arr, fsatb_arr = np.load(FSAT_VALUES_FROM_LOGS)
         print(f"Data point count: {len(fsat_arr)}")
-        fsat_std = np.std(fsat_arr, axis=0)
-        fsatr_std = np.std(fsatr_arr, axis=0)
-        fsatb_std = np.std(fsatb_arr, axis=0)
+        fsat_std = np.percentile(fsat_arr, 84, axis=0) - np.percentile(fsat_arr, 16, axis=0)
+        fsatr_std = np.percentile(fsatr_arr, 84, axis=0) - np.percentile(fsatr_arr, 16, axis=0)
+        fsatb_std = np.percentile(fsatb_arr, 84, axis=0) - np.percentile(fsatb_arr, 16, axis=0)
         fsat_mean = np.mean(fsat_arr, axis=0)
         fsatr_mean = np.mean(fsatr_arr, axis=0)
         fsatb_mean = np.mean(fsatb_arr, axis=0)
@@ -1271,18 +1271,18 @@ def fsat_variance_from_saved():
 def lhmr_variance_from_saved():
     """
     Load the lhmr variance from the saved file.
-    Returns red mean, red std, red scatter mean, red scatter std,
-           blue mean, blue std, blue scatter mean, blue scatter std,
-           all mean, all std, all scatter mean, all scatter std.
+    Returns red mean, red 68% confidence, red scatter mean, red scatter 68% confidence,
+           blue mean, blue 68% confidence, blue scatter mean, blue scatter 68% confidence,
+           all mean, all 68% confidence, all scatter mean, all scatter 68% confidence.
     """
     if os.path.exists(LHMR_VALUES_FROM_LOGS):
         r_arr, r_scatter_arr, b_arr, b_scatter_arr, all_arr, all_scatter_arr = np.load(LHMR_VALUES_FROM_LOGS)
-        r_std = np.std(r_arr, axis=0)
-        r_scatter_std = np.std(r_scatter_arr, axis=0)
-        b_std = np.std(b_arr, axis=0)
-        b_scatter_std = np.std(b_scatter_arr, axis=0)
-        all_std = np.std(all_arr, axis=0)
-        all_scatter_std = np.std(all_scatter_arr, axis=0)
+        r_std = np.percentile(r_arr, 84, axis=0) - np.percentile(r_arr, 16, axis=0)
+        r_scatter_std = np.percentile(r_scatter_arr, 84, axis=0) - np.percentile(r_scatter_arr, 16, axis=0)
+        b_std = np.percentile(b_arr, 84, axis=0) - np.percentile(b_arr, 16, axis=0)
+        b_scatter_std = np.percentile(b_scatter_arr, 84, axis=0) - np.percentile(b_scatter_arr, 16, axis=0)
+        all_std = np.percentile(all_arr, 84, axis=0) - np.percentile(all_arr, 16, axis=0)
+        all_scatter_std = np.percentile(all_scatter_arr, 84, axis=0) - np.percentile(all_scatter_arr, 16, axis=0)
         r_mean = np.mean(r_arr, axis=0)
         r_scatter_mean = np.mean(r_scatter_arr, axis=0)
         b_mean = np.mean(b_arr, axis=0)   
@@ -1298,12 +1298,12 @@ def lhmr_variance_from_saved():
 def lsat_variance_from_saved():
     """
     Load the lsat variance from the saved file.
-    Returns red mean, red std, blue mean, blue std.
+    Returns red mean, red 68% confidence, blue mean, blue 68% confidence.
     """
     if os.path.exists(LSAT_VALUES_FROM_LOGS):
         r_arr, b_arr = np.load(LSAT_VALUES_FROM_LOGS)
-        r_std = np.std(r_arr, axis=0)
-        b_std = np.std(b_arr, axis=0)
+        r_std = np.percentile(r_arr, 84, axis=0) - np.percentile(r_arr, 16, axis=0)
+        b_std = np.percentile(b_arr, 84, axis=0) - np.percentile(b_arr, 16, axis=0)
         r_mean = np.mean(r_arr, axis=0)
         b_mean = np.mean(b_arr, axis=0)
         return r_mean, r_std, b_mean, b_std
