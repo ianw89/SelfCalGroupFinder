@@ -30,8 +30,8 @@ class FootprintManager:
         self._randoms_files = {
             'SV3-18': MY_RANDOMS_SV3_MINI,
             'SV3-20': MY_RANDOMS_SV3_MINI_20,
-            'Y1': MY_RANDOMS_Y1_MINI, 
-            'Y3': MY_RANDOMS_Y3_MINI
+            'Y1': RANDOMS_Y1_0_WITHMYNTILE, 
+            'Y3': RANDOMS_Y3_0_WITHMYNTILE
         }
 
         # Load cache if it exists

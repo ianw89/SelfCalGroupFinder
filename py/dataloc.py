@@ -188,9 +188,9 @@ MY_RANDOMS_Y3_LIKESV3_CLUSTERING_20 = OUTPUT_FOLDER + "randoms_df_y3likesv3_clus
 MY_RANDOMS_Y3_LIKESV3_CLUSTERING_MINI = OUTPUT_FOLDER + "randoms_df_y3likesv3_clustering_mini.pkl"
 MY_RANDOMS_Y3_LIKESV3_CLUSTERING_MINI_20 = OUTPUT_FOLDER + "randoms_df_y3likesv3_clustering_mini_20.pkl"
 
-MY_RANDOMS_Y1_MINI = OUTPUT_FOLDER + "randoms_df_y1iron_mini.pkl"
+RANDOMS_Y1_0_WITHMYNTILE = OUTPUT_FOLDER + "randoms_df_y1iron_mini.pkl"
 
-MY_RANDOMS_Y3_MINI = OUTPUT_FOLDER + "randoms_df_y3loa_mini.pkl"
+RANDOMS_Y3_0_WITHMYNTILE = OUTPUT_FOLDER + "randoms_df_y3loa_mini.pkl"
 
 # CUSTOM CLUSTERING RESULTS DIRECTORY
 #######################################################

@@ -668,7 +668,7 @@ def build_y1_randoms_files():
     randoms_df0 = read_randoms(BGS_Y1_RAND_FILE, 0)
     ntiles_inside, nearest_tile_ids = find_tiles_for_galaxies(tiles, randoms_df0, NTILE_MIN_TO_FIND)
     randoms_df0['NTILE_MINE'] = ntiles_inside
-    pickle.dump(randoms_df0, open(MY_RANDOMS_Y1_MINI, "wb"))
+    pickle.dump(randoms_df0, open(RANDOMS_Y1_0_WITHMYNTILE, "wb"))
 
     # Full version may be needed later but not for now
 
@@ -679,6 +679,6 @@ def build_y3_randoms_files():
     randoms_df0 = read_randoms(BGS_Y3_RAND_FILE, 0)
     ntiles_inside, nearest_tile_ids = find_tiles_for_galaxies(tiles, randoms_df0, NTILE_MIN_TO_FIND)
     randoms_df0['NTILE_MINE'] = ntiles_inside
-    pickle.dump(randoms_df0, open(MY_RANDOMS_Y3_MINI, "wb"))
+    pickle.dump(randoms_df0, open(RANDOMS_Y3_0_WITHMYNTILE, "wb"))
 
     # Full version may be needed later but not for now
