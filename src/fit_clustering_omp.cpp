@@ -29,8 +29,8 @@ struct drand48_data *rng_buffers;
 
 /* Globals for the halos
  */
-double BOX_SIZE = 250.0;
-double BOX_EPSILON = 0.01;
+float BOX_SIZE = 250.0;
+float BOX_EPSILON = 0.01;
 
 /* Globals for the tabulated HODs */
 int NVOLUME_BINS = 0;
@@ -38,10 +38,10 @@ int NVOLUME_BINS = 0;
 // These are the HOD in bins
 double ncenr[MAXBINS][HALO_BINS], nsatr[MAXBINS][HALO_BINS], ncenb[MAXBINS][HALO_BINS], nsatb[MAXBINS][HALO_BINS], ncen[MAXBINS][HALO_BINS], nsat[MAXBINS][HALO_BINS], nhalo[MAXBINS][HALO_BINS];
 double nhalo_int[MAXBINS][HALO_BINS]; // integer version of nhalo (no vmax weight)
-double maglim[MAXBINS]; // the fainter limit of the mag bin;the brighter limit is this - 1.0. 
+float maglim[MAXBINS]; // the fainter limit of the mag bin;the brighter limit is this - 1.0. 
 int color_sep[MAXBINS]; // 1 means do red/blue seperately, 0 means all together
-double maxz[MAXBINS];  // the max redshift of the mag bin, calculated from the fainter mag limit
-double volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
+float maxz[MAXBINS];  // the max redshift of the mag bin, calculated from the fainter mag limit
+float volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
 
 // These are the HOD in thresholds
 //double ncenr_th[MAXBINS][HALO_BINS], nsatr_th[MAXBINS][HALO_BINS], ncenb_th[MAXBINS][HALO_BINS], nsatb_th[MAXBINS][HALO_BINS], ncen_th[MAXBINS][HALO_BINS], nsat_th[MAXBINS][HALO_BINS], nhalo_th[MAXBINS][HALO_BINS];
@@ -945,7 +945,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
 /*
  * Read in the mock halo data from a file.
  * The file should have the following format:
- * mass x y z vx vy
+ * mass x y z vx vy vz lsat
  */
 void prepare_halos() {
   if (HALO != nullptr) {

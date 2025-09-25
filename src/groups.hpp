@@ -75,7 +75,6 @@ struct galaxy {
 /* Structure for the halos in the simulations */
 struct halo {
   float x,y,z,vx,vy,vz,mass,lsat;
-  int nsat;
 };
 
 /* The master array of galaxies*/

@@ -1787,55 +1787,51 @@ def purity_complete_plots(*sets):
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(11, 8))
     fig.set_dpi(DPI/2)
 
-    XMIN = LGAL_MIN
-    XMAX = LGAL_MAX_TIGHT
+    XMIN = 7.5
+    XMAX = 11
 
     axes[1][0].set_title('Satellite Purity')
-    axes[1][0].set_xscale('log')
-    axes[1][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
+    axes[1][0].set_xlabel('$log(L_{\\mathrm{gal}} / (\\mathrm{L}_\\odot \\mathrm{h}^{-2} ))$')
     axes[1][0].set_xlim(XMIN,XMAX)
-    axes[1][0].set_ylim(0.0,1.0)
+    axes[1][0].set_ylim(0.4,1.0)
     ax2=axes[1][0].twiny()
     ax2.plot(Mr_gal_bins[sets[0].keep], sets[0].purity_g, ls="") #just to get it to show up
-    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(XMIN)), log_solar_L_to_abs_mag_r(np.log10(XMAX)))
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(XMIN), log_solar_L_to_abs_mag_r(XMAX))
     ax2.set_xlabel("$M_r$ - 5log(h)")
 
     axes[1][1].set_title('Satellite Completeness')
-    axes[1][1].set_xscale('log')
     axes[1][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[1][1].set_xlim(XMIN,XMAX)
-    axes[1][1].set_ylim(0.0,1.0)
+    axes[1][1].set_ylim(0.4,1.0)
     ax2=axes[1][1].twiny()
     ax2.plot(Mr_gal_bins[sets[0].keep2], sets[0].completeness_g, ls="") #just to get it to show up
-    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(XMIN)), log_solar_L_to_abs_mag_r(np.log10(XMAX)))
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(XMIN), log_solar_L_to_abs_mag_r(XMAX))
     ax2.set_xlabel("$M_r$ - 5log(h)")
 
     axes[0][0].set_title('Central Purity')
-    axes[0][0].set_xscale('log')
     axes[0][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[0][0].set_xlim(XMIN,XMAX)
-    axes[0][0].set_ylim(0.0,1.0)
+    axes[0][0].set_ylim(0.4,1.0)
     ax2=axes[0][0].twiny()
     ax2.plot(Mr_gal_bins[sets[0].keep3], sets[0].purity_c_g, ls="") #just to get it to show up
-    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(XMIN)), log_solar_L_to_abs_mag_r(np.log10(XMAX)))
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(XMIN), log_solar_L_to_abs_mag_r(XMAX))
     ax2.set_xlabel("$M_r$ - 5log(h)")
 
     axes[0][1].set_title('Central Completeness')
-    axes[0][1].set_xscale('log')
     axes[0][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
     axes[0][1].set_xlim(XMIN,XMAX)
-    axes[0][1].set_ylim(0.0,1.0)
+    axes[0][1].set_ylim(0.4,1.0)
     ax2=axes[0][1].twiny()
     ax2.plot(Mr_gal_bins[sets[0].keep4], sets[0].completeness_c_g, ls="") #just to get it to show up
-    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(XMIN)), log_solar_L_to_abs_mag_r(np.log10(XMAX)))
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(XMIN), log_solar_L_to_abs_mag_r(XMAX))
     ax2.set_xlabel("$M_r$ - 5log(h)")
                    
     for s in sets:
-        axes[1][0].plot(s.L_gal_bins[s.keep], s.purity_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
-        axes[1][1].plot(s.L_gal_bins[s.keep2], s.completeness_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
-        axes[0][0].plot(s.L_gal_bins[s.keep3], s.purity_c_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
-        axes[0][1].plot(s.L_gal_bins[s.keep4], s.completeness_c_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
-    
+        axes[1][0].plot(np.log10(s.L_gal_bins[s.keep]), s.purity_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
+        axes[1][1].plot(np.log10(s.L_gal_bins[s.keep2]), s.completeness_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
+        axes[0][0].plot(np.log10(s.L_gal_bins[s.keep3]), s.purity_c_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
+        axes[0][1].plot(np.log10(s.L_gal_bins[s.keep4]), s.completeness_c_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
+
     axes[0][0].legend()
 
     # Grids on

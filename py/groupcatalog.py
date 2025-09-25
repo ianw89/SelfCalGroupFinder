@@ -522,6 +522,16 @@ class GroupCatalog:
         print(f"Running sanity tests on {self.name}")
         df = self.all_data
 
+        assert np.all(df['L_GAL'] > 0), "All galaxies should have L_GAL > 0"
+        assert np.all(df['L_TOT'] > 0), "All galaxies should have L_TOT > 0"
+        assert np.all(df['M_HALO'] > 0), "All galaxies should have M_HALO > 0"
+        assert np.all(df['P_SAT'] >= 0) and np.all(df['P_SAT'] <= 1), "All galaxies should have 0 <= P_SAT <= 1"
+        assert np.all(df['Z'] >= 0), "All galaxies should have Z >= 0"
+        assert np.all(df['N_SAT'] >= 0), "All galaxies should have N_SAT >= 0"
+        assert np.all(df['IGRP'] >= 0), "All galaxies should have IGRP >= 0"
+        assert np.all(df['L_GAL'] < 1e13), "All galaxies should have L_GAL < 1e13"
+
+
         good_ltot = df.loc[:, 'L_TOT'] >= 0.9999*df.loc[:, 'L_GAL']
         if 'TARGETID' in df.columns:
             assert np.all(good_ltot), f"Total luminosity should be greater than galaxy luminosity, but {df.loc[~good_ltot, 'TARGETID'].to_numpy()} are not."
@@ -1437,7 +1447,7 @@ class BGSGroupCatalog(GroupCatalog):
             print("Skipping pre-processing")
         return super().run_group_finder(popmock=popmock, silent=silent, verbose=verbose, profile=profile, interactive=interactive)
 
-    def bootstrap_statistics(self, N_ITERATIONS = 1000):
+    def bootstrap_statistics(self, N_ITERATIONS = 300):
         print("Bootstrapping...")
 
         relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'L_GAL', 'LOGMSTAR']
@@ -1492,23 +1502,22 @@ class BGSGroupCatalog(GroupCatalog):
 
 
         fsat_reals, fsat_sf_reals, fsat_q_reals, lhmr_reals, lhmr_sf_reals, lhmr_q_reals, lhmr_scatter_reals, lhmr_sf_scatter_reals, lhmr_q_scatter_reals, shmr_reals, shmr_sf_reals, shmr_q_reals, shmr_scatter_reals, shmr_sf_scatter_reals, shmr_q_scatter_reals = zip(*results)
-
-        # Save off the bootstrapped std estimates
-        self.fsat_bootstrap_err = np.std(fsat_reals, axis=0)
-        self.fsat_sf_bootstrap_err = np.std(fsat_sf_reals, axis=0)
-        self.fsat_q_bootstrap_err = np.std(fsat_q_reals, axis=0)
-        self.lhmr_bootstrap_err = np.std(lhmr_reals, axis=0)
-        self.lhmr_sf_bootstrap_err = np.std(lhmr_sf_reals, axis=0)
-        self.lhmr_q_bootstrap_err = np.std(lhmr_q_reals, axis=0)
-        self.lhmr_scatter_bootstrap_err = np.std(lhmr_scatter_reals, axis=0)
-        self.lhmr_sf_scatter_bootstrap_err = np.std(lhmr_sf_scatter_reals, axis=0)
-        self.lhmr_q_scatter_bootstrap_err = np.std(lhmr_q_scatter_reals, axis=0)
-        self.shmr_bootstrap_err = np.std(shmr_reals, axis=0)
-        self.shmr_sf_bootstrap_err = np.std(shmr_sf_reals, axis=0)
-        self.shmr_q_bootstrap_err = np.std(shmr_q_reals, axis=0)
-        self.shmr_scatter_bootstrap_err = np.std(shmr_scatter_reals, axis=0)
-        self.shmr_sf_scatter_bootstrap_err = np.std(shmr_sf_scatter_reals, axis=0)
-        self.shmr_q_scatter_bootstrap_err = np.std(shmr_q_scatter_reals, axis=0)
+        # Save off the bootstrapped error estimates as half the 16-84 percentile range
+        self.fsat_bootstrap_err = 0.5 * (np.percentile(fsat_reals, 84, axis=0) - np.percentile(fsat_reals, 16, axis=0))
+        self.fsat_sf_bootstrap_err = 0.5 * (np.percentile(fsat_sf_reals, 84, axis=0) - np.percentile(fsat_sf_reals, 16, axis=0))
+        self.fsat_q_bootstrap_err = 0.5 * (np.percentile(fsat_q_reals, 84, axis=0) - np.percentile(fsat_q_reals, 16, axis=0))
+        self.lhmr_bootstrap_err = 0.5 * (np.percentile(lhmr_reals, 84, axis=0) - np.percentile(lhmr_reals, 16, axis=0))
+        self.lhmr_sf_bootstrap_err = 0.5 * (np.percentile(lhmr_sf_reals, 84, axis=0) - np.percentile(lhmr_sf_reals, 16, axis=0))
+        self.lhmr_q_bootstrap_err = 0.5 * (np.percentile(lhmr_q_reals, 84, axis=0) - np.percentile(lhmr_q_reals, 16, axis=0))
+        self.lhmr_scatter_bootstrap_err = 0.5 * (np.percentile(lhmr_scatter_reals, 84, axis=0) - np.percentile(lhmr_scatter_reals, 16, axis=0))
+        self.lhmr_sf_scatter_bootstrap_err = 0.5 * (np.percentile(lhmr_sf_scatter_reals, 84, axis=0) - np.percentile(lhmr_sf_scatter_reals, 16, axis=0))
+        self.lhmr_q_scatter_bootstrap_err = 0.5 * (np.percentile(lhmr_q_scatter_reals, 84, axis=0) - np.percentile(lhmr_q_scatter_reals, 16, axis=0))
+        self.shmr_bootstrap_err = 0.5 * (np.percentile(shmr_reals, 84, axis=0) - np.percentile(shmr_reals, 16, axis=0))
+        self.shmr_sf_bootstrap_err = 0.5 * (np.percentile(shmr_sf_reals, 84, axis=0) - np.percentile(shmr_sf_reals, 16, axis=0))
+        self.shmr_q_bootstrap_err = 0.5 * (np.percentile(shmr_q_reals, 84, axis=0) - np.percentile(shmr_q_reals, 16, axis=0))
+        self.shmr_scatter_bootstrap_err = 0.5 * (np.percentile(shmr_scatter_reals, 84, axis=0) - np.percentile(shmr_scatter_reals, 16, axis=0))
+        self.shmr_sf_scatter_bootstrap_err = 0.5 * (np.percentile(shmr_sf_scatter_reals, 84, axis=0) - np.percentile(shmr_sf_scatter_reals, 16, axis=0))
+        self.shmr_q_scatter_bootstrap_err = 0.5 * (np.percentile(shmr_q_scatter_reals, 84, axis=0) - np.percentile(shmr_q_scatter_reals, 16, axis=0))
 
         t2 = time.time()
         print(f"Bootstrapping complete in {t2-t1:.2f} seconds.")
@@ -2412,16 +2421,21 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     print(f"{np.sum(~qa1):,} galaxies have redshifts outside the range of the catalog and will be removed.")
 
     # Ensure implied luminosity (for assigned z only) isn't totally crazy. If so, remove them.
-    L_GAL_MAX = np.log10(4e11)
-    qa2 = ~np.logical_and(log_L_gal > L_GAL_MAX, unobserved)
-    print(f"{np.sum(~qa2):,} unobserved galaxies have implied log(L_gal) > {L_GAL_MAX:.2f} and will be removed.")
+    L_GAL_MAX_UNOBS = np.log10(4e11)
+    qa2 = ~np.logical_and(log_L_gal > L_GAL_MAX_UNOBS, unobserved)
+    print(f"{np.sum(~qa2):,} unobserved galaxies have implied log(L_gal) > {L_GAL_MAX_UNOBS:.2f} and will be removed.")
+
+    # Even for spectroscopic galaxies, anomolously bright galaxies are likely bad redshift fits, so let's remove them.
+    L_GAL_MAX_OBS = np.log10(4e11)
+    qa4 = ~np.logical_and(log_L_gal > L_GAL_MAX_OBS, observed)
+    print(f"{np.sum(~qa4):,} observed galaxies have implied log(L_gal) > {L_GAL_MAX_OBS:.2f} and will be removed.")
 
     qa3 = ~np.isnan(log_L_gal)
     print(f"{np.sum(~qa3):,} galaxies have nan log_L_gal and will be removed.")
 
     assert np.all(z_assigned_flag >= -3), "z_assigned_flag is unset for some targets."
 
-    final_selection = np.all([qa1, qa2, qa3], axis=0)
+    final_selection = np.all([qa1, qa2, qa3, qa4], axis=0)
 
     print(f"Final Catalog Size: {np.sum(final_selection):,}.")
 

@@ -434,12 +434,10 @@ def k_correct(abs_mag, z_obs, gmr, band='r'):
 
 SOLAR_L_R_BAND = 4.65
 def abs_mag_r_to_log_solar_L(arr):
-    """
-    Converts an absolute magnitude to log solar luminosities using the sun's r-band magnitude.
-
-    This just comes from the definitions of magnitudes. The scalar 2.5 is 0.39794 dex.
-    """
     return 0.39794 * (SOLAR_L_R_BAND - arr)
+
+def abs_mag_r_to_solar_L(arr):
+    return 10 ** (0.39794 * (SOLAR_L_R_BAND - arr))
 
 def log_solar_L_to_abs_mag_r(arr):
     return SOLAR_L_R_BAND - (arr / 0.39794)

@@ -208,7 +208,6 @@ void groupfind()
 
   // do the inverse-abundance matching
   density2host_halo(0.01); // TODO delete?
-  LOG_INFO("Starting inverse-sham...\n");
   galden = 0;
 
   // reset the sham counters
@@ -231,7 +230,6 @@ void groupfind()
     update_galaxy_halo_props(&GAL[i]);
     GAL[i].psat = 0;
   }
-  LOG_INFO("Done inverse-sham.\n");
   ngrp = NGAL;
 
   // Create the 3D KD tree for fast lookup of nearby galaxies
