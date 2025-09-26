@@ -61,41 +61,51 @@ def legend_ax(ax, datasets):
     if len(datasets) > 1 and LEGENDS_ON:
         ax.legend()
 
-def do_hod_plot(df, centrals, sats, mass_bin_prop, mass_labels, color, name, SHOW_UNWEIGHTED=False):
-    HOD_LGAL_CUT = 4E9
+def do_hod_thresholds_plot(full, mass_bin_prop, mass_labels, color, lum_cuts=[4e9]):
 
-    vmax_cen_avg = np.average(centrals.loc[centrals['L_GAL']> HOD_LGAL_CUT]['VMAX'])
-    vmax_sat_avg = np.average(sats.loc[sats['L_GAL']> HOD_LGAL_CUT]['VMAX'])
-    vmax_gal_avg = np.average(df.loc[df['L_GAL']> HOD_LGAL_CUT]['VMAX'])
-    halo_bin_sizes_weighted = centrals.groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * np.average(centrals['VMAX'])
-
-    N_cen = centrals[centrals['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * vmax_cen_avg / halo_bin_sizes_weighted
-    N_sat = sats[sats['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * vmax_sat_avg / halo_bin_sizes_weighted
-    N_gal = df[df['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) * vmax_gal_avg / halo_bin_sizes_weighted
+    centrals = full.loc[~full['IS_SAT']]
+    sats = full.loc[full['IS_SAT']]
     
+    n_lcuts = len(lum_cuts)
+    ncols = int(np.ceil(n_lcuts / 2))
+    nrows = 2 if n_lcuts > 1 else 1
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 5 * nrows), dpi=DPI, sharey=True)
+    axes = np.array(axes).reshape(-1)  # flatten in case axes is 2D
+    logm = np.log10(mass_labels)
 
-    plt.figure(dpi=DPI)
-    plt.plot(mass_labels, N_cen, ".", label=f"Centrals", color=color)
-    plt.plot(mass_labels, N_sat, "--", label=f"Satellites", color=color)
-    plt.plot(mass_labels, N_gal, "-", label=f"All", color=color)
+    for idx, lcut in enumerate(lum_cuts):
+        ax = axes[idx]
+        magcut = log_solar_L_to_abs_mag_r(np.log10(lcut))
 
-    if SHOW_UNWEIGHTED:
-        halo_bin_sizes_weighted2 = centrals.groupby(mass_bin_prop, observed=False).size()
-        N_cen2 = centrals[centrals['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).size()  / halo_bin_sizes_weighted2
-        N_sat2 = sats[sats['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).size()  / halo_bin_sizes_weighted2
-        N_gal2 = df[df['L_GAL']> HOD_LGAL_CUT].groupby(mass_bin_prop, observed=False).size()  / halo_bin_sizes_weighted2
+        halos = centrals.groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) # total count of halos (weighted) in each M bin
 
-        plt.plot(mass_labels, N_cen2, ".", label=f"Centrals Unweighted", color='red', alpha=0.5)
-        plt.plot(mass_labels, N_sat2, "--", label=f"Satellites Unweighted", color='red', alpha=0.5)
-        plt.plot(mass_labels, N_gal2, "-", label=f"All Unweighted", color='red', alpha=0.5)
+        for s, linestyle in zip([centrals, sats, full], [".", "--", "-"]):
+            query = s['L_GAL'] > lcut
+            if color == 'r':
+                query &= s['QUIESCENT']
+            elif color == 'b':
+                query &= ~s['QUIESCENT']
 
-    plt.loglog()    
-    plt.ylabel("$<N_{gal}>$")    
-    plt.xlabel('$M_h$')
-    plt.title(f"Halo Occupancy for \'{name}\' (L>$10^{{{np.log10(HOD_LGAL_CUT):.1f}}}$)")
-    plt.legend()
-    plt.xlim(MHALO_MIN, MHALO_MAX)
-    plt.draw()
+            N_s = s.loc[query].groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) / halos
+            ax.plot(logm, np.log10(N_s), linestyle, color=color)
+
+        if idx % ncols == 0:
+            ax.set_ylabel("log(fraction)")
+        if nrows > 1 and idx >= ncols * (nrows - 1):
+            ax.set_xlabel('log($M_h$ / [$M_\odot / h$])')
+
+        ax.set_xlim(10,15)
+        ax.set_ylim(-2, 2)
+        ax.grid(True)
+        ax.set_title(f"$M_r < {magcut:.1f}$")
+        #ax.legend()
+
+    # Hide unused axes if any
+    #for i in range(n_lcuts, nrows * ncols):
+    #    fig.delaxes(axes[i])
+
+    #plt.tight_layout()
+    #plt.draw()
 
 
 def get_dataset_display_name(d: GroupCatalog, keep_mag_limit=False):
@@ -105,13 +115,14 @@ def get_dataset_display_name(d: GroupCatalog, keep_mag_limit=False):
     else:
         return name.replace(" <19.5", "").replace(" <20.0", "")
 
-def hod_plots(*datasets, truth_on=True):
+def hod_thresholds_plot(*datasets):
 
     for f in datasets:
-        do_hod_plot(f.all_data, f.centrals, f.sats, 'Mh_bin', f.labels, f.color, get_dataset_display_name(f))
-
-        if truth_on and f.has_truth:
-            do_hod_plot(f.all_data, f.centrals_T, f.sats_T, 'Mh_bin_T', f.labels, 'k', get_dataset_display_name(f))
+        maglims = f.caldata.magbins[:-1]
+        lumlims = abs_mag_r_to_solar_L(maglims)
+        do_hod_thresholds_plot(f.all_data, 'Mh_bin', f.labels, 'r', lum_cuts=lumlims)
+        do_hod_thresholds_plot(f.all_data, 'Mh_bin', f.labels, 'b', lum_cuts=lumlims)
+        do_hod_thresholds_plot(f.all_data, 'Mh_bin', f.labels, 'k', lum_cuts=lumlims)
 
 def single_plots(d: GroupCatalog, truth_on=False):
     """
@@ -168,7 +179,7 @@ def single_plots(d: GroupCatalog, truth_on=False):
         sf_gals = d.all_data[np.invert(d.all_data['QUIESCENT'])]
         plots_color_split_lost_split_inner(d.name + " Truth", d.L_gal_labels, d.L_gal_bins, q_gals, sf_gals, fsat_truth_vmax_weighted,'LGAL_BIN_T')
 
-    hod_plot(d)
+    hod_bins_plot(d)
 
     #wp_rp(d)
     #wp_rp_magbins(d)
@@ -1097,110 +1108,93 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.legend()
 
-def hod_plot(gc: GroupCatalog, pretty=True, model=False, seperate=False):
+def hod_bins_plot(gc: GroupCatalog, hodt: HODTabulated, model=False, seperate=False):
     """
     Plot the HOD from a file, overlaying with a histogram of the number of halos (nhalo).
     """
-    # Format is <M_h> [<ncenr_i> <nsatr_i> <ncenb_i> <nsatb_i> <nhalo_i> for each i mag bin]
-    lst = [gc.hod, gc.hodfit] if not pretty else [gc.hodfit]
-    if model: lst = [gc.hod]
-    for data in lst:
-        n_cols = data.shape[1]
-        n_lbins = (n_cols - 1) // 7
-        if n_cols % 7 != 1:
-            raise ValueError(f"Expected 7*n_lbins + 1 columns, got {n_cols} columns")
-        #print(f"Found {n_lbins} luminosity bins")
+    data = hodt
+    n_lbins = len(data.mag_bin_centers)
+    log_Mhalo = data.logM_bin_centers
 
-        log_Mhalo = data[:, 0]
+    ncols = int(np.ceil(n_lbins / 2))
+    nrows = 2 if n_lbins > 1 else 1
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 5 * nrows), dpi=DPI, sharey=True)
+    axes = np.array(axes).reshape(-1)  # flatten in case axes is 2D
+    if seperate:
+        fig2, axes2 = plt.subplots(nrows, ncols, figsize=(5 * ncols, 5 * nrows), dpi=DPI, sharey=True)
+        axes2 = np.array(axes2).reshape(-1)  # flatten in case axes is 2D
 
-        ncols = int(np.ceil(n_lbins / 2))
-        nrows = 2 if n_lbins > 1 else 1
-        fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 5 * nrows), dpi=DPI, sharey=True)
-        axes = np.array(axes).reshape(-1)  # flatten in case axes is 2D
+    for lbin in range(n_lbins):
+        ax = axes[lbin]
         if seperate:
-            fig2, axes2 = plt.subplots(nrows, ncols, figsize=(5 * ncols, 5 * nrows), dpi=DPI, sharey=True)
-            axes2 = np.array(axes2).reshape(-1)  # flatten in case axes is 2D
+            ax2 = axes2[lbin]
+        else:
+            ax2 = ax
 
-        for lbin in range(n_lbins):
-            ax = axes[lbin]
-            if seperate:
-                ax2 = axes2[lbin]
-            else:
-                ax2 = ax
-            log_r_cen_fraction = data[:, 1 + lbin * 7]
-            log_r_sat_fraction = data[:, 2 + lbin * 7]
-            log_b_cen_fraction = data[:, 3 + lbin * 7]
-            log_b_sat_fraction = data[:, 4 + lbin * 7]
-            #log_all_cen_fraction = data[:, 5 + lbin * 7]
-            #log_all_sat_fraction = data[:, 6 + lbin * 7]
-            nhalo = data[:, 7 + lbin * 7]
+        alpha = 0.6
+        if model:
+            ax.plot(log_Mhalo, data.central_q[lbin], 'rd', label='Q Cen', markersize=9)
+            ax.plot(log_Mhalo, data.satellite_q[lbin], 'r.', label='Q Sat', markersize=9)
+            ax2.plot(log_Mhalo, data.central_sf[lbin], 'bd', label='SF Cen', markersize=9)
+            ax2.plot(log_Mhalo, data.satellite_sf[lbin], 'b.', label='SF Sat', markersize=9)
+        else:
+            ax.plot(log_Mhalo, data.central_q[lbin], 'r-', label='Q Cen', alpha=alpha, linewidth=3)
+            ax.plot(log_Mhalo, data.satellite_q[lbin], 'r:', label='Q Sat', alpha=alpha, linewidth=3)
+            ax2.plot(log_Mhalo, data.central_sf[lbin], 'b-', label='SF Cen', alpha=alpha, linewidth=3)
+            ax2.plot(log_Mhalo, data.satellite_sf[lbin], 'b:', label='SF Sat', alpha=alpha, linewidth=3)
+        #else:
+        #    ax.plot(log_halo_mass, log_all_cen_fraction, 'k-', label='All Cen', alpha=alpha, linewidth=3)
+        #    ax.plot(log_halo_mass, log_all_sat_fraction, 'k--', label='All Sat', alpha=alpha, linewidth=3)
 
-            alpha = 0.6
-            #if gc.caldata.color_separation[lbin]:
-            if model:
-                ax.plot(log_Mhalo, log_r_cen_fraction, 'rd', label='Q Cen', markersize=9)
-                ax.plot(log_Mhalo, log_r_sat_fraction, 'r.', label='Q Sat', markersize=8)
-                ax2.plot(log_Mhalo, log_b_cen_fraction, 'bd', label='SF Cen', markersize=9)
-                ax2.plot(log_Mhalo, log_b_sat_fraction, 'b.', label='SF Sat', markersize=8)
-            else:
-                ax.plot(log_Mhalo, log_r_cen_fraction, 'r-', label='Q Cen', alpha=alpha, linewidth=3)
-                ax.plot(log_Mhalo, log_r_sat_fraction, 'r:', label='Q Sat', alpha=alpha, linewidth=3)
-                ax2.plot(log_Mhalo, log_b_cen_fraction, 'b-', label='SF Cen', alpha=alpha, linewidth=3)
-                ax2.plot(log_Mhalo, log_b_sat_fraction, 'b:', label='SF Sat', alpha=alpha, linewidth=3)
-            #else:
-            #    ax.plot(log_halo_mass, log_all_cen_fraction, 'k-', label='All Cen', alpha=alpha, linewidth=3)
-            #    ax.plot(log_halo_mass, log_all_sat_fraction, 'k--', label='All Sat', alpha=alpha, linewidth=3)
+        if lbin / (ncols*2) >= 0.5:
+            ax.set_xlabel('log($M_h$ / [$M_\odot / h$])')
+            ax2.set_xlabel('log($M_h$ / [$M_\odot / h$])')
+            
+        ax.set_xlim(10.0, 15.0)
+        ax.set_ylim(-3, 2)
+        ax2.set_xlim(10.0, 15.0)
+        ax2.set_ylim(-3, 2)
+        ax.set_title(f'{gc.caldata.magbins[lbin]} > $M_r$ - 5log($h$) > {gc.caldata.magbins[lbin+1]}')
+        ax2.set_title(f'{gc.caldata.magbins[lbin]} > $M_r$ - 5log($h$) > {gc.caldata.magbins[lbin+1]}')
+        if lbin % ncols == 0:
+            ax.set_ylabel('log(fraction)')
+            ax2.set_ylabel('log(fraction)')
 
-            if lbin / (ncols*2) >= 0.5:
-                ax.set_xlabel('log($M_h$ / [$M_\odot / h$])')
-                ax2.set_xlabel('log($M_h$ / [$M_\odot / h$])')
-            if pretty:
-                ax.set_xlim(10.0, 15.0)
-                ax.set_ylim(-2, 2)
-                ax2.set_xlim(10.0, 15.0)
-                ax2.set_ylim(-2, 2)
-            else:
-                ax.set_xlim(10.0, 15.5)
-                ax.set_ylim(-5, 2)
-                ax2.set_xlim(10.0, 15.5)
-                ax2.set_ylim(-5, 2)
-            ax.set_title(f'{gc.caldata.magbins[lbin]} > $M_r$ - 5log($h$) > {gc.caldata.magbins[lbin+1]}')
-            ax2.set_title(f'{gc.caldata.magbins[lbin]} > $M_r$ - 5log($h$) > {gc.caldata.magbins[lbin+1]}')
-            if lbin % ncols == 0:
-                ax.set_ylabel('log(fraction)')
-                ax2.set_ylabel('log(fraction)')
+        #ax.legend(loc='upper left')
+        ax.grid(True)
+        ax2.grid(True)
 
-            #ax.legend(loc='upper left')
-            ax.grid(True)
-            ax2.grid(True)
+        if model:
+            ax.plot(log_Mhalo, hod_central_model2(log_Mhalo, *gc.hod_cen_red_popt[lbin]), 'k-', label='Q Cen Model', linewidth=3)
+            ax.plot(log_Mhalo, hod_satellite_model(log_Mhalo, *gc.hod_sat_red_popt[lbin]), 'k--', label='Q Sat Model', linewidth=3)
+            ax2.plot(log_Mhalo, hod_central_model2(log_Mhalo, *gc.hod_cen_blue_popt[lbin]), 'k-', label='SF Cen Model', linewidth=3)
+            ax2.plot(log_Mhalo, hod_satellite_model(log_Mhalo, *gc.hod_sat_blue_popt[lbin]), 'k--', label='SF Sat Model', linewidth=3)
 
-            if model:
-                ax.plot(log_Mhalo, hod_central_model2(log_Mhalo, *gc.hod_cen_red_popt[lbin]), 'k-', label='Q Cen Model', linewidth=3)
-                ax.plot(log_Mhalo, hod_satellite_model(log_Mhalo, *gc.hod_sat_red_popt[lbin]), 'k--', label='Q Sat Model', linewidth=3)
-                ax2.plot(log_Mhalo, hod_central_model2(log_Mhalo, *gc.hod_cen_blue_popt[lbin]), 'k-', label='SF Cen Model', linewidth=3)
-                ax2.plot(log_Mhalo, hod_satellite_model(log_Mhalo, *gc.hod_sat_blue_popt[lbin]), 'k--', label='SF Sat Model', linewidth=3)
+            # Print the parameters onto the plot
+            ax.text(10.2, 1.7, f"α: {gc.hod_sat_red_popt[lbin][2]:.2f}")
+            ax.text(10.2, 1.4, f"$M_\star$: {gc.hod_sat_red_popt[lbin][1]:.2f}")
+            ax.text(10.2, 1.1, f"$M_{{cut}}$: {gc.hod_sat_red_popt[lbin][0]:.2f}")
+            ax2.text(10.2, 1.7, f"α: {gc.hod_sat_blue_popt[lbin][2]:.2f}")
+            ax2.text(10.2, 1.4, f"$M_\star$: {gc.hod_sat_blue_popt[lbin][1]:.2f}")
+            ax2.text(10.2, 1.1, f"$M_{{cut}}$: {gc.hod_sat_blue_popt[lbin][0]:.2f}")
 
-            #if not pretty:
-            #    # Overlay nhalo histogram as a filled area on a secondary y-axis
-            #    ax3 = ax.twinx()
-            #    ax3.fill_between(log_Mhalo, nhalo, color='gray', alpha=0.2, step='mid', label='N_halo')
-            #    if lbin % ncols == 0:
-            #        ax3.set_ylabel('Number of halos')
-            #    ax3.set_yscale('log')
-            #    ax3.tick_params(axis='y', labelcolor='gray')
+        #if not pretty:
+        #    # Overlay nhalo histogram as a filled area on a secondary y-axis
+        #    ax3 = ax.twinx()
+        #    ax3.fill_between(log_Mhalo, nhalo, color='gray', alpha=0.2, step='mid', label='N_halo')
+        #    if lbin % ncols == 0:
+        #        ax3.set_ylabel('Number of halos')
+        #    ax3.set_yscale('log')
+        #    ax3.tick_params(axis='y', labelcolor='gray')
 
-        # Hide unused axes if any
-        for i in range(n_lbins, nrows * ncols):
-            fig.delaxes(axes[i])
-            if seperate:
-                fig2.delaxes(axes2[i])
-
-
-        fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+    # Hide unused axes if any
+    for i in range(n_lbins, nrows * ncols):
+        fig.delaxes(axes[i])
         if seperate:
-            fig2.tight_layout(rect=[0, 0.03, 1, 0.95])
-            return fig, fig2
-        return fig        
+            fig2.delaxes(axes2[i])
+
+
+      
 
 
 def proj_clustering_plot(gc: GroupCatalog):

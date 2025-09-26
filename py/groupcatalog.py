@@ -2597,7 +2597,7 @@ def count_vmax_weighted(series):
     if len(series) == 0:
         return np.nan
     else:
-        return len(series) / np.average(series['VMAX'])
+        return np.sum(1 / series['VMAX'])
 
 def fsat_truth_vmax_weighted(series):
     if len(series) == 0:

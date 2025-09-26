@@ -2,6 +2,70 @@ import numpy as np
 from scipy.optimize import curve_fit
 from scipy.special import erf
 import emcee
+import pandas as pd
+from pyutils import *
+from calibrationdata import CalibrationData
+
+class HODTabulated:
+    def __init__(self, mag_bin_edges, logM_bin_edges):
+        self.mag_bin_edges = mag_bin_edges
+        self.mag_bin_centers = 0.5 * (mag_bin_edges[:-1] + mag_bin_edges[1:])
+        self.logM_bin_edges = logM_bin_edges
+        self.logM_bin_centers = 0.5 * (logM_bin_edges[:-1] + logM_bin_edges[1:])
+        n_mag_bins = len(self.mag_bin_centers)
+        n_mass_bins = len(self.logM_bin_centers)
+        
+        self.central_q = np.zeros((n_mag_bins, n_mass_bins))
+        self.central_sf = np.zeros((n_mag_bins, n_mass_bins))
+        self.satellite_q = np.zeros((n_mag_bins, n_mass_bins))
+        self.satellite_sf = np.zeros((n_mag_bins, n_mass_bins))
+        self.central_all = np.zeros((n_mag_bins, n_mass_bins))
+        self.satellite_all = np.zeros((n_mag_bins, n_mass_bins))
+        self.unweighted_counts = np.zeros((n_mag_bins, n_mass_bins))
+
+    def from_cpp(array, caldata: CalibrationData):
+        n_lbins = (array.shape[1] - 1) // 7
+        mag_bin_edges = caldata.magbins
+        #logM_bin_edges = np.arange(9.0, 15.6, 0.1) # Fixed binning used in C++ code
+        logM_bin_edges = array[:, 0]
+        logM_bin_edges = np.append(logM_bin_edges, logM_bin_edges[-1] + (logM_bin_edges[-1] - logM_bin_edges[-2]))
+        assert np.allclose(logM_bin_edges, np.arange(9.0, 15.6, 0.1))
+
+        # Format is <M_h> [<ncen_r_i> <nsat_r_i> <ncen_b_i> <nsat_b_i> <ncen_all_i> <nsat_all_i> <nhalo_i> for each i mag bin]
+        hod_obj = HODTabulated(mag_bin_edges, logM_bin_edges)
+        hod_obj.central_q = np.zeros((n_lbins, len(logM_bin_edges)-1))
+        hod_obj.central_sf = np.zeros((n_lbins, len(logM_bin_edges)-1))
+        hod_obj.satellite_q = np.zeros((n_lbins, len(logM_bin_edges)-1))
+        hod_obj.satellite_sf = np.zeros((n_lbins, len(logM_bin_edges)-1))
+        hod_obj.central_all = np.zeros((n_lbins, len(logM_bin_edges)-1))
+        hod_obj.satellite_all = np.zeros((n_lbins, len(logM_bin_edges)-1))
+        hod_obj.unweighted_counts = np.zeros((n_lbins, len(logM_bin_edges)-1))
+        for lbin in range(n_lbins):
+            hod_obj.central_q[lbin, :] = array[:, 1 + lbin*7]
+            hod_obj.satellite_q[lbin, :] = array[:, 2 + lbin*7]
+            hod_obj.central_sf[lbin, :] = array[:, 3 + lbin*7]
+            hod_obj.satellite_sf[lbin, :] = array[:, 4 + lbin*7]
+            hod_obj.central_all[lbin, :] = array[:, 5 + lbin*7] 
+            hod_obj.satellite_all[lbin, :] = array[:, 6 + lbin*7]
+            hod_obj.unweighted_counts[lbin, :] = array[:, 7 + lbin*7]
+        return hod_obj
+    
+
+    def __eq__(self, other):
+        print("Checking equality of two HODTabulated instances...")
+        if not isinstance(other, HODTabulated):
+            return False
+        return (np.allclose(self.mag_bin_edges, other.mag_bin_edges) and
+                np.allclose(self.logM_bin_edges, other.logM_bin_edges) and
+                np.allclose(self.central_q, other.central_q) and
+                np.allclose(self.central_sf, other.central_sf) and
+                np.allclose(self.satellite_q, other.satellite_q) and
+                np.allclose(self.satellite_sf, other.satellite_sf) and
+                np.allclose(self.central_all, other.central_all) and
+                np.allclose(self.satellite_all, other.satellite_all) and
+                np.allclose(self.unweighted_counts, other.unweighted_counts))
+
+
 
 # --- Define Model Functions ---
 #def hod_central_model(logM, logM_min, sigma_logM):
