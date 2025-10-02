@@ -11,7 +11,8 @@ if './SelfCalGroupFinder/py/' not in sys.path:
 from pyutils import *
 from groupcatalog import *
 from calibrationdata import *
-from hod import *
+import hod
+
 # np.array(zip(*[line.split() for line in f])[1], dtype=float)
 
 DPI_PAPER = 600
@@ -61,52 +62,6 @@ def legend_ax(ax, datasets):
     if len(datasets) > 1 and LEGENDS_ON:
         ax.legend()
 
-def do_hod_thresholds_plot(full, mass_bin_prop, mass_labels, color, lum_cuts=[4e9]):
-
-    centrals = full.loc[~full['IS_SAT']]
-    sats = full.loc[full['IS_SAT']]
-    
-    n_lcuts = len(lum_cuts)
-    ncols = int(np.ceil(n_lcuts / 2))
-    nrows = 2 if n_lcuts > 1 else 1
-    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 5 * nrows), dpi=DPI, sharey=True)
-    axes = np.array(axes).reshape(-1)  # flatten in case axes is 2D
-    logm = np.log10(mass_labels)
-
-    for idx, lcut in enumerate(lum_cuts):
-        ax = axes[idx]
-        magcut = log_solar_L_to_abs_mag_r(np.log10(lcut))
-
-        halos = centrals.groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) # total count of halos (weighted) in each M bin
-
-        for s, linestyle in zip([centrals, sats, full], [".", "--", "-"]):
-            query = s['L_GAL'] > lcut
-            if color == 'r':
-                query &= s['QUIESCENT']
-            elif color == 'b':
-                query &= ~s['QUIESCENT']
-
-            N_s = s.loc[query].groupby(mass_bin_prop, observed=False).apply(count_vmax_weighted) / halos
-            ax.plot(logm, np.log10(N_s), linestyle, color=color)
-
-        if idx % ncols == 0:
-            ax.set_ylabel("log(fraction)")
-        if nrows > 1 and idx >= ncols * (nrows - 1):
-            ax.set_xlabel('log($M_h$ / [$M_\odot / h$])')
-
-        ax.set_xlim(10,15)
-        ax.set_ylim(-2, 2)
-        ax.grid(True)
-        ax.set_title(f"$M_r < {magcut:.1f}$")
-        #ax.legend()
-
-    # Hide unused axes if any
-    #for i in range(n_lcuts, nrows * ncols):
-    #    fig.delaxes(axes[i])
-
-    #plt.tight_layout()
-    #plt.draw()
-
 
 def get_dataset_display_name(d: GroupCatalog, keep_mag_limit=False):
     name = d.name.replace("Fiber Only", "Observed").replace(" Vanilla", "")
@@ -114,15 +69,6 @@ def get_dataset_display_name(d: GroupCatalog, keep_mag_limit=False):
         return name
     else:
         return name.replace(" <19.5", "").replace(" <20.0", "")
-
-def hod_thresholds_plot(*datasets):
-
-    for f in datasets:
-        maglims = f.caldata.magbins[:-1]
-        lumlims = abs_mag_r_to_solar_L(maglims)
-        do_hod_thresholds_plot(f.all_data, 'Mh_bin', f.labels, 'r', lum_cuts=lumlims)
-        do_hod_thresholds_plot(f.all_data, 'Mh_bin', f.labels, 'b', lum_cuts=lumlims)
-        do_hod_thresholds_plot(f.all_data, 'Mh_bin', f.labels, 'k', lum_cuts=lumlims)
 
 def single_plots(d: GroupCatalog, truth_on=False):
     """
@@ -1108,11 +1054,90 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     #ax1.set_title("Satellite fraction vs Galaxy Luminosity")
     ax1.legend()
 
-def hod_bins_plot(gc: GroupCatalog, hodt: HODTabulated, model=False, seperate=False):
+
+def hod_thresholds_plot(gc: GroupCatalog, color):
+    maglims = gc.caldata.magbins[:-1]
+    lumlims = abs_mag_r_to_solar_L(maglims)
+    n_lcuts = len(maglims)
+    ncols = int(np.ceil(n_lcuts / 2))
+    nrows = 2 if n_lcuts > 1 else 1
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 5 * nrows), dpi=DPI, sharey=True)
+    axes = np.array(axes).reshape(-1)  # flatten in case axes is 2D
+    logm = np.log10(gc.labels)
+
+    for idx, lcut in enumerate(lumlims):
+        ax = axes[idx]
+        magcut = log_solar_L_to_abs_mag_r(np.log10(lcut))
+
+        if color == 'r':
+            ax.plot(logm, gc.hod_thresholds.central_q[idx, :], 'rd', markersize=9)
+            ax.plot(logm, gc.hod_thresholds.satellite_q[idx, :], 'r.', markersize=9)
+            #ax.plot(logm, gc.hod_thresholds.combined_q[idx, :], 'r-', markersize=9)
+        elif color == 'b':
+            ax.plot(logm, gc.hod_thresholds.central_sf[idx, :], 'bd', markersize=9)
+            ax.plot(logm, gc.hod_thresholds.satellite_sf[idx, :], 'b.', markersize=9)
+            #ax.plot(logm, gc.hod_thresholds.combined_sf[idx, :], 'b-', markersize=9)
+        elif color == 'k':
+            ax.plot(logm, gc.hod_thresholds.central_all[idx, :], color='purple', marker='d', markersize=9, linestyle='None')
+            ax.plot(logm, gc.hod_thresholds.satellite_all[idx, :], color='purple', marker='.', markersize=9, linestyle='None')
+            #ax.plot(logm, gc.hod_thresholds.combined_all[idx, :], 'k-', markersize=9)
+        
+        inset_fontsize = 13
+
+        if hasattr(gc, 'hodt_cen_red_popt') and gc.hodt_cen_red_popt is not None:
+            if color == 'r':
+                ax.plot(logm, hod.hod_central_threshold_model(logm, *gc.hodt_cen_red_popt[idx]), 'k-', label='Q Central Fit', linewidth=3)
+                ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_red_popt[idx]), 'k--', label='Q Satellite Fit', linewidth=3)
+                ax.text(12.1, 2.7, f"$M_{{cut}}$: {gc.hodt_sat_red_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.35, f"$M_\star$: {gc.hodt_sat_red_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.0, f"α: {gc.hodt_sat_red_popt[idx][2]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.65, f"$M_{{min}}$: {gc.hodt_cen_red_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.3, f"$σ_{{min}}$: {gc.hodt_cen_red_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+            
+            elif color == 'b':
+                ax.plot(logm, hod.hod_central_threshold_blue_model(logm, *gc.hodt_cen_blue_popt[idx]), 'k-', label='SF Central Fit', linewidth=3)
+                ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_blue_popt[idx]), 'k--', label='SF Satellite Fit', linewidth=3)
+                ax.text(12.1, 2.7, f"$M_{{cut}}$: {gc.hodt_sat_blue_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.35, f"$M_\star$: {gc.hodt_sat_blue_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.0, f"α: {gc.hodt_sat_blue_popt[idx][2]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.7, f"$M_{{min}}$: {gc.hodt_cen_blue_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.35, f"$σ_{{min}}$: {gc.hodt_cen_blue_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.0, f"$M_{{max}}$: {gc.hodt_cen_blue_popt[idx][2]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 1.65, f"$σ_{{max}}$: {gc.hodt_cen_blue_popt[idx][3]:.2f}", fontsize=inset_fontsize)
+
+            elif color == 'k':
+                ax.plot(logm, hod.hod_central_threshold_model(logm, *gc.hodt_cen_all_popt[idx]), 'k-', label='All Central Fit', linewidth=3)
+                ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_all_popt[idx]), 'k--', label='All Satellite Fit', linewidth=3)
+                ax.text(12.1, 2.7, f"$M_{{cut}}$: {gc.hodt_sat_all_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.35, f"$M_\star$: {gc.hodt_sat_all_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.0, f"α: {gc.hodt_sat_all_popt[idx][2]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.7, f"$M_{{min}}$: {gc.hodt_cen_all_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.35, f"$σ_{{min}}$: {gc.hodt_cen_all_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+         
+        if idx % ncols == 0:
+            ax.set_ylabel("log$\\langle N \\rangle$")
+        if nrows > 1 and idx >= ncols * (nrows - 1):
+            ax.set_xlabel('log($M_h$ / [$M_\odot / h$])')
+
+        ax.set_xlim(10,15)
+        ax.set_ylim(-3, 3)
+        ax.grid(True)
+        ax.set_title(f"$M_r < {magcut:.1f}$")
+        #ax.legend()
+
+    # Hide unused axes if any
+    #for i in range(n_lcuts, nrows * ncols):
+    #    fig.delaxes(axes[i])
+
+    #plt.tight_layout()
+    #plt.draw()
+
+
+def hod_bins_plot(gc: GroupCatalog, hodtab: hod.HODTabulated, model=False, seperate=False):
     """
     Plot the HOD from a file, overlaying with a histogram of the number of halos (nhalo).
     """
-    data = hodt
+    data = hodtab
     n_lbins = len(data.mag_bin_centers)
     log_Mhalo = data.logM_bin_centers
 
@@ -1165,10 +1190,10 @@ def hod_bins_plot(gc: GroupCatalog, hodt: HODTabulated, model=False, seperate=Fa
         ax2.grid(True)
 
         if model:
-            ax.plot(log_Mhalo, hod_central_model2(log_Mhalo, *gc.hod_cen_red_popt[lbin]), 'k-', label='Q Cen Model', linewidth=3)
-            ax.plot(log_Mhalo, hod_satellite_model(log_Mhalo, *gc.hod_sat_red_popt[lbin]), 'k--', label='Q Sat Model', linewidth=3)
-            ax2.plot(log_Mhalo, hod_central_model2(log_Mhalo, *gc.hod_cen_blue_popt[lbin]), 'k-', label='SF Cen Model', linewidth=3)
-            ax2.plot(log_Mhalo, hod_satellite_model(log_Mhalo, *gc.hod_sat_blue_popt[lbin]), 'k--', label='SF Sat Model', linewidth=3)
+            ax.plot(log_Mhalo, hod.hod_central_model2(log_Mhalo, *gc.hod_cen_red_popt[lbin]), 'k-', label='Q Cen Model', linewidth=3)
+            ax.plot(log_Mhalo, hod.hod_satellite_model(log_Mhalo, *gc.hod_sat_red_popt[lbin]), 'k--', label='Q Sat Model', linewidth=3)
+            ax2.plot(log_Mhalo, hod.hod_central_model2(log_Mhalo, *gc.hod_cen_blue_popt[lbin]), 'k-', label='SF Cen Model', linewidth=3)
+            ax2.plot(log_Mhalo, hod.hod_satellite_model(log_Mhalo, *gc.hod_sat_blue_popt[lbin]), 'k--', label='SF Sat Model', linewidth=3)
 
             # Print the parameters onto the plot
             ax.text(10.2, 1.7, f"α: {gc.hod_sat_red_popt[lbin][2]:.2f}")
@@ -1192,6 +1217,8 @@ def hod_bins_plot(gc: GroupCatalog, hodt: HODTabulated, model=False, seperate=Fa
         fig.delaxes(axes[i])
         if seperate:
             fig2.delaxes(axes2[i])
+
+    return (fig, fig2) if seperate else fig
 
 
       

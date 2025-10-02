@@ -30,7 +30,7 @@ from uchuu_to_dat import pre_process_uchuu
 from bgs_helpers import *
 import wp
 from calibrationdata import *
-from hod import fit_hod_models
+from hod import fit_hod_models, HODThresholdsTabulated, HODTabulated, fit_hod_threshold_models
 
 # Must keep this protocol syncronized with the C++ code in groups.hpp
 MSG_REQUEST = 0
@@ -214,6 +214,8 @@ class GroupCatalog:
         self.f_sat = None # per Lgal bin 
         self.Lgal_counts = None # size of Lgal bins 
 
+        self.hod_thresholds: HODThresholdsTabulated = None # HOD in mag thresholds
+
         # Given from GF process via monitor_pipe
         self.fsat : np.ndarray = None
         self.fsatr : np.ndarray = None
@@ -225,8 +227,8 @@ class GroupCatalog:
         self.lhmr_b_m : np.ndarray = None # lhmr model blue
         self.lhmr_b_std : np.ndarray = None # lhmr model blue scatter
         self.lsat_ratios : np.ndarray = None # lsat ratios, 107-88+1 values
-        self.hod : np.ndarray = None # Raw HOD
-        self.hodfit : np.ndarray = None # HOD with modifications; this is what was used to populate mocks
+        self.hod : np.ndarray = None # Raw mag binned HOD from C++
+        self.hodfit : np.ndarray = None # Mag binned HOD from C++ with modifications; this is what was used to populate mocks
 
         # Bootstrapped error estimates
         self.fsat_bootstrap_err: np.ndarray = None
@@ -490,7 +492,65 @@ class GroupCatalog:
             return best_params_list[0][1]
         return None
 
-    def fit_hod_to_model_for_display(self):
+    def fit_hod_thresholds_to_model_for_display(self):
+        df = self.all_data
+        centrals = df.loc[~df['IS_SAT']]
+        sats = df.loc[df['IS_SAT']]
+        lum_cuts = abs_mag_r_to_solar_L(self.caldata.magbins[:-1])
+
+        if not hasattr(self, 'hod_thresholds') or self.hod_thresholds is None:
+            self.hod_thresholds = HODThresholdsTabulated(self.caldata.magbins[:-1], self.Mhalo_bins)
+            halos = centrals.groupby('Mh_bin', observed=False).apply(count_vmax_weighted)
+            self.hod_thresholds.unweighted_counts = centrals.groupby('Mh_bin', observed=False).apply(count_unweighted)
+            
+
+            for color in ['r', 'b', 'k']:
+                for idx, lcut in enumerate(lum_cuts):
+                    cen_query = centrals['L_GAL'] > lcut
+                    sat_query = sats['L_GAL'] > lcut
+                    combined_query = df['L_GAL'] > lcut
+                    if color == 'r':
+                        cen_query &= centrals['QUIESCENT']
+                        sat_query &= sats['QUIESCENT']
+                        combined_query &= df['QUIESCENT']
+                        self.hod_thresholds.central_q[idx, :] = np.log10(centrals.loc[cen_query].groupby('Mh_bin', observed=False).apply(count_vmax_weighted) / halos)
+                        self.hod_thresholds.satellite_q[idx, :] = np.log10(sats.loc[sat_query].groupby('Mh_bin', observed=False).apply(count_vmax_weighted) / halos)
+                        self.hod_thresholds.combined_q[idx, :] = np.log10((df.loc[combined_query].groupby('Mh_bin', observed=False).apply(count_vmax_weighted)) / halos)
+                    elif color == 'b':
+                        cen_query &= ~centrals['QUIESCENT']
+                        sat_query &= ~sats['QUIESCENT']
+                        combined_query &= ~df['QUIESCENT']
+                        self.hod_thresholds.central_sf[idx, :] = np.log10(centrals.loc[cen_query].groupby('Mh_bin', observed=False).apply(count_vmax_weighted) / halos)
+                        self.hod_thresholds.satellite_sf[idx, :] = np.log10(sats.loc[sat_query].groupby('Mh_bin', observed=False).apply(count_vmax_weighted) / halos)
+                        self.hod_thresholds.combined_sf[idx, :] = np.log10((df.loc[combined_query].groupby('Mh_bin', observed=False).apply(count_vmax_weighted)) / halos)
+                    else:
+                        self.hod_thresholds.central_all[idx, :] = np.log10(centrals.loc[cen_query].groupby('Mh_bin', observed=False).apply(count_vmax_weighted) / halos)
+                        self.hod_thresholds.satellite_all[idx, :] = np.log10(sats.loc[sat_query].groupby('Mh_bin', observed=False).apply(count_vmax_weighted) / halos)
+                        self.hod_thresholds.combined_all[idx, :] = np.log10((df.loc[combined_query].groupby('Mh_bin', observed=False).apply(count_vmax_weighted)) / halos)
+
+
+        # Then fit
+        self.hodt_cen_red_popt = []
+        self.hodt_sat_red_popt = []
+        self.hodt_cen_blue_popt = []
+        self.hodt_sat_blue_popt = []
+        self.hodt_cen_all_popt = []
+        self.hodt_sat_all_popt = []
+
+        for idx, lcut in enumerate(lum_cuts):
+            cen_red_popt, sat_red_popt = fit_hod_threshold_models(np.log10(self.Mhalo_labels), self.hod_thresholds.central_q[idx, :], self.hod_thresholds.satellite_q[idx, :], 'r')
+            cen_blue_popt, sat_blue_popt = fit_hod_threshold_models(np.log10(self.Mhalo_labels), self.hod_thresholds.central_sf[idx, :], self.hod_thresholds.satellite_sf[idx, :], 'b')
+            cen_all_popt, sat_all_popt = fit_hod_threshold_models(np.log10(self.Mhalo_labels), self.hod_thresholds.central_all[idx, :], self.hod_thresholds.satellite_all[idx, :], 'k')
+
+            self.hodt_cen_red_popt.append(cen_red_popt)
+            self.hodt_sat_red_popt.append(sat_red_popt)
+            self.hodt_cen_blue_popt.append(cen_blue_popt)
+            self.hodt_sat_blue_popt.append(sat_blue_popt)
+            self.hodt_cen_all_popt.append(cen_all_popt)
+            self.hodt_sat_all_popt.append(sat_all_popt)
+
+
+    def fit_hod_bins_to_model_for_display(self):
         if self.hod is None:
             raise Exception("HOD data not available")
         data = self.hod
@@ -2587,67 +2647,6 @@ def read_and_combine_gf_output(gc: GroupCatalog, galprops_df):
 
     return df # TODO update callers
 
-
-
-##########################
-# Aggregation Helpers
-##########################
-
-def count_vmax_weighted(series):
-    if len(series) == 0:
-        return np.nan
-    else:
-        return np.sum(1 / series['VMAX'])
-
-def fsat_truth_vmax_weighted(series):
-    if len(series) == 0:
-        return np.nan
-    else:
-        return np.average(series['IS_SAT_T'], weights=1/series['VMAX'])
-    
-def fsat_vmax_weighted(series):
-    if len(series) == 0:
-        return np.nan
-    else:
-        return np.average(series['IS_SAT'], weights=1/series['VMAX'])
-        return np.average(series['IS_SAT'])
-
-def Mhalo_vmax_weighted(series):
-    if len(series) == 0:
-        return np.nan
-    else:
-        return np.average(series['M_HALO'], weights=1/series['VMAX'])
-    
-def Mhalo_std_vmax_weighted(series):
-    if len(series) == 0:
-        return np.nan
-    else:
-        totweight = np.sum(1/series['VMAX'])
-        mu = np.log10(Mhalo_vmax_weighted(series))
-        values = np.log10(series['M_HALO'])
-        return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
-    
-def Lgal_vmax_weighted(series):
-    if len(series) <= 4:
-        return np.nan
-    else:
-        return np.average(series['L_GAL'], weights=1/series['VMAX'])
-
-def LogLgal_vmax_weighted(series):
-    if len(series) <= 4:
-        return np.nan
-    else:
-        return np.log10(np.average(series['L_GAL'], weights=1/series['VMAX']))
-
-def LogLgal_lognormal_scatter_vmax_weighted(series):
-    if len(series) <= 4:
-        return np.nan
-    else:
-        totweight = np.sum(1/series['VMAX'])
-        mu = LogLgal_vmax_weighted(series)
-        values = np.log10(series['L_GAL'])
-        return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
-
 def z_flag_is_spectro_z(arr):
     return np.logical_or(arr == AssignedRedshiftFlag.SDSS_SPEC.value, arr == AssignedRedshiftFlag.DESI_SPEC.value)
 
@@ -2662,53 +2661,6 @@ def z_flag_is_photo_z(arr):
 
 def z_flag_is_not_spectro_z(arr):
     return ~z_flag_is_spectro_z(arr)
-
-def mstar_vmax_weighted(series):
-    if len(series) <= 4:
-        return np.nan
-    return np.average(np.power(10, series['LOGMSTAR']), weights=1/series['VMAX'])
-
-def LogMstar_lognormal_scatter_vmax_weighted(series):
-    if len(series) <= 4:
-        return np.nan
-    else:
-        totweight = np.sum(1/series['VMAX'])
-        mu = np.log10(mstar_vmax_weighted(series))
-        values = series['LOGMSTAR']
-        return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
-
-def qf_vmax_weighted(series):
-    if len(series) == 0:
-        return np.nan
-    else:
-        return np.average(series['QUIESCENT'], weights=1/series['VMAX'])
-
-def qf_Dn4000MODEL_smart_eq_vmax_weighted(series):
-    if len(series) == 0:
-        return np.nan
-    else:
-        return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
-
-def qf_Dn4000_smart_eq_vmax_weighted(series):
-    if len(series) == 0:
-        return np.nan
-    else:
-        return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000'], series.G_R), weights=1/series['VMAX'])
-
-def qf_BGS_gmr_vmax_weighted(series):
-    if len(series) == 0:
-        return np.nan
-    else:
-        return np.average(is_quiescent_BGS_gmr(series['LOGLGAL'], series.G_R), weights=1/series['VMAX'])
-    
-def nsat_vmax_weighted(series):
-    if len(series) == 0:
-        return np.nan
-    else:
-        print(series['N_SAT'])
-        return np.average(series['N_SAT'], weights=1/series['VMAX'])
-    
-
 
 ##############################
 def compute_lsat_chisqr(observed, model_lsat_r, model_lsat_b):
@@ -2730,3 +2682,69 @@ def compute_lsat_chisqr(observed, model_lsat_r, model_lsat_b):
     lsat_chisqr = (obs_ratio - model_ratio)**2 / obs_ratio_err**2 
     print("LSat χ^2: ", lsat_chisqr)
     return lsat_chisqr
+
+
+
+# TODO 
+# Something is wrong with this still - doesn' 100% match the C++ code
+# But my older threshold code seems good?
+def tabulate_hod_by_luminosity(gc: GroupCatalog):
+    df = gc.all_data.copy()
+    if 'M_r' not in df.columns:
+        df['M_r'] = log_solar_L_to_abs_mag_r(np.log10(df['L_GAL']))
+
+    # --- 1. Define Bins ---
+    mag_bins = gc.caldata.magbins
+    max_redshifts = gc.caldata.zmaxes
+    logM_bins = np.arange(9.0, 15.6, 0.1)
+    
+    # Use pandas.cut to assign each galaxy to a halo mass bin
+    df['logM_bin'] = pd.cut(np.log10(df['M_HALO']), bins=logM_bins, labels=False, right=False)
+
+    # --- 2. Initialize HOD ---
+    hod_obj = HODTabulated(mag_bins, logM_bins)
+    n_mass_bins = len(logM_bins) - 1
+
+    # --- 3. Loop through luminosity bins and calculate occupation ---
+    for i, (mag_start, mag_end) in enumerate(zip(mag_bins[:-1], mag_bins[1:])):
+        # --- Denominator: Vmax-weighted halo counts for this luminosity bin ---
+        # A halo is included if its central is within the redshift limit for this bin.
+        centrals_in_z_slice = df.loc[(~df['IS_SAT']) & (df['Z'] < max_redshifts[i])]
+        total_halos_in_bin = centrals_in_z_slice.groupby('logM_bin', observed=False).apply(count_vmax_weighted)
+        total_halos_in_bin = total_halos_in_bin.reindex(np.arange(n_mass_bins), fill_value=1e-10)
+        total_halos_in_bin = np.where(total_halos_in_bin < 1e-10, 1e-10, total_halos_in_bin)
+        unweighted_halos_in_bin = centrals_in_z_slice.groupby('logM_bin', observed=False).size().reindex(np.arange(n_mass_bins), fill_value=np.nan)
+        
+        # --- Numerator: Vmax-weighted galaxy counts ---
+        # Select all galaxies within the current magnitude and redshift bin
+        lum_mask = (df['M_r'] >= mag_start) & (df['M_r'] < mag_end) & (df['Z'] < max_redshifts[i])
+        lum_df = df.loc[lum_mask]
+
+        # Separate by type
+        cen_q = lum_df.loc[~lum_df['IS_SAT'] & lum_df['QUIESCENT']]
+        cen_sf = lum_df.loc[~lum_df['IS_SAT'] & ~lum_df['QUIESCENT']]
+        sat_q = lum_df.loc[lum_df['IS_SAT'] & lum_df['QUIESCENT']]
+        sat_sf = lum_df.loc[lum_df['IS_SAT'] & ~lum_df['QUIESCENT']]
+
+        # Sum 1/Vmax weights for each galaxy type
+        cen_q_counts = cen_q.groupby('logM_bin', observed=False).apply(count_vmax_weighted).reindex(np.arange(n_mass_bins), fill_value=np.nan)
+        cen_sf_counts = cen_sf.groupby('logM_bin', observed=False).apply(count_vmax_weighted).reindex(np.arange(n_mass_bins), fill_value=np.nan)
+        sat_q_counts = sat_q.groupby('logM_bin', observed=False).apply(count_vmax_weighted).reindex(np.arange(n_mass_bins), fill_value=np.nan)
+        sat_sf_counts = sat_sf.groupby('logM_bin', observed=False).apply(count_vmax_weighted).reindex(np.arange(n_mass_bins), fill_value=np.nan)
+
+        # --- Handle edge cases where satellites exist but halo count is zero ---
+        # This mimics the logic in the C++ code.
+        sat_counts = sat_q_counts + sat_sf_counts
+        missing_halo_mask = (total_halos_in_bin <= 1e-10) & (sat_counts > 0)
+        total_halos_in_bin[missing_halo_mask] = sat_counts[missing_halo_mask]
+
+        # Calculate mean occupation <N> for this luminosity bin
+        hod_obj.central_q[i, :] = np.log10(cen_q_counts / total_halos_in_bin, where=(cen_q_counts > 0), out=np.full_like(total_halos_in_bin, -20.0))
+        hod_obj.central_sf[i, :] = np.log10(cen_sf_counts / total_halos_in_bin, where=(cen_sf_counts > 0), out=np.full_like(total_halos_in_bin, -20.0))
+        hod_obj.satellite_q[i, :] = np.log10(sat_q_counts / total_halos_in_bin, where=(sat_q_counts > 0), out=np.full_like(total_halos_in_bin, -20.0))
+        hod_obj.satellite_sf[i, :] = np.log10(sat_sf_counts / total_halos_in_bin, where=(sat_sf_counts > 0), out=np.full_like(total_halos_in_bin, -20.0))
+        hod_obj.central_all[i, :] = np.log10(cen_q_counts + cen_sf_counts / total_halos_in_bin, where=(cen_q_counts + cen_sf_counts > 0), out=np.full_like(total_halos_in_bin, -20.0))
+        hod_obj.satellite_all[i, :] = np.log10(sat_q_counts + sat_sf_counts / total_halos_in_bin, where=(sat_q_counts + sat_sf_counts > 0), out=np.full_like(total_halos_in_bin, -20.0))
+        hod_obj.unweighted_counts[i, :] = unweighted_halos_in_bin.values
+
+    return hod_obj

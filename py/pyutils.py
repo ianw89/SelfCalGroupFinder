@@ -482,52 +482,125 @@ def get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area):
     return v_max * frac_area
 
 
-def mollweide_transform(ra, dec):
-    """
-    Transform ra, dec arrays into x, y arrays for plotting in Mollweide projection.
+
+
+##########################
+# Aggregation Helpers
+##########################
+
+def count_vmax_weighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        return np.sum(1 / series['VMAX'])
     
-    Expects ra, dec in degrees. They must range -180 to 180 and -90 to 90.
-    """
-    assert np.all(ra < 180.01)
-    assert np.all(dec < 90.01)
-    assert len(ra) == len(dec)
+def count_unweighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        return len(series)
 
-    def d(theta):
-        delta = (-(theta + np.sin(theta) - pi_sin_l)
-                         / (1 + np.cos(theta)))
-        return delta, np.abs(delta) > 0.001
+def fsat_truth_vmax_weighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        return np.average(series['IS_SAT_T'], weights=1/series['VMAX'])
+    
+def fsat_vmax_weighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        return np.average(series['IS_SAT'], weights=1/series['VMAX'])
+        return np.average(series['IS_SAT'])
 
-    longitude = ra * np.pi / 180 # runs -pi to pi
-    latitude = dec * np.pi / 180 # should run -pi/2 to pi/2
+def Mhalo_vmax_weighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        return np.average(series['M_HALO'], weights=1/series['VMAX'])
+    
+def Mhalo_std_vmax_weighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        totweight = np.sum(1/series['VMAX'])
+        mu = np.log10(Mhalo_vmax_weighted(series))
+        values = np.log10(series['M_HALO'])
+        return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
+    
+def Lgal_vmax_weighted(series):
+    if len(series) <= 4:
+        return np.nan
+    else:
+        return np.average(series['L_GAL'], weights=1/series['VMAX'])
 
-    # Mollweide projection
-    clat = np.pi/2 - np.abs(latitude)
-    ihigh = clat < 0.087  # within 5 degrees of the poles
-    ilow = ~ihigh
-    aux = np.empty(latitude.shape, dtype=float)
+def LogLgal_vmax_weighted(series):
+    if len(series) <= 4:
+        return np.nan
+    else:
+        return np.log10(np.average(series['L_GAL'], weights=1/series['VMAX']))
 
-    if ilow.any():  # Newton-Raphson iteration
-        pi_sin_l = np.pi * np.sin(latitude[ilow])
-        theta = 2.0 * latitude[ilow]
-        delta, large_delta = d(theta)
-        while np.any(large_delta):
-            theta[large_delta] += delta[large_delta]
-            delta, large_delta = d(theta)
-        aux[ilow] = theta / 2
+def LogLgal_lognormal_scatter_vmax_weighted(series):
+    if len(series) <= 4:
+        return np.nan
+    else:
+        totweight = np.sum(1/series['VMAX'])
+        mu = LogLgal_vmax_weighted(series)
+        values = np.log10(series['L_GAL'])
+        return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
 
-    if ihigh.any():  # Taylor series-based approx. solution
-        e = clat[ihigh]
-        d = 0.5 * (3 * np.pi * e**2) ** (1.0/3)
-        aux[ihigh] = (np.pi/2 - d) * np.sign(latitude[ihigh])
+def mstar_vmax_weighted(series):
+    if len(series) <= 4:
+        return np.nan
+    return np.average(np.power(10, series['LOGMSTAR']), weights=1/series['VMAX'])
 
-    x = np.empty(len(longitude), dtype=float)
-    y = np.empty(len(latitude), dtype=float)
+def LogMstar_lognormal_scatter_vmax_weighted(series):
+    if len(series) <= 4:
+        return np.nan
+    else:
+        totweight = np.sum(1/series['VMAX'])
+        mu = np.log10(mstar_vmax_weighted(series))
+        values = series['LOGMSTAR']
+        return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
 
-    x = (2.0 * np.sqrt(2.0) / np.pi) * longitude * np.cos(aux) * (180/np.pi)
-    y = np.sqrt(2.0) * np.sin(aux) * (180/np.pi)
+def qf_vmax_weighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        return np.average(series['QUIESCENT'], weights=1/series['VMAX'])
 
-    return x, y
+def qf_Dn4000MODEL_smart_eq_vmax_weighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
 
+def qf_Dn4000_smart_eq_vmax_weighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000'], series.G_R), weights=1/series['VMAX'])
+
+def qf_BGS_gmr_vmax_weighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        return np.average(is_quiescent_BGS_gmr(series['LOGLGAL'], series.G_R), weights=1/series['VMAX'])
+    
+def nsat_vmax_weighted(series):
+    if len(series) == 0:
+        return np.nan
+    else:
+        print(series['N_SAT'])
+        return np.average(series['N_SAT'], weights=1/series['VMAX'])
+
+
+
+
+
+##########################
+# Lookup tables
+##########################
 
 def build_app_mag_to_z_map(app_mag, z_obs):
     _NBINS = 100

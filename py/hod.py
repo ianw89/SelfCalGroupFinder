@@ -6,6 +6,127 @@ import pandas as pd
 from pyutils import *
 from calibrationdata import CalibrationData
 
+
+#################################
+# --- HOD FITTING IN THRESHOLDS ---
+#################################
+class HODThresholdsTabulated:
+    def __init__(self, mag_thresholds, logM_bin_edges):
+        self.mag_thresholds = mag_thresholds
+        self.logM_bin_edges = logM_bin_edges
+        self.logM_bin_centers = 0.5 * (logM_bin_edges[:-1] + logM_bin_edges[1:])
+        n_mag_thresholds = len(mag_thresholds)
+        n_mass_bins = len(self.logM_bin_centers)
+
+        self.central_q = np.zeros((n_mag_thresholds, n_mass_bins))
+        self.central_sf = np.zeros((n_mag_thresholds, n_mass_bins))
+        self.central_all = np.zeros((n_mag_thresholds, n_mass_bins))
+        self.satellite_q = np.zeros((n_mag_thresholds, n_mass_bins))
+        self.satellite_sf = np.zeros((n_mag_thresholds, n_mass_bins))
+        self.satellite_all = np.zeros((n_mag_thresholds, n_mass_bins))
+        self.combined_q = np.zeros((n_mag_thresholds, n_mass_bins))
+        self.combined_sf = np.zeros((n_mag_thresholds, n_mass_bins))
+        self.combined_all = np.zeros((n_mag_thresholds, n_mass_bins))
+        self.unweighted_counts = np.zeros(n_mass_bins)
+
+
+def hod_central_threshold_model(logM, logM_min, sigma_logM):
+    """ HOD model for central galaxies in a cumulative (threshold) sample. """
+    val = 0.5 * (1 + erf((logM - logM_min) / sigma_logM))
+    return np.log10(np.clip(val, 1e-6, None))
+
+def hod_central_threshold_blue_model(logM, logM_min, sigma1_logM, logM_max, sigma2_logM):
+    """ HOD model for central galaxies in a cumulative (threshold) sample, with a turn-off erf as well. """
+    val = 0.5 * (1 + erf((logM - logM_min) / sigma1_logM)) * (1 - erf((logM - logM_max) / sigma2_logM))
+    return np.log10(np.clip(val, 1e-6, None))
+
+def hod_satellite_threshold_model(logM, logM_cut, logM_1, alpha):
+    """ HOD model for satellite galaxies in a cumulative (threshold) sample. """
+    M = 10**logM
+    M_cut = 10**logM_cut
+    M_1 = 10**logM_1
+    # Add small epsilon to avoid division by zero or log(0)
+    base = np.fmax((M - M_cut) / (M_1 + 1e-9), 1e-9) 
+    return np.log10(base**alpha)
+
+def _thresh_log_prior(theta, lower_bounds, upper_bounds):
+    """Priors are defined by the bounds. Returns -inf if outside."""
+    for i in range(len(theta)):
+        if not (lower_bounds[i] < theta[i] < upper_bounds[i]):
+            return -np.inf
+    return 0.0
+
+def _thresh_log_likelihood(theta, x, y, yerr, model_func):
+    """Gaussian log-likelihood, assuming model and data are in log space."""
+    model_y = model_func(x, *theta)
+    sigma2 = yerr**2
+    return -0.5 * np.sum((y - model_y)**2 / sigma2)
+
+def _thresh_log_probability(theta, x, y, yerr, model_func, lower_bounds, upper_bounds):
+    """The full log-probability function for emcee."""
+    lp = _thresh_log_prior(theta, lower_bounds, upper_bounds)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp + _thresh_log_likelihood(theta, x, y, yerr, model_func)
+
+def fit_hod_thresholds_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0.1, nwalkers=10, nsteps=3000, discard=300):
+    """
+    Fits a threshold HOD model to data using MCMC with emcee.
+    """
+    ndim = len(p0)
+    lower_bounds, upper_bounds = bounds
+    # Initialize walkers randomly between the bounds
+    pos = np.array(p0) + (1e-2 * np.random.randn(nwalkers, ndim))
+    #pos = np.array([np.random.uniform(lower_bounds[i], upper_bounds[i], nwalkers) for i in range(ndim)]).T
+    sampler_args = (log_halo_mass, logn, y_err, model_func, lower_bounds, upper_bounds)
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, _thresh_log_probability, args=sampler_args)
+    sampler.run_mcmc(pos, nsteps, progress=True)
+    flat_samples = sampler.get_chain(discard=discard, flat=True)
+    best_idx = np.argmax(sampler.get_log_prob(discard=discard, flat=True))
+    best_params = flat_samples[best_idx]
+    # TODO instead of just keeping best fit, consider keeping and plotting the posterior somehow
+    return best_params
+
+def fit_hod_threshold_models(log_halo_mass, logncen, lognsat, color):
+    """
+    Fits HOD threshold data to standard models using either curve_fit or MCMC.
+    """
+    logncen = np.clip(logncen, -6, 2) # log(prob) cannot be > 0
+    lognsat = np.clip(lognsat, -6, 5)
+    
+    # --- Centrals ---
+    cenmask = logncen > -3 # For the fitting, only use these points
+    p0_cen = [log_halo_mass[cenmask][0], 0.3, log_halo_mass[cenmask][5], 2.5] if color == 'b' else [log_halo_mass[cenmask][0], 0.3]
+    bounds_cen = ([8, 0.01, 8, 0.01], [16, 3.0, 16, 10.0]) if color == 'b' else ([8, 0.01], [16, 3.0])
+    print(f"Initial guess for centrals: {p0_cen}, bounds: {bounds_cen}")
+    cenmodel = hod_central_threshold_blue_model if color == 'b' else hod_central_threshold_model
+    
+    # --- Satellites ---
+    satmask = lognsat > -3 # For the fitting, only use these points
+    p0_sat = [log_halo_mass[satmask][0], log_halo_mass[satmask][-1], 1.0]
+    bounds_sat = ([9, 10, 0.1], [16, 17, 3.0])
+    print(f"Initial guess for satellites: {p0_sat}, bounds: {bounds_sat}")
+
+    print(f"--- Fitting Centrals (Threshold) using {len(logncen[cenmask])} points  ---")
+    popt_cen = fit_hod_thresholds_mcmc(log_halo_mass[cenmask], logncen[cenmask], cenmodel, p0_cen, bounds_cen)
+    print(f"\n--- Fitting Satellites (Threshold) using {len(lognsat[satmask])} points ---")
+    popt_sat = fit_hod_thresholds_mcmc(log_halo_mass[satmask], lognsat[satmask], hod_satellite_threshold_model, p0_sat, bounds_sat)
+
+    return popt_cen, popt_sat
+
+
+
+
+
+
+
+
+
+
+#################################
+# --- HOD FITTING IN BINS ---
+#################################
+
 class HODTabulated:
     def __init__(self, mag_bin_edges, logM_bin_edges):
         self.mag_bin_edges = mag_bin_edges
@@ -67,7 +188,7 @@ class HODTabulated:
 
 
 
-# --- Define Model Functions ---
+
 #def hod_central_model(logM, logM_min, sigma_logM):
 #    """ Standard HOD model for central galaxies. """
 #    return np.log10(0.5 * (1 + erf((logM - logM_min) / sigma_logM)))
@@ -77,12 +198,6 @@ def hod_central_model2(logM, logM_min, sigma_logM1, logM_max, sigma_logM2):
     result = (0.5 * (1 + erf((logM - logM_min) / sigma_logM1)) - 0.5 * (1 + erf((logM - logM_max) / sigma_logM2)))
     result = np.clip(result, 1e-6, None)  # Avoid log of zero or negative
     return np.log10(result)
-
-#def hod_central_model_cutoff(logM, logM_min, sigma_logM, logM_cut, kappa):
-#    """ Standard HOD model for central galaxies. """
-#    M = 10**logM
-#    M_cut = 10**logM_cut
-#    return np.log10(0.5 * (1 + erf((logM - logM_min) / sigma_logM)) * np.exp(-(M / M_cut)**kappa))
 
 def hod_satellite_model(logM, logM_cut, logM_1, alpha):
     """ Standard HOD model for satellite galaxies. """
@@ -122,25 +237,25 @@ def fit_hod_models(log_halo_mass, logncen, lognsat, use_mcmc=True):
 
     return popt_cen, popt_sat
 
-def _log_prior(theta, lower_bounds, upper_bounds):
+def _bin_log_prior(theta, lower_bounds, upper_bounds):
     """Priors are defined by the bounds. Returns -inf if outside."""
     for i in range(len(theta)):
         if not (lower_bounds[i] < theta[i] < upper_bounds[i]):
             return -np.inf
     return 0.0
 
-def _log_likelihood(theta, x, y, yerr, model_func):
+def _bin_log_likelihood(theta, x, y, yerr, model_func):
     """Gaussian log-likelihood, assuming model and data are in log space."""
     model_y = model_func(x, *theta)
     sigma2 = yerr**2
     return -0.5 * np.sum((y - model_y)**2 / sigma2)
 
-def _log_probability(theta, x, y, yerr, model_func, lower_bounds, upper_bounds):
+def _bin_log_probability(theta, x, y, yerr, model_func, lower_bounds, upper_bounds):
     """The full log-probability function for emcee."""
-    lp = _log_prior(theta, lower_bounds, upper_bounds)
+    lp = _bin_log_prior(theta, lower_bounds, upper_bounds)
     if not np.isfinite(lp):
         return -np.inf
-    return lp + _log_likelihood(theta, x, y, yerr, model_func)
+    return lp + _bin_log_likelihood(theta, x, y, yerr, model_func)
 
 
 def fit_hod_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0.1, nwalkers=12, nsteps=10000, discard=100):
@@ -184,7 +299,7 @@ def fit_hod_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0.1, nwalker
 
     # Set up and run the sampler
     #with Pool() as pool:
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, _log_probability, args=sampler_args)
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, _bin_log_probability, args=sampler_args)
     sampler.run_mcmc(pos, nsteps, progress=True)
 
     # Get the results, discarding the burn-in phase
