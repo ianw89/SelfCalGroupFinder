@@ -418,11 +418,11 @@ def read_tiles_Y3_main():
 
 def add_NTILE_MINE_to_table(table_file :str|Table, year: str):
     print("Adding NTILE_MINE to table.", flush=True)
-    if year == "sv3":
+    if year == "sv3" or year == "SV3":
         tiles_df = read_tiles_Y3_sv3()
-    elif year == "1":
+    elif year == "1" or year == "Y1":
         tiles_df = read_tiles_Y1_main()
-    elif year == "3":
+    elif year == "3" or year == "Y3" or year == "DA2":
         tiles_df = read_tiles_Y3_main()
     else:
         raise ValueError("Year must be 1 or 3")
