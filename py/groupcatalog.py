@@ -49,7 +49,9 @@ NO_TRUTH_Z = -99.99
 
 # Shared bins for various purposes
 Mhalo_bins = np.logspace(9, 15.5, 156-90)
+Mhalo_bins2 = np.logspace(9, 15.4, (156-90)//2) # coarser bins for some plots
 Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1] 
+Mhalo_labels2 = Mhalo_bins2[0:len(Mhalo_bins2)-1]
 
 Lgal_bins_for_lsat = np.linspace(8.8, 10.7, 20)
 
@@ -1263,6 +1265,7 @@ class SDSSPublishedGroupCatalog(GroupCatalog):
 
         # add column for halo mass bins and Lgal bins
         df['Mh_bin'] = pd.cut(x = df['M_HALO'], bins = self.Mhalo_bins, labels = self.Mhalo_labels, include_lowest = True)
+        df['Mh_bin2'] = pd.cut(x = df['M_HALO'], bins = Mhalo_bins2, labels = Mhalo_labels2, include_lowest = True)
         df['LGAL_BIN'] = pd.cut(x = df['L_GAL'], bins = self.L_gal_bins, labels = self.L_gal_labels, include_lowest = True)
 
         self.all_data = df
@@ -1521,15 +1524,15 @@ class BGSGroupCatalog(GroupCatalog):
             lhmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
             lhmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
             lhmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-            lhmr_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted))
-            lhmr_sf_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted))
-            lhmr_q_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted))
+            lhmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+            lhmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+            lhmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
             shmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
             shmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
             shmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-            shmr_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted))
-            shmr_sf_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted))
-            shmr_q_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted))
+            shmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            shmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            shmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
             
             return f_sat, f_sat_sf, f_sat_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter
 
@@ -1566,18 +1569,19 @@ class BGSGroupCatalog(GroupCatalog):
         self.fsat_bootstrap_err = 0.5 * (np.percentile(fsat_reals, 84, axis=0) - np.percentile(fsat_reals, 16, axis=0))
         self.fsat_sf_bootstrap_err = 0.5 * (np.percentile(fsat_sf_reals, 84, axis=0) - np.percentile(fsat_sf_reals, 16, axis=0))
         self.fsat_q_bootstrap_err = 0.5 * (np.percentile(fsat_q_reals, 84, axis=0) - np.percentile(fsat_q_reals, 16, axis=0))
-        self.lhmr_bootstrap_err = 0.5 * (np.percentile(lhmr_reals, 84, axis=0) - np.percentile(lhmr_reals, 16, axis=0))
-        self.lhmr_sf_bootstrap_err = 0.5 * (np.percentile(lhmr_sf_reals, 84, axis=0) - np.percentile(lhmr_sf_reals, 16, axis=0))
-        self.lhmr_q_bootstrap_err = 0.5 * (np.percentile(lhmr_q_reals, 84, axis=0) - np.percentile(lhmr_q_reals, 16, axis=0))
-        self.lhmr_scatter_bootstrap_err = 0.5 * (np.percentile(lhmr_scatter_reals, 84, axis=0) - np.percentile(lhmr_scatter_reals, 16, axis=0))
-        self.lhmr_sf_scatter_bootstrap_err = 0.5 * (np.percentile(lhmr_sf_scatter_reals, 84, axis=0) - np.percentile(lhmr_sf_scatter_reals, 16, axis=0))
-        self.lhmr_q_scatter_bootstrap_err = 0.5 * (np.percentile(lhmr_q_scatter_reals, 84, axis=0) - np.percentile(lhmr_q_scatter_reals, 16, axis=0))
-        self.shmr_bootstrap_err = 0.5 * (np.percentile(shmr_reals, 84, axis=0) - np.percentile(shmr_reals, 16, axis=0))
-        self.shmr_sf_bootstrap_err = 0.5 * (np.percentile(shmr_sf_reals, 84, axis=0) - np.percentile(shmr_sf_reals, 16, axis=0))
-        self.shmr_q_bootstrap_err = 0.5 * (np.percentile(shmr_q_reals, 84, axis=0) - np.percentile(shmr_q_reals, 16, axis=0))
-        self.shmr_scatter_bootstrap_err = 0.5 * (np.percentile(shmr_scatter_reals, 84, axis=0) - np.percentile(shmr_scatter_reals, 16, axis=0))
-        self.shmr_sf_scatter_bootstrap_err = 0.5 * (np.percentile(shmr_sf_scatter_reals, 84, axis=0) - np.percentile(shmr_sf_scatter_reals, 16, axis=0))
-        self.shmr_q_scatter_bootstrap_err = 0.5 * (np.percentile(shmr_q_scatter_reals, 84, axis=0) - np.percentile(shmr_q_scatter_reals, 16, axis=0))
+
+        self.lhmr_bootstrap_err = (np.percentile(lhmr_reals, 16, axis=0), np.percentile(lhmr_reals, 84, axis=0))
+        self.lhmr_sf_bootstrap_err = (np.percentile(lhmr_sf_reals, 16, axis=0), np.percentile(lhmr_sf_reals, 84, axis=0))
+        self.lhmr_q_bootstrap_err = (np.percentile(lhmr_q_reals, 16, axis=0), np.percentile(lhmr_q_reals, 84, axis=0))
+        self.lhmr_scatter_bootstrap_err = (np.percentile(lhmr_scatter_reals, 16, axis=0), np.percentile(lhmr_scatter_reals, 84, axis=0))
+        self.lhmr_sf_scatter_bootstrap_err = (np.percentile(lhmr_sf_scatter_reals, 16, axis=0), np.percentile(lhmr_sf_scatter_reals, 84, axis=0))
+        self.lhmr_q_scatter_bootstrap_err = (np.percentile(lhmr_q_scatter_reals, 16, axis=0), np.percentile(lhmr_q_scatter_reals, 84, axis=0))
+        self.shmr_bootstrap_err = (np.percentile(shmr_reals, 16, axis=0), np.percentile(shmr_reals, 84, axis=0))
+        self.shmr_sf_bootstrap_err = (np.percentile(shmr_sf_reals, 16, axis=0), np.percentile(shmr_sf_reals, 84, axis=0))
+        self.shmr_q_bootstrap_err = (np.percentile(shmr_q_reals, 16, axis=0), np.percentile(shmr_q_reals, 84, axis=0))
+        self.shmr_scatter_bootstrap_err = (np.percentile(shmr_scatter_reals, 16, axis=0), np.percentile(shmr_scatter_reals, 84, axis=0))
+        self.shmr_sf_scatter_bootstrap_err = (np.percentile(shmr_sf_scatter_reals, 16, axis=0), np.percentile(shmr_sf_scatter_reals, 84, axis=0))
+        self.shmr_q_scatter_bootstrap_err = (np.percentile(shmr_q_scatter_reals, 16, axis=0), np.percentile(shmr_q_scatter_reals, 84, axis=0))
 
         t2 = time.time()
         print(f"Bootstrapping complete in {t2-t1:.2f} seconds.")
@@ -1835,7 +1839,7 @@ class BGSGroupCatalog(GroupCatalog):
 
     def refresh_df_views(self):
         super().refresh_df_views()
-        self.bootstrap_statistics()
+        #self.bootstrap_statistics()
 
 
 def filter_SV3_to_avoid_edges(gc: GroupCatalog, INNER_RADIUS = 1.3):
