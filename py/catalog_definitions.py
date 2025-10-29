@@ -201,12 +201,21 @@ bgs_y1_pzp_2_4_c1.color = 'darkgreen'
 
 bgs_y1_pzp_2_4_c2 = BGSGroupCatalog("BGS Y1 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y1_pzp_2_4_c2.marker = '-'
-bgs_y1_pzp_2_4_c2.GF_props['iterations'] = 10
 bgs_y1_pzp_2_4_c2.color = 'darkgreen'
 
 bgs_y1_pzp_2_4_c2_noffc = BGSGroupCatalog("BGS Y1 C2 No Cuts", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', ffc=False, extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y1_pzp_2_4_c2_noffc.marker = '-'
 bgs_y1_pzp_2_4_c2_noffc.color = 'darkred'
+
+bgs_y1_pzp_2_4_c2_flm2 = BGSGroupCatalog("BGS Y1 C2 FLM2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
+bgs_y1_pzp_2_4_c2_flm2.GF_props['fluxlim'] = 2
+bgs_y1_pzp_2_4_c2_flm2.color = 'cyan'
+bgs_y1_pzp_2_4_c2_flm2.marker = '--'
+
+bgs_y1_pzp_2_4_c2_flm0 = BGSGroupCatalog("BGS Y1 C2 FLM0", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
+bgs_y1_pzp_2_4_c2_flm0.GF_props['fluxlim'] = 0
+bgs_y1_pzp_2_4_c2_flm0.color = 'magenta'
+bgs_y1_pzp_2_4_c2_flm0.marker = '--'
 
 bgs_y1mini_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Mini Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1mini)
 
@@ -214,9 +223,14 @@ bgs_y1_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 
 bgs_y1_hybrid_mcmc.marker = '.'
 bgs_y1_hybrid_mcmc.color = 'darkgreen'
 
+# Prerelease version (v0.4)
 bgs_y1_hybrid8_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
 bgs_y1_hybrid8_mcmc.marker = '.'
 bgs_y1_hybrid8_mcmc.color = 'darkgreen'
+
+bgs_y1_hybrid8_v1_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 v1 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
+bgs_y1_hybrid8_v1_mcmc.marker = '.'
+bgs_y1_hybrid8_v1_mcmc.color = 'darkgreen'
 
 bgs_y3_pzp_2_4 = BGSGroupCatalog("BGS Y3 PZP v2.4 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y3_pzp_2_4.color = 'darkorange'
@@ -229,7 +243,7 @@ bgs_y3_pzp_2_4_c1.marker = '--'
 bgs_y3_pzp_2_4_c2 = BGSGroupCatalog("BGS Y3 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y3_pzp_2_4_c2.color = 'darkorange'
 bgs_y3_pzp_2_4_c2.marker = '-'
-bgs_y3_pzp_2_4_c2.GF_props['iterations'] = 10
+bgs_y3_pzp_2_4_c2.GF_props['iterations'] = 5
 
 bgs_y3_fiberonly = BGSGroupCatalog("Observed BGS Y3 <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, data_cut='Y3-Loa', gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y3_fiberonly.marker = '-'

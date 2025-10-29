@@ -279,7 +279,7 @@ def safe_log_err_vals(logmean, lin_err):
             upper = np.log10(lin_err[1])
             return lower, upper
 
-def LHMR_savederr(f: GroupCatalog, show_all=False):
+def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
 
     log_mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
     log_means_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
@@ -299,6 +299,7 @@ def LHMR_savederr(f: GroupCatalog, show_all=False):
 
     plt.figure(dpi=DPI)
     x_vals = np.log10(Mhalo_labels)
+    x_vals2 = np.log10(Mhalo_labels2)
 
     if show_all:
         plt.errorbar(x_vals, log_mean_all, yerr=[yerr_all_lower, yerr_all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
@@ -309,17 +310,39 @@ def LHMR_savederr(f: GroupCatalog, show_all=False):
         plt.fill_between(x_vals, syserr_all_lower, syserr_all_upper, color='k', alpha=0.2)
     plt.fill_between(x_vals, syserr_r_lower, syserr_r_upper, color='r', alpha=0.2)
     plt.fill_between(x_vals, syserr_b_lower, syserr_b_upper, color='b', alpha=0.2)
+    ratio = 10**log_means_r / 10**log_means_b
     
     plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
     plt.ylabel(r'log$(\langle L_{\mathrm{cen}} \rangle / [L_{\odot} /h^2])$')
     plt.xlim(10,15)
     plt.ylim(7,LOG_LGAL_MAX_TIGHT)
-    plt.yscale
     plt.legend()
     plt.twinx()
     plt.ylim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
-    plt.yticks(np.arange(-23, -12, 1))
+    plt.yticks(np.arange(-23, -12, 2))
     plt.ylabel("$M_r$ - 5log(h)")
+
+    if inset is not None:
+        ax_inset = plt.gca().inset_axes([0.45, 0.1, 0.5, 0.5])
+        ax_inset.tick_params(axis='both', which='major', labelsize=10)
+        inset_log_means_r = inset.centrals.loc[inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_vmax_weighted)
+        inset_log_means_b = inset.centrals.loc[~inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_vmax_weighted)
+        ratio2 = 10**inset_log_means_r / 10**inset_log_means_b
+
+        #inset_yerr_all_lower, inset_yerr_all_upper = safe_log_err(inset_log_mean_all, inset.lhmr_bootstrap_err)
+        #inset_yerr_b_lower, inset_yerr_b_upper = safe_log_err(inset_log_means_b, inset.lhmr_sf_bootstrap_err)
+        #inset_yerr_r_lower, inset_yerr_r_upper = safe_log_err(inset_log_means_r, inset.lhmr_q_bootstrap_err)
+        
+        #ax_inset.errorbar(x_vals, inset_log_means_b, yerr=[inset_yerr_b_lower, inset_yerr_b_upper], fmt='.', color='b', capsize=3, alpha=0.7)
+        #ax_inset.errorbar(x_vals, inset_log_means_r, yerr=[inset_yerr_r_lower, inset_yerr_r_upper], fmt='.', color='r', capsize=3, alpha=0.7)
+        #ax_inset.plot(x_vals2, inset_log_means_b, '-', color='b', alpha=0.7)
+        #ax_inset.plot(x_vals2, inset_log_means_r, '-', color='r', alpha=0.7)
+        ax_inset.plot(x_vals, np.log10(ratio), '-', color='k', alpha=0.7)
+        ax_inset.plot(x_vals2, np.log10(ratio2), '-', color='purple', alpha=0.7)
+        ax_inset.set_xlim(10,15)
+       #ax_inset.set_ylim(0.9, 1.1)
+        #ax_inset.set_xlabel('log$(M_h~/~[M_\\odot /h]$)')
+        ax_inset.set_ylabel('log(Q/SF)', fontsize=10)
 
 
 def SHMR_savederr(f: GroupCatalog, show_all=False):
@@ -339,8 +362,8 @@ def SHMR_savederr(f: GroupCatalog, show_all=False):
 
     if show_all:
         plt.errorbar(x_vals, np.log10(mean_all), yerr=[yerr_all_lower, yerr_all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
-    plt.errorbar(x_vals, np.log10(means_b), yerr=[yerr_b_lower, yerr_b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
-    plt.errorbar(x_vals, np.log10(means_r), yerr=[yerr_r_lower, yerr_r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+    #plt.errorbar(x_vals, np.log10(means_b), yerr=[yerr_b_lower, yerr_b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
+    #plt.errorbar(x_vals, np.log10(means_r), yerr=[yerr_r_lower, yerr_r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
 
     # No shaded systematic errors here for now as we didn't save it in MCMC chains.
 
@@ -348,7 +371,7 @@ def SHMR_savederr(f: GroupCatalog, show_all=False):
     plt.ylabel(r'log$(\langle M_{\star} \rangle / [M_{\odot}])$')
     plt.xlim(10,15)
     plt.ylim(7,12)  # Typical stellar mass range
-    plt.legend()
+    #plt.legend()
     plt.tight_layout()
 
 def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
@@ -951,7 +974,7 @@ def total_f_sat(ds):
         print(f"  Truth (1 / V_max):  {fsat_truth_vmax_weighted(ds.all_data):.3f}")
 
 
-def fsat_by_zbins_sv3_centers(*datasets, z_bins=np.array([0.0, 0.2, 1.0], dtype=float)):
+def fsat_by_zbins(*datasets, z_bins=np.array([0.0, 0.2, 1.0])):
     for i in range(0, len(z_bins)-1):
         z_low = z_bins[i]
         z_high = z_bins[i+1]
@@ -970,7 +993,7 @@ def fsat_by_zbins_sv3_centers(*datasets, z_bins=np.array([0.0, 0.2, 1.0], dtype=
         ax1.set_ylabel("$f_{\\mathrm{sat}}$")
         legend_ax(ax1, datasets)
         ax1.set_xlim(LGAL_MIN,LGAL_MAX)
-        ax1.set_ylim(0.0,0.6)
+        ax1.set_ylim(0.0,1.0)
         ax2=ax1.twiny()
         ax2.plot(datasets[0].Mr_gal_labels, datasets[0].f_sat, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(LGAL_MIN)), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX)))
@@ -1060,18 +1083,18 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
     groupby_property = 'Mstar_bin' if mstar else 'LGAL_BIN'
-    label_property = 'Mstar_labels' if mstar else 'L_gal_labels'
+    label_property = 10**logmstar_labels if mstar else L_gal_labels
     for f in datasets:
         data = f.all_data.loc[np.all([~f.all_data['IS_SAT']], axis=0)]
         if test_methods:
             qf_gmr = f.centrals.groupby(groupby_property, observed=False).apply(qf_BGS_gmr_vmax_weighted)
             qf_dn4000 = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
             qf_dn4000model = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000MODEL_smart_eq_vmax_weighted)
-            plt.plot(getattr(f, label_property), qf_gmr, '.', label=f'(g-r)^0.1 < {GLOBAL_RED_COLOR_CUT}', color='b')
-            plt.plot(getattr(f, label_property), qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
-            plt.plot(getattr(f, label_property), qf_dn4000model, '-', label='Dn4000_M Eq. 1', color='purple')
+            plt.plot(label_property, qf_gmr, '.', label=f'(g-r)^0.1 < {GLOBAL_RED_COLOR_CUT}', color='b')
+            plt.plot(label_property, qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
+            plt.plot(label_property, qf_dn4000model, '-', label='Dn4000_M Eq. 1', color='purple')
         else:
-           plt.plot(getattr(f, label_property), data.groupby(groupby_property, observed=False).apply(qf_vmax_weighted), f.marker, label=get_dataset_display_name(f), color=f.color)
+           plt.plot(label_property[:-4], data.groupby(groupby_property, observed=False).apply(qf_vmax_weighted)[:-4], f.marker, label=get_dataset_display_name(f), color=f.color)
 
     ax1.set_xscale('log')
     if not mstar:
@@ -1079,7 +1102,7 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
         ax1.set_xlim(LGAL_MIN,LGAL_MAX)
         ax1.set_ylim(0.0,1.0)
     else:
-        ax1.set_xlabel("$mstar~[\\mathrm{M}_\\odot]$")
+        ax1.set_xlabel("$M_\star~[\\mathrm{M}_\\odot]$")
         ax1.set_xlim(MSTAR_MIN,MSTAR_MAX)
         #ax1.set_yscale('log')
         #ax1.set_ylim(1E-2, 1.0)

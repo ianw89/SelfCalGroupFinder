@@ -49,7 +49,7 @@ NO_TRUTH_Z = -99.99
 
 # Shared bins for various purposes
 Mhalo_bins = np.logspace(9, 15.5, 156-90)
-Mhalo_bins2 = np.logspace(9, 15.4, (156-90)//2) # coarser bins for some plots
+Mhalo_bins2 = np.logspace(9, 15.4, (156-90)//3) # coarser bins for some plots
 Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1] 
 Mhalo_labels2 = Mhalo_bins2[0:len(Mhalo_bins2)-1]
 
@@ -68,7 +68,7 @@ GF_PROPS_BGS_VANILLA = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
-    'fluxlim':2,
+    'fluxlim':3,
     'color':1,
 }
 
@@ -104,7 +104,7 @@ GF_PROPS_BGS_COLORS_C1 = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
-    'fluxlim':2,
+    'fluxlim':3,
     'color':1,
     'omegaL_sf':GOOD_TEN_PARAMETERS[0][0],
     'sigma_sf':GOOD_TEN_PARAMETERS[0][1],
@@ -124,7 +124,7 @@ GF_PROPS_BGS_COLORS_C2 = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
-    'fluxlim':2,
+    'fluxlim':3,
     'color':1,
     'omegaL_sf':GOOD_TEN_PARAMETERS[2][0],
     'sigma_sf':GOOD_TEN_PARAMETERS[2][1],
@@ -355,7 +355,7 @@ class GroupCatalog:
             print("Starting fresh")
             # Start fresh using IC's centered around known good values
             if self.sampler.ndim == 10:
-                initial = GOOD_TEN_PARAMETERS[3]
+                initial = GOOD_TEN_PARAMETERS[2]
             elif self.sampler.ndim == 14:
                 initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
             
@@ -373,6 +373,84 @@ class GroupCatalog:
 
         # Anything else to state before saving off?
         self.dump()      
+
+
+    def bootstrap_statistics(self, N_ITERATIONS = 300):
+        print("Bootstrapping...")
+
+        relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'L_GAL', 'LOGMSTAR']
+        df = self.all_data
+        t1 = time.time()
+
+        def get_statistics_for_df(alt_df: pd.DataFrame):
+            f_sat = alt_df.groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+            f_sat_sf = alt_df.loc[alt_df['QUIESCENT'] == False].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+            f_sat_q = alt_df.loc[alt_df['QUIESCENT'] == True].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+            lhmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+            lhmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+            lhmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+            lhmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+            lhmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+            lhmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+            shmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+            shmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+            shmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+            shmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            shmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            shmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            
+            return f_sat, f_sat_sf, f_sat_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter
+
+
+        if hasattr(self, 'data_cut') and self.data_cut == 'sv3':
+            # SV3 version of boostrapping is done at the level of the patches instead of per-galaxy
+            # label the SV3 region each galaxy is in
+            df['region'] = tile_to_region(df['NTID'])
+
+            def bootstrap_iteration(region_indices):
+                alt_df = pd.DataFrame(columns=relevent_columns)
+                for idx in region_indices:
+                    rows_to_add = df.loc[df.region == idx, relevent_columns]
+                    if len(alt_df) > 0:
+                        alt_df = pd.concat([alt_df, rows_to_add])
+                    else:
+                        alt_df = rows_to_add
+
+                return get_statistics_for_df(alt_df)
+
+            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
+            #results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
+
+        else:
+            def bootstrap_iteration(indexes: np.ndarray):
+                alt_df = df.iloc[indexes][relevent_columns]
+                return get_statistics_for_df(alt_df)
+
+            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(df)), len(df), replace=True)) for _ in range(N_ITERATIONS))
+
+
+        fsat_reals, fsat_sf_reals, fsat_q_reals, lhmr_reals, lhmr_sf_reals, lhmr_q_reals, lhmr_scatter_reals, lhmr_sf_scatter_reals, lhmr_q_scatter_reals, shmr_reals, shmr_sf_reals, shmr_q_reals, shmr_scatter_reals, shmr_sf_scatter_reals, shmr_q_scatter_reals = zip(*results)
+        # Save off the bootstrapped error estimates as half the 16-84 percentile range
+        self.fsat_bootstrap_err = 0.5 * (np.percentile(fsat_reals, 84, axis=0) - np.percentile(fsat_reals, 16, axis=0))
+        self.fsat_sf_bootstrap_err = 0.5 * (np.percentile(fsat_sf_reals, 84, axis=0) - np.percentile(fsat_sf_reals, 16, axis=0))
+        self.fsat_q_bootstrap_err = 0.5 * (np.percentile(fsat_q_reals, 84, axis=0) - np.percentile(fsat_q_reals, 16, axis=0))
+
+        self.lhmr_bootstrap_err = (np.percentile(lhmr_reals, 16, axis=0), np.percentile(lhmr_reals, 84, axis=0))
+        self.lhmr_sf_bootstrap_err = (np.percentile(lhmr_sf_reals, 16, axis=0), np.percentile(lhmr_sf_reals, 84, axis=0))
+        self.lhmr_q_bootstrap_err = (np.percentile(lhmr_q_reals, 16, axis=0), np.percentile(lhmr_q_reals, 84, axis=0))
+        self.lhmr_scatter_bootstrap_err = (np.percentile(lhmr_scatter_reals, 16, axis=0), np.percentile(lhmr_scatter_reals, 84, axis=0))
+        self.lhmr_sf_scatter_bootstrap_err = (np.percentile(lhmr_sf_scatter_reals, 16, axis=0), np.percentile(lhmr_sf_scatter_reals, 84, axis=0))
+        self.lhmr_q_scatter_bootstrap_err = (np.percentile(lhmr_q_scatter_reals, 16, axis=0), np.percentile(lhmr_q_scatter_reals, 84, axis=0))
+        self.shmr_bootstrap_err = (np.percentile(shmr_reals, 16, axis=0), np.percentile(shmr_reals, 84, axis=0))
+        self.shmr_sf_bootstrap_err = (np.percentile(shmr_sf_reals, 16, axis=0), np.percentile(shmr_sf_reals, 84, axis=0))
+        self.shmr_q_bootstrap_err = (np.percentile(shmr_q_reals, 16, axis=0), np.percentile(shmr_q_reals, 84, axis=0))
+        self.shmr_scatter_bootstrap_err = (np.percentile(shmr_scatter_reals, 16, axis=0), np.percentile(shmr_scatter_reals, 84, axis=0))
+        self.shmr_sf_scatter_bootstrap_err = (np.percentile(shmr_sf_scatter_reals, 16, axis=0), np.percentile(shmr_sf_scatter_reals, 84, axis=0))
+        self.shmr_q_scatter_bootstrap_err = (np.percentile(shmr_q_scatter_reals, 16, axis=0), np.percentile(shmr_q_scatter_reals, 84, axis=0))
+
+        t2 = time.time()
+        print(f"Bootstrapping complete in {t2-t1:.2f} seconds.")
+
 
     # --- log-likelihood
     def lnlike(self, theta):
@@ -1429,7 +1507,7 @@ class BGSGroupCatalog(GroupCatalog):
         self.num_passes = num_passes
         self.drop_passes = drop_passes
         self.data_cut = data_cut
-        self.ffc = ffc
+        self.ffc = ffc # Fracflux cuts
         self.is_centered_version = False
         self.centered = None # SV3 Centered version shortcut.
         self.extra_params = extra_params
@@ -1509,84 +1587,6 @@ class BGSGroupCatalog(GroupCatalog):
         else:
             print("Skipping pre-processing")
         return super().run_group_finder(popmock=popmock, silent=silent, verbose=verbose, profile=profile, interactive=interactive)
-
-    def bootstrap_statistics(self, N_ITERATIONS = 300):
-        print("Bootstrapping...")
-
-        relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'L_GAL', 'LOGMSTAR']
-        df = self.all_data
-        t1 = time.time()
-
-        def get_statistics_for_df(alt_df: pd.DataFrame):
-            f_sat = alt_df.groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-            f_sat_sf = alt_df.loc[alt_df['QUIESCENT'] == False].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-            f_sat_q = alt_df.loc[alt_df['QUIESCENT'] == True].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-            lhmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-            lhmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-            lhmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-            lhmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
-            lhmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
-            lhmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
-            shmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-            shmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-            shmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-            shmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
-            shmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
-            shmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
-            
-            return f_sat, f_sat_sf, f_sat_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter
-
-
-        if self.data_cut == 'sv3':
-            # SV3 version of boostrapping is done at the level of the patches instead of per-galaxy
-            # label the SV3 region each galaxy is in
-            df['region'] = tile_to_region(df['NTID'])
-
-            def bootstrap_iteration(region_indices):
-                alt_df = pd.DataFrame(columns=relevent_columns)
-                for idx in region_indices:
-                    rows_to_add = df.loc[df.region == idx, relevent_columns]
-                    if len(alt_df) > 0:
-                        alt_df = pd.concat([alt_df, rows_to_add])
-                    else:
-                        alt_df = rows_to_add
-
-                return get_statistics_for_df(alt_df)
-
-            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
-            #results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
-
-        else:
-            def bootstrap_iteration(indexes: np.ndarray):
-                alt_df = df.iloc[indexes][relevent_columns]
-                return get_statistics_for_df(alt_df)
-
-            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(df)), len(df), replace=True)) for _ in range(N_ITERATIONS))
-
-
-        fsat_reals, fsat_sf_reals, fsat_q_reals, lhmr_reals, lhmr_sf_reals, lhmr_q_reals, lhmr_scatter_reals, lhmr_sf_scatter_reals, lhmr_q_scatter_reals, shmr_reals, shmr_sf_reals, shmr_q_reals, shmr_scatter_reals, shmr_sf_scatter_reals, shmr_q_scatter_reals = zip(*results)
-        # Save off the bootstrapped error estimates as half the 16-84 percentile range
-        self.fsat_bootstrap_err = 0.5 * (np.percentile(fsat_reals, 84, axis=0) - np.percentile(fsat_reals, 16, axis=0))
-        self.fsat_sf_bootstrap_err = 0.5 * (np.percentile(fsat_sf_reals, 84, axis=0) - np.percentile(fsat_sf_reals, 16, axis=0))
-        self.fsat_q_bootstrap_err = 0.5 * (np.percentile(fsat_q_reals, 84, axis=0) - np.percentile(fsat_q_reals, 16, axis=0))
-
-        self.lhmr_bootstrap_err = (np.percentile(lhmr_reals, 16, axis=0), np.percentile(lhmr_reals, 84, axis=0))
-        self.lhmr_sf_bootstrap_err = (np.percentile(lhmr_sf_reals, 16, axis=0), np.percentile(lhmr_sf_reals, 84, axis=0))
-        self.lhmr_q_bootstrap_err = (np.percentile(lhmr_q_reals, 16, axis=0), np.percentile(lhmr_q_reals, 84, axis=0))
-        self.lhmr_scatter_bootstrap_err = (np.percentile(lhmr_scatter_reals, 16, axis=0), np.percentile(lhmr_scatter_reals, 84, axis=0))
-        self.lhmr_sf_scatter_bootstrap_err = (np.percentile(lhmr_sf_scatter_reals, 16, axis=0), np.percentile(lhmr_sf_scatter_reals, 84, axis=0))
-        self.lhmr_q_scatter_bootstrap_err = (np.percentile(lhmr_q_scatter_reals, 16, axis=0), np.percentile(lhmr_q_scatter_reals, 84, axis=0))
-        self.shmr_bootstrap_err = (np.percentile(shmr_reals, 16, axis=0), np.percentile(shmr_reals, 84, axis=0))
-        self.shmr_sf_bootstrap_err = (np.percentile(shmr_sf_reals, 16, axis=0), np.percentile(shmr_sf_reals, 84, axis=0))
-        self.shmr_q_bootstrap_err = (np.percentile(shmr_q_reals, 16, axis=0), np.percentile(shmr_q_reals, 84, axis=0))
-        self.shmr_scatter_bootstrap_err = (np.percentile(shmr_scatter_reals, 16, axis=0), np.percentile(shmr_scatter_reals, 84, axis=0))
-        self.shmr_sf_scatter_bootstrap_err = (np.percentile(shmr_sf_scatter_reals, 16, axis=0), np.percentile(shmr_sf_scatter_reals, 84, axis=0))
-        self.shmr_q_scatter_bootstrap_err = (np.percentile(shmr_q_scatter_reals, 16, axis=0), np.percentile(shmr_q_scatter_reals, 84, axis=0))
-
-        t2 = time.time()
-        print(f"Bootstrapping complete in {t2-t1:.2f} seconds.")
-
-
 
     def postprocess(self):
         print("Post-processing...")
@@ -2647,9 +2647,10 @@ def read_and_combine_gf_output(gc: GroupCatalog, galprops_df):
 
     # add column for halo mass bins and Lgal bins
     df['Mh_bin'] = pd.cut(x = df['M_HALO'], bins = gc.Mhalo_bins, labels = gc.Mhalo_labels, include_lowest = True)
+    df['Mh_bin2'] = pd.cut(x = df['M_HALO'], bins = Mhalo_bins2, labels = Mhalo_labels2, include_lowest = True)
     df['LGAL_BIN'] = pd.cut(x = df['L_GAL'], bins = gc.L_gal_bins, labels = gc.L_gal_labels, include_lowest = True)
 
-    return df # TODO update callers
+    return df # TODO update callers2
 
 def z_flag_is_spectro_z(arr):
     return np.logical_or(arr == AssignedRedshiftFlag.SDSS_SPEC.value, arr == AssignedRedshiftFlag.DESI_SPEC.value)

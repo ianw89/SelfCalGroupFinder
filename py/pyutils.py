@@ -984,7 +984,7 @@ def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_in
         intersection = fsolve(equations, (means[0]+means[1])/2)[0]
 
         # Plot the histogram and the fitted Gaussians
-        plt.figure(dpi=80, figsize=(10, 5))
+        plt.figure(dpi=300, figsize=(10, 5))
         bins = np.arange(min, max, (max-min)/200)
         plt.hist(binned_values, bins=bins, density=True, alpha=0.6, label=f"Values")
         #plt.plot(x, model1(x) + model2(x), label='Gaussian Mixture Model')
@@ -997,9 +997,9 @@ def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_in
         #    plt.axvline(intersection, color='r', linestyle='--', label=f'Intersection at {intersection:.2f}')
         if manual_thresholds is not None:
             plt.axvline(manual_thresholds[i-1], color='g', linestyle='--', label=f'Chosen Threshold {manual_thresholds[i-1]:.2f}')
-        plt.legend()
-        plt.xlabel('Value')
-        plt.ylabel('Density')
+        #plt.legend()
+        plt.xlabel('g-r Color')
+        plt.ylabel('Relative Abundance')
         plt.title(f'{name} GMM for L {BGS_LOGLGAL_BINS[i-1]} - {BGS_LOGLGAL_BINS[i]}')
         plt.show()
 

@@ -631,7 +631,9 @@ float fluxlim_correction(float z) {
   case 1:
     return pow(10.0, pow(z / 0.18, 2.8) * 0.5); // rho_lum(z) for SDSS (r=17.77; MXXL)
   case 2:
-    return pow(10.0, pow(z / 0.40, 4.0) * 0.4); // from rho_lum(z) BGS
+    return pow(10.0, pow(z / 0.40, 4.0) * 0.4); // from rho_lum(z) BGS (old...)
+  case 3:
+    return pow(10.0, pow(z / 0.311, 2.077) * 0.561); // BGS from Moore et al 2025 BGS Luminosity Function and 19.5 flux limit
   }
 
   return 1;
