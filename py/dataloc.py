@@ -165,6 +165,7 @@ BGS_Y3_DN4000_LOOKUP_FILE = BGS_Y3_FOLDER_LOA + "bgsy3_dn4000_lookup.pkl"
 FSAT_VALUES_FROM_LOGS = OUTPUT_FOLDER + "fsat_values_from_log.npy"
 LHMR_VALUES_FROM_LOGS = OUTPUT_FOLDER + "lhmr_values_from_log.npy"
 LSAT_VALUES_FROM_LOGS = OUTPUT_FOLDER + "lsat_values_from_log.npy"
+# Note: backup versions of these exist for the July Y1 analysis; same name with ~ at end
 
 # RANDOMS FILES MATCHING OUR FOOTPRINTS
 #######################################
