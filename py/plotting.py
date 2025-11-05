@@ -32,7 +32,7 @@ MSTAR_MAX = 1E12
 MHALO_MIN = 1E11
 MHALO_MAX = 1E15
 
-plt.style.use('default')
+#plt.style.use('default')
 plt.rcParams.update({'font.size': FONT_SIZE_DEFAULT})
 
 def font_restore():
@@ -157,7 +157,7 @@ def LHMR_withscatter(*catalogs):
         means = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
         scatter = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
         plt.errorbar(np.log10(f.labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
-    plt.xlabel('(log$(M_h)~[M_\\odot /h])$')
+    plt.xlabel('(log$(M_h)~[M_\\odot h^{-1}])$')
     plt.ylabel('log$(L_{cen})~[L_\odot / h^2]$')
     plt.title("Central Luminosity vs. Halo Mass")
     legend(catalogs)
@@ -284,6 +284,7 @@ def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
     log_mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
     log_means_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
     log_means_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    ratio = 10**log_means_r / 10**log_means_b
 
     lhmr_r_mean, lhmr_r_err, lhmr_r_scatter_mean, lhmr_r_scatter_err, lhmr_b_mean, lhmr_b_err, lhmr_b_scatter_mean, lhmr_b_scatter_err, lhmr_all_mean, lhmr_all_err, lhmr_all_scatter_mean, lhmr_all_scatter_err = lhmr_variance_from_saved()
 
@@ -310,10 +311,9 @@ def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
         plt.fill_between(x_vals, syserr_all_lower, syserr_all_upper, color='k', alpha=0.2)
     plt.fill_between(x_vals, syserr_r_lower, syserr_r_upper, color='r', alpha=0.2)
     plt.fill_between(x_vals, syserr_b_lower, syserr_b_upper, color='b', alpha=0.2)
-    ratio = 10**log_means_r / 10**log_means_b
     
-    plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
-    plt.ylabel(r'log$(\langle L_{\mathrm{cen}} \rangle / [L_{\odot} /h^2])$')
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    plt.ylabel(r'log$(\langle L_{\mathrm{cen}} \rangle / [L_{\odot} h^{-2}])$')
     plt.xlim(10,15)
     plt.ylim(7,LOG_LGAL_MAX_TIGHT)
     plt.legend()
@@ -337,13 +337,15 @@ def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
         #ax_inset.errorbar(x_vals, inset_log_means_r, yerr=[inset_yerr_r_lower, inset_yerr_r_upper], fmt='.', color='r', capsize=3, alpha=0.7)
         #ax_inset.plot(x_vals2, inset_log_means_b, '-', color='b', alpha=0.7)
         #ax_inset.plot(x_vals2, inset_log_means_r, '-', color='r', alpha=0.7)
-        ax_inset.plot(x_vals, ratio, '-', color='k', alpha=0.8, label='BGS')
-        ax_inset.plot(x_vals2[:-6], ratio2[:-6], '-', color='purple', alpha=0.8, label='SDSS')
+        ax_inset.plot(x_vals, ratio, '-', color='k', label='BGS')
+        ax_inset.plot(x_vals2[:-6], ratio2[:-6], '-', color='purple', label='SDSS')
         ax_inset.set_xlim(10,15)
         ax_inset.legend(fontsize=8)
        #ax_inset.set_ylim(0.9, 1.1)
-        #ax_inset.set_xlabel('log$(M_h~/~[M_\\odot /h]$)')
+        #ax_inset.set_xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
         ax_inset.set_ylabel('Q/SF', fontsize=10)
+        # Dashed line at 1
+        ax_inset.axhline(1.0, color='gray', linestyle='--', alpha=0.5)
 
 
 def SHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
@@ -351,32 +353,47 @@ def SHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
     mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
     means_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
     means_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-
     #shmr_r_mean, shmr_r_err, shmr_r_scatter_mean, shmr_r_scatter_err, shmr_b_mean, shmr_b_err, shmr_b_scatter_mean, shmr_b_scatter_err, shmr_all_mean, shmr_all_err, shmr_all_scatter_mean, shmr_all_scatter_err = shmr_variance_from_saved()
 
     yerr_all_lower, yerr_all_upper = safe_log_err(np.log10(mean_all), f.shmr_bootstrap_err)
     yerr_b_lower, yerr_b_upper = safe_log_err(np.log10(means_b), f.shmr_sf_bootstrap_err)
     yerr_r_lower, yerr_r_upper = safe_log_err(np.log10(means_r), f.shmr_q_bootstrap_err)
 
+    amask = mean_all > 0 & ~np.isnan(mean_all) & ~np.isnan(yerr_all_lower) & ~np.isnan(yerr_all_upper)
+    rmask = means_r > 0 & ~np.isnan(means_r) & ~np.isnan(yerr_r_lower) & ~np.isnan(yerr_r_upper)
+    bmask = means_b > 0 & ~np.isnan(means_b) & ~np.isnan(yerr_b_lower) & ~np.isnan(yerr_b_upper)
+    ratio = means_r / means_b
+
     plt.figure(dpi=DPI)
     x_vals = np.log10(Mhalo_labels)
+    x_vals2 = np.log10(Mhalo_labels2)
 
     if show_all:
-        plt.errorbar(x_vals, np.log10(mean_all), yerr=[yerr_all_lower, yerr_all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
-    plt.errorbar(x_vals, np.log10(means_b), yerr=[yerr_b_lower, yerr_b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
-    plt.errorbar(x_vals, np.log10(means_r), yerr=[yerr_r_lower, yerr_r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
-
-    # No shaded systematic errors here for now as we didn't save it in MCMC chains.
-
-    plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
+        plt.errorbar(x_vals[amask], np.log10(mean_all[amask]), yerr=[yerr_all_lower[amask], yerr_all_upper[amask]], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals[bmask], np.log10(means_b[bmask]), yerr=[yerr_b_lower[bmask], yerr_b_upper[bmask]], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals[rmask], np.log10(means_r[rmask]), yerr=[yerr_r_lower[rmask], yerr_r_upper[rmask]], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+    # No shaded systematic errors here as we didn't save it in MCMC chains.
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'log$(\langle M_{\star} \rangle / [M_{\odot} h^{-2}])$')
     plt.xlim(10,15)
-    plt.ylim(7,12)  # Typical stellar mass range
-    #plt.legend()
+    plt.ylim(7,12)
 
-    # TODO Inset
     if inset is not None:
-        pass
+        ax_inset = plt.gca().inset_axes([0.45, 0.1, 0.5, 0.5])
+        ax_inset.tick_params(axis='both', which='major', labelsize=10)
+        inset_means_r = inset.centrals.loc[inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+        inset_means_b = inset.centrals.loc[~inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+        rimask = inset_means_r > 0 & ~np.isnan(inset_means_r)
+        bimask = inset_means_b > 0 & ~np.isnan(inset_means_b)
+        ratio2 = inset_means_r / inset_means_b
+
+        ax_inset.plot(x_vals[rmask & bmask], ratio[rmask & bmask], '-', color='k', label='BGS')
+        ax_inset.plot(x_vals2[rimask & bimask][:-3], ratio2[rimask & bimask][:-3], '-', color='purple', label='SDSS')
+        ax_inset.set_xlim(10,15)
+        ax_inset.legend(fontsize=8)
+        ax_inset.set_ylabel('Q/SF', fontsize=10)
+        # Dashed line at 1
+        ax_inset.axhline(1.0, color='gray', linestyle='--', alpha=0.5)
 
     plt.tight_layout()
 
@@ -412,8 +429,8 @@ def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
     plt.fill_between(x_vals, lhmr_r_scatter_err[0], lhmr_r_scatter_err[1], color='red', alpha=0.2)
     plt.fill_between(x_vals, lhmr_b_scatter_err[0], lhmr_b_scatter_err[1], color='blue', alpha=0.2)
 
-    plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
-    plt.ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}}~/~[L_{\odot} /h^2])}$')
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    plt.ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}}~/~[L_{\odot} h^{-2}])}$')
     plt.legend()
     plt.xlim(10,15)
     plt.ylim(0.0, 0.4)
@@ -448,7 +465,24 @@ def SHMR_scatter_savederr(f: GroupCatalog, show_all=False):
 
     # No shaded systematic errors here for now as we didn't save it in MCMC chains.
 
-    plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    plt.ylabel(r'$\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
+    plt.xlim(10,15)
+    plt.ylim(0.0, 0.7)
+    plt.legend()
+    plt.tight_layout()
+
+def SHMR_scatter_litcompare(f: GroupCatalog):
+    # TODO stuff to compare to from literature
+    scatter_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+
+    all_lower = scatter_all - f.shmr_scatter_bootstrap_err[0]
+    all_upper = f.shmr_scatter_bootstrap_err[1] - scatter_all
+
+    plt.figure(dpi=DPI)
+    x_vals = np.log10(Mhalo_labels)
+    plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='This Work', capsize=4, alpha=0.7)
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'$\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
     plt.xlim(10,15)
     plt.ylim(0.0, 0.7)
@@ -461,7 +495,7 @@ def fsat_with_bootstrapped_err(gc: GroupCatalog):
     #plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
     plt.errorbar(LogLgal_labels, gc.fsatr, yerr=gc.fsat_q_bootstrap_err, fmt='.', color='r', label='Quiescent', markersize=6, capsize=3, alpha=1.0)
     plt.errorbar(LogLgal_labels, gc.fsatb, yerr=gc.fsat_sf_bootstrap_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=3, alpha=1.0)
-    plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~/h^2])$')
+    plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~h^{-2}])$')
     plt.ylabel('$f_{\mathrm{sat}}$')
     plt.legend()
     plt.xlim(8,LOG_LGAL_MAX_TIGHT)
@@ -487,7 +521,7 @@ def fsat_with_err_from_saved(gc: GroupCatalog, show_all=False):
     plt.fill_between(LogLgal_labels[rcut:], fsatr_err[0][rcut:], fsatr_err[1][rcut:], color='r', alpha=0.2) 
     plt.fill_between(LogLgal_labels, fsatb_err[0], fsatb_err[1], color='b', alpha=0.2)
 
-    plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~/h^2])$')
+    plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~h^{-2}])$')
     plt.ylabel('$f_{\mathrm{sat}}$')
     plt.legend()
     plt.xlim(7,LOG_LGAL_MAX_TIGHT)
@@ -667,7 +701,7 @@ def wp_rp(catalog: GroupCatalog|tuple):
     plt.xscale('log')
     plt.ylim(3, 2000)
     plt.yscale('log')
-    plt.xlabel(r'$r_p$ [Mpc/h]')
+    plt.xlabel(r'$r_p$ [Mpch^{-1}]')
     plt.ylabel(r'$w_p(r_p)$')
     plt.legend()
     if isinstance(catalog, BGSGroupCatalog):
@@ -705,7 +739,7 @@ def wp_rp_magbins(c: GroupCatalog):
         axes[row, col].set_xscale('log')
         axes[row, col].set_ylim(3, 2000)
         axes[row, col].set_yscale('log')
-        axes[row, col].set_xlabel(r'$r_p$ [Mpc/h]')
+        axes[row, col].set_xlabel(r'$r_p$ [Mpch^{-1}]')
         axes[row, col].set_ylabel(r'$w_p(r_p)$')
         axes[row, col].set_title(f'{mag_range_label}')
         axes[row, col].grid(True)
@@ -733,7 +767,7 @@ def compare_wp_rp(d1: BGSGroupCatalog|tuple, d2_t: BGSGroupCatalog|tuple):
         lim = np.max([*np.abs(percent_diff), *np.abs(percent_diff_r), *np.abs(percent_diff_b)])
         ax.set_ylim(-lim, lim)
         ax.set_yscale('linear')
-        ax.set_xlabel(r'$r_p$ [Mpc/h]')
+        ax.set_xlabel(r'$r_p$ [Mpch^{-1}]')
         ax.set_ylabel(r'$w_p(r_p)$ Difference (%)')
         ax.grid(True)
 
@@ -1337,7 +1371,7 @@ def proj_clustering_plot(gc: GroupCatalog):
         # Plot config
         ax.set_xscale('log')
         ax.set_yscale('log')
-        ax.set_xlabel('$r_p$ [Mpc/h]')
+        ax.set_xlabel('$r_p$ [Mpch^{-1}]')
         ax.set_ylabel('$w_p(r_p)$')
         ax.set_ylim(1, 4000)
         ax.set_title(f'[{-i}, {caldata.magbins[idx+1]}]')
@@ -2610,3 +2644,62 @@ def plot_parameters(params):
 
     plt.tight_layout()
     plt.show()
+
+
+def gfparams_plots(gc: GroupCatalog, chains_flat):
+    # ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
+    def bsat(p0, p1, L):
+        return np.maximum(p0 + p1 * (L - 9.5), 0.001)
+    def cweight(w0, wl, s, L):
+        return (w0 / 2) * (1 + special.erf((L - wl) / s))
+    def w_plot(q_w, sf_w):
+        return np.log10(q_w / sf_w)
+
+    params = np.array([gc.GF_props['omegaL_sf'], gc.GF_props['sigma_sf'], gc.GF_props['omegaL_q'], gc.GF_props['sigma_q'], gc.GF_props['omega0_sf'], gc.GF_props['omega0_q'], gc.GF_props['beta0q'], gc.GF_props['betaLq'], gc.GF_props['beta0sf'], gc.GF_props['betaLsf']])
+    # Cannot use the 68 / 95 intervals because we're plotting a function of the parameters, not the parameters directly
+    # And so the function of the median parameters may not fall inside the function of the 68 / 95 intervals
+
+    fig, axes = plt.subplots(2,1, figsize=(5,9))
+    x = np.linspace(6, 11.5, 100)
+    axes[0].set_xlabel("log$(L_{\\mathrm{gal}} / (L_{\\odot} h^{-2}) )$")
+    axes[0].set_ylabel("log$(w_{\\rm cen}^q / w_{\\rm cen}^{sf})$")
+    axes[0].set_ylim(-0.5,2.0)
+    axes[0].set_xlim(6.5, 11.1)
+    axes[0].set_xticks(np.arange(7,12,1))
+
+    axes[1].set_xlabel("log$(L_{\\mathrm{gal}}~/~(L_{\\odot} h^{-2}) )$")
+    axes[1].set_ylabel("$B_{\\mathrm{sat}}$")
+    axes[1].set_ylim(-1,40)
+    axes[1].set_xlim(6.5, 11.1)
+    axes[1].set_xticks(np.arange(7,12,1))
+
+    for i in range(1000):
+        sample_idx = np.random.randint(0, len(chains_flat))
+        sample_params = chains_flat[sample_idx]
+        axes[0].plot(
+            x,
+            w_plot(
+                cweight(sample_params[0], sample_params[1], sample_params[4], x),
+                cweight(sample_params[2], sample_params[3], sample_params[5], x)
+            ),
+            color='purple',
+            alpha=0.03
+        )
+        axes[1].plot(
+            x,
+            bsat(sample_params[6], sample_params[7], x),
+            color='red',
+            alpha=0.03
+        )
+        axes[1].plot(
+            x,
+            bsat(sample_params[8], sample_params[9], x),
+            color='blue',
+            alpha=0.03
+        )
+
+    axes[0].plot(x, w_plot(cweight(params[0], params[1], params[4], x), cweight(params[2], params[3], params[5], x)), color='k')
+    axes[1].plot(x, bsat(params[6], params[7], x), '--', label='Q', color='darkred', lw=2)
+    axes[1].plot(x, bsat(params[8], params[9], x), '--',label='SF', color='darkblue', lw=2)
+
+    plt.tight_layout()

@@ -550,12 +550,12 @@ def LogLgal_lognormal_scatter_vmax_weighted(series):
         return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
 
 def mstar_vmax_weighted(series):
-    if len(series) <= 4:
+    if len(series) <= 19:
         return np.nan
     return np.average(np.power(10, series['LOGMSTAR']), weights=1/series['VMAX'])
 
 def LogMstar_lognormal_scatter_vmax_weighted(series):
-    if len(series) <= 4:
+    if len(series) <= 19:
         return np.nan
     else:
         totweight = np.sum(1/series['VMAX'])
@@ -1316,8 +1316,66 @@ def is_quiescent_BGS_gmr(logLgal, G_R_k):
 
 
 ###################################################################
-# MCMC Log Processing
+# MCMC Processing
 ###################################################################
+
+def combine_emcee_backends(backends):
+    """
+    Combine multiple emcee backends into a single set of chains and log probabilities.
+
+    Parameters
+    ----------
+    backends : list of emcee.backends.backend.Backend
+        List of emcee backends to combine.
+
+    Returns
+    -------
+    combined_samples : np.ndarray
+        Combined chains of shape (nsteps_total, nwalkers, dims)
+    combined_log_prob : np.ndarray
+        Combined log probabilities of shape (nsteps_total, nwalkers)
+    """
+    chains = [b.get_chain() for b in backends]
+    log_probs = [b.get_log_prob() for b in backends]
+    shapes = [c.shape for c in chains]
+    print(f"Shapes: {shapes}")
+    to_drop = np.full((len(chains),), False)
+    walkers = 0
+    dims = chains[0].shape[2] 
+
+    longest_steps = max(shape[0] for shape in shapes)
+    print(f"Longest chain has {longest_steps} steps.")
+    # Pad shorter chains with NaNs to match the longest chain length
+    for i in range(len(chains)):
+        if shapes[i][0] < longest_steps:
+            pad_length = longest_steps - shapes[i][0]
+            if pad_length > 0:
+                if pad_length > shapes[i][0]:
+                    print(f"Chain {i} is too short ({shapes[i][0]} steps), dropping it.")
+                    to_drop[i] = True
+                else:
+                    print(f"Padding chain {i} with {pad_length} NaN steps to match the longest chain length.")
+                chains[i] = np.pad(chains[i], ((0, pad_length), (0, 0), (0, 0)), mode='constant', constant_values=np.nan)
+                log_probs[i] = np.pad(log_probs[i], ((0, pad_length), (0, 0)), mode='constant', constant_values=np.nan)
+
+    for i in range(len(chains)):
+        if not to_drop[i]:
+            walkers += shapes[i][1]
+
+    combined = np.full((longest_steps, walkers, dims), np.nan)
+    combined_log_prob = np.full((longest_steps, walkers), np.nan)
+    print(f"Combined shape will be: {combined.shape}")
+
+    # Fill the combined array with the chains, skipping those marked for dropping
+    walker_index = 0
+    for i in range(len(chains)):
+        if not to_drop[i]:
+            nwalkers = chains[i].shape[1]
+            combined[:, walker_index:walker_index + nwalkers, :] = chains[i]
+            combined_log_prob[:, walker_index:walker_index + nwalkers] = log_probs[i]
+            walker_index += nwalkers
+
+    return combined, combined_log_prob
 
 
 def fsat_variance_from_saved():
