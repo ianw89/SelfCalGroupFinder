@@ -108,7 +108,7 @@ float compute_p_proj(float mass, float dr, float rad, float ang_rad)
   return 1.0 / c_on_H0 * 2 * rs * delta * f;
 }
 /* Computes p(delta z) assuming a gaussian as per Yang et al 2005 eq 9.
- * dz is the redshift difference between the galaxy and the group center times the speed of light
+ * cdz is the redshift difference between the galaxy and the group center times the speed of light
  * sigmav is the velocity dispersion of the group
  */
 float compute_p_z(float cdz, float sigmav)

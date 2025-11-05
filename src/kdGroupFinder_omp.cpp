@@ -489,6 +489,8 @@ void find_satellites(int icen, GalaxyKDTree *tree)
   std::vector<nanoflann::ResultItem<unsigned int, float>> ret_matches;
   nanoflann::SearchParameters params = nanoflann::SearchParameters();
   float sat[3];
+  //int red_candidates = 0;
+  //int red_sats = 0;
 
   // check if this galaxy has already been given to a group
   if (GAL[icen].psat > 0.5)
@@ -520,6 +522,9 @@ void find_satellites(int icen, GalaxyKDTree *tree)
 
     // Get index value of the current neighbor
     j = match.first; // index of the galaxy in the GAL array
+    
+    //if (GAL[j].color >= 0.5)
+    //  red_candidates++;
 
     // skip if the object is more massive than the icen
     if (GAL[j].lum >= GAL[icen].lum)
@@ -583,7 +588,12 @@ void find_satellites(int icen, GalaxyKDTree *tree)
     GAL[j].igrp = icen;
     GAL[icen].lgrp += GAL[j].lum;
     GAL[icen].nsat++;
+    //red_sats++;
   }
+
+  //if (red_candidates > 3) {
+  //  LOG_INFO("find_satellites (z=%f): %d red candidates. %d red sats\n", GAL[icen].redshift, red_candidates, red_sats);
+  //}
   
   //  Correct for boundary conditions
   if (!FLUXLIM)
@@ -686,9 +696,13 @@ float get_bprob(int idx) {
     else
       bprob = BPROB_BLUE + (GAL[idx].loglum - 9.5) * BPROB_XBLUE;
   }
-  // let's put a lower limit of the prob
-  if (bprob < 0.001)
-    bprob = 0.001;
+  // The linear form of the Bsat parameters requires us to put some limits on bprob
+  // The values chosen came from writing tests cases in tests.cpp to see what values cause obviously wrong satellite assignments
+  // Could have done an erf instead but this way reduces the parameter count.
+  if (bprob < MIN_BSAT)
+    bprob = MIN_BSAT;
+  if (bprob > MAX_BSAT)
+    bprob = MAX_BSAT;
 
   return bprob;
 }

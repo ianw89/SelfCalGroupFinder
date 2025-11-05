@@ -41,6 +41,9 @@
 
 //#define OPTIMIZE
 
+// Group Finder non-parameterized constants
+#define MIN_BSAT 0.5
+#define MAX_BSAT 100.0
 
 /* Structure definition for galaxies. */
 struct galaxy {
