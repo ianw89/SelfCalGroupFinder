@@ -2649,9 +2649,9 @@ def plot_parameters(params):
 def gfparams_plots(gc: GroupCatalog, chains_flat):
     # ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
     def bsat(p0, p1, L):
-        return np.maximum(p0 + p1 * (L - 9.5), 0.001)
+        return np.maximum(p0 + p1 * (L - 9.5), 0.5)
     def cweight(w0, wl, s, L):
-        return (w0 / 2) * (1 + special.erf((L - wl) / s))
+        return - (w0 / 2) * (1 + special.erf((L - wl) / s))
     def w_plot(q_w, sf_w):
         return np.log10(q_w / sf_w)
 
@@ -2659,19 +2659,28 @@ def gfparams_plots(gc: GroupCatalog, chains_flat):
     # Cannot use the 68 / 95 intervals because we're plotting a function of the parameters, not the parameters directly
     # And so the function of the median parameters may not fall inside the function of the 68 / 95 intervals
 
+    LMIN = 6.5
     fig, axes = plt.subplots(2,1, figsize=(5,9))
     x = np.linspace(6, 11.5, 100)
-    axes[0].set_xlabel("log$(L_{\\mathrm{gal}} / (L_{\\odot} h^{-2}) )$")
+    axes[0].set_xlabel("log$(L_{\\mathrm{cen}} / (L_{\\odot} h^{-2}) )$")
     axes[0].set_ylabel("log$(w_{\\rm cen}^q / w_{\\rm cen}^{sf})$")
-    axes[0].set_ylim(-0.5,2.0)
-    axes[0].set_xlim(6.5, 11.1)
+    axes[0].set_ylim(-1,1)
+    axes[0].set_xlim(LMIN, 11.1)
     axes[0].set_xticks(np.arange(7,12,1))
+    ax0 = axes[0].twiny() # Mag axis on top
+    ax0.set_xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
+    ax0.set_xticks(np.arange(-13, -25, -2))
+    ax0.set_xlabel("$M_r$ - 5log(h)")
 
-    axes[1].set_xlabel("log$(L_{\\mathrm{gal}}~/~(L_{\\odot} h^{-2}) )$")
+    axes[1].set_xlabel("log$(L_{\\mathrm{cen}}~/~(L_{\\odot} h^{-2}) )$")
     axes[1].set_ylabel("$B_{\\mathrm{sat}}$")
     axes[1].set_ylim(-1,40)
-    axes[1].set_xlim(6.5, 11.1)
+    axes[1].set_xlim(LMIN, 11.1)
     axes[1].set_xticks(np.arange(7,12,1))
+    ax1 = axes[1].twiny() # Mag axis on top
+    ax1.set_xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
+    ax1.set_xticks(np.arange(-13, -25, -2))
+    ax1.set_xlabel("$M_r$ - 5log(h)")
 
     for i in range(1000):
         sample_idx = np.random.randint(0, len(chains_flat))
@@ -2679,8 +2688,8 @@ def gfparams_plots(gc: GroupCatalog, chains_flat):
         axes[0].plot(
             x,
             w_plot(
-                cweight(sample_params[0], sample_params[1], sample_params[4], x),
-                cweight(sample_params[2], sample_params[3], sample_params[5], x)
+                cweight(sample_params[4], sample_params[0], sample_params[1], x),
+                cweight(sample_params[5], sample_params[2], sample_params[3], x)
             ),
             color='purple',
             alpha=0.03
@@ -2697,9 +2706,12 @@ def gfparams_plots(gc: GroupCatalog, chains_flat):
             color='blue',
             alpha=0.03
         )
+ 
+    # Horizontal line at y=0
+    axes[0].axhline(0, color='k', linestyle='--', lw=1, alpha=0.5)
 
-    axes[0].plot(x, w_plot(cweight(params[0], params[1], params[4], x), cweight(params[2], params[3], params[5], x)), color='k')
-    axes[1].plot(x, bsat(params[6], params[7], x), '--', label='Q', color='darkred', lw=2)
-    axes[1].plot(x, bsat(params[8], params[9], x), '--',label='SF', color='darkblue', lw=2)
+    axes[0].plot(x, w_plot(cweight(params[4], params[0], params[1], x), cweight(params[5], params[2], params[3], x)), color='k', lw=2)
+    axes[1].plot(x, bsat(params[6], params[7], x), '-', label='Q', color='k', lw=2)
+    axes[1].plot(x, bsat(params[8], params[9], x), '-',label='SF', color='k', lw=2)
 
     plt.tight_layout()
