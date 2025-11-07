@@ -64,7 +64,7 @@ static struct argp_option options[] = {
   {"bsat",         'b', "RED,XRED,BLUE,XBLUE",                0,  "Four parameters for the satellite probability", 2},
   {"chi1",         'x', "WEIGHT_B,WEIGHT_R,SLOPE_B,SLOPE_R",  0,  "Four parameters per-galaxy extra property weighting", 2},
   {"verbose",      'v', 0,                                    0,  "Produce verbose stderr logging", 3},
-  {"quiet",        'q', 0,                                    0,  "Don't produce any output to stdout or stderr", 3 },
+  {"quiet",        'q', 0,                                    0,  "Don't produce any output to stderr", 3 },
   {"silent",       's', 0,                                    OPTION_ALIAS },
   {"pipe",         'P', "PIPEID",                             0,  "Specify a pipe ID for the group find to write message to", 3},
   {"interactive",  'k', 0,                                    0,  "Do not terminate after group finding. Use pipe messages to control.", 3},

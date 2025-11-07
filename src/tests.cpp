@@ -8,6 +8,36 @@
 #include "fit_clustering_omp.hpp"
 #include "sham.hpp"
 
+void test_float_vs_double_math() {
+    printf("=== DOUBLE VS FLOAT MATH TEST ===\n");
+    struct drand48_data rng;
+    srand48_r(753, &rng);
+    int n_trials = 10000000;
+    float *arr_float = new float[n_trials];
+    double *arr_double = new double[n_trials];
+    double sum_float = 0.0;
+    double sum_double = 0.0;
+    for (int i = 0; i < n_trials; ++i) {
+        drand48_r(&rng, &arr_double[i]);
+        arr_float[i] = (float)arr_double[i];
+    }
+    // Now time adding up the reciprocals of these arrays
+    double t1 = omp_get_wtime();
+    for (int i = 0; i < n_trials; ++i) {
+        sum_double += 1.0/arr_double[i];
+    }
+    double t2 = omp_get_wtime();
+    for (int i = 0; i < n_trials; ++i) {
+        sum_float += 1.0/arr_float[i];
+    }
+    double t3 = omp_get_wtime();
+    printf("Float sum: %f, time: %f seconds\n", sum_float, t3 - t2);
+    printf("Double sum: %f, time: %f seconds\n", sum_double, t2 - t1);
+    printf("Difference: %f\n", fabs(sum_double - sum_float));
+    assert(fabs(sum_double - sum_float) < 1e-5 * fabs(sum_double) && "Float and double sums should be close");
+    printf(" *** Float vs double math tests passed.\n\n");
+}
+
 void test_poisson_deviate_basic() {
     printf("=== POISSON DEVIATE BASIC TESTS ===\n");
     double mean = 5.0;
@@ -232,6 +262,7 @@ int main(int argc, char **argv) {
     test_poisson_deviate_edge_cases();
     test_angular_separation();
     test_psat();
+    test_float_vs_double_math();
 
     printf(" *** ALL TESTS PASSED ***\n");
 }

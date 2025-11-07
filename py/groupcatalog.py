@@ -77,6 +77,7 @@ GOOD_TEN_PARAMETERS = np.array([
     [19.737870,6.394322,24.657218,11.571343,33.116540,9.403598,-3.755194,16.879988,9.941906,0.958446], # C1
     [13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04], # From SDSS 
     [18.382, 5.803, 19.458, 9.869, 33.727, 6.413, -4.952, 19.493, 11.300, 0.511,], # C2
+    [18.420, 5.598, 26.501, 14.446, 41.256, 10.066, -10.396, 24.101, 11.599, 1.313,], # C3
     [18.470, 5.969, 17.683, 8.450, 29.809, 5.294, -3.670, 16.913, 11.293, 1.193,],
     [18.382, 5.803, 19.458, 9.869, 33.727, 6.413, -4.952, 19.493, 11.300, 0.511,],
     [15.444, 3.780, 18.127, 7.750, 28.354, 6.965, -3.511, 16.266, 11.122, 0.528,],
@@ -119,7 +120,7 @@ GF_PROPS_BGS_COLORS_C1 = {
 }
 
 
-# A 10 Parameter set found from MCMC SV3 with SDSS data.
+# A 10 Parameter set found from BGS Y1 MCMC first run
 GF_PROPS_BGS_COLORS_C2 = {
     'zmin':0, 
     'zmax':0,
@@ -136,6 +137,25 @@ GF_PROPS_BGS_COLORS_C2 = {
     'betaLq':GOOD_TEN_PARAMETERS[2][7],
     'beta0sf':GOOD_TEN_PARAMETERS[2][8],
     'betaLsf':GOOD_TEN_PARAMETERS[2][9]
+}
+
+# The BGS Y1 Final Catalog
+GF_PROPS_BGS_COLORS_C3 = {
+    'zmin':0, 
+    'zmax':0,
+    'frac_area':0, # should be filled in
+    'fluxlim':3,
+    'color':1,
+    'omegaL_sf': 18.420,
+    'sigma_sf': 5.598,
+    'omegaL_q': 26.501,
+    'sigma_q': 14.446,
+    'omega0_sf': 41.256,
+    'omega0_q': 10.066,
+    'beta0q':  -10.396,
+    'betaLq':  24.101,
+    'beta0sf': 11.599,
+    'betaLsf':  1.313
 }
 
 def set_all_seeds(seed=59418):
@@ -658,7 +678,7 @@ class GroupCatalog:
             self.hod_cen_blue_popt.append(hod_cen_blue_popt)
             self.hod_sat_blue_popt.append(hod_sat_blue_popt)
 
-    def sanity_tests(self):
+    def sanity_tests(self, skiphod=False):
         print(f"Running sanity tests on {self.name}")
         df = self.all_data
 
@@ -694,8 +714,9 @@ class GroupCatalog:
             bighalos = cens.loc[cens['Z'] < 0.1].sort_values('M_HALO', ascending=False).head(20)
             assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
 
-        assert np.isclose(self.f_sat_q.to_numpy()[6:34], self.fsatr[6:34], atol=1e-4).all()
-        assert np.isclose(self.f_sat_sf.to_numpy()[6:34], self.fsatb[6:34], atol=1e-4).all()
+        if not skiphod:
+            assert np.isclose(self.f_sat_q.to_numpy()[6:34], self.fsatr[6:34], atol=1e-4).all()
+            assert np.isclose(self.f_sat_sf.to_numpy()[6:34], self.fsatb[6:34], atol=1e-4).all()
         
 
     def write_sharable_output_file(self, name=None):

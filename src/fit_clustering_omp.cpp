@@ -1213,7 +1213,6 @@ float rand_gaussian(struct drand48_data *rng)
 
 float rand_f(struct drand48_data *rng)
 {
-  int tnum = omp_get_thread_num();
   double r;
   drand48_r(rng, &r);
   return (float)r;
