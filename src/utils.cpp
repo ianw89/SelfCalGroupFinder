@@ -69,7 +69,17 @@ float psat(struct galaxy *central, float dr, float dz, float bprob)
   #ifndef OPTIMIZE
   if (isnan(result))
   {
-    fprintf(stderr, "Unexpected nan result in psat: dr=%f dz=%f bprob=%f prob_ang=%f prob_rad%f RESULT: %f\n", dr, dz, bprob, prob_ang, prob_rad, result);
+    LOG_WARN("WARNING: Unexpected nan result in psat: dr=%f dz=%f bprob=%f prob_ang=%f prob_rad=%f RESULT: %f\n", dr, dz, bprob, prob_ang, prob_rad, result);
+    result = 0.0;
+  }
+  if (result > 1.0)
+  {
+    LOG_WARN("WARNING: Unexpected result > 1 in psat: dr=%f dz=%f bprob=%f prob_ang=%f prob_rad=%f RESULT: %f\n", dr, dz, bprob, prob_ang, prob_rad, result);
+    result = 1.0;
+  }
+  if (result < 0.0)
+  {
+    LOG_WARN("WARNING: Unexpected result < 0 in psat: dr=%f dz=%f bprob=%f prob_ang=%f prob_rad=%f RESULT: %f\n", dr, dz, bprob, prob_ang, prob_rad, result);
     result = 0.0;
   }
   #endif
