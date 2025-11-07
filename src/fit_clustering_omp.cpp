@@ -603,11 +603,11 @@ void tabulate_hods()
   for (i = 0; i < NVOLUME_BINS; ++i)
     for (j = 0; j < HALO_BINS; ++j) {
       if (nsatr[i][j] > 0 && nhalo[i][j] == 0) {
-        fprintf(stderr,"WARNING: nhalo[%d][%d] = 0, setting to nsatr[%d][%d] = %e\n", i, j, i, j, nsatr[i][j]);
+        LOG_WARN("WARNING: nhalo[%d][%d] = 0, setting to nsatr[%d][%d] = %e\n", i, j, i, j, nsatr[i][j]);
         nhalo[i][j] = nsatr[i][j];
       }
       if (nsatb[i][j] > 0 && nhalo[i][j] == 0) {
-        fprintf(stderr,"WARNING: nhalo[%d][%d] = 0, setting to nsatb[%d][%d] = %e\n", i, j, i, j, nsatb[i][j]);
+        LOG_WARN("WARNING: nhalo[%d][%d] = 0, setting to nsatb[%d][%d] = %e\n", i, j, i, j, nsatb[i][j]);
         nhalo[i][j] = nsatb[i][j];
       }
       assert(!isnan(ncenr[i][j]));
@@ -1191,7 +1191,6 @@ int poisson_deviate(float mean, struct drand48_data *rng)
     return (int)(val + 0.5f);
   }
 }
-
 
 float rand_gaussian(struct drand48_data *rng)
 {

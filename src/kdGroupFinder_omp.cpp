@@ -74,7 +74,7 @@ float GALAXY_DENSITY;
 int INTERACTIVE = 0; // default is off
 int FLUXLIM = 0; // default is volume-limited
 float FLUXLIM_MAG = 0.0; 
-int FLUXLIM_CORRECTION_MODEL = 0; // default is no correction, 1 for SDSS tuned, 2 for BGS tuned
+int FLUXLIM_CORRECTION_MODEL = 0; // default is no correction, 1 for SDSS tuned, 2 for old BGS tuned, 3 for correct BGS tuned
 int COLOR = 0; // default is ignore color information (sometimes treating all as blue)
 int STELLAR_MASS = 0; // defaulit is luminosities
 int RECENTERING = 0; // this options appears to always be off right now and hasn't been tested since fork
@@ -271,7 +271,7 @@ void groupfind()
     ngrp = 0;
     t_start_findsats = omp_get_wtime();
     int i1_par, i_par;
-#pragma omp parallel for private(i1_par, i_par)
+    #pragma omp parallel for private(i1_par, i_par) schedule(static)
     for (i1_par = 0; i1_par < ngrp_prev; ++i1_par)
     {
       i_par = xtmp[i1_par].second;
@@ -293,9 +293,9 @@ void groupfind()
       }
     }
 
-// go back and check objects are newly-exposed centrals
+    // go back and check objects are newly-exposed centrals
     int j_par;
-#pragma omp parallel for private(j_par)
+    #pragma omp parallel for private(j_par) schedule(static)
     for (j_par = 0; j_par < NGAL; ++j_par)
     {
       if (flag[j_par] && GAL[j_par].psat <= 0.5)
@@ -526,7 +526,7 @@ void find_satellites(int icen, GalaxyKDTree *tree)
     //if (GAL[j].color >= 0.5)
     //  red_candidates++;
 
-    // skip if the object is more massive than the icen
+    // If this galaxy is more luminous, never let it be assigned as a sat
     if (GAL[j].lum >= GAL[icen].lum)
       continue;
 
@@ -538,12 +538,11 @@ void find_satellites(int icen, GalaxyKDTree *tree)
     if (GAL[j].psat > 0.5 && GAL[icen].grp_rank > GAL[GAL[j].igrp].grp_rank)
       continue;
 
-    // check if the galaxy is outside the angular radius of the halo
+    // Check if the galaxy is outside the angular radius of the halo
+    // This prevents low Bsat from gobbling up definitely too far away galaxies
     theta = angular_separation(GAL[icen].ra, GAL[icen].dec, GAL[j].ra, GAL[j].dec);
     if (theta > GAL[icen].theta)
-    {
       continue;
-    }
 
     // Now determine the probability of being a satellite
     //(both projected onto the sky, and along the line of sight).
@@ -551,44 +550,46 @@ void find_satellites(int icen, GalaxyKDTree *tree)
     p0 = psat(&GAL[icen], theta, cdz, GAL[j].bprob);
 
     // Keep track of the highest psat so far
-    if (p0 > GAL[j].psat)
-      GAL[j].psat = p0;    
+    #pragma omp critical
+    {
+      if (p0 > GAL[j].psat)
+        GAL[j].psat = p0;    
+    }
     if (p0 <= 0.5)
       continue;
 
     // This is considered a member of the group
 
-    // If this was previously a member of another (lower-rank) group, remove it from that.
-    if (GAL[j].igrp >= 0)
+    #pragma omp critical
     {
-      // It was it's own central 
-      // Not entirely sure how this happens given the ordering of the loop, but it can. I don't think it's a bug?
-      // Perhaps it's because of parallelization?
-      if (GAL[j].igrp == j) 
+      if (p0 >= GAL[j].psat)
       {
-        if (GAL[j].nsat > 0)
+        // If this was previously a member of another (lower-rank) group, remove it from that.
+        if (GAL[j].igrp >= 0)
         {
-          // It's its own central with satellites (as of this iteration!), but we are adding it to this central
-          // BUG I think this special case leads to issue that we don't handle it right if its' the last iteration
-          //fprintf(stderr, "Central %d with (N_SAT=%d) into CENTRAL %d\n", j, GAL[j].nsat, icen);
+          // It was it's own central 
+          // Not entirely sure how this happens given the ordering of the loop, but it can. I don't think it's a bug?
+          // Perhaps it's because of parallelization?
+          if (GAL[j].igrp == j) 
+          {
+              // If this galaxy has satellites, they become orphans now. We deal with them later.
+          }
+          else // Was just a sat of another group, update that group's properties
+          {
+            GAL[GAL[j].igrp].nsat--;
+            GAL[GAL[j].igrp].lgrp -= GAL[j].lum;
+          }
         }
-      }
-      else // Was just a sat of another group, update that group's properties
-      {
-       // BUG: Aren't there race conditions here?
-        GAL[GAL[j].igrp].nsat--;
-        GAL[GAL[j].igrp].lgrp -= GAL[j].lum;
+
+        // Assign it to this group
+        GAL[j].psat = p0;
+        GAL[j].nsat = 0;
+        GAL[j].igrp = icen;
+        GAL[icen].lgrp += GAL[j].lum;
+        GAL[icen].nsat++;
+        //red_sats++;
       }
     }
-    // Assign it to this group
-    // BUG: Aren't there race conditions here? 
-    // Multiple threads can try to assign the same galaxy to a group.
-    GAL[j].psat = p0;
-    GAL[j].nsat = 0;
-    GAL[j].igrp = icen;
-    GAL[icen].lgrp += GAL[j].lum;
-    GAL[icen].nsat++;
-    //red_sats++;
   }
 
   //if (red_candidates > 3) {

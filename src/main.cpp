@@ -297,9 +297,9 @@ int main(int argc, char **argv)
       
       //for (i = 0; i < NVOLUME_BINS*3; i += 1)
       //{
-      //  populate_simulation_omp(i / 3, i % 3);
+      //  populate_simulation_omp(i/3, static_cast<SampleType>(i%3));
       //}
-  #pragma omp parallel private(i,istart,istep)
+      #pragma omp parallel private(i,istart,istep)
       {
         istart = omp_get_thread_num();
         istep = omp_get_num_threads();
@@ -307,7 +307,7 @@ int main(int argc, char **argv)
         {
           populate_simulation_omp(i/3, static_cast<SampleType>(i%3));
         }
-      }
+      } 
 
       t3 = omp_get_wtime();
       LOG_INFO("popsim> %.2f sec\n", t3 - t2);
