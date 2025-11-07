@@ -1355,8 +1355,8 @@ def proj_clustering_plot(gc: GroupCatalog):
             ax.errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='b', alpha=0.6)
 
             # Put text of the chisqr value in plot
-            ax.text(0.6, 0.9, f"$\chi^2_r$: {clust_r[i+mag_start]:.1f}", transform=ax.transAxes)
-            ax.text(0.6, 0.8, f"$\chi^2_b$: {clust_b[i+mag_start]:.1f}", transform=ax.transAxes)
+            ax.text(0.6, 0.9, f"$\chi^2_q$: {clust_r[i+mag_start]:.1f}", transform=ax.transAxes)
+            ax.text(0.6, 0.78, f"$\chi^2_{{sf}}$: {clust_b[i+mag_start]:.1f}", transform=ax.transAxes)
 
         else:
             wp, wp_err, radius = caldata.get_wp_all(i)

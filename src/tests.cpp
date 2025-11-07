@@ -8,44 +8,16 @@
 #include "fit_clustering_omp.hpp"
 #include "sham.hpp"
 
-
-void test_poisson_deviate_speed() {
-    printf("=== POISSON DEVIATE SPEED TEST ===\n");
-    double mean = 10.0;
-    int n_trials = 5000000;
-    int dummy = 0;
-    double t1, t2;
-
-    // Time poisson_deviate
-    t1 = omp_get_wtime();
-    for (int i = 0; i < n_trials; ++i) {
-        dummy += poisson_deviate(mean);
-    }
-    t2 = omp_get_wtime();
-    printf("poisson_deviate: %d trials took %.6f seconds\n", n_trials, t2 - t1);
-
-    // Time poisson_deviate_old
-    t1 = omp_get_wtime();
-    for (int i = 0; i < n_trials; ++i) {
-        dummy += poisson_deviate_old(mean);
-    }
-    t2 = omp_get_wtime();
-    printf("poisson_deviate_old: %d trials took %.6f seconds\n", n_trials, t2 - t1);
-
-    // Prevent compiler optimizing away
-    if (dummy == -1) printf("Impossible!\n");
-
-    printf(" *** poisson_deviate speed test complete.\n\n");
-}
-
 void test_poisson_deviate_basic() {
     printf("=== POISSON DEVIATE BASIC TESTS ===\n");
     double mean = 5.0;
     int n_trials = 10000;
     double sum = 0.0;
     double sum_sq = 0.0;
+    struct drand48_data rng;
+    srand48_r(753, &rng);
     for (int i = 0; i < n_trials; ++i) {
-        int val = poisson_deviate(mean);
+        int val = poisson_deviate(mean, &rng);
         assert(val >= 0 && "Poisson deviate should be non-negative");
         sum += val;
         sum_sq += val * val;
@@ -61,8 +33,10 @@ void test_poisson_deviate_basic() {
 void test_poisson_deviate_edge_cases() {
     printf("=== POISSON DEVIATE EDGE CASES ===\n");
     // Mean = 0 should always return 0
+    struct drand48_data rng;
+    srand48_r(753, &rng);
     for (int i = 0; i < 100; ++i) {
-        double val = poisson_deviate(0.0);
+        double val = poisson_deviate(0.0, &rng);
         assert(val == 0.0 && "Poisson deviate with mean 0 should be 0");
     }
     // Large mean
@@ -71,7 +45,7 @@ void test_poisson_deviate_edge_cases() {
     double sum = 0.0;
     double sum_sq = 0.0;
     for (int i = 0; i < n_trials; ++i) {
-        int val = poisson_deviate(mean);
+        int val = poisson_deviate(mean, &rng);
         assert(val >= 0 && "Poisson deviate should be non-negative");
         sum += val;
         sum_sq += val * val;
@@ -253,10 +227,7 @@ void test_func_match_nhost_baseline() {
 
 int main(int argc, char **argv) {
 
-    setup_rng();
-
     test_func_match_nhost_baseline();
-    test_poisson_deviate_speed();
     test_poisson_deviate_basic();
     test_poisson_deviate_edge_cases();
     test_angular_separation();

@@ -282,7 +282,6 @@ int main(int argc, char **argv)
     // Populate Mock 
     if (POPULATE_MOCK)
     {
-      setup_rng();
       t0 = omp_get_wtime();
       lsat_model();
       tabulate_hods();

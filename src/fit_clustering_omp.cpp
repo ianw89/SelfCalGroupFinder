@@ -23,10 +23,6 @@
 #define MIN_HALO_IDX 90 // log10(M_halo) = 9.0
 #define MAX_HALO_IDX 155 // log10(M_halo) = 9.0
 
-/* Global for the random numbers
- */
-struct drand48_data *rng_buffers;
-
 /* Globals for the halos
  */
 float BOX_SIZE = 250.0;
@@ -55,31 +51,42 @@ double nhalo_r_tot[HALO_BINS], nhalo_b_tot[HALO_BINS], nhalo_tot[HALO_BINS];
 float REDSHIFT = 0.0,
       CVIR_FAC = 1.0;
 
+int RANDOM_SEED = 753;
+
 /* local functions
  */
 void nsat_smooth(double arr[MAXBINS][HALO_BINS]);
 void nsat_extrapolate(double arr[MAXBINS][HALO_BINS]);
-void nsat_extrapolate_old(double arr[MAXBINS][HALO_BINS]);
-float NFW_position(float mass, float x[]);
-float NFW_velocity(float mass, float v[]);
+float NFW_position(float mass, float x[], struct drand48_data *rng);
+float NFW_velocity(float mass, float v[], struct drand48_data *rng);
 float NFW_density(float r, float rs, float ps);
 float halo_concentration(float mass);
 float N_sat(float m, int imag, SampleType type);
 float N_cen(float m, int imag, SampleType type);
 void boxwrap_galaxy(float xh[], float xg[]);
-float rand_gaussian();
-float rand_f();
+float rand_gaussian(struct drand48_data *rng);
+float rand_f(struct drand48_data *rng);
 void write_hodinner(int type);
 void write_hod();
 void write_hodfit();
 
-void setup_rng() 
+/**
+ * @brief Generates a deterministic seed from for a luminosity bin, and sample type.
+ *
+ * This function creates a unique seed for each combination of inputs, ensuring that
+ * each mock has its own reproducible random number sequence.
+ * So long as the number of L bins does not change, you will get the same results for a mock.
+ *
+ * @param imag The index of the luminosity bin.
+ * @param type The sample type (e.g., ALL, QUIESCENT, STARFORMING).
+ * @return An unsigned long integer to be used as a seed.
+ */
+unsigned long generate_mock_seed(int imag, SampleType type)
 {
-  int nthreads = omp_get_max_threads();
-  rng_buffers = (struct drand48_data *) malloc(nthreads * sizeof(struct drand48_data));
-
-  for (int i = 0; i < nthreads; ++i)
-    srand48_r(753 + i, &(rng_buffers[i]));
+  unsigned long hash = 17;
+  hash = hash * 31 + imag;
+  hash = hash * 31 + static_cast<int>(type);
+  return hash;
 }
 
 void write_hod() {
@@ -483,7 +490,7 @@ void tabulate_hods()
   int nbins = 0;
 
   if (NVOLUME_BINS <= 0) {
-    LOG_INFO("Reading Volume Bins...\n");
+    LOG_VERBOSE("Reading Volume Bins...\n");
 
     bins_fp = fopen(VOLUME_BINS_FILE, "r");
     while (fscanf(bins_fp, "%f %f %f %d", &maglim[nbins], &maxz[nbins], &volume[nbins], &color_sep[nbins]) == 4)
@@ -823,35 +830,6 @@ void nsat_smooth(double arr[MAXBINS][HALO_BINS])
   }
 }
 
-void nsat_extrapolate_old(double arr[MAXBINS][HALO_BINS])
-{
-  // fit the high-mass satellite occupation function, force slope=1
-
-  for (int imag = 0; imag < NVOLUME_BINS; ++imag)
-  {
-    float mag = maglim[imag];
-    int istart = 130;
-
-    if (imag >= 2)
-      istart = 135;
-    int iend = 140;
-    if (imag >= 2)
-      iend = 145;
-
-    float bfit = 0;
-    if (imag == 0)
-    {
-      istart = 120;
-      iend = 130;
-    }
-    for (int i = istart; i <= iend; ++i)
-      bfit += arr[imag][i] - i / 10.0;
-    bfit = bfit / (iend - istart + 1);
-    for (int i = iend; i <= 160; ++i)
-      arr[imag][i] = 1 * i / 10.0 + bfit;
-  }
-}
-
 void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
 {  
   // Extend the satellite occupation function for high-mass halos
@@ -999,6 +977,11 @@ void populate_simulation_omp(int imag, SampleType type)
   if (color_sep[imag] > 0 && type == ALL)
     return;
 
+  // Setup a RNG at the same place for every time we want to build a mock
+  // Thus if the group catalog state is the same, the mock will be the same
+  struct drand48_data rng;
+  srand48_r(generate_mock_seed(imag, type), &rng);
+
   imag_offset = (int)fabs(maglim[0]);
   imag_mult = 1;
   if (STELLAR_MASS)
@@ -1030,7 +1013,7 @@ void populate_simulation_omp(int imag, SampleType type)
     mass = HALO[i].mass;
     logm = log10(mass);
     ncen_calc = N_cen(mass, imag, type);
-    r = rand_f();
+    r = rand_f(&rng);
     if (r < ncen_calc)
     {
       fprintf(outf, "%.5f %.5f %.5f %f %f %f %d %f\n",
@@ -1042,7 +1025,7 @@ void populate_simulation_omp(int imag, SampleType type)
     // Assume poisson variance in the number of satellites
     // TODO could update this to use our measured variance?
     nsat_calc = N_sat(mass, imag, type);
-    nsat_rand = poisson_deviate(nsat_calc);
+    nsat_rand = poisson_deviate(nsat_calc, &rng);
 
     // For a really bad set of parameters, we can get a huge number of satellites for some halos.
     // Cap it so we don't print off a 10 Terabyte file! Any MCMC or whatever will move on hopefully.
@@ -1057,8 +1040,8 @@ void populate_simulation_omp(int imag, SampleType type)
 
     for (j = 1; j <= nsat_rand; ++j)
     {
-      NFW_position(mass, xg);
-      NFW_velocity(mass, vg);
+      NFW_position(mass, xg, &rng);
+      NFW_velocity(mass, vg, &rng);
       xh[0] = HALO[i].x;
       xh[1] = HALO[i].y;
       xh[2] = HALO[i].z;
@@ -1185,7 +1168,7 @@ float N_sat(float m, int imag, SampleType type)
 //=    - Input:  Mean value of distribution                                 =
 //=    - Output: Returns with Poisson distributed random variable           =
 //===========================================================================
-int poisson_deviate(float mean)
+int poisson_deviate(float mean, struct drand48_data *rng)
 {
   // Efficient Poisson deviate using inversion for small mean, normal approx for large mean
   if (mean <= 0)
@@ -1196,50 +1179,23 @@ int poisson_deviate(float mean)
     float p = 1.0f;
     int k = 0;
     do {
-      p *= rand_f();
+      p *= rand_f(rng);
       k++;
     } while (p > L);
     return k - 1;
   } else {
     // Normal approximation for large mean
     float g = sqrtf(mean);
-    float val = mean + g * rand_gaussian();
+    float val = mean + g * rand_gaussian(rng);
     if (val < 0) val = 0;
     return (int)(val + 0.5f);
   }
 }
 
-int poisson_deviate_old(float x)
-{
-  float r;
-  int poi_value; // Computed Poisson value to be returned
-  double t_sum;  // Time sum value
 
-  if (x > 50)
-    return (int)x;
-
-  x = 1 / x; //???
-  // Loop to generate Poisson values using exponential distribution
-  poi_value = 0;
-  t_sum = 0.0;
-  while (1)
-  {
-    r = rand_f();
-    t_sum = t_sum - x * log(r);
-    // printf("POI %d %e %e %e %e\n",poi_value,x,r,log(r),t_sum);
-    if (t_sum >= 1.0)
-      break;
-    poi_value++;
-  }
-
-  return (poi_value);
-}
-
-float rand_gaussian()
+float rand_gaussian(struct drand48_data *rng)
 {
   // Use Box-Muller transform with drand48_r for thread safety
-  int tnum = omp_get_thread_num();
-  struct drand48_data *rng = &rng_buffers[tnum];
   double u, v, s;
 
   do {
@@ -1256,10 +1212,9 @@ float rand_gaussian()
 }
 
 
-float rand_f()
+float rand_f(struct drand48_data *rng)
 {
   int tnum = omp_get_thread_num();
-  struct drand48_data *rng = &(rng_buffers[tnum]);
   double r;
   drand48_r(rng, &r);
   return (float)r;
@@ -1269,7 +1224,7 @@ float rand_f()
  * a probability given by the NFW profile for a halo of the input
  * mass (and including the CVIR_FAC)
  */
-float NFW_position(float mass, float x[])
+float NFW_position(float mass, float x[], struct drand48_data *rng)
 {
   float r, pr, max_p, costheta, sintheta, phi1, signs, rvir, rs, cvir, mfac = 1;
   double rr;
@@ -1280,16 +1235,16 @@ float NFW_position(float mass, float x[])
 
   for (;;)
   {
-    r = rand_f() * rvir;
+    r = rand_f(rng) * rvir;
     pr = NFW_density(r, rs, 1.0) * r * r * 4.0 * PI / max_p;
 
-    if (rand_f() <= pr)
+    if (rand_f(rng) <= pr)
     {
-      costheta = 2. * (rand_f() - .5);
+      costheta = 2. * (rand_f(rng) - .5);
       sintheta = sqrt(1. - costheta * costheta);
-      signs = 2. * (rand_f() - .5);
+      signs = 2. * (rand_f(rng) - .5);
       costheta = signs * costheta / fabs(signs);
-      phi1 = 2.0 * PI * rand_f();
+      phi1 = 2.0 * PI * rand_f(rng);
 
       x[0] = r * sintheta * cos(phi1);
       x[1] = r * sintheta * sin(phi1);
@@ -1308,7 +1263,7 @@ float NFW_density(float r, float rs, float ps)
 
 /* This sets the velocity to be isotropic Gaussian.
  */
-float NFW_velocity(float mass, float v[])
+float NFW_velocity(float mass, float v[], struct drand48_data *rng)
 {
   // static float fac = -1;
   float sigv, vbias = 1, mfac = 1;
@@ -1318,7 +1273,7 @@ float NFW_velocity(float mass, float v[])
   fac = sqrt(4.499E-48) * pow(4 * DELTA_HALO * PI * OMEGA_M * RHO_CRIT / 3, 1.0 / 6.0) * 3.09E19 * sqrt(1 + REDSHIFT);
   sigv = fac * pow(mass, 1.0 / 3.0) / ROOT2;
   for (i = 0; i < 3; ++i)
-    v[i] = rand_gaussian() * sigv;
+    v[i] = rand_gaussian(rng) * sigv;
   return (0);
 }
 

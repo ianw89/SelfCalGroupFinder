@@ -6,9 +6,7 @@ enum SampleType {
 };
 
 void prepare_halos();
-void setup_rng();
-int poisson_deviate(float mean);
-int poisson_deviate_old(float mean);
+int poisson_deviate(float mean, struct drand48_data *rng);
 void print_hod(const char* filename);
 void tabulate_hods();
 void populate_simulation_omp(int imag, SampleType type);
