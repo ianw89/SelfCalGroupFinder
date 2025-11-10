@@ -9,7 +9,7 @@
 #include <time.h>
 #include <assert.h>
 #include <sys/time.h>
-#include <omp.h>
+#include "timing.hpp"
 #include <stdint.h>
 #include <unistd.h>
 #include <vector>
@@ -274,26 +274,26 @@ int main(int argc, char **argv)
       run = false;
       
     // The primary method for group finding
-    t_grp_s = omp_get_wtime();
+    t_grp_s = get_wtime();
     groupfind();
-    t_grp_e = omp_get_wtime();
+    t_grp_e = get_wtime();
     LOG_PERF("groupfind() took %.2f sec\n", t_grp_e - t_grp_s);
 
     // Populate Mock 
     if (POPULATE_MOCK)
     {
-      t0 = omp_get_wtime();
+      t0 = get_wtime();
       lsat_model();
       tabulate_hods();
       prepare_halos();
-      t1 = omp_get_wtime();
+      t1 = get_wtime();
       LOG_PERF("lsat + hod + prep popsim: %.2f sec\n", t1 - t0);
 
       // lsat_model_scatter(); // This is crashing for some reason...
 
       LOG_INFO("Populating mock catalog\n");
 
-      t2 = omp_get_wtime();
+      t2 = get_wtime();
       
       //for (i = 0; i < NVOLUME_BINS*3; i += 1)
       //{
@@ -301,15 +301,15 @@ int main(int argc, char **argv)
       //}
       #pragma omp parallel private(i,istart,istep)
       {
-        istart = omp_get_thread_num();
-        istep = omp_get_num_threads();
+        istart = get_thread_num();
+        istep = get_num_threads();
         for(i=istart; i< NVOLUME_BINS*3; i+=istep)
         {
           populate_simulation_omp(i/3, static_cast<SampleType>(i%3));
         }
       }
 
-      t3 = omp_get_wtime();
+      t3 = get_wtime();
       LOG_INFO("popsim> %.2f sec\n", t3 - t2);
 
     }

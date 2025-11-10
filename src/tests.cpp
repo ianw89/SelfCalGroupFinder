@@ -3,7 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include <assert.h>
-#include <omp.h>
+#include "timing.hpp"
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
 #include "sham.hpp"
@@ -22,15 +22,15 @@ void test_float_vs_double_math() {
         arr_float[i] = (float)arr_double[i];
     }
     // Now time adding up the reciprocals of these arrays
-    double t1 = omp_get_wtime();
+    double t1 = get_wtime();
     for (int i = 0; i < n_trials; ++i) {
         sum_double += 1.0/arr_double[i];
     }
-    double t2 = omp_get_wtime();
+    double t2 = get_wtime();
     for (int i = 0; i < n_trials; ++i) {
         sum_float += 1.0/arr_float[i];
     }
-    double t3 = omp_get_wtime();
+    double t3 = get_wtime();
     printf("Float sum: %f, time: %f seconds\n", sum_float, t3 - t2);
     printf("Double sum: %f, time: %f seconds\n", sum_double, t2 - t1);
     printf("Difference: %f\n", fabs(sum_double - sum_float));

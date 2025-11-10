@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <sys/time.h>
 #include <iostream>
-#include <omp.h>
+#include "timing.hpp"
 #include "libs/nanoflann.hpp"
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
@@ -198,9 +198,9 @@ void groupfind()
   }
 
   LOG_INFO("Sorting galaxies...\n");
-  double tsort = omp_get_wtime();
+  double tsort = get_wtime();
   std::sort(xtmp.begin(), xtmp.end());
-  double tsort2 = omp_get_wtime() - tsort;
+  double tsort2 = get_wtime() - tsort;
   LOG_INFO("Done sorting galaxies in %.3f seconds.\n", tsort2);
 
   //for (int i = 0; i < NGAL; ++i)
@@ -249,10 +249,10 @@ void groupfind()
   // test_centering(kd);
 
   // Start the group-finding iterations
-  t_alliter_s = omp_get_wtime();
+  t_alliter_s = get_wtime();
   for (niter = 1; niter <= MAX_ITER; ++niter)
   {
-    t_start_iter = omp_get_wtime();
+    t_start_iter = get_wtime();
 
     // Reset group properties except the halo mass
     // (We have the xtmp array from the last iteration with the previous LGRP values sorted already)
@@ -269,7 +269,7 @@ void groupfind()
     // This is the where most CPU time is spent
     ngrp_prev = ngrp; // first iteration this is NGAL
     ngrp = 0;
-    t_start_findsats = omp_get_wtime();
+    t_start_findsats = get_wtime();
     int i1_par, i_par;
     #pragma omp parallel for private(i1_par, i_par) schedule(static)
     for (i1_par = 0; i1_par < ngrp_prev; ++i1_par)
@@ -278,7 +278,7 @@ void groupfind()
       flag[i_par] = 0;
       find_satellites(i_par, tree);
     }
-    t_end_findsats = omp_get_wtime();
+    t_end_findsats = get_wtime();
 
     // After finding satellites, now set some properties on the centrals
     for (int i1 = 0; i1 < ngrp_prev; ++i1)
@@ -402,7 +402,7 @@ void groupfind()
     }
 
     fsat_arr[niter-1] = nsat_tot / NGAL; // store the fraction of satellites in this iteration
-    t_end_iter = omp_get_wtime();
+    t_end_iter = get_wtime();
 
     LOG_INFO("iter %d ngroups=%d fsat=%f (kdtime=%.2f %.2f)\n", niter, ngrp, fsat_arr[niter-1], t_end_findsats - t_start_findsats, t_end_iter - t_start_iter);
 
@@ -415,7 +415,7 @@ void groupfind()
 
   } // end of main iteration loop
 
-  t_alliter_e = omp_get_wtime();
+  t_alliter_e = get_wtime();
   LOG_PERF("Group finding complete. All iterations took %.2fs.\n", t_alliter_e - t_alliter_s);
 
   // **********************************
@@ -610,7 +610,7 @@ void find_satellites(int icen, GalaxyKDTree *tree)
     GAL[icen].lgrp /= vol_corr;
   }
 
-  //double t_done = omp_get_wtime();
+  //double t_done = get_wtime();
   //if (VERBOSE)
   //  fprintf(stderr, "Thread %d: icen=%d start to set=%.5f full method=%.5f\n", thread_num, icen, t_nset_done - t_start, t_done - t_start);
 }
