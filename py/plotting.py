@@ -534,7 +534,7 @@ def fsat_with_err_from_saved(gc: GroupCatalog, show_all=False):
 
 def plots(*catalogs, show_err=None, truth_on=False):
     catalogs = list(catalogs)
-    if isinstance(show_err, GroupCatalog) and show_err not in catalogs:
+    if show_err is not None and show_err not in catalogs:
         catalogs.append(show_err)
     elif not show_err == None:
         print("show_err must be a GroupCatalog")

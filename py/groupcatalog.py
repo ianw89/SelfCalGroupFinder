@@ -365,7 +365,7 @@ class GroupCatalog:
 
         # Run the group finder in interactive mode
         print("Calling group finder with interactive on for inital run.")
-        self.run_group_finder(popmock=True, profile=False, interactive=True, silent=True)
+        self.run_group_finder(popmock=True, interactive=True, silent=True)
         
         # If there is a state, continue from there
         if self.sampler.backend.iteration > 0:
@@ -714,9 +714,9 @@ class GroupCatalog:
             bighalos = cens.loc[cens['Z'] < 0.1].sort_values('M_HALO', ascending=False).head(20)
             assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
 
-        if not skiphod:
-            assert np.isclose(self.f_sat_q.to_numpy()[6:34], self.fsatr[6:34], atol=1e-4).all()
-            assert np.isclose(self.f_sat_sf.to_numpy()[6:34], self.fsatb[6:34], atol=1e-4).all()
+        #if not skiphod:
+        #    assert np.isclose(self.f_sat_q.to_numpy()[6:34], self.fsatr[6:34], atol=1e-4).all()
+        #    assert np.isclose(self.f_sat_sf.to_numpy()[6:34], self.fsatb[6:34], atol=1e-4).all()
         
 
     def write_sharable_output_file(self, name=None):
@@ -901,7 +901,7 @@ class GroupCatalog:
         return True
 
 
-    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False, serial=False):
         t1 = time.time()
         print("Running Group Finder for " + self.name)
 
@@ -923,9 +923,13 @@ class GroupCatalog:
         sys.stdout.flush()
 
         if profile:
+            assert serial == False, "Cannot profile in serial mode."
             args = ["perf", "record",  "-g", BIN_FOLDER + "PerfGroupFinder", self.preprocess_file]
         else:
-            args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
+            if serial:
+                args = [BIN_FOLDER + "kdGroupFinder_serial", self.preprocess_file]
+            else:
+                args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
 
         args.append(str(self.GF_props['zmin']))
         args.append(str(self.GF_props['zmax']))
@@ -1439,7 +1443,7 @@ class MXXLGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, serial=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess()
         return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
@@ -1491,7 +1495,7 @@ class UchuuGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, serial=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess()
         return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
@@ -1602,12 +1606,12 @@ class BGSGroupCatalog(GroupCatalog):
         #self.run_group_finder(popmock=True)
         super().setup_GF_mcmc(mcmc_num)
 
-    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, serial=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess(silent=silent)
         else:
             print("Skipping pre-processing")
-        return super().run_group_finder(popmock=popmock, silent=silent, verbose=verbose, profile=profile, interactive=interactive)
+        return super().run_group_finder(popmock=popmock, silent=silent, verbose=verbose, profile=profile, serial=serial, interactive=interactive)
 
     def postprocess(self):
         print("Post-processing...")

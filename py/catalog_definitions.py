@@ -432,6 +432,18 @@ bgs_y3_like_sv3_fiberonly = BGSGroupCatalog(
 )
 bgs_y3_like_sv3_fiberonly.color = 'orange'
 
+bgs_y3_like_sv3_fiberonly_c2 = BGSGroupCatalog(
+    "Observed BGS Y3 like-sv3 C2", 
+    Mode.FIBER_ASSIGNED_ONLY, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    gfprops=GF_PROPS_BGS_COLORS_C2.copy()
+)
+bgs_y3_like_sv3_fiberonly_c2.color = 'orange'
+
 bgs_y3_like_sv3_pz_2_0 = BGSGroupCatalog(
     "Photo-z Plus v2.0 BGS Y3 like-sv3", 
     Mode.PHOTOZ_PLUS_v2, 
@@ -445,6 +457,19 @@ bgs_y3_like_sv3_pz_2_0 = BGSGroupCatalog(
 )
 bgs_y3_like_sv3_pz_2_0.color = 'red'
 
+bgs_y3_like_sv3_pz_2_0_c2 = BGSGroupCatalog(
+    "Photo-z Plus v2.0 BGS Y3 like-sv3 C2", 
+    Mode.PHOTOZ_PLUS_v2, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    extra_params=(1, [0.0, 0.0, 3.0]), 
+    gfprops=GF_PROPS_BGS_VANILLA.copy()
+)
+bgs_y3_like_sv3_pz_2_0_c2.color = 'red'
+
 bgs_y3_like_sv3_nn = BGSGroupCatalog(
     "Nearest Neighbor BGS Y3 like-sv3", 
     Mode.NEAREST_NEIGHBOR, 
@@ -456,6 +481,18 @@ bgs_y3_like_sv3_nn = BGSGroupCatalog(
     gfprops=GF_PROPS_BGS_VANILLA.copy()
 )
 bgs_y3_like_sv3_nn.color = 'green'
+
+bgs_y3_like_sv3_nn_c2 = BGSGroupCatalog(
+    "Nearest Neighbor BGS Y3 like-sv3 C2", 
+    Mode.NEAREST_NEIGHBOR, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    gfprops=GF_PROPS_BGS_COLORS_C2.copy()
+)
+bgs_y3_like_sv3_nn_c2.color = 'green'
 
 bgs_sv3_fiberonly_10p = BGSGroupCatalog(
     "Observed BGS sv3 10pass", 
@@ -542,16 +579,16 @@ mxxl_list : list[GroupCatalog] = [
 bgs_sv3_list : list[GroupCatalog] = [
     bgs_sv3_nn_10p,
     bgs_sv3_fiberonly_10p,
-    bgs_sv3_simple_4_10p,
     bgs_sv3_pz_2_4_10p, 
-    bgs_sv3_pz_2_4_10p_c1, 
-    bgs_sv3_pz_2_4_10p_c2, # Truthiest catalog
+    bgs_sv3_pz_2_4_10p_c2,
     bgs_y3_like_sv3_pz_2_4,
-    bgs_y3_like_sv3_pz_2_4_c1,
     bgs_y3_like_sv3_pz_2_4_c2,
     bgs_y3_like_sv3_fiberonly,
+    bgs_y3_like_sv3_fiberonly_c2,
     bgs_y3_like_sv3_pz_2_0,
+    bgs_y3_like_sv3_pz_2_0_c2,
     bgs_y3_like_sv3_nn,
+    bgs_y3_like_sv3_nn_c2,
 ]
 bgs_aux_list : list[GroupCatalog] = [
     bgs_y1_fiberonly_1pass,
