@@ -1641,7 +1641,7 @@ def lostgal_lum_func_paper_compare(*catalogs):
     axes[0].axhline(0, color='black', lw=1)
     axes[0].text(0.65, 0.05, "Quiescent", transform=axes[0].transAxes)
     ax2 = axes[0].twiny()
-    ax2.set_xscale('linear') # The default, but good to be explicit
+    ax2.set_xscale('linear')
     ax2.set_xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
     ax2.set_xlabel('$M_r - 5log(h)$')
 
@@ -1853,7 +1853,8 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
         assignment_type = s.all_data.loc[idx, 'Z_ASSIGNED_FLAG']
 
         score = powerlaw_score_1(assigned_z, truth_z)
-        rtophat = rounded_tophat_score(assigned_z, truth_z)
+        #rtophat = rounded_tophat_score(assigned_z, truth_z)
+        rtophat = close_enough(assigned_z, truth_z)
         metric_score1 = photoz_plus_metric_1(assigned_z, truth_z, assignment_type)
         metric_score2 = photoz_plus_metric_2(assigned_z, truth_z, assignment_type)
         metric_score3 = photoz_plus_metric_3(assigned_z, truth_z, assignment_type)
@@ -1896,14 +1897,14 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     #rects5 = ax.bar(x + width/2, scores_metric4, width, label='MCMC Metric Score', color=get_color(3))
 
     rects2 = ax.bar(x -width/2       , rounded_tophat_scores, width, label='Fraction Correct (all)', color=get_color(2))
-    rects3 = ax.bar(x + width/2  , scores_n_only, width, label='Fraction Correct (neighbor assigned)', color=get_color(1))
+    #rects3 = ax.bar(x + width/2  , scores_n_only, width, label='Fraction Correct (neighbor assigned)', color=get_color(1))
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     #ax.set_xlabel('Catalogs')
     ax.set_title('Correct Redshift Assignment')
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha='right')
-    ax.legend()
+    ax.set_xticklabels(labels, ha='right')
+    #ax.legend()
     ax.set_ylim(0, 0.8)
     ax.set_yticks(np.arange(0, 0.8, 0.1))
     ax.yaxis.grid(True)  # Add horizontal gridlines

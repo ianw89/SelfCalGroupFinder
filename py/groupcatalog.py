@@ -1103,10 +1103,13 @@ class GroupCatalog:
 
                     wp, wp_err, radius = self.caldata.get_wp_blue(mag)
                     wp_model, wp_err_model = self.get_mock_wp(mag, 'blue', wp_err)
-
-                    chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
-                    dof += len(chivec)
-                    clustering_chisqr_b.append(np.sum(chivec))
+                    # Special Case SV3. Not enough bright blue galaxies. Maybe should always do this?
+                    if(i == len(mag_limits)-1 and self.data_cut == 'Y3-Loa-SV3Cut'):
+                         clustering_chisqr_b.append(0)
+                    else:
+                        chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
+                        dof += len(chivec)
+                        clustering_chisqr_b.append(np.sum(chivec))
 
                     clustering_chisqr_all.append(0)
 
