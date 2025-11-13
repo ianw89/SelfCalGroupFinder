@@ -6,7 +6,6 @@ import os
 import sys
 import emcee
 import pickle
-from astropy.io import ascii
 import subprocess as sp
 from astropy.table import Table
 import astropy.io.fits as fits
@@ -1104,7 +1103,7 @@ class GroupCatalog:
                     wp, wp_err, radius = self.caldata.get_wp_blue(mag)
                     wp_model, wp_err_model = self.get_mock_wp(mag, 'blue', wp_err)
                     # Special Case SV3. Not enough bright blue galaxies. Maybe should always do this?
-                    if(i == len(mag_limits)-1 and self.data_cut == 'Y3-Loa-SV3Cut'):
+                    if(i == len(mag_limits)-1 and (self.data_cut == 'Y3-Loa-SV3Cut' or self.data_cut == 'sv3')):
                          clustering_chisqr_b.append(0)
                     else:
                         chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
@@ -1310,6 +1309,7 @@ class SDSSGroupCatalog(GroupCatalog):
         self.Mr_gal_bins = self.Mr_gal_bins[15:]
         self.Mr_gal_labels = self.Mr_gal_labels[15:]
         self.mag_cut = 17.7
+        self.data_cut = "sdss1"
         self.GF_props = gfprops
         self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
 
@@ -2498,7 +2498,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
 
-    # the vmax should be calculated from un-k-corrected magnitudes
+    # the vmax should be calculated from un-k-corrected magnitudes, since that's what sets the survey limit
     V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
 
     # TODO get galaxy concentration from somewhere

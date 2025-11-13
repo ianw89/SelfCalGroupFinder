@@ -5,17 +5,14 @@
 #define PI 3.141592741
 #define RHO_CRIT 2.775E+11
 #define DELTA_HALO 200
-#define SPEED_OF_LIGHT 3.0E+5
-#define c_on_H0 2997.92
+#define SPEED_OF_LIGHT 299792.458 // in km/s
+#define c_on_H0 2997.92458 // For H0 = 100 h km/s/Mpc
 #define BIG_G 4.304E-9 /* BIG G in units of (km/s)^2*Mpc/M_sol */
 #define G0 (1.0 / sqrt(2.0 * 3.14159))
-#define ROOT2 1.41421
-#define Q0 2.0
-#define Q1 -1.0
-#define QZ0 0.1
+#define ROOT2 1.41421356
 #define THIRD (1.0 / 3.0)
 #define ANG (PI / 180.0)
-#define RT2PI 2.50663
+#define RT2PI 2.50662827
 
 // Message passing protocol via a pipe to python wrapper
 #define MSG_REQUEST 0
@@ -26,11 +23,8 @@
 #define MSG_HODFIT 5
 #define MSG_COMPLETED 6
 #define MSG_ABORTED 7
-
 #define TYPE_FLOAT 0
 #define TYPE_DOUBLE 1
-
-
 
 // LOGGING
 #define LOG_VERBOSE(...)  if (!SILENT && VERBOSE) fprintf(stderr, __VA_ARGS__)

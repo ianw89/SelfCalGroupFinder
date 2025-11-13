@@ -432,15 +432,16 @@ def k_correct_bgs_v2(abs_mag, z_obs, gmr, band='r'):
 def k_correct(abs_mag, z_obs, gmr, band='r'):
     return k_correct_gama(abs_mag, z_obs, gmr, band)
 
+# TODO UPDATE ALL THIS IS WRONG
 SOLAR_L_R_BAND = 4.65
 def abs_mag_r_to_log_solar_L(arr):
-    return 0.39794 * (SOLAR_L_R_BAND - arr)
+    return (SOLAR_L_R_BAND - arr) / 2.5
 
 def abs_mag_r_to_solar_L(arr):
-    return 10 ** (0.39794 * (SOLAR_L_R_BAND - arr))
+    return 10 ** ((SOLAR_L_R_BAND - arr) / 2.5)
 
 def log_solar_L_to_abs_mag_r(arr):
-    return SOLAR_L_R_BAND - (arr / 0.39794)
+    return SOLAR_L_R_BAND - 2.5 * arr
 
 from astropy.cosmology import z_at_value
 
@@ -461,7 +462,10 @@ def get_max_observable_z_mxxlcosmo(abs_mags, fluxlimit):
     return z_at_value(_cosmo_mxxl.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
 
 def get_volume_at_z(z, frac_area):
-    return (4/3*np.pi) * _cosmo_h.luminosity_distance(z).value**3 * frac_area
+    """
+    Calculate the comoving volume out to redshift z.
+    """
+    return (4/3*np.pi) * _cosmo_h.luminosity_distance(z).value**3 / (1 + z)**3 * frac_area
 
 
 def get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area):

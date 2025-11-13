@@ -11,8 +11,8 @@
 # -- for sirocco/howdy/sirocco1
 #CC = gcc
 CC = g++
-CFLAGS = -O3 -fopenmp -std=c++11 -Isrc/libs
-CFLAGS_SERIAL = -O3 -std=c++11 -Isrc/libs
+CFLAGS = -O0 -fopenmp -std=c++11 -Isrc/libs
+CFLAGS_SERIAL = -O0 -std=c++11 -Isrc/libs
 #CFLAGS += -march=native
 LIB = -lm -fopenmp -lgsl -lgslcblas -L/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 LIB_SERIAL = -lm -lgsl -lgslcblas -L/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl

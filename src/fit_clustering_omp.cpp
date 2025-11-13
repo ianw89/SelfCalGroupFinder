@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <omp.h>
 #include <errno.h>
+#include <vector>
 #include <stdint.h>
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
@@ -34,7 +35,8 @@ int NVOLUME_BINS = 0;
 // These are the HOD in bins
 double ncenr[MAXBINS][HALO_BINS], nsatr[MAXBINS][HALO_BINS], ncenb[MAXBINS][HALO_BINS], nsatb[MAXBINS][HALO_BINS], ncen[MAXBINS][HALO_BINS], nsat[MAXBINS][HALO_BINS], nhalo[MAXBINS][HALO_BINS];
 double nhalo_int[MAXBINS][HALO_BINS]; // integer version of nhalo (no vmax weight)
-float maglim[MAXBINS]; // the fainter limit of the mag bin;the brighter limit is this - 1.0. 
+float maglim[MAXBINS]; // the fainter limit of the mag bin
+float magmax[MAXBINS]; // the brighter limit of the mag bin
 int color_sep[MAXBINS]; // 1 means do red/blue seperately, 0 means all together
 float maxz[MAXBINS];  // the max redshift of the mag bin, calculated from the fainter mag limit
 float volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
@@ -54,6 +56,8 @@ float REDSHIFT = 0.0,
 int RANDOM_SEED = 753;
 
 /* local functions
+
+
  */
 void nsat_smooth(double arr[MAXBINS][HALO_BINS]);
 void nsat_extrapolate(double arr[MAXBINS][HALO_BINS]);
@@ -145,7 +149,7 @@ void print_hod(const char* filename)
   fprintf(fp, "# HODs for volume limited samples\n");
   fprintf(fp, "# Volume bins: ");
   for (i = 0; i < NVOLUME_BINS; ++i)
-    fprintf(fp, "%.1f ", maglim[i]);
+    fprintf(fp, "%.1f %.1f", maglim[i], magmax[i]);
   fprintf(fp, "\n");
   fprintf(fp, "# Redshift limits: ");
   for (i = 0; i < NVOLUME_BINS; ++i)
@@ -162,13 +166,14 @@ void print_hod(const char* filename)
     fprintf(fp, "%.2f", i / 10.0);
     for (j = 0; j < NVOLUME_BINS; ++j) 
     { 
-      fprintf(fp, " %e %e %e %e %e %e %d", 
+      fprintf(fp, " %e %e %e %e %e %e %e %d", 
         ncenr[j][i],
         nsatr[j][i], 
         ncenb[j][i],
         nsatb[j][i],
         ncen[j][i],
         nsat[j][i],
+        nhalo[j][i],
         nhalo_int[j][i]);
     }
     fprintf(fp, "\n");
@@ -493,7 +498,7 @@ void tabulate_hods()
     LOG_VERBOSE("Reading Volume Bins...\n");
 
     bins_fp = fopen(VOLUME_BINS_FILE, "r");
-    while (fscanf(bins_fp, "%f %f %f %d", &maglim[nbins], &maxz[nbins], &volume[nbins], &color_sep[nbins]) == 4)
+    while (fscanf(bins_fp, "%f %f %f %f %d", &maglim[nbins], &magmax[nbins], &maxz[nbins], &volume[nbins], &color_sep[nbins]) == 5)
     {
       nbins++;
       if (nbins >= MAXBINS)
@@ -521,78 +526,110 @@ void tabulate_hods()
     logmean_cen[j] = logmean_cenr[j] = logmean_cenb[j] = 0.0;
   }
   
+  std::vector<bool> halo_counted(NGAL, false); // Keep track of which centrals (halos) have been counted
+
+  // First loop over each halo to get nhalo counts
   for (i = 0; i < NGAL; ++i)
   {
-    // what is host halo mass?
-    // im is the mass bin index
+    // Determine the host halo's central galaxy index
     if (GAL[i].psat > 0.5)
     {
       igrp = GAL[i].igrp;
-      im = log10(GAL[igrp].mass) / 0.1; 
-    }
-    else
-    {
-      // For centrals, count this halo in nhalo for the relevant redshift bins
-      im = (int)(log10(GAL[i].mass) / 0.1);
-      for (j = 0; j < NVOLUME_BINS; ++j)
-        if (GAL[i].redshift < maxz[j])
-        {
-          w0 = 1 / volume[j];
-          if (GAL[i].vmax < volume[j])
-            // TODO Should this ever happen?
-            //LOG_WARN("WARNING: vmax (%f) < volume (%f) for galaxy index %d. Using 1/vmax weight.\n", GAL[i].vmax, volume[j], i);
-            w0 = 1 / GAL[i].vmax;
-            if (!isfinite(w0)) {
-              LOG_ERROR("ERROR: w0 is not finite for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
-              assert(isfinite(w0));
-            }
-            if (isnan(w0)) {
-              LOG_ERROR("ERROR: w0 is NaN for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
-              assert(!isnan(w0));
-            }
-          nhalo[j][im] += w0; // 1/vmax weight the halo count
-          nhalo_int[j][im]++; // integer version of nhalo (no vmax weight)
-        }
+    } else {
+      igrp = i;
     }
 
-    // check the magnitude of the galaxy for the luminosity bins
-    mag = -2.5 * GAL[i].loglum + 4.65;
-    ibin = (int)(fabs(mag) + maglim[0]); // So if first bin is -17, mag=-17.5, ibin=0
-    if (STELLAR_MASS)
+    // If we've already processed this halo, skip it
+    if (halo_counted[igrp]) {
+      continue;
+    }
+    halo_counted[igrp] = true;  
+
+    im = (int)(log10(GAL[i].mass) / 0.1);
+    assert (im >= 0 && im < HALO_BINS);
+
+    for (j = 0; j < NVOLUME_BINS; ++j){
+      if (GAL[i].redshift < maxz[j])
+      {
+        w0 = 1 / volume[j];
+        if (GAL[i].vmax < volume[j]) {
+          //LOG_WARN("WARNING: vmax (%f) < volume (%f) for halo index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, volume[j], i, mag, maglim[j], GAL[i].redshift, maxz[j]);
+          w0 = 1 / GAL[i].vmax;
+        }
+        if (!isfinite(w0) || isnan(w0)) {
+            LOG_ERROR("ERROR: w0 is invalid for halo %d with vmax=%f\n", igrp, GAL[igrp].vmax);
+            assert(false);
+        }
+        nhalo[j][im] += w0; // 1/vmax weight the halo count
+        nhalo_int[j][im]++; // integer version of nhalo (no vmax weight)
+      }
+    }
+  }
+
+  // Then loop over each galaxy to get ncen/nsat counts
+  for (i = 0; i < NGAL; ++i)
+  {
+    if (GAL[i].psat > 0.5)
     {
-      mag = GAL[i].loglum * 2;
-      ibin = (int)(mag - maglim[0]); // They will both be positive
+      igrp = GAL[i].igrp;
+    } else {
+      igrp = i;
+    }
+    im = (int)(log10(GAL[i].mass) / 0.1);
+
+    // Get the mag (or mass) bin index
+    ibin = -1;
+    if (STELLAR_MASS) {
+      mag = GAL[i].loglum; // log(M*)
+
+      for (j = 0; j < NVOLUME_BINS; ++j) {
+        if (mag >= maglim[j] && mag < (magmax[j])) {
+            ibin = j;
+            break;
+        }
+      }
+    }
+    else {
+      mag = -2.5 * GAL[i].loglum + 4.65; // convert to r-band mag
+
+      for (j = 0; j < NVOLUME_BINS; ++j) {
+          if (mag <= maglim[j] && mag > (magmax[j])) {
+              ibin = j;
+              break;
+          }
+      }
     }
 
     if (ibin < 0 || ibin >= NVOLUME_BINS)
-      continue; // skip if not in the magnitude range
+      continue; // skip if not in any bins mag range
     if (GAL[i].redshift > maxz[ibin])
-      continue; // skip if not in the redshift range; peculiar velocities can push galaxies out of the bin...
-    if (im < 0 || im >= HALO_BINS)
-      LOG_ERROR("err> %d %e\n", im, GAL[i].mass);
+      continue; // skip if not in the redshift range of it's bin, not sure how it happens
+    assert (im >= 0 && im < HALO_BINS);
 
     // vmax-weight everything
     w0 = 1 / volume[ibin];
     if (GAL[i].vmax < volume[ibin])
+    {
+      // Most of the galaxies that hit this are because of k-corrections. 
+      // VMAX should always use un-corrected mags, which means at the faint edge of the bin it is possible
+      // for a galaxy to have a vmax less than the volume of the bin.
+      // However, in some rare cases it seems to be happening even away from the edges, which I don't understand. BUG
+      //LOG_WARN("WARNING: vmax (%f) < volume (%f) for galaxy index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, volume[ibin], i, mag, maglim[ibin], GAL[i].redshift, maxz[ibin]);
       w0 = 1 / GAL[i].vmax;
-
-    if (GAL[i].psat > 0.5)
-      nsat[ibin][im] += w0;
-    else
-      ncen[ibin][im] += w0;
-
-    if (GAL[i].color > 0.8) // red
-    {
-      if (GAL[i].psat > 0.5)
-        nsatr[ibin][im] += w0;
-      else
-        ncenr[ibin][im] += w0;
     }
-    else // blue
-    {
-      if (GAL[i].psat > 0.5)
+
+    if (GAL[i].psat > 0.5) {
+      nsat[ibin][im] += w0;
+      if (GAL[i].color > 0.8) // red
+        nsatr[ibin][im] += w0;
+      else // blue
         nsatb[ibin][im] += w0;
-      else
+    }
+    else {
+      ncen[ibin][im] += w0;
+      if (GAL[i].color > 0.8) // red
+        ncenr[ibin][im] += w0;
+      else // blue
         ncenb[ibin][im] += w0;
     }
   }
@@ -625,6 +662,8 @@ void tabulate_hods()
       assert(isfinite(ncen[i][j]));
       assert(isfinite(nhalo[i][j]));
     }
+
+  //print_hod("hodtest.out");
 
   // *****************************************
   // Now LHMR, which we want to print out

@@ -22,6 +22,26 @@ float func_dr1(float z)
   return pow(OMEGA_M * (1 + z) * (1 + z) * (1 + z) + (1 - OMEGA_M), -0.5);
 }
 
+/**
+ * @brief Compute the comoving line-of-sight distance for a given redshift.
+ *
+ * Evaluates the integral
+ *   D(z) = (c / H0) * ∫_0^z func_dr1(z') dz'
+ * using the qromo integrator with the mid-point rule. The integrand
+ * is provided by func_dr1 and the prefactor c_on_H0 represents c / H0
+ * in distance units (for example Mpc when H0 is in km/s/Mpc).
+ *
+ * @param z Redshift at which to compute the distance. If z <= 0, the
+ *          function returns 0.
+ *
+ * @return Comoving radial distance to redshift z in the same units as
+ *         c_on_H0 (typically Mpc).
+ *
+ * @note The numerical accuracy depends on the implementation of func_dr1
+ *       and the settings of the qromo/midpnt integrator. Ensure that
+ *       c_on_H0 and func_dr1 are defined consistently with the chosen
+ *       cosmological model.
+ */
 float distance_redshift(float z)
 {
   float x;

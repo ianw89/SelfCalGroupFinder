@@ -43,8 +43,8 @@ class CalibrationData:
 
     
     def write_volume_bins_file(self, path: str):
-        data = np.column_stack((self.magbins[:-1], self.zmaxes, self.volumes, self.color_separation.astype(int)))
-        np.savetxt(path, data, fmt='%f %f %f %d')
+        data = np.column_stack((self.magbins[:-1], self.magbins[1:], self.zmaxes, self.volumes, self.color_separation.astype(int)))
+        np.savetxt(path, data, fmt='%f %f %f %f %d')
 
 
     def get_wp_red(self, mag: int):
@@ -93,4 +93,4 @@ class CalibrationData:
         return CalibrationData(PARAMS_BGSY1MINI_FOLDER, np.array([-17, -18, -19, -20, -21, -22, -23]), np.array([False, False, True, True, True, False]), magcut, frac_area)
 
     def __str__(self):
-        return f"CalibrationData(paramsfolder={self.paramsfolder}, binsfile={self.rpbinsfile}, magbins={self.magbins}, magcut={self.magcut}, frac_area={self.frac_area})"
+        return f"CalibrationData(\nmagbins={self.magbins}\nzmaxes={self.zmaxes}\nvolumes={self.volumes}\nmagcut={self.magcut}\nfrac_area={self.frac_area}\nparamsfolder={self.paramsfolder}\nbinsfile={self.rpbinsfile}\n)"

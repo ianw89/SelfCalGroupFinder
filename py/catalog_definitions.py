@@ -187,15 +187,15 @@ bgs_nn.marker = '-'
 bgs_nn_sdsslike = BGSGroupCatalog("Nearest Neighbor BGS Y1 SDSS-like", Mode.NEAREST_NEIGHBOR, 17.7, 17.7, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_nn_sdsslike.marker = '-'
 
-bgs_y1mini_pzp_2_6_c1 = BGSGroupCatalog("BGS Y1 Mini PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1mini)
+bgs_y1mini_pzp_2_6_c1 = BGSGroupCatalog("BGS Y1 Mini PZP v2.6 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1mini)
 bgs_y1mini_pzp_2_6_c1.marker = '--'
 bgs_y1mini_pzp_2_6_c1.color = 'darkgreen'
 
-bgs_y1_pzp_2_6 = BGSGroupCatalog("BGS Y1 PZP v2.4 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_VANILLA.copy())
+bgs_y1_pzp_2_6 = BGSGroupCatalog("BGS Y1 PZP v2.6 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y1_pzp_2_6.marker = '-'
 bgs_y1_pzp_2_6.color = 'darkgreen'
 
-bgs_y1_pzp_2_6_c1 = BGSGroupCatalog("BGS Y1 PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
+bgs_y1_pzp_2_6_c1 = BGSGroupCatalog("BGS Y1 PZP v2.6 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
 bgs_y1_pzp_2_6_c1.marker = '--'
 bgs_y1_pzp_2_6_c1.color = 'darkgreen'
 
@@ -240,11 +240,11 @@ bgs_y1_hybrid8_v1_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 v1 MCMC", Mode.PHOTOZ_P
 bgs_y1_hybrid8_v1_mcmc.marker = '.'
 bgs_y1_hybrid8_v1_mcmc.color = 'darkgreen'
 
-bgs_y3_pzp_2_6 = BGSGroupCatalog("BGS Y3 PZP v2.4 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_VANILLA.copy())
+bgs_y3_pzp_2_6 = BGSGroupCatalog("BGS Y3 PZP v2.6 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y3_pzp_2_6.color = 'darkorange'
 bgs_y3_pzp_2_6.marker = '-'
 
-bgs_y3_pzp_2_6_c1 = BGSGroupCatalog("BGS Y3 PZP v2.4 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
+bgs_y3_pzp_2_6_c1 = BGSGroupCatalog("BGS Y3 PZP v2.6 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
 bgs_y3_pzp_2_6_c1.color = 'darkorange'
 bgs_y3_pzp_2_6_c1.marker = '--'
 
@@ -262,7 +262,7 @@ bgs_y3_fiberonly_1pass.marker = '.'
 # To translate between old sigma and new one, use new = -log10(2*old^2)
 
 bgs_sv3_pz_2_6_10p = BGSGroupCatalog(
-    "Photo-z Plus v2.4 BGS sv3 10pass", 
+    "Photo-z Plus v2.6 BGS sv3 10pass", 
     Mode.PHOTOZ_PLUS_v2, 
     19.5, 
     21.0, 
@@ -275,7 +275,7 @@ bgs_sv3_pz_2_6_10p = BGSGroupCatalog(
 bgs_sv3_pz_2_6_10p.color = 'k'
 
 bgs_sv3_pz_2_6_10p_c1 = BGSGroupCatalog(
-    "Photo-z Plus v2.4 BGS sv3 10pass C1", 
+    "Photo-z Plus v2.6 BGS sv3 10pass C1", 
     Mode.PHOTOZ_PLUS_v2, 
     19.5, 
     21.0, 
@@ -288,7 +288,7 @@ bgs_sv3_pz_2_6_10p_c1 = BGSGroupCatalog(
 bgs_sv3_pz_2_6_10p_c1.color = 'k'
 
 bgs_sv3_pz_2_6_10p_c2 = BGSGroupCatalog(
-    "Photo-z Plus v2.4 BGS sv3 10pass C2", 
+    "Photo-z Plus v2.6 BGS sv3 10pass C2", 
     Mode.PHOTOZ_PLUS_v2, 
     19.5, 
     21.0, 
@@ -303,7 +303,7 @@ bgs_sv3_pz_2_6_10p_c2.color = 'k'
 
 # This one was calibrated on SDSS data
 bgs_sv3_10p_mcmc = BGSGroupCatalog(
-    "BGS SV3 PZPv2.4 10pass MCMC", 
+    "BGS SV3 PZP v2.6 10pass MCMC", 
     Mode.PHOTOZ_PLUS_v2, 
     19.5, 
     21.0, 
@@ -341,7 +341,7 @@ bgs_y3_like_sv3_hybrid_mcmc_new = BGSGroupCatalog(
 )
 
 bgs_y3_like_sv3_pz_2_6 = BGSGroupCatalog(
-    "Photo-z Plus v2.4 BGS Y3 like-sv3", 
+    "Photo-z Plus v2.6 BGS Y3 like-sv3", 
     Mode.PHOTOZ_PLUS_v2, 
     19.5, 
     21.0, 
@@ -381,7 +381,7 @@ bgs_y3_like_sv3_pz_4_0 = BGSGroupCatalog(
 bgs_y3_like_sv3_pz_4_0.color = 'gold'
 
 bgs_y3_like_sv3_pz_2_6_c1 = BGSGroupCatalog(
-    "Photo-z Plus v2.4 BGS Y3 like-sv3 C1", 
+    "Photo-z Plus v2.6 BGS Y3 like-sv3 C1", 
     Mode.PHOTOZ_PLUS_v2, 
     19.5, 
     21.0, 
@@ -394,7 +394,7 @@ bgs_y3_like_sv3_pz_2_6_c1 = BGSGroupCatalog(
 bgs_y3_like_sv3_pz_2_6_c1.color = 'slateblue'
 
 bgs_y3_like_sv3_pz_2_6_c2 = BGSGroupCatalog(
-    "Photo-z Plus v2.4 BGS Y3 like-sv3 C2", 
+    "Photo-z Plus v2.6 BGS Y3 like-sv3 C2", 
     Mode.PHOTOZ_PLUS_v2, 
     19.5, 
     21.0, 
