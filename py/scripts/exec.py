@@ -7,7 +7,7 @@ from multiprocessing import Pool
 
 # EXAMPLE USAGE
 # export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-# nohup python3 py/scripts/exec.py 6 7 8 9 &> variations.out &
+# nohup python3 py/scripts/exec.py 3 6 7 8 9 &> variations.out &
 # nohup python3 py/scripts/exec.py mcmc 12 x0 &> y1mini_mcmc0_2.out &
 # nohup python3 py/scripts/exec.py mcmc 13 x5 &> y1full_mcmc5_0.out &
 # nohup python3 py/scripts/exec.py mcmc 14 x7 &> y1full8_mcmc7_1.out &
@@ -61,7 +61,7 @@ callable_list = [
     [cat.bgs_sv3_10p_mcmc], #11 sloan one
     [cat.bgs_y1mini_hybrid_mcmc], # 12
     [cat.bgs_y1_hybrid_mcmc], # 13
-    [cat.bgs_y1_hybrid8_mcmc], # 14
+    [cat.bgs_y1_hybrid8_v1_mcmc], # 14
 ]
 
 def process_gc(gc: GroupCatalog):

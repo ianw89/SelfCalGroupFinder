@@ -11,11 +11,11 @@
 # -- for sirocco/howdy/sirocco1
 #CC = gcc
 CC = g++
-CFLAGS = -O3 -fopenmp -std=c++11	
-CFLAGS += -Isrc/libs
+CFLAGS = -O0 -fopenmp -std=c++11 -Isrc/libs
+CFLAGS_SERIAL = -O0 -std=c++11 -Isrc/libs
 #CFLAGS += -march=native
-LIB = -lm -fopenmp -lgsl -lgslcblas
-LIB += -L/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
+LIB = -lm -fopenmp -lgsl -lgslcblas -L/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
+LIB_SERIAL = -lm -lgsl -lgslcblas -L/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
 # Ian's iMac
 # For Apple Computers. Tested on an Intel iMac but should be OK with M based ones too
@@ -34,10 +34,12 @@ LIB += -L/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
 SRCDIR = src
 ODIR = obj
+ODIR_SERIAL = obj_serial
 BDIR = bin
 
 _GF_OBJ =  main.o
 GF_OBJ = $(patsubst %,$(ODIR)/%,$(_GF_OBJ))
+GF_OBJ_SERIAL = $(patsubst %,$(ODIR_SERIAL)/%,$(_GF_OBJ))
 
 _TESTS_OBJ = tests.o
 TESTS_OBJ = $(patsubst %,$(ODIR)/%,$(_TESTS_OBJ))
@@ -46,6 +48,8 @@ _OBJ = kdGroupFinder_omp.o qromo.o midpnt.o polint.o sham.o spline.o splint.o \
 	zbrent.o sort2.o kdtree.o fit_clustering_omp.o \
 	group_center.o fof.o utils.o nrutil.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
+OBJ_SERIAL = $(patsubst %,$(ODIR_SERIAL)/%,$(_OBJ))
+
 
 
 # ------------------------------------ #
@@ -53,7 +57,7 @@ OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 # ------------------------------------ #
 
 # General entry point builds group finder and tests
-main: $(BDIR)/kdGroupFinder_omp $(BDIR)/tests perf
+main: $(BDIR)/kdGroupFinder_omp $(BDIR)/kdGroupFinder_serial $(BDIR)/tests perf
 
 perf: $(BDIR)/PerfGroupFinder $(BDIR)/tests
 
@@ -61,9 +65,15 @@ perf: $(BDIR)/PerfGroupFinder $(BDIR)/tests
 $(ODIR)/%.o: $(SRCDIR)/%.cpp
 	$(CC) -c -o $@ $< $(CFLAGS)
 
+$(ODIR_SERIAL)/%.o: $(SRCDIR)/%.cpp
+	$(CC) -c -o $@ $< $(CFLAGS_SERIAL)
+
 # Build main program
 $(BDIR)/kdGroupFinder_omp:	$(OBJ) $(GF_OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIB) -Wl,-rpath,/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
+
+$(BDIR)/kdGroupFinder_serial:	$(OBJ_SERIAL) $(GF_OBJ_SERIAL)
+	$(CC) -o $@ $^ $(CFLAGS_SERIAL) $(LIB_SERIAL) -pthread -Wl,-rpath,/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
 # Build main program for profiling
 $(BDIR)/PerfGroupFinder:	$(OBJ) $(GF_OBJ)

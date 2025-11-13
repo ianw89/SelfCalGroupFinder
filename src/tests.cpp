@@ -3,39 +3,39 @@
 #include <string.h>
 #include <math.h>
 #include <assert.h>
-#include <omp.h>
+#include "timing.hpp"
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
 #include "sham.hpp"
 
-
-void test_poisson_deviate_speed() {
-    printf("=== POISSON DEVIATE SPEED TEST ===\n");
-    double mean = 10.0;
-    int n_trials = 5000000;
-    int dummy = 0;
-    double t1, t2;
-
-    // Time poisson_deviate
-    t1 = omp_get_wtime();
+void test_float_vs_double_math() {
+    printf("=== DOUBLE VS FLOAT MATH TEST ===\n");
+    struct drand48_data rng;
+    srand48_r(753, &rng);
+    int n_trials = 10000000;
+    float *arr_float = new float[n_trials];
+    double *arr_double = new double[n_trials];
+    double sum_float = 0.0;
+    double sum_double = 0.0;
     for (int i = 0; i < n_trials; ++i) {
-        dummy += poisson_deviate(mean);
+        drand48_r(&rng, &arr_double[i]);
+        arr_float[i] = (float)arr_double[i];
     }
-    t2 = omp_get_wtime();
-    printf("poisson_deviate: %d trials took %.6f seconds\n", n_trials, t2 - t1);
-
-    // Time poisson_deviate_old
-    t1 = omp_get_wtime();
+    // Now time adding up the reciprocals of these arrays
+    double t1 = get_wtime();
     for (int i = 0; i < n_trials; ++i) {
-        dummy += poisson_deviate_old(mean);
+        sum_double += 1.0/arr_double[i];
     }
-    t2 = omp_get_wtime();
-    printf("poisson_deviate_old: %d trials took %.6f seconds\n", n_trials, t2 - t1);
-
-    // Prevent compiler optimizing away
-    if (dummy == -1) printf("Impossible!\n");
-
-    printf(" *** poisson_deviate speed test complete.\n\n");
+    double t2 = get_wtime();
+    for (int i = 0; i < n_trials; ++i) {
+        sum_float += 1.0/arr_float[i];
+    }
+    double t3 = get_wtime();
+    printf("Float sum: %f, time: %f seconds\n", sum_float, t3 - t2);
+    printf("Double sum: %f, time: %f seconds\n", sum_double, t2 - t1);
+    printf("Difference: %f\n", fabs(sum_double - sum_float));
+    assert(fabs(sum_double - sum_float) < 1e-5 * fabs(sum_double) && "Float and double sums should be close");
+    printf(" *** Float vs double math tests passed.\n\n");
 }
 
 void test_poisson_deviate_basic() {
@@ -44,8 +44,10 @@ void test_poisson_deviate_basic() {
     int n_trials = 10000;
     double sum = 0.0;
     double sum_sq = 0.0;
+    struct drand48_data rng;
+    srand48_r(753, &rng);
     for (int i = 0; i < n_trials; ++i) {
-        int val = poisson_deviate(mean);
+        int val = poisson_deviate(mean, &rng);
         assert(val >= 0 && "Poisson deviate should be non-negative");
         sum += val;
         sum_sq += val * val;
@@ -61,8 +63,10 @@ void test_poisson_deviate_basic() {
 void test_poisson_deviate_edge_cases() {
     printf("=== POISSON DEVIATE EDGE CASES ===\n");
     // Mean = 0 should always return 0
+    struct drand48_data rng;
+    srand48_r(753, &rng);
     for (int i = 0; i < 100; ++i) {
-        double val = poisson_deviate(0.0);
+        double val = poisson_deviate(0.0, &rng);
         assert(val == 0.0 && "Poisson deviate with mean 0 should be 0");
     }
     // Large mean
@@ -71,7 +75,7 @@ void test_poisson_deviate_edge_cases() {
     double sum = 0.0;
     double sum_sq = 0.0;
     for (int i = 0; i < n_trials; ++i) {
-        int val = poisson_deviate(mean);
+        int val = poisson_deviate(mean, &rng);
         assert(val >= 0 && "Poisson deviate should be non-negative");
         sum += val;
         sum_sq += val * val;
@@ -148,8 +152,8 @@ void test_psat() {
     assert(p0 < 0.5 && "psat should be less than 0.5");
 
     gal.mass*=10;
-    printf("Test 2: mass=%e, proj_dist=%f', delta_z=%f\n", gal.mass, arcmin, delta_z);
     update_galaxy_halo_props(&gal);
+    printf("Test 2: mass=%e, proj_dist=%f', delta_z=%f\n", gal.mass, arcmin, delta_z);
     result = compute_p_proj_g(&gal, ang_sep);
     result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
     p1 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
@@ -157,8 +161,8 @@ void test_psat() {
     assert(p1 > 0.5 && "psat should be greater than 0.5");
 
     gal.mass*=10;
-    printf("Test 3: mass=%e, proj_dist=%f', delta_z=%f\n", gal.mass, arcmin, delta_z);
     update_galaxy_halo_props(&gal);
+    printf("Test 3: mass=%e, proj_dist=%f', delta_z=%f\n", gal.mass, arcmin, delta_z);
     result = compute_p_proj_g(&gal, ang_sep);
     result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
     p2 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
@@ -166,8 +170,8 @@ void test_psat() {
     assert(p2 > p1 && "psat should be greater than previous");
 
     gal.mass*=10;
-    printf("Test 4: mass=%e, proj_dist=%f', delta_z=%f\n", gal.mass, arcmin, delta_z);
     update_galaxy_halo_props(&gal);
+    printf("Test 4: mass=%e, proj_dist=%f', delta_z=%f\n", gal.mass, arcmin, delta_z);
     result = compute_p_proj_g(&gal, ang_sep);
     result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
     p3 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
@@ -202,17 +206,33 @@ void test_psat() {
     printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p6);
     assert(p6 < p5 && "psat should go down compared to previous since larger delta_z");  
 
-    delta_z = 0.01;
-    arcmin = 30; // 4 Mpc or so
+    delta_z = 0.00001; // Almost the maximal value
+    arcmin = 5; // 1.3 Mpc at z~0.3, over 5x the size of a 1E12 halo
     gal.mass = 1E12;
     ang_sep = angular_separation(0.0, 0.0, 0.0, (arcmin/60.0)*(PI/180.0));
-    bsat = 0.001; // Min value in formula for Bsat
+    bsat = MIN_BSAT; // Min value in formula for Bsat
+    gal.rco = distance_redshift(gal.redshift);
+    update_galaxy_halo_props(&gal);
     printf("Test 8: mass=%e, proj_dist=%f', delta_z=%f, bsat=%f\n", gal.mass, arcmin, delta_z, bsat);
     result = compute_p_proj_g(&gal, ang_sep);
     result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
     p7 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
     printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p7);
     assert(p7 < 0.5 && "even for very small bsat, it shouldn't be a satellite, when so far away");
+
+    gal.mass=1e13;
+    update_galaxy_halo_props(&gal);
+    delta_z = 0.001;
+    arcmin = 0.2; // 54kpc at z=0.3
+    bsat = MAX_BSAT; // High value in formula for Bsat for red galaxies
+    ang_sep = angular_separation(0.0, 0.0, 0.0, (arcmin/60.0)*(PI/180.0));
+    printf("Test 9: mass=%e, proj_dist=%f', delta_z=%f, bsat=%f\n", gal.mass, arcmin, delta_z, bsat);
+    result = compute_p_proj_g(&gal, ang_sep);
+    result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
+    float p8 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
+    printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p8);
+    assert(p8 > 0.5 && "for large bsat you can still be a satellite when close enough");
+
 
     printf(" *** All psat tests passed.\n\n");
 }
@@ -237,14 +257,12 @@ void test_func_match_nhost_baseline() {
 
 int main(int argc, char **argv) {
 
-    setup_rng();
-
     test_func_match_nhost_baseline();
-    test_poisson_deviate_speed();
     test_poisson_deviate_basic();
     test_poisson_deviate_edge_cases();
     test_angular_separation();
     test_psat();
+    test_float_vs_double_math();
 
     printf(" *** ALL TESTS PASSED ***\n");
 }

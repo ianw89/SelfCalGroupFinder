@@ -4,8 +4,8 @@
 USERNAME="imw2293"
 NODES=("c1" "c2" "c3" "c4" "c5" "c6" "c7" "c8" "c9" "c10")  # Add more nodes as needed
 WORK_DIR="/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder"
-PYTHON_CMD="python3 py/exec.py mcmc 14" # number is node number minus 1
-OUTPUT_FILE="y1full8_mcmc.out"
+PYTHON_CMD="python3 py/scripts/exec.py mcmc 14" # number is node number minus 1
+OUTPUT_FILE="y1full8_v1_mcmc.out"
 
 
 kill_node() {
@@ -51,7 +51,7 @@ process_node() {
         nohup $PYTHON_CMD x$(($node_num - 1)) &> "$node_output_file" &
         
         # Show the new process
-        sleep 1
+        sleep 2
         echo "New python3 processes on $node:"
         pgrep -u $USERNAME python3
 EOF

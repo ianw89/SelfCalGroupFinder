@@ -32,7 +32,7 @@ MSTAR_MAX = 1E12
 MHALO_MIN = 1E11
 MHALO_MAX = 1E15
 
-plt.style.use('default')
+#plt.style.use('default')
 plt.rcParams.update({'font.size': FONT_SIZE_DEFAULT})
 
 def font_restore():
@@ -157,7 +157,7 @@ def LHMR_withscatter(*catalogs):
         means = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
         scatter = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
         plt.errorbar(np.log10(f.labels), means, yerr=scatter, label=get_dataset_display_name(f), color=f.color, elinewidth=1)
-    plt.xlabel('(log$(M_h)~[M_\\odot /h])$')
+    plt.xlabel('(log$(M_h)~[M_\\odot h^{-1}])$')
     plt.ylabel('log$(L_{cen})~[L_\odot / h^2]$')
     plt.title("Central Luminosity vs. Halo Mass")
     legend(catalogs)
@@ -252,109 +252,185 @@ def LHMR_from_logs():
     plt.tight_layout()
     plt.show()
 
+# This should reproduce what plt does when you say .yscale('log') with errors.
+def safe_log_err(logmean, lin_err):
+    with np.errstate(divide='ignore', invalid='ignore'):
+        # If lin_err is a single value:
+        if np.isscalar(lin_err):
+            lower = np.where(10**logmean - lin_err > 0, logmean - np.log10(10**logmean - lin_err), logmean)
+            upper = np.log10(10**logmean + lin_err) - logmean
+            return lower, upper
+        else:
+            assert len(lin_err) == 2 # Then it's the 16th and 84th percentiles
+            # Convert to distance from mean in logspace
+            lower = logmean - np.log10(lin_err[0])
+            upper = np.log10(lin_err[1]) - logmean
+            return lower, upper
 
-def LHMR_savederr(f: GroupCatalog, add_bootstrapped_err=False, show_all=False):
+def safe_log_err_vals(logmean, lin_err):
+    with np.errstate(divide='ignore', invalid='ignore'):
+        if np.isscalar(lin_err):
+            lower = np.where(10**logmean - lin_err > 0, np.log10(10**logmean - lin_err), -99)
+            upper = np.log10(10**logmean + lin_err)
+            return lower, upper
+        else:
+            assert len(lin_err) == 2 # Then it's the 16th and 84th percentiles
+            lower = np.log10(lin_err[0])
+            upper = np.log10(lin_err[1])
+            return lower, upper
 
-    mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
-    means_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
-    means_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
+
+    log_mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    log_means_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    log_means_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    ratio = 10**log_means_r / 10**log_means_b
 
     lhmr_r_mean, lhmr_r_err, lhmr_r_scatter_mean, lhmr_r_scatter_err, lhmr_b_mean, lhmr_b_err, lhmr_b_scatter_mean, lhmr_b_scatter_err, lhmr_all_mean, lhmr_all_err, lhmr_all_scatter_mean, lhmr_all_scatter_err = lhmr_variance_from_saved()
 
-    # This should reproduce what plt does when you say .yscale('log') with errors.
-    def safe_log_err(mean, err):
-        with np.errstate(divide='ignore', invalid='ignore'):
-            lower = np.where(10**mean - err > 0, mean - np.log10(10**mean - err), mean)
-            upper = np.log10(10**mean + err) - mean
-            return lower, upper
+    # Error bars for statistical error (bootstrapped)
+    # And shaded for systematic (saved from MCMC)
+    yerr_all_lower, yerr_all_upper = safe_log_err(log_mean_all, f.lhmr_bootstrap_err)
+    yerr_b_lower, yerr_b_upper = safe_log_err(log_means_b, f.lhmr_sf_bootstrap_err)
+    yerr_r_lower, yerr_r_upper = safe_log_err(log_means_r, f.lhmr_q_bootstrap_err)
 
-    if add_bootstrapped_err:
-        lhmr_r_err = lhmr_r_err + f.lhmr_q_bootstrap_err
-        lhmr_b_err = lhmr_b_err + f.lhmr_sf_bootstrap_err
-        lhmr_all_err = lhmr_all_err + f.lhmr_bootstrap_err
+    syserr_all_lower, syserr_all_upper = safe_log_err_vals(log_mean_all, lhmr_all_err)
+    syserr_b_lower, syserr_b_upper = safe_log_err_vals(log_means_b, lhmr_b_err)
+    syserr_r_lower, syserr_r_upper = safe_log_err_vals(log_means_r, lhmr_r_err)
 
-    yerr_all_lower, yerr_all_upper = safe_log_err(mean_all, lhmr_all_err)
-    yerr_b_lower, yerr_b_upper = safe_log_err(means_b, lhmr_b_err)
-    yerr_r_lower, yerr_r_upper = safe_log_err(means_r, lhmr_r_err)
+    plt.figure(dpi=DPI)
+    x_vals = np.log10(Mhalo_labels)
+    x_vals2 = np.log10(Mhalo_labels2)
 
-    plt.figure()
     if show_all:
-        plt.errorbar(np.log10(Mhalo_labels), mean_all, yerr=[yerr_all_lower, yerr_all_upper], fmt='.', color='k', label='All', capsize=3, alpha=0.7)
-    plt.errorbar(np.log10(Mhalo_labels), means_b, yerr=[yerr_b_lower, yerr_b_upper], fmt='.', color='b', label='SF Centrals', capsize=3, alpha=0.7)
-    plt.errorbar(np.log10(Mhalo_labels), means_r, yerr=[yerr_r_lower, yerr_r_upper], fmt='.', color='r', label='Q Centrals', capsize=3, alpha=0.7)
-    plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
-    plt.ylabel(r'log$(\langle L_{\mathrm{cen}} \rangle / [L_{\odot} /h^2])$')
+        plt.errorbar(x_vals, log_mean_all, yerr=[yerr_all_lower, yerr_all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals, log_means_b, yerr=[yerr_b_lower, yerr_b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals, log_means_r, yerr=[yerr_r_lower, yerr_r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+
+    if show_all:
+        plt.fill_between(x_vals, syserr_all_lower, syserr_all_upper, color='k', alpha=0.2)
+    plt.fill_between(x_vals, syserr_r_lower, syserr_r_upper, color='r', alpha=0.2)
+    plt.fill_between(x_vals, syserr_b_lower, syserr_b_upper, color='b', alpha=0.2)
+    
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    plt.ylabel(r'log$(\langle L_{\mathrm{cen}} \rangle / [L_{\odot} h^{-2}])$')
     plt.xlim(10,15)
     plt.ylim(7,LOG_LGAL_MAX_TIGHT)
-    plt.yscale
     plt.legend()
     plt.twinx()
     plt.ylim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
-    plt.yticks(np.arange(-23, -12, 1))
+    plt.yticks(np.arange(-23, -12, 2))
     plt.ylabel("$M_r$ - 5log(h)")
 
+    if inset is not None:
+        ax_inset = plt.gca().inset_axes([0.45, 0.1, 0.5, 0.5])
+        ax_inset.tick_params(axis='both', which='major', labelsize=10)
+        inset_log_means_r = inset.centrals.loc[inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_vmax_weighted)
+        inset_log_means_b = inset.centrals.loc[~inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_vmax_weighted)
+        ratio2 = 10**inset_log_means_r / 10**inset_log_means_b
 
-def SHMR_savederr(f: GroupCatalog, add_bootstrapped_err=False, show_all=False):
+        #inset_yerr_all_lower, inset_yerr_all_upper = safe_log_err(inset_log_mean_all, inset.lhmr_bootstrap_err)
+        #inset_yerr_b_lower, inset_yerr_b_upper = safe_log_err(inset_log_means_b, inset.lhmr_sf_bootstrap_err)
+        #inset_yerr_r_lower, inset_yerr_r_upper = safe_log_err(inset_log_means_r, inset.lhmr_q_bootstrap_err)
+        
+        #ax_inset.errorbar(x_vals, inset_log_means_b, yerr=[inset_yerr_b_lower, inset_yerr_b_upper], fmt='.', color='b', capsize=3, alpha=0.7)
+        #ax_inset.errorbar(x_vals, inset_log_means_r, yerr=[inset_yerr_r_lower, inset_yerr_r_upper], fmt='.', color='r', capsize=3, alpha=0.7)
+        #ax_inset.plot(x_vals2, inset_log_means_b, '-', color='b', alpha=0.7)
+        #ax_inset.plot(x_vals2, inset_log_means_r, '-', color='r', alpha=0.7)
+        ax_inset.plot(x_vals, ratio, '-', color='k', label='BGS')
+        ax_inset.plot(x_vals2[:-6], ratio2[:-6], '-', color='purple', label='SDSS')
+        ax_inset.set_xlim(10,15)
+        ax_inset.legend(fontsize=8)
+       #ax_inset.set_ylim(0.9, 1.1)
+        #ax_inset.set_xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+        ax_inset.set_ylabel('Q/SF', fontsize=10)
+        # Dashed line at 1
+        ax_inset.axhline(1.0, color='gray', linestyle='--', alpha=0.5)
+
+
+def SHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
 
     mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
     means_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
     means_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-
-    # TODO You'll need to implement these functions to load saved SHMR variance data
     #shmr_r_mean, shmr_r_err, shmr_r_scatter_mean, shmr_r_scatter_err, shmr_b_mean, shmr_b_err, shmr_b_scatter_mean, shmr_b_scatter_err, shmr_all_mean, shmr_all_err, shmr_all_scatter_mean, shmr_all_scatter_err = shmr_variance_from_saved()
-    shmr_r_err = 0
-    shmr_b_err = 0
-    shmr_all_err = 0 
 
-    # This should reproduce what plt does when you say .yscale('log') with errors.
-    def safe_log_err(mean, err):
-        with np.errstate(divide='ignore', invalid='ignore'):
-            lower = np.where(10**mean - err > 0, mean - np.log10(10**mean - err), mean)
-            upper = np.log10(10**mean + err) - mean
-            return lower, upper
+    yerr_all_lower, yerr_all_upper = safe_log_err(np.log10(mean_all), f.shmr_bootstrap_err)
+    yerr_b_lower, yerr_b_upper = safe_log_err(np.log10(means_b), f.shmr_sf_bootstrap_err)
+    yerr_r_lower, yerr_r_upper = safe_log_err(np.log10(means_r), f.shmr_q_bootstrap_err)
 
-    if add_bootstrapped_err:
-        shmr_r_err = shmr_r_err + f.shmr_q_bootstrap_err
-        shmr_b_err = shmr_b_err + f.shmr_sf_bootstrap_err  
-        shmr_all_err = shmr_all_err + f.shmr_bootstrap_err
+    amask = mean_all > 0 & ~np.isnan(mean_all) & ~np.isnan(yerr_all_lower) & ~np.isnan(yerr_all_upper)
+    rmask = means_r > 0 & ~np.isnan(means_r) & ~np.isnan(yerr_r_lower) & ~np.isnan(yerr_r_upper)
+    bmask = means_b > 0 & ~np.isnan(means_b) & ~np.isnan(yerr_b_lower) & ~np.isnan(yerr_b_upper)
+    ratio = means_r / means_b
 
-    yerr_all_lower, yerr_all_upper = safe_log_err(np.log10(mean_all), shmr_all_err)
-    yerr_b_lower, yerr_b_upper = safe_log_err(np.log10(means_b), shmr_b_err)
-    yerr_r_lower, yerr_r_upper = safe_log_err(np.log10(means_r), shmr_r_err)
+    plt.figure(dpi=DPI)
+    x_vals = np.log10(Mhalo_labels)
+    x_vals2 = np.log10(Mhalo_labels2)
 
-    plt.figure()
     if show_all:
-        plt.errorbar(np.log10(f.labels), np.log10(mean_all), yerr=[yerr_all_lower, yerr_all_upper], fmt='.', color='k', label='All', capsize=3, alpha=0.7)
-    plt.errorbar(np.log10(f.labels), np.log10(means_b), yerr=[yerr_b_lower, yerr_b_upper], fmt='.', color='b', label='SF Centrals', capsize=3, alpha=0.7)
-    plt.errorbar(np.log10(f.labels), np.log10(means_r), yerr=[yerr_r_lower, yerr_r_upper], fmt='.', color='r', label='Q Centrals', capsize=3, alpha=0.7)
-    plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
-    plt.ylabel(r'log$(\langle M_{\star} \rangle / [M_{\odot}])$')
+        plt.errorbar(x_vals[amask], np.log10(mean_all[amask]), yerr=[yerr_all_lower[amask], yerr_all_upper[amask]], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals[bmask], np.log10(means_b[bmask]), yerr=[yerr_b_lower[bmask], yerr_b_upper[bmask]], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals[rmask], np.log10(means_r[rmask]), yerr=[yerr_r_lower[rmask], yerr_r_upper[rmask]], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+    # No shaded systematic errors here as we didn't save it in MCMC chains.
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    plt.ylabel(r'log$(\langle M_{\star} \rangle / [M_{\odot} h^{-2}])$')
     plt.xlim(10,15)
-    plt.ylim(7,12)  # Typical stellar mass range
-    plt.legend()
+    plt.ylim(7,12)
+
+    if inset is not None:
+        ax_inset = plt.gca().inset_axes([0.45, 0.1, 0.5, 0.5])
+        ax_inset.tick_params(axis='both', which='major', labelsize=10)
+        inset_means_r = inset.centrals.loc[inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+        inset_means_b = inset.centrals.loc[~inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+        rimask = inset_means_r > 0 & ~np.isnan(inset_means_r)
+        bimask = inset_means_b > 0 & ~np.isnan(inset_means_b)
+        ratio2 = inset_means_r / inset_means_b
+
+        ax_inset.plot(x_vals[rmask & bmask], ratio[rmask & bmask], '-', color='k', label='BGS')
+        ax_inset.plot(x_vals2[rimask & bimask][:-3], ratio2[rimask & bimask][:-3], '-', color='purple', label='SDSS')
+        ax_inset.set_xlim(10,15)
+        ax_inset.legend(fontsize=8)
+        ax_inset.set_ylabel('Q/SF', fontsize=10)
+        # Dashed line at 1
+        ax_inset.axhline(1.0, color='gray', linestyle='--', alpha=0.5)
+
     plt.tight_layout()
 
-def LHMR_scatter_savederr(f: GroupCatalog, add_bootstrapped_err=False, show_all=False):
+def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
 
     scatter_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
     scatter_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
     scatter_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
-
+    
     lhmr_r_mean, lhmr_r_err, lhmr_r_scatter_mean, lhmr_r_scatter_err, lhmr_b_mean, lhmr_b_err, lhmr_b_scatter_mean, lhmr_b_scatter_err, lhmr_all_mean, lhmr_all_err, lhmr_all_scatter_mean, lhmr_all_scatter_err = lhmr_variance_from_saved()
 
-    if add_bootstrapped_err:
-        lhmr_b_scatter_err = lhmr_b_scatter_err + f.lhmr_sf_scatter_bootstrap_err
-        lhmr_r_scatter_err = lhmr_r_scatter_err + f.lhmr_q_scatter_bootstrap_err
-        lhmr_all_scatter_err = lhmr_all_scatter_err + f.lhmr_scatter_bootstrap_err
+    # Error bars for statistical error (bootstrapped)
+    # And shaded for systematic (saved from MCMC)
+    # Scatter is computed as lognormal. That value is then considered a linear value (units of dex).
+    # The error is the scatter is linear in that space.
+    all_lower = scatter_all - f.lhmr_scatter_bootstrap_err[0]
+    all_upper = f.lhmr_scatter_bootstrap_err[1] - scatter_all
+    r_lower = scatter_r - f.lhmr_q_scatter_bootstrap_err[0]
+    r_upper = f.lhmr_q_scatter_bootstrap_err[1] - scatter_r
+    b_lower = scatter_b - f.lhmr_sf_scatter_bootstrap_err[0]
+    b_upper = f.lhmr_sf_scatter_bootstrap_err[1] - scatter_b
 
-    # Scatter is computed as lognormal. The error is the scatter is linear that that space.
-    plt.figure()
+    plt.figure(dpi=DPI)
+    x_vals = np.log10(Mhalo_labels)
+
     if show_all:
-        plt.errorbar(np.log10(Mhalo_labels), scatter_all, yerr=lhmr_all_scatter_err, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
-    plt.errorbar(np.log10(Mhalo_labels), scatter_b, yerr=lhmr_b_scatter_err, fmt='.', color='b', label='SF Centrals', capsize=3, alpha=0.7)
-    plt.errorbar(np.log10(Mhalo_labels), scatter_r, yerr=lhmr_r_scatter_err, fmt='.', color='r', label='Q Centrals', capsize=3, alpha=0.7)
-    plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
-    plt.ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}}~/~[L_{\odot} /h^2])}$')
+        plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals, scatter_r, yerr=[r_lower, r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
+
+    if show_all:
+        plt.fill_between(x_vals, lhmr_all_scatter_err[0], lhmr_all_scatter_err[1], color='gray', alpha=0.2)
+    plt.fill_between(x_vals, lhmr_r_scatter_err[0], lhmr_r_scatter_err[1], color='red', alpha=0.2)
+    plt.fill_between(x_vals, lhmr_b_scatter_err[0], lhmr_b_scatter_err[1], color='blue', alpha=0.2)
+
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    plt.ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}}~/~[L_{\odot} h^{-2}])}$')
     plt.legend()
     plt.xlim(10,15)
     plt.ylim(0.0, 0.4)
@@ -364,30 +440,50 @@ def LHMR_scatter_savederr(f: GroupCatalog, add_bootstrapped_err=False, show_all=
     plt.ylabel(r'$\sigma_{M_r}$')
     plt.tight_layout()
 
-def SHMR_scatter_savederr(f: GroupCatalog, add_bootstrapped_err=False, show_all=False):
+def SHMR_scatter_savederr(f: GroupCatalog, show_all=False):
 
     scatter_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
     scatter_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
     scatter_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
 
-    # TODO You'll need to implement these functions to load saved SHMR variance data
     #shmr_r_mean, shmr_r_err, shmr_r_scatter_mean, shmr_r_scatter_err, shmr_b_mean, shmr_b_err, shmr_b_scatter_mean, shmr_b_scatter_err, shmr_all_mean, shmr_all_err, shmr_all_scatter_mean, shmr_all_scatter_err = shmr_variance_from_saved()
-    shmr_r_scatter_err = 0
-    shmr_b_scatter_err = 0
-    shmr_all_scatter_err = 0 
 
-    if add_bootstrapped_err:
-        shmr_b_scatter_err = shmr_b_scatter_err + f.shmr_sf_scatter_bootstrap_err
-        shmr_r_scatter_err = shmr_r_scatter_err + f.shmr_q_scatter_bootstrap_err
-        shmr_all_scatter_err = shmr_all_scatter_err + f.shmr_scatter_bootstrap_err
+    all_lower = scatter_all - f.shmr_scatter_bootstrap_err[0]
+    all_upper = f.shmr_scatter_bootstrap_err[1] - scatter_all
+    r_lower = scatter_r - f.shmr_q_scatter_bootstrap_err[0]
+    r_upper = f.shmr_q_scatter_bootstrap_err[1] - scatter_r
+    b_lower = scatter_b - f.shmr_sf_scatter_bootstrap_err[0]
+    b_upper = f.shmr_sf_scatter_bootstrap_err[1] - scatter_b
 
-    plt.figure()
+    plt.figure(dpi=DPI)
+    x_vals = np.log10(Mhalo_labels)
+
     if show_all:
-        plt.errorbar(np.log10(f.labels), scatter_all, yerr=shmr_all_scatter_err, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
-    plt.errorbar(np.log10(f.labels), scatter_b, yerr=shmr_b_scatter_err, fmt='.', color='b', label='SF Centrals', capsize=3, alpha=0.7)
-    plt.errorbar(np.log10(f.labels), scatter_r, yerr=shmr_r_scatter_err, fmt='.', color='r', label='Q Centrals', capsize=3, alpha=0.7)
-    plt.xlabel('log$(M_h~/~[M_\\odot /h]$)')
-    plt.ylabel(r'$\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot}])}$')
+        plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals, scatter_r, yerr=[r_lower, r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+
+    # No shaded systematic errors here for now as we didn't save it in MCMC chains.
+
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    plt.ylabel(r'$\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
+    plt.xlim(10,15)
+    plt.ylim(0.0, 0.7)
+    plt.legend()
+    plt.tight_layout()
+
+def SHMR_scatter_litcompare(f: GroupCatalog):
+    # TODO stuff to compare to from literature
+    scatter_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+
+    all_lower = scatter_all - f.shmr_scatter_bootstrap_err[0]
+    all_upper = f.shmr_scatter_bootstrap_err[1] - scatter_all
+
+    plt.figure(dpi=DPI)
+    x_vals = np.log10(Mhalo_labels)
+    plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='This Work', capsize=4, alpha=0.7)
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    plt.ylabel(r'$\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
     plt.xlim(10,15)
     plt.ylim(0.0, 0.7)
     plt.legend()
@@ -399,7 +495,7 @@ def fsat_with_bootstrapped_err(gc: GroupCatalog):
     #plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_std, fmt='.', color='k', label='All', capsize=3, alpha=0.7)
     plt.errorbar(LogLgal_labels, gc.fsatr, yerr=gc.fsat_q_bootstrap_err, fmt='.', color='r', label='Quiescent', markersize=6, capsize=3, alpha=1.0)
     plt.errorbar(LogLgal_labels, gc.fsatb, yerr=gc.fsat_sf_bootstrap_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=3, alpha=1.0)
-    plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~/h^2])$')
+    plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~h^{-2}])$')
     plt.ylabel('$f_{\mathrm{sat}}$')
     plt.legend()
     plt.xlim(8,LOG_LGAL_MAX_TIGHT)
@@ -410,33 +506,35 @@ def fsat_with_bootstrapped_err(gc: GroupCatalog):
     plt.xlabel("$M_r$ - 5log(h)")
     plt.tight_layout()
 
-def fsat_with_err_from_saved(gc: GroupCatalog, add_boostrapped_err=False, show_all=False):
+def fsat_with_err_from_saved(gc: GroupCatalog, show_all=False):
     fsat_err, fsatr_err, fsatb_err, fsat_mean, fsatr_mean, fsatb_mean = fsat_variance_from_saved()
+    rcut = 11
 
-    if add_boostrapped_err: # Conservative: add bootstrap error linearly, not in quadrature.
-        fsat_err = fsat_err + gc.fsat_bootstrap_err
-        fsatr_err = fsatr_err + gc.fsat_q_bootstrap_err
-        fsatb_err = fsatb_err + gc.fsat_sf_bootstrap_err
-    
-    plt.figure()
+    plt.figure(dpi=DPI)
     if show_all:
-        plt.errorbar(L_gal_bins, gc.fsat, yerr=fsat_err, fmt='.', color='k', label='All', markersize=6, capsize=3, alpha=1.0)
-    plt.errorbar(LogLgal_labels[14:], gc.fsatr[14:], yerr=fsatr_err[14:], fmt='.', color='r', label='Quiescent', markersize=6, capsize=3, alpha=1.0)
-    plt.errorbar(LogLgal_labels, gc.fsatb, yerr=fsatb_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=3, alpha=1.0)
-    plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~/h^2])$')
+        plt.errorbar(LogLgal_labels, gc.fsat, yerr=gc.fsat_bootstrap_err, fmt='.', color='k', label='All', markersize=6, capsize=4, alpha=1.0)
+    plt.errorbar(LogLgal_labels[rcut:], gc.fsatr[rcut:], yerr=gc.fsat_q_bootstrap_err[rcut:], fmt='.', color='r', label='Quiescent', markersize=6, capsize=4, alpha=1.0)
+    plt.errorbar(LogLgal_labels, gc.fsatb, yerr=gc.fsat_sf_bootstrap_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=4, alpha=1.0)
+
+    if show_all:
+        plt.fill_between(LogLgal_labels, fsat_err[0], fsat_err[1], color='k', alpha=0.2)
+    plt.fill_between(LogLgal_labels[rcut:], fsatr_err[0][rcut:], fsatr_err[1][rcut:], color='r', alpha=0.2) 
+    plt.fill_between(LogLgal_labels, fsatb_err[0], fsatb_err[1], color='b', alpha=0.2)
+
+    plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~h^{-2}])$')
     plt.ylabel('$f_{\mathrm{sat}}$')
     plt.legend()
     plt.xlim(7,LOG_LGAL_MAX_TIGHT)
     plt.ylim(0.0, 1.0)
     plt.twiny()
-    plt.xticks(np.arange(-23, -9, 1))
+    plt.xticks(np.arange(-23, -9, 2))
     plt.xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
     plt.xlabel("$M_r$ - 5log(h)")
     plt.tight_layout()
 
 def plots(*catalogs, show_err=None, truth_on=False):
     catalogs = list(catalogs)
-    if isinstance(show_err, GroupCatalog) and show_err not in catalogs:
+    if show_err is not None and show_err not in catalogs:
         catalogs.append(show_err)
     elif not show_err == None:
         print("show_err must be a GroupCatalog")
@@ -603,7 +701,7 @@ def wp_rp(catalog: GroupCatalog|tuple):
     plt.xscale('log')
     plt.ylim(3, 2000)
     plt.yscale('log')
-    plt.xlabel(r'$r_p$ [Mpc/h]')
+    plt.xlabel(r'$r_p$ [Mpch^{-1}]')
     plt.ylabel(r'$w_p(r_p)$')
     plt.legend()
     if isinstance(catalog, BGSGroupCatalog):
@@ -641,7 +739,7 @@ def wp_rp_magbins(c: GroupCatalog):
         axes[row, col].set_xscale('log')
         axes[row, col].set_ylim(3, 2000)
         axes[row, col].set_yscale('log')
-        axes[row, col].set_xlabel(r'$r_p$ [Mpc/h]')
+        axes[row, col].set_xlabel(r'$r_p$ [Mpch^{-1}]')
         axes[row, col].set_ylabel(r'$w_p(r_p)$')
         axes[row, col].set_title(f'{mag_range_label}')
         axes[row, col].grid(True)
@@ -669,7 +767,7 @@ def compare_wp_rp(d1: BGSGroupCatalog|tuple, d2_t: BGSGroupCatalog|tuple):
         lim = np.max([*np.abs(percent_diff), *np.abs(percent_diff_r), *np.abs(percent_diff_b)])
         ax.set_ylim(-lim, lim)
         ax.set_yscale('linear')
-        ax.set_xlabel(r'$r_p$ [Mpc/h]')
+        ax.set_xlabel(r'$r_p$ [Mpch^{-1}]')
         ax.set_ylabel(r'$w_p(r_p)$ Difference (%)')
         ax.grid(True)
 
@@ -916,7 +1014,7 @@ def total_f_sat(ds):
         print(f"  Truth (1 / V_max):  {fsat_truth_vmax_weighted(ds.all_data):.3f}")
 
 
-def fsat_by_zbins_sv3_centers(*datasets, z_bins=np.array([0.0, 0.2, 1.0], dtype=float)):
+def fsat_by_zbins(*datasets, z_bins=np.array([0.0, 0.2, 1.0])):
     for i in range(0, len(z_bins)-1):
         z_low = z_bins[i]
         z_high = z_bins[i+1]
@@ -935,7 +1033,7 @@ def fsat_by_zbins_sv3_centers(*datasets, z_bins=np.array([0.0, 0.2, 1.0], dtype=
         ax1.set_ylabel("$f_{\\mathrm{sat}}$")
         legend_ax(ax1, datasets)
         ax1.set_xlim(LGAL_MIN,LGAL_MAX)
-        ax1.set_ylim(0.0,0.6)
+        ax1.set_ylim(0.0,1.0)
         ax2=ax1.twiny()
         ax2.plot(datasets[0].Mr_gal_labels, datasets[0].f_sat, ls="")
         ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(LGAL_MIN)), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX)))
@@ -1025,18 +1123,18 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
     groupby_property = 'Mstar_bin' if mstar else 'LGAL_BIN'
-    label_property = 'Mstar_labels' if mstar else 'L_gal_labels'
+    label_property = 10**logmstar_labels if mstar else L_gal_labels
     for f in datasets:
         data = f.all_data.loc[np.all([~f.all_data['IS_SAT']], axis=0)]
         if test_methods:
             qf_gmr = f.centrals.groupby(groupby_property, observed=False).apply(qf_BGS_gmr_vmax_weighted)
             qf_dn4000 = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
             qf_dn4000model = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000MODEL_smart_eq_vmax_weighted)
-            plt.plot(getattr(f, label_property), qf_gmr, '.', label=f'(g-r)^0.1 < {GLOBAL_RED_COLOR_CUT}', color='b')
-            plt.plot(getattr(f, label_property), qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
-            plt.plot(getattr(f, label_property), qf_dn4000model, '-', label='Dn4000_M Eq. 1', color='purple')
+            plt.plot(label_property, qf_gmr, '.', label=f'(g-r)^0.1 < {GLOBAL_RED_COLOR_CUT}', color='b')
+            plt.plot(label_property, qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
+            plt.plot(label_property, qf_dn4000model, '-', label='Dn4000_M Eq. 1', color='purple')
         else:
-           plt.plot(getattr(f, label_property), data.groupby(groupby_property, observed=False).apply(qf_vmax_weighted), f.marker, label=get_dataset_display_name(f), color=f.color)
+           plt.plot(label_property[:-4], data.groupby(groupby_property, observed=False).apply(qf_vmax_weighted)[:-4], f.marker, label=get_dataset_display_name(f), color=f.color)
 
     ax1.set_xscale('log')
     if not mstar:
@@ -1044,7 +1142,7 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
         ax1.set_xlim(LGAL_MIN,LGAL_MAX)
         ax1.set_ylim(0.0,1.0)
     else:
-        ax1.set_xlabel("$mstar~[\\mathrm{M}_\\odot]$")
+        ax1.set_xlabel("$M_\star~[\\mathrm{M}_\\odot]$")
         ax1.set_xlim(MSTAR_MIN,MSTAR_MAX)
         #ax1.set_yscale('log')
         #ax1.set_ylim(1E-2, 1.0)
@@ -1257,8 +1355,8 @@ def proj_clustering_plot(gc: GroupCatalog):
             ax.errorbar(radius, wp_mock, yerr=wp_mock_err, fmt='-', capsize=3, color='b', alpha=0.6)
 
             # Put text of the chisqr value in plot
-            ax.text(0.6, 0.9, f"$\chi^2_r$: {clust_r[i+mag_start]:.1f}", transform=ax.transAxes)
-            ax.text(0.6, 0.8, f"$\chi^2_b$: {clust_b[i+mag_start]:.1f}", transform=ax.transAxes)
+            ax.text(0.6, 0.9, f"$\chi^2_q$: {clust_r[i+mag_start]:.1f}", transform=ax.transAxes)
+            ax.text(0.6, 0.78, f"$\chi^2_{{sf}}$: {clust_b[i+mag_start]:.1f}", transform=ax.transAxes)
 
         else:
             wp, wp_err, radius = caldata.get_wp_all(i)
@@ -1273,7 +1371,7 @@ def proj_clustering_plot(gc: GroupCatalog):
         # Plot config
         ax.set_xscale('log')
         ax.set_yscale('log')
-        ax.set_xlabel('$r_p$ [Mpc/h]')
+        ax.set_xlabel('$r_p$ [Mpch^{-1}]')
         ax.set_ylabel('$w_p(r_p)$')
         ax.set_ylim(1, 4000)
         ax.set_title(f'[{-i}, {caldata.magbins[idx+1]}]')
@@ -1463,6 +1561,106 @@ def Lfunc_compare(cat1, cat2):
     ax.set_xlim(LGAL_MIN, LGAL_MAX)
     ax.set_ylim(-35, 35)
     ax.axhline(0, color='black', lw=1)
+    fig.tight_layout()
+
+def lostgal_lum_func_paper_compare(*catalogs):
+        
+    #x = L_gal_labels # bins if ising cic code
+    x_bins = np.logspace(8, 11.2, 12) # bins if using cic code
+    x = (x_bins[:-1] + x_bins[1:]) / 2 # bin centers
+
+    obs_counts = np.zeros((len(catalogs), len(x)))
+    lost_truth_counts = np.zeros((len(catalogs), len(x)))
+    lost_assumed_counts = np.zeros((len(catalogs), len(x)))
+    obs_vs_losttruth = np.zeros((len(catalogs), len(x)))
+    assumed_vs_truth = np.zeros((len(catalogs), len(x)))
+    assumed_vs_truth_red = np.zeros((len(catalogs), len(x)))
+    assumed_vs_truth_blue = np.zeros((len(catalogs), len(x)))
+    total_counts = np.zeros((len(catalogs), len(x)))
+    total_r_counts = np.zeros((len(catalogs), len(x)))
+    total_b_counts = np.zeros((len(catalogs), len(x)))
+    boost = []
+
+    for i in range(len(catalogs)):
+        assert len(catalogs[i].L_gal_labels) == len(L_gal_labels)
+        catalog = catalogs[i]
+        #data = catalog.all_data.convert_dtypes()
+        data = catalog.all_data
+
+        lostrows = z_flag_is_not_spectro_z(data['Z_ASSIGNED_FLAG'].to_numpy())
+        lost_and_havetruth_rows = np.logical_and(z_flag_is_not_spectro_z(data['Z_ASSIGNED_FLAG'].to_numpy()), data['Z_T'].to_numpy() > 0)
+        lost_withT_galaxies = data.loc[lost_and_havetruth_rows]
+        obs_galaxies = data.loc[~lostrows]
+
+        closeness = np.isclose(obs_galaxies['Z'], obs_galaxies['Z_T'], atol=SIM_Z_THRESH, rtol=0.0)
+        assert closeness.sum() / len(closeness) > .98, f"{1 - (closeness.sum() / len(closeness))} of the galaxies have different z and Z_T despite being spectrocopically observed."
+
+        if len(lost_withT_galaxies) == 0:
+            boost.append(1)
+            continue
+        boost.append(len(obs_galaxies) / len(lost_withT_galaxies))
+
+        total_counts[i] = np.histogram(data['L_GAL'].to_numpy(), bins=x_bins)[0]
+        total_r_counts[i] = np.histogram(data.loc[data['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0]
+        total_b_counts[i] = np.histogram(data.loc[~data['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0]
+        obs_counts[i] = np.histogram(obs_galaxies['L_GAL'].to_numpy(), bins=x_bins)[0]
+        lost_truth_counts[i] = np.histogram(lost_withT_galaxies['L_GAL_T'].to_numpy(), bins=x_bins)[0]
+        lost_assumed_counts[i] = np.histogram(lost_withT_galaxies['L_GAL'].to_numpy(), bins=x_bins)[0]
+        
+        obs_vs_losttruth[i] = ((lost_truth_counts[i]*boost[i] - obs_counts[i]) / obs_counts[i]) * 100
+        assumed_vs_truth[i] =  ((lost_assumed_counts[i] - lost_truth_counts[i]) / lost_truth_counts[i]) * 100
+
+        obs_red_counts = np.histogram(obs_galaxies.loc[obs_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0]
+        obs_blue_counts = np.histogram(obs_galaxies.loc[~obs_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0]
+        lost_truth_red_counts = np.histogram(lost_withT_galaxies.loc[lost_withT_galaxies['QUIESCENT'], 'L_GAL_T'].to_numpy(), bins=x_bins)[0].astype(np.float64)
+        lost_truth_blue_counts = np.histogram(lost_withT_galaxies.loc[~lost_withT_galaxies['QUIESCENT'], 'L_GAL_T'].to_numpy(), bins=x_bins)[0].astype(np.float64)
+        lost_assumed_red_counts = np.histogram(lost_withT_galaxies.loc[lost_withT_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0].astype(np.float64)
+        lost_assumed_blue_counts = np.histogram(lost_withT_galaxies.loc[~lost_withT_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0].astype(np.float64)
+
+        # Set to nan if less than 10 galaxies in the bin to avoid noisy statistics
+        lim = 20
+        lost_truth_red_counts[lost_truth_red_counts < lim] = np.nan
+        lost_truth_blue_counts[lost_truth_blue_counts < lim] = np.nan
+        lost_assumed_red_counts[lost_assumed_red_counts < lim] = np.nan
+        lost_assumed_blue_counts[lost_assumed_blue_counts < lim] = np.nan
+
+        assumed_vs_truth_red[i] =  ((lost_assumed_red_counts - lost_truth_red_counts) / lost_truth_red_counts) * 100
+        assumed_vs_truth_blue[i] =  ((lost_assumed_blue_counts - lost_truth_blue_counts) / lost_truth_blue_counts) * 100
+
+    percent_lim = 100
+
+    fig, axes = plt.subplots(nrows = 1, ncols=2, figsize=(12, 5))
+    for i in range(len(catalogs)):
+        axes[0].plot(x , assumed_vs_truth_red[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
+    #axes[0].set_title("Change in Red Lost Galaxy $\Phi_L(L)$")
+    axes[0].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
+    axes[0].set_ylabel("$\Delta \Phi_{L}^{q}(L)$ (%)")
+    axes[0].set_xscale('log')
+    axes[0].set_xlim(1e8, LGAL_MAX_TIGHT)
+    axes[0].set_ylim(-percent_lim, percent_lim)
+    axes[0].axhline(0, color='black', lw=1)
+    axes[0].text(0.65, 0.05, "Quiescent", transform=axes[0].transAxes)
+    ax2 = axes[0].twiny()
+    ax2.set_xscale('linear')
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
+    ax2.set_xlabel('$M_r - 5log(h)$')
+
+    for i in range(len(catalogs)):
+        axes[1].plot(x , assumed_vs_truth_blue[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
+    #axes[1].set_title("Change in Blue Lost Galaxy $\Phi_L(L)$")
+    axes[1].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
+    axes[1].set_ylabel("$\Delta \Phi_{L}^{sf}(L)$ (%)")
+    axes[1].set_xscale('log')
+    axes[1].set_xlim(1e8, LGAL_MAX_TIGHT)
+    axes[1].set_ylim(-percent_lim, percent_lim)
+    axes[1].axhline(0, color='black', lw=1)
+    axes[1].text(0.6, 0.05, "Star-forming", transform=axes[1].transAxes)
+    ax3 = axes[1].twiny()
+    ax3.set_xscale('linear')
+    ax3.set_xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
+    ax3.set_xlabel('$M_r - 5log(h)$')
+
+    axes[1].legend()
     fig.tight_layout()
 
 
@@ -1655,7 +1853,8 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
         assignment_type = s.all_data.loc[idx, 'Z_ASSIGNED_FLAG']
 
         score = powerlaw_score_1(assigned_z, truth_z)
-        rtophat = rounded_tophat_score(assigned_z, truth_z)
+        #rtophat = rounded_tophat_score(assigned_z, truth_z)
+        rtophat = close_enough(assigned_z, truth_z)
         metric_score1 = photoz_plus_metric_1(assigned_z, truth_z, assignment_type)
         metric_score2 = photoz_plus_metric_2(assigned_z, truth_z, assignment_type)
         metric_score3 = photoz_plus_metric_3(assigned_z, truth_z, assignment_type)
@@ -1698,14 +1897,14 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     #rects5 = ax.bar(x + width/2, scores_metric4, width, label='MCMC Metric Score', color=get_color(3))
 
     rects2 = ax.bar(x -width/2       , rounded_tophat_scores, width, label='Fraction Correct (all)', color=get_color(2))
-    rects3 = ax.bar(x + width/2  , scores_n_only, width, label='Fraction Correct (neighbor assigned)', color=get_color(1))
+    #rects3 = ax.bar(x + width/2  , scores_n_only, width, label='Fraction Correct (neighbor assigned)', color=get_color(1))
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     #ax.set_xlabel('Catalogs')
     ax.set_title('Correct Redshift Assignment')
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha='right')
-    ax.legend()
+    ax.set_xticklabels(labels, ha='right')
+    #ax.legend()
     ax.set_ylim(0, 0.8)
     ax.set_yticks(np.arange(0, 0.8, 0.1))
     ax.yaxis.grid(True)  # Add horizontal gridlines
@@ -1728,9 +1927,6 @@ def build_interior_bin_labels(bin_edges):
 
 def test_purity_and_completeness(*catalogs: GroupCatalog, truth_catalog: GroupCatalog, color=None, lost_only=False):
     
-    # Source of truth. Throw away non-spectroscopic targets from it.
-    truth_df = truth_catalog.all_data.loc[z_flag_is_spectro_z(truth_catalog.all_data['Z_ASSIGNED_FLAG'])]
-
     for s in catalogs:
         s.get_true_z_from(truth_catalog.all_data)
         s.refresh_df_views()
@@ -1738,10 +1934,10 @@ def test_purity_and_completeness(*catalogs: GroupCatalog, truth_catalog: GroupCa
         good_rows = s.all_data['Z_T'] != NO_TRUTH_Z
         #print(f"Missing truth on {len(s.all_data) - np.sum(good_rows)} galaxies")
         if lost_only:
-            good_rows = np.logical_and(good_rows, z_flag_is_not_spectro_z(s.all_data['Z_ASSIGNED_FLAG']))
+            good_rows &= z_flag_is_not_spectro_z(s.all_data['Z_ASSIGNED_FLAG'])
 
         if color is not None:
-            good_rows = np.logical_and(good_rows, s.all_data['QUIESCENT'].astype(bool) == color)
+            good_rows &= s.all_data['QUIESCENT'].astype(bool) == color
 
         data = s.all_data.loc[good_rows]
         print(f"-=={get_dataset_display_name(s)}==-", f"({len(data)})")
@@ -1753,95 +1949,102 @@ def test_purity_and_completeness(*catalogs: GroupCatalog, truth_catalog: GroupCa
 
         # Of all the assigned sats, how many are actually sats?
         assigned_sats = data.loc[data['IS_SAT']]
-        print(f"Purity of sats: {np.sum(assigned_sats.IS_SAT_T) / len(assigned_sats.index):.3f}")
+        s.overall_purity_sats = np.sum(assigned_sats.IS_SAT_T.astype(bool)) / len(assigned_sats.index)
+        print(f"Purity of sats: {s.overall_purity_sats:.3f}")
 
         # Of all the sats in the truth catalog, how many were found?
-        true_sats = data.loc[data.IS_SAT_T.astype(bool)]
-        sats_in_truthcat = truth_df.loc[truth_df['IS_SAT']]
-        print(f"Completeness of sats: {np.sum(true_sats['IS_SAT']) / len(sats_in_truthcat.index):.3f}")
+        true_sats = data.loc[data['IS_SAT_T'].astype(bool)]
+        true_sats_assigned_correctly = true_sats.loc[true_sats['IS_SAT']]
+        s.overall_completeness_sats = len(true_sats_assigned_correctly.index) / len(true_sats.index)
+        print(f"Completeness of sats: {s.overall_completeness_sats:.3f}")
 
         # Of all the assigned centrals, how many are actually centrals?
         assigned_centrals = data.loc[~data['IS_SAT']]
-        print(f"Purity of centrals: {np.sum(~assigned_centrals.IS_SAT_T.astype(bool)) / len(assigned_centrals.index):.3f}")
+        s.overall_purity_centrals = np.sum(~assigned_centrals.IS_SAT_T.astype(bool)) / len(assigned_centrals.index)
+        print(f"Purity of centrals: {s.overall_purity_centrals:.3f}")
 
         # Of all the centrals in the truth catalog, how many were found?
         true_centrals = data.loc[~data.IS_SAT_T.astype(bool)]
-        centrals_in_truthcat = truth_df.loc[~truth_df['IS_SAT']]
-        print(f"Completeness of centrals: {np.sum(~true_centrals['IS_SAT']) / len(centrals_in_truthcat.index):.3f}")
+        true_centrals_assigned_correctly = true_centrals.loc[~true_centrals['IS_SAT']]
+        s.overall_completeness_centrals = len(true_centrals_assigned_correctly.index) / len(true_centrals.index)
+        print(f"Completeness of centrals: {s.overall_completeness_centrals:.3f}")
 
         aggregation_column = 'LGAL_BIN_T'
-        aggregation_column_t = 'LGAL_BIN'
+        #aggregation_column_t = 'LGAL_BIN'
 
         # TODO update below to use these instead
-        sats_in_truthcat_g = sats_in_truthcat.groupby(aggregation_column_t, observed=False).size().to_numpy()
-        centrals_in_truthcat_g = centrals_in_truthcat.groupby(aggregation_column_t, observed=False).size().to_numpy()
+        #sats_in_truthcat_g = sats_in_truthcat.groupby(aggregation_column_t, observed=False).size().to_numpy()
+        #centrals_in_truthcat_g = centrals_in_truthcat.groupby(aggregation_column_t, observed=False).size().to_numpy()
+        true_sats_g = true_sats.groupby(aggregation_column, observed=False).size().to_numpy()
+        true_centrals_g = true_centrals.groupby(aggregation_column, observed=False).size().to_numpy()
 
         assigned_true_sats = assigned_sats.loc[assigned_sats.IS_SAT_T.astype(bool)]
         assigned_sats_g = assigned_sats.groupby(aggregation_column, observed=False).size().to_numpy()
 
         assigned_sats_correct_g = assigned_true_sats.groupby(aggregation_column, observed=False).size().to_numpy()
-        s.keep=np.nonzero(assigned_sats_g)
+        s.keep=np.nonzero(assigned_sats_g > 9)
         s.purity_g = assigned_sats_correct_g[s.keep] / assigned_sats_g[s.keep]
 
         true_sats_assigned = true_sats.loc[true_sats['IS_SAT']]
         true_sats_g = true_sats.groupby(aggregation_column, observed=False).size().to_numpy()
         true_sats_correct_g = true_sats_assigned.groupby(aggregation_column, observed=False).size().to_numpy()
-        s.keep2=np.nonzero(sats_in_truthcat_g)
-        s.completeness_g = true_sats_correct_g[s.keep2] / sats_in_truthcat_g[s.keep2]
+        s.keep2=np.nonzero(true_sats_g > 9)
+        s.completeness_g = true_sats_correct_g[s.keep2] / true_sats_g[s.keep2]
 
         assigned_true_centrals = assigned_centrals.loc[~(assigned_centrals.IS_SAT_T.astype(bool))]
         assigned_centrals_g = assigned_centrals.groupby(aggregation_column, observed=False).size().to_numpy()
         assigned_centrals_correct_g = assigned_true_centrals.groupby(aggregation_column, observed=False).size().to_numpy()
-        s.keep3=np.nonzero(assigned_centrals_g)
+        s.keep3=np.nonzero(assigned_centrals_g > 9)
         s.purity_c_g = assigned_centrals_correct_g[s.keep3] / assigned_centrals_g[s.keep3]
 
         true_centrals_assigned = true_centrals.loc[~(true_centrals['IS_SAT'])]
         true_centrals_g = true_centrals.groupby(aggregation_column, observed=False).size().to_numpy()
         true_centrals_correct_g = true_centrals_assigned.groupby(aggregation_column, observed=False).size().to_numpy()
-        s.keep4=np.nonzero(centrals_in_truthcat_g)
-        s.completeness_c_g = true_centrals_correct_g[s.keep4] / centrals_in_truthcat_g[s.keep4]
+        s.keep4=np.nonzero(true_centrals_g > 9)
+        s.completeness_c_g = true_centrals_correct_g[s.keep4] / true_centrals_g[s.keep4]
 
 
-def purity_complete_plots(*sets):
+def purity_complete_plots(*sets, ymin=0.0):
     plt.rcParams.update({'font.size': 14})
 
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(11, 8))
-    fig.set_dpi(DPI/2)
+    #fig.set_dpi(DPI/2)
 
     XMIN = 7.5
     XMAX = 11
+    YMIN = ymin
 
     axes[1][0].set_title('Satellite Purity')
-    axes[1][0].set_xlabel('$log(L_{\\mathrm{gal}} / (\\mathrm{L}_\\odot \\mathrm{h}^{-2} ))$')
+    axes[1][0].set_xlabel('log$(L_{\\mathrm{gal}}~/~(\\mathrm{L}_\\odot \\mathrm{h}^{-2} ))$')
     axes[1][0].set_xlim(XMIN,XMAX)
-    axes[1][0].set_ylim(0.4,1.0)
+    axes[1][0].set_ylim(YMIN,1.0)
     ax2=axes[1][0].twiny()
     ax2.plot(Mr_gal_bins[sets[0].keep], sets[0].purity_g, ls="") #just to get it to show up
     ax2.set_xlim(log_solar_L_to_abs_mag_r(XMIN), log_solar_L_to_abs_mag_r(XMAX))
     ax2.set_xlabel("$M_r$ - 5log(h)")
 
     axes[1][1].set_title('Satellite Completeness')
-    axes[1][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
+    axes[1][1].set_xlabel('log$(L_{\\mathrm{gal}}~/~(\\mathrm{L}_\\odot \\mathrm{h}^{-2} ))$')
     axes[1][1].set_xlim(XMIN,XMAX)
-    axes[1][1].set_ylim(0.4,1.0)
+    axes[1][1].set_ylim(YMIN,1.0)
     ax2=axes[1][1].twiny()
     ax2.plot(Mr_gal_bins[sets[0].keep2], sets[0].completeness_g, ls="") #just to get it to show up
     ax2.set_xlim(log_solar_L_to_abs_mag_r(XMIN), log_solar_L_to_abs_mag_r(XMAX))
     ax2.set_xlabel("$M_r$ - 5log(h)")
 
     axes[0][0].set_title('Central Purity')
-    axes[0][0].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
+    axes[0][0].set_xlabel('log$(L_{\\mathrm{gal}}~/~(\\mathrm{L}_\\odot \\mathrm{h}^{-2} ))$')
     axes[0][0].set_xlim(XMIN,XMAX)
-    axes[0][0].set_ylim(0.4,1.0)
+    axes[0][0].set_ylim(YMIN,1.0)
     ax2=axes[0][0].twiny()
     ax2.plot(Mr_gal_bins[sets[0].keep3], sets[0].purity_c_g, ls="") #just to get it to show up
     ax2.set_xlim(log_solar_L_to_abs_mag_r(XMIN), log_solar_L_to_abs_mag_r(XMAX))
     ax2.set_xlabel("$M_r$ - 5log(h)")
 
     axes[0][1].set_title('Central Completeness')
-    axes[0][1].set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
+    axes[0][1].set_xlabel('log$(L_{\\mathrm{gal}}~/~(\\mathrm{L}_\\odot \\mathrm{h}^{-2} ))$')
     axes[0][1].set_xlim(XMIN,XMAX)
-    axes[0][1].set_ylim(0.4,1.0)
+    axes[0][1].set_ylim(YMIN,1.0)
     ax2=axes[0][1].twiny()
     ax2.plot(Mr_gal_bins[sets[0].keep4], sets[0].completeness_c_g, ls="") #just to get it to show up
     ax2.set_xlim(log_solar_L_to_abs_mag_r(XMIN), log_solar_L_to_abs_mag_r(XMAX))
@@ -2442,3 +2645,74 @@ def plot_parameters(params):
 
     plt.tight_layout()
     plt.show()
+
+
+def gfparams_plots(gc: GroupCatalog, chains_flat):
+    # ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
+    def bsat(p0, p1, L):
+        return np.maximum(p0 + p1 * (L - 9.5), 0.5)
+    def cweight(w0, wl, s, L):
+        return - (w0 / 2) * (1 + special.erf((L - wl) / s))
+    def w_plot(q_w, sf_w):
+        return np.log10(q_w / sf_w)
+
+    params = np.array([gc.GF_props['omegaL_sf'], gc.GF_props['sigma_sf'], gc.GF_props['omegaL_q'], gc.GF_props['sigma_q'], gc.GF_props['omega0_sf'], gc.GF_props['omega0_q'], gc.GF_props['beta0q'], gc.GF_props['betaLq'], gc.GF_props['beta0sf'], gc.GF_props['betaLsf']])
+    # Cannot use the 68 / 95 intervals because we're plotting a function of the parameters, not the parameters directly
+    # And so the function of the median parameters may not fall inside the function of the 68 / 95 intervals
+
+    LMIN = 6.5
+    fig, axes = plt.subplots(2,1, figsize=(5,9))
+    x = np.linspace(6, 11.5, 100)
+    axes[0].set_xlabel("log$(L_{\\mathrm{cen}} / (L_{\\odot} h^{-2}) )$")
+    axes[0].set_ylabel("log$(w_{\\rm cen}^q / w_{\\rm cen}^{sf})$")
+    axes[0].set_ylim(-1,1)
+    axes[0].set_xlim(LMIN, 11.1)
+    axes[0].set_xticks(np.arange(7,12,1))
+    ax0 = axes[0].twiny() # Mag axis on top
+    ax0.set_xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
+    ax0.set_xticks(np.arange(-13, -25, -2))
+    ax0.set_xlabel("$M_r$ - 5log(h)")
+
+    axes[1].set_xlabel("log$(L_{\\mathrm{cen}}~/~(L_{\\odot} h^{-2}) )$")
+    axes[1].set_ylabel("$B_{\\mathrm{sat}}$")
+    axes[1].set_ylim(-1,40)
+    axes[1].set_xlim(LMIN, 11.1)
+    axes[1].set_xticks(np.arange(7,12,1))
+    ax1 = axes[1].twiny() # Mag axis on top
+    ax1.set_xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
+    ax1.set_xticks(np.arange(-13, -25, -2))
+    ax1.set_xlabel("$M_r$ - 5log(h)")
+
+    for i in range(1000):
+        sample_idx = np.random.randint(0, len(chains_flat))
+        sample_params = chains_flat[sample_idx]
+        axes[0].plot(
+            x,
+            w_plot(
+                cweight(sample_params[4], sample_params[0], sample_params[1], x),
+                cweight(sample_params[5], sample_params[2], sample_params[3], x)
+            ),
+            color='purple',
+            alpha=0.03
+        )
+        axes[1].plot(
+            x,
+            bsat(sample_params[6], sample_params[7], x),
+            color='red',
+            alpha=0.03
+        )
+        axes[1].plot(
+            x,
+            bsat(sample_params[8], sample_params[9], x),
+            color='blue',
+            alpha=0.03
+        )
+ 
+    # Horizontal line at y=0
+    axes[0].axhline(0, color='k', linestyle='--', lw=1, alpha=0.5)
+
+    axes[0].plot(x, w_plot(cweight(params[4], params[0], params[1], x), cweight(params[5], params[2], params[3], x)), color='k', lw=2)
+    axes[1].plot(x, bsat(params[6], params[7], x), '-', label='Q', color='k', lw=2)
+    axes[1].plot(x, bsat(params[8], params[9], x), '-',label='SF', color='k', lw=2)
+
+    plt.tight_layout()

@@ -9,7 +9,7 @@
 #include <time.h>
 #include <assert.h>
 #include <sys/time.h>
-#include <omp.h>
+#include "timing.hpp"
 #include <stdint.h>
 #include <unistd.h>
 #include <vector>
@@ -64,7 +64,7 @@ static struct argp_option options[] = {
   {"bsat",         'b', "RED,XRED,BLUE,XBLUE",                0,  "Four parameters for the satellite probability", 2},
   {"chi1",         'x', "WEIGHT_B,WEIGHT_R,SLOPE_B,SLOPE_R",  0,  "Four parameters per-galaxy extra property weighting", 2},
   {"verbose",      'v', 0,                                    0,  "Produce verbose stderr logging", 3},
-  {"quiet",        'q', 0,                                    0,  "Don't produce any output to stdout or stderr", 3 },
+  {"quiet",        'q', 0,                                    0,  "Don't produce any output to stderr", 3 },
   {"silent",       's', 0,                                    OPTION_ALIAS },
   {"pipe",         'P', "PIPEID",                             0,  "Specify a pipe ID for the group find to write message to", 3},
   {"interactive",  'k', 0,                                    0,  "Do not terminate after group finding. Use pipe messages to control.", 3},
@@ -133,16 +133,16 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     case 'w':
       USE_WCEN = 1;
       arguments->wcen_set = 1;
-      sscanf(arg, "%f,%f,%f,%f,%f,%f", &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR));
+      sscanf(arg, "%lf,%lf,%lf,%lf,%lf,%lf", &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR));
       break;
     case 'b':
       USE_BSAT = 1;
       arguments->bsat_set = 1;
-      sscanf(arg, "%f,%f,%f,%f", &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE));
+      sscanf(arg, "%lf,%lf,%lf,%lf", &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE));
       break;
     case 'x':
       arguments->chi1_set = 1;
-      sscanf(arg, "%f,%f,%f,%f", &(PROPX_WEIGHT_BLUE), &(PROPX_WEIGHT_RED), &(PROPX_SLOPE_BLUE), &(PROPX_SLOPE_RED));
+      sscanf(arg, "%lf,%lf,%lf,%lf", &(PROPX_WEIGHT_BLUE), &(PROPX_WEIGHT_RED), &(PROPX_SLOPE_BLUE), &(PROPX_SLOPE_RED));
       break;
     case 'h':
       HALO_MASS_FUNC_FILE = arg;
@@ -274,43 +274,42 @@ int main(int argc, char **argv)
       run = false;
       
     // The primary method for group finding
-    t_grp_s = omp_get_wtime();
+    t_grp_s = get_wtime();
     groupfind();
-    t_grp_e = omp_get_wtime();
+    t_grp_e = get_wtime();
     LOG_PERF("groupfind() took %.2f sec\n", t_grp_e - t_grp_s);
 
     // Populate Mock 
     if (POPULATE_MOCK)
     {
-      setup_rng();
-      t0 = omp_get_wtime();
+      t0 = get_wtime();
       lsat_model();
       tabulate_hods();
       prepare_halos();
-      t1 = omp_get_wtime();
+      t1 = get_wtime();
       LOG_PERF("lsat + hod + prep popsim: %.2f sec\n", t1 - t0);
 
       // lsat_model_scatter(); // This is crashing for some reason...
 
       LOG_INFO("Populating mock catalog\n");
 
-      t2 = omp_get_wtime();
+      t2 = get_wtime();
       
       //for (i = 0; i < NVOLUME_BINS*3; i += 1)
       //{
-      //  populate_simulation_omp(i / 3, i % 3);
+      //  populate_simulation_omp(i/3, static_cast<SampleType>(i%3));
       //}
-  #pragma omp parallel private(i,istart,istep)
+      #pragma omp parallel private(i,istart,istep)
       {
-        istart = omp_get_thread_num();
-        istep = omp_get_num_threads();
+        istart = get_thread_num();
+        istep = get_num_threads();
         for(i=istart; i< NVOLUME_BINS*3; i+=istep)
         {
           populate_simulation_omp(i/3, static_cast<SampleType>(i%3));
         }
       }
 
-      t3 = omp_get_wtime();
+      t3 = get_wtime();
       LOG_INFO("popsim> %.2f sec\n", t3 - t2);
 
     }

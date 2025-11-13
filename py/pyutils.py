@@ -432,15 +432,16 @@ def k_correct_bgs_v2(abs_mag, z_obs, gmr, band='r'):
 def k_correct(abs_mag, z_obs, gmr, band='r'):
     return k_correct_gama(abs_mag, z_obs, gmr, band)
 
+# TODO UPDATE ALL THIS IS WRONG
 SOLAR_L_R_BAND = 4.65
 def abs_mag_r_to_log_solar_L(arr):
-    return 0.39794 * (SOLAR_L_R_BAND - arr)
+    return (SOLAR_L_R_BAND - arr) / 2.5
 
 def abs_mag_r_to_solar_L(arr):
-    return 10 ** (0.39794 * (SOLAR_L_R_BAND - arr))
+    return 10 ** ((SOLAR_L_R_BAND - arr) / 2.5)
 
 def log_solar_L_to_abs_mag_r(arr):
-    return SOLAR_L_R_BAND - (arr / 0.39794)
+    return SOLAR_L_R_BAND - 2.5 * arr
 
 from astropy.cosmology import z_at_value
 
@@ -461,7 +462,10 @@ def get_max_observable_z_mxxlcosmo(abs_mags, fluxlimit):
     return z_at_value(_cosmo_mxxl.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
 
 def get_volume_at_z(z, frac_area):
-    return (4/3*np.pi) * _cosmo_h.luminosity_distance(z).value**3 * frac_area
+    """
+    Calculate the comoving volume out to redshift z.
+    """
+    return (4/3*np.pi) * _cosmo_h.luminosity_distance(z).value**3 / (1 + z)**3 * frac_area
 
 
 def get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area):
@@ -550,12 +554,12 @@ def LogLgal_lognormal_scatter_vmax_weighted(series):
         return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
 
 def mstar_vmax_weighted(series):
-    if len(series) <= 4:
+    if len(series) <= 19:
         return np.nan
     return np.average(np.power(10, series['LOGMSTAR']), weights=1/series['VMAX'])
 
 def LogMstar_lognormal_scatter_vmax_weighted(series):
-    if len(series) <= 4:
+    if len(series) <= 19:
         return np.nan
     else:
         totweight = np.sum(1/series['VMAX'])
@@ -984,7 +988,7 @@ def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_in
         intersection = fsolve(equations, (means[0]+means[1])/2)[0]
 
         # Plot the histogram and the fitted Gaussians
-        plt.figure(dpi=80, figsize=(10, 5))
+        plt.figure(dpi=300, figsize=(10, 5))
         bins = np.arange(min, max, (max-min)/200)
         plt.hist(binned_values, bins=bins, density=True, alpha=0.6, label=f"Values")
         #plt.plot(x, model1(x) + model2(x), label='Gaussian Mixture Model')
@@ -997,9 +1001,9 @@ def fit_gmm_and_plot(values, logLgal_bin_idx, num_bins, min, max, name, means_in
         #    plt.axvline(intersection, color='r', linestyle='--', label=f'Intersection at {intersection:.2f}')
         if manual_thresholds is not None:
             plt.axvline(manual_thresholds[i-1], color='g', linestyle='--', label=f'Chosen Threshold {manual_thresholds[i-1]:.2f}')
-        plt.legend()
-        plt.xlabel('Value')
-        plt.ylabel('Density')
+        #plt.legend()
+        plt.xlabel('g-r Color')
+        plt.ylabel('Relative Abundance')
         plt.title(f'{name} GMM for L {BGS_LOGLGAL_BINS[i-1]} - {BGS_LOGLGAL_BINS[i]}')
         plt.show()
 
@@ -1316,8 +1320,66 @@ def is_quiescent_BGS_gmr(logLgal, G_R_k):
 
 
 ###################################################################
-# MCMC Log Processing
+# MCMC Processing
 ###################################################################
+
+def combine_emcee_backends(backends):
+    """
+    Combine multiple emcee backends into a single set of chains and log probabilities.
+
+    Parameters
+    ----------
+    backends : list of emcee.backends.backend.Backend
+        List of emcee backends to combine.
+
+    Returns
+    -------
+    combined_samples : np.ndarray
+        Combined chains of shape (nsteps_total, nwalkers, dims)
+    combined_log_prob : np.ndarray
+        Combined log probabilities of shape (nsteps_total, nwalkers)
+    """
+    chains = [b.get_chain() for b in backends]
+    log_probs = [b.get_log_prob() for b in backends]
+    shapes = [c.shape for c in chains]
+    print(f"Shapes: {shapes}")
+    to_drop = np.full((len(chains),), False)
+    walkers = 0
+    dims = chains[0].shape[2] 
+
+    longest_steps = max(shape[0] for shape in shapes)
+    print(f"Longest chain has {longest_steps} steps.")
+    # Pad shorter chains with NaNs to match the longest chain length
+    for i in range(len(chains)):
+        if shapes[i][0] < longest_steps:
+            pad_length = longest_steps - shapes[i][0]
+            if pad_length > 0:
+                if pad_length > shapes[i][0]:
+                    print(f"Chain {i} is too short ({shapes[i][0]} steps), dropping it.")
+                    to_drop[i] = True
+                else:
+                    print(f"Padding chain {i} with {pad_length} NaN steps to match the longest chain length.")
+                chains[i] = np.pad(chains[i], ((0, pad_length), (0, 0), (0, 0)), mode='constant', constant_values=np.nan)
+                log_probs[i] = np.pad(log_probs[i], ((0, pad_length), (0, 0)), mode='constant', constant_values=np.nan)
+
+    for i in range(len(chains)):
+        if not to_drop[i]:
+            walkers += shapes[i][1]
+
+    combined = np.full((longest_steps, walkers, dims), np.nan)
+    combined_log_prob = np.full((longest_steps, walkers), np.nan)
+    print(f"Combined shape will be: {combined.shape}")
+
+    # Fill the combined array with the chains, skipping those marked for dropping
+    walker_index = 0
+    for i in range(len(chains)):
+        if not to_drop[i]:
+            nwalkers = chains[i].shape[1]
+            combined[:, walker_index:walker_index + nwalkers, :] = chains[i]
+            combined_log_prob[:, walker_index:walker_index + nwalkers] = log_probs[i]
+            walker_index += nwalkers
+
+    return combined, combined_log_prob
 
 
 def fsat_variance_from_saved():
@@ -1328,9 +1390,9 @@ def fsat_variance_from_saved():
     if os.path.exists(FSAT_VALUES_FROM_LOGS):
         fsat_arr, fsatr_arr, fsatb_arr = np.load(FSAT_VALUES_FROM_LOGS)
         print(f"Data point count: {len(fsat_arr)}")
-        fsat_std = np.percentile(fsat_arr, 84, axis=0) - np.percentile(fsat_arr, 16, axis=0)
-        fsatr_std = np.percentile(fsatr_arr, 84, axis=0) - np.percentile(fsatr_arr, 16, axis=0)
-        fsatb_std = np.percentile(fsatb_arr, 84, axis=0) - np.percentile(fsatb_arr, 16, axis=0)
+        fsat_std = (np.percentile(fsat_arr, 16, axis=0), np.percentile(fsat_arr, 84, axis=0))
+        fsatr_std = (np.percentile(fsatr_arr, 16, axis=0), np.percentile(fsatr_arr, 84, axis=0))
+        fsatb_std = (np.percentile(fsatb_arr, 16, axis=0), np.percentile(fsatb_arr, 84, axis=0))
         fsat_mean = np.mean(fsat_arr, axis=0)
         fsatr_mean = np.mean(fsatr_arr, axis=0)
         fsatb_mean = np.mean(fsatb_arr, axis=0)
@@ -1341,19 +1403,19 @@ def fsat_variance_from_saved():
     
 def lhmr_variance_from_saved():
     """
-    Load the lhmr variance from the saved file.
+    Load the lhmr variance from the saved file. All values are linear space.
     Returns red mean, red 68% confidence, red scatter mean, red scatter 68% confidence,
            blue mean, blue 68% confidence, blue scatter mean, blue scatter 68% confidence,
            all mean, all 68% confidence, all scatter mean, all scatter 68% confidence.
     """
     if os.path.exists(LHMR_VALUES_FROM_LOGS):
         r_arr, r_scatter_arr, b_arr, b_scatter_arr, all_arr, all_scatter_arr = np.load(LHMR_VALUES_FROM_LOGS)
-        r_std = np.percentile(r_arr, 84, axis=0) - np.percentile(r_arr, 16, axis=0)
-        r_scatter_std = np.percentile(r_scatter_arr, 84, axis=0) - np.percentile(r_scatter_arr, 16, axis=0)
-        b_std = np.percentile(b_arr, 84, axis=0) - np.percentile(b_arr, 16, axis=0)
-        b_scatter_std = np.percentile(b_scatter_arr, 84, axis=0) - np.percentile(b_scatter_arr, 16, axis=0)
-        all_std = np.percentile(all_arr, 84, axis=0) - np.percentile(all_arr, 16, axis=0)
-        all_scatter_std = np.percentile(all_scatter_arr, 84, axis=0) - np.percentile(all_scatter_arr, 16, axis=0)
+        r_std =  (np.percentile(r_arr, 16, axis=0), np.percentile(r_arr, 84, axis=0))
+        r_scatter_std = (np.percentile(r_scatter_arr, 16, axis=0), np.percentile(r_scatter_arr, 84, axis=0))
+        b_std = (np.percentile(b_arr, 16, axis=0), np.percentile(b_arr, 84, axis=0))
+        b_scatter_std = (np.percentile(b_scatter_arr, 16, axis=0), np.percentile(b_scatter_arr, 84, axis=0))
+        all_std = (np.percentile(all_arr, 16, axis=0), np.percentile(all_arr, 84, axis=0))
+        all_scatter_std = (np.percentile(all_scatter_arr, 16, axis=0), np.percentile(all_scatter_arr, 84, axis=0))
         r_mean = np.mean(r_arr, axis=0)
         r_scatter_mean = np.mean(r_scatter_arr, axis=0)
         b_mean = np.mean(b_arr, axis=0)   
@@ -1373,8 +1435,8 @@ def lsat_variance_from_saved():
     """
     if os.path.exists(LSAT_VALUES_FROM_LOGS):
         r_arr, b_arr = np.load(LSAT_VALUES_FROM_LOGS)
-        r_std = np.percentile(r_arr, 84, axis=0) - np.percentile(r_arr, 16, axis=0)
-        b_std = np.percentile(b_arr, 84, axis=0) - np.percentile(b_arr, 16, axis=0)
+        r_std = 0.5 * (np.percentile(r_arr, 84, axis=0) - np.percentile(r_arr, 16, axis=0))
+        b_std = 0.5 * (np.percentile(b_arr, 84, axis=0) - np.percentile(b_arr, 16, axis=0)) 
         r_mean = np.mean(r_arr, axis=0)
         b_mean = np.mean(b_arr, axis=0)
         return r_mean, r_std, b_mean, b_std

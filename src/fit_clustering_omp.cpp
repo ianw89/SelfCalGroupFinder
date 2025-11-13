@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <omp.h>
 #include <errno.h>
+#include <vector>
 #include <stdint.h>
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
@@ -23,10 +24,6 @@
 #define MIN_HALO_IDX 90 // log10(M_halo) = 9.0
 #define MAX_HALO_IDX 155 // log10(M_halo) = 9.0
 
-/* Global for the random numbers
- */
-struct drand48_data *rng_buffers;
-
 /* Globals for the halos
  */
 float BOX_SIZE = 250.0;
@@ -38,7 +35,8 @@ int NVOLUME_BINS = 0;
 // These are the HOD in bins
 double ncenr[MAXBINS][HALO_BINS], nsatr[MAXBINS][HALO_BINS], ncenb[MAXBINS][HALO_BINS], nsatb[MAXBINS][HALO_BINS], ncen[MAXBINS][HALO_BINS], nsat[MAXBINS][HALO_BINS], nhalo[MAXBINS][HALO_BINS];
 double nhalo_int[MAXBINS][HALO_BINS]; // integer version of nhalo (no vmax weight)
-float maglim[MAXBINS]; // the fainter limit of the mag bin;the brighter limit is this - 1.0. 
+float maglim[MAXBINS]; // the fainter limit of the mag bin
+float magmax[MAXBINS]; // the brighter limit of the mag bin
 int color_sep[MAXBINS]; // 1 means do red/blue seperately, 0 means all together
 float maxz[MAXBINS];  // the max redshift of the mag bin, calculated from the fainter mag limit
 float volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
@@ -55,31 +53,44 @@ double nhalo_r_tot[HALO_BINS], nhalo_b_tot[HALO_BINS], nhalo_tot[HALO_BINS];
 float REDSHIFT = 0.0,
       CVIR_FAC = 1.0;
 
+int RANDOM_SEED = 753;
+
 /* local functions
+
+
  */
 void nsat_smooth(double arr[MAXBINS][HALO_BINS]);
 void nsat_extrapolate(double arr[MAXBINS][HALO_BINS]);
-void nsat_extrapolate_old(double arr[MAXBINS][HALO_BINS]);
-float NFW_position(float mass, float x[]);
-float NFW_velocity(float mass, float v[]);
+float NFW_position(float mass, float x[], struct drand48_data *rng);
+float NFW_velocity(float mass, float v[], struct drand48_data *rng);
 float NFW_density(float r, float rs, float ps);
 float halo_concentration(float mass);
 float N_sat(float m, int imag, SampleType type);
 float N_cen(float m, int imag, SampleType type);
 void boxwrap_galaxy(float xh[], float xg[]);
-float rand_gaussian();
-float rand_f();
+float rand_gaussian(struct drand48_data *rng);
+float rand_f(struct drand48_data *rng);
 void write_hodinner(int type);
 void write_hod();
 void write_hodfit();
 
-void setup_rng() 
+/**
+ * @brief Generates a deterministic seed from for a luminosity bin, and sample type.
+ *
+ * This function creates a unique seed for each combination of inputs, ensuring that
+ * each mock has its own reproducible random number sequence.
+ * So long as the number of L bins does not change, you will get the same results for a mock.
+ *
+ * @param imag The index of the luminosity bin.
+ * @param type The sample type (e.g., ALL, QUIESCENT, STARFORMING).
+ * @return An unsigned long integer to be used as a seed.
+ */
+unsigned long generate_mock_seed(int imag, SampleType type)
 {
-  int nthreads = omp_get_max_threads();
-  rng_buffers = (struct drand48_data *) malloc(nthreads * sizeof(struct drand48_data));
-
-  for (int i = 0; i < nthreads; ++i)
-    srand48_r(753 + i, &(rng_buffers[i]));
+  unsigned long hash = 17;
+  hash = hash * 31 + imag;
+  hash = hash * 31 + static_cast<int>(type);
+  return hash;
 }
 
 void write_hod() {
@@ -138,7 +149,7 @@ void print_hod(const char* filename)
   fprintf(fp, "# HODs for volume limited samples\n");
   fprintf(fp, "# Volume bins: ");
   for (i = 0; i < NVOLUME_BINS; ++i)
-    fprintf(fp, "%.1f ", maglim[i]);
+    fprintf(fp, "%.1f %.1f", maglim[i], magmax[i]);
   fprintf(fp, "\n");
   fprintf(fp, "# Redshift limits: ");
   for (i = 0; i < NVOLUME_BINS; ++i)
@@ -155,13 +166,14 @@ void print_hod(const char* filename)
     fprintf(fp, "%.2f", i / 10.0);
     for (j = 0; j < NVOLUME_BINS; ++j) 
     { 
-      fprintf(fp, " %e %e %e %e %e %e %d", 
+      fprintf(fp, " %e %e %e %e %e %e %e %d", 
         ncenr[j][i],
         nsatr[j][i], 
         ncenb[j][i],
         nsatb[j][i],
         ncen[j][i],
         nsat[j][i],
+        nhalo[j][i],
         nhalo_int[j][i]);
     }
     fprintf(fp, "\n");
@@ -483,10 +495,10 @@ void tabulate_hods()
   int nbins = 0;
 
   if (NVOLUME_BINS <= 0) {
-    LOG_INFO("Reading Volume Bins...\n");
+    LOG_VERBOSE("Reading Volume Bins...\n");
 
     bins_fp = fopen(VOLUME_BINS_FILE, "r");
-    while (fscanf(bins_fp, "%f %f %f %d", &maglim[nbins], &maxz[nbins], &volume[nbins], &color_sep[nbins]) == 4)
+    while (fscanf(bins_fp, "%f %f %f %f %d", &maglim[nbins], &magmax[nbins], &maxz[nbins], &volume[nbins], &color_sep[nbins]) == 5)
     {
       nbins++;
       if (nbins >= MAXBINS)
@@ -514,78 +526,110 @@ void tabulate_hods()
     logmean_cen[j] = logmean_cenr[j] = logmean_cenb[j] = 0.0;
   }
   
+  std::vector<bool> halo_counted(NGAL, false); // Keep track of which centrals (halos) have been counted
+
+  // First loop over each halo to get nhalo counts
   for (i = 0; i < NGAL; ++i)
   {
-    // what is host halo mass?
-    // im is the mass bin index
+    // Determine the host halo's central galaxy index
     if (GAL[i].psat > 0.5)
     {
       igrp = GAL[i].igrp;
-      im = log10(GAL[igrp].mass) / 0.1; 
-    }
-    else
-    {
-      // For centrals, count this halo in nhalo for the relevant redshift bins
-      im = (int)(log10(GAL[i].mass) / 0.1);
-      for (j = 0; j < NVOLUME_BINS; ++j)
-        if (GAL[i].redshift < maxz[j])
-        {
-          w0 = 1 / volume[j];
-          if (GAL[i].vmax < volume[j])
-            // TODO Should this ever happen?
-            //LOG_WARN("WARNING: vmax (%f) < volume (%f) for galaxy index %d. Using 1/vmax weight.\n", GAL[i].vmax, volume[j], i);
-            w0 = 1 / GAL[i].vmax;
-            if (!isfinite(w0)) {
-              LOG_ERROR("ERROR: w0 is not finite for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
-              assert(isfinite(w0));
-            }
-            if (isnan(w0)) {
-              LOG_ERROR("ERROR: w0 is NaN for galaxy index %d with vmax=%f\n", i, GAL[i].vmax);
-              assert(!isnan(w0));
-            }
-          nhalo[j][im] += w0; // 1/vmax weight the halo count
-          nhalo_int[j][im]++; // integer version of nhalo (no vmax weight)
-        }
+    } else {
+      igrp = i;
     }
 
-    // check the magnitude of the galaxy for the luminosity bins
-    mag = -2.5 * GAL[i].loglum + 4.65;
-    ibin = (int)(fabs(mag) + maglim[0]); // So if first bin is -17, mag=-17.5, ibin=0
-    if (STELLAR_MASS)
+    // If we've already processed this halo, skip it
+    if (halo_counted[igrp]) {
+      continue;
+    }
+    halo_counted[igrp] = true;  
+
+    im = (int)(log10(GAL[i].mass) / 0.1);
+    assert (im >= 0 && im < HALO_BINS);
+
+    for (j = 0; j < NVOLUME_BINS; ++j){
+      if (GAL[i].redshift < maxz[j])
+      {
+        w0 = 1 / volume[j];
+        if (GAL[i].vmax < volume[j]) {
+          //LOG_WARN("WARNING: vmax (%f) < volume (%f) for halo index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, volume[j], i, mag, maglim[j], GAL[i].redshift, maxz[j]);
+          w0 = 1 / GAL[i].vmax;
+        }
+        if (!isfinite(w0) || isnan(w0)) {
+            LOG_ERROR("ERROR: w0 is invalid for halo %d with vmax=%f\n", igrp, GAL[igrp].vmax);
+            assert(false);
+        }
+        nhalo[j][im] += w0; // 1/vmax weight the halo count
+        nhalo_int[j][im]++; // integer version of nhalo (no vmax weight)
+      }
+    }
+  }
+
+  // Then loop over each galaxy to get ncen/nsat counts
+  for (i = 0; i < NGAL; ++i)
+  {
+    if (GAL[i].psat > 0.5)
     {
-      mag = GAL[i].loglum * 2;
-      ibin = (int)(mag - maglim[0]); // They will both be positive
+      igrp = GAL[i].igrp;
+    } else {
+      igrp = i;
+    }
+    im = (int)(log10(GAL[i].mass) / 0.1);
+
+    // Get the mag (or mass) bin index
+    ibin = -1;
+    if (STELLAR_MASS) {
+      mag = GAL[i].loglum; // log(M*)
+
+      for (j = 0; j < NVOLUME_BINS; ++j) {
+        if (mag >= maglim[j] && mag < (magmax[j])) {
+            ibin = j;
+            break;
+        }
+      }
+    }
+    else {
+      mag = -2.5 * GAL[i].loglum + 4.65; // convert to r-band mag
+
+      for (j = 0; j < NVOLUME_BINS; ++j) {
+          if (mag <= maglim[j] && mag > (magmax[j])) {
+              ibin = j;
+              break;
+          }
+      }
     }
 
     if (ibin < 0 || ibin >= NVOLUME_BINS)
-      continue; // skip if not in the magnitude range
+      continue; // skip if not in any bins mag range
     if (GAL[i].redshift > maxz[ibin])
-      continue; // skip if not in the redshift range; peculiar velocities can push galaxies out of the bin...
-    if (im < 0 || im >= HALO_BINS)
-      LOG_ERROR("err> %d %e\n", im, GAL[i].mass);
+      continue; // skip if not in the redshift range of it's bin, not sure how it happens
+    assert (im >= 0 && im < HALO_BINS);
 
     // vmax-weight everything
     w0 = 1 / volume[ibin];
     if (GAL[i].vmax < volume[ibin])
+    {
+      // Most of the galaxies that hit this are because of k-corrections. 
+      // VMAX should always use un-corrected mags, which means at the faint edge of the bin it is possible
+      // for a galaxy to have a vmax less than the volume of the bin.
+      // However, in some rare cases it seems to be happening even away from the edges, which I don't understand. BUG
+      //LOG_WARN("WARNING: vmax (%f) < volume (%f) for galaxy index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, volume[ibin], i, mag, maglim[ibin], GAL[i].redshift, maxz[ibin]);
       w0 = 1 / GAL[i].vmax;
-
-    if (GAL[i].psat > 0.5)
-      nsat[ibin][im] += w0;
-    else
-      ncen[ibin][im] += w0;
-
-    if (GAL[i].color > 0.8) // red
-    {
-      if (GAL[i].psat > 0.5)
-        nsatr[ibin][im] += w0;
-      else
-        ncenr[ibin][im] += w0;
     }
-    else // blue
-    {
-      if (GAL[i].psat > 0.5)
+
+    if (GAL[i].psat > 0.5) {
+      nsat[ibin][im] += w0;
+      if (GAL[i].color > 0.8) // red
+        nsatr[ibin][im] += w0;
+      else // blue
         nsatb[ibin][im] += w0;
-      else
+    }
+    else {
+      ncen[ibin][im] += w0;
+      if (GAL[i].color > 0.8) // red
+        ncenr[ibin][im] += w0;
+      else // blue
         ncenb[ibin][im] += w0;
     }
   }
@@ -596,11 +640,11 @@ void tabulate_hods()
   for (i = 0; i < NVOLUME_BINS; ++i)
     for (j = 0; j < HALO_BINS; ++j) {
       if (nsatr[i][j] > 0 && nhalo[i][j] == 0) {
-        fprintf(stderr,"WARNING: nhalo[%d][%d] = 0, setting to nsatr[%d][%d] = %e\n", i, j, i, j, nsatr[i][j]);
+        LOG_WARN("WARNING: nhalo[%d][%d] = 0, setting to nsatr[%d][%d] = %e\n", i, j, i, j, nsatr[i][j]);
         nhalo[i][j] = nsatr[i][j];
       }
       if (nsatb[i][j] > 0 && nhalo[i][j] == 0) {
-        fprintf(stderr,"WARNING: nhalo[%d][%d] = 0, setting to nsatb[%d][%d] = %e\n", i, j, i, j, nsatb[i][j]);
+        LOG_WARN("WARNING: nhalo[%d][%d] = 0, setting to nsatb[%d][%d] = %e\n", i, j, i, j, nsatb[i][j]);
         nhalo[i][j] = nsatb[i][j];
       }
       assert(!isnan(ncenr[i][j]));
@@ -618,6 +662,8 @@ void tabulate_hods()
       assert(isfinite(ncen[i][j]));
       assert(isfinite(nhalo[i][j]));
     }
+
+  //print_hod("hodtest.out");
 
   // *****************************************
   // Now LHMR, which we want to print out
@@ -823,35 +869,6 @@ void nsat_smooth(double arr[MAXBINS][HALO_BINS])
   }
 }
 
-void nsat_extrapolate_old(double arr[MAXBINS][HALO_BINS])
-{
-  // fit the high-mass satellite occupation function, force slope=1
-
-  for (int imag = 0; imag < NVOLUME_BINS; ++imag)
-  {
-    float mag = maglim[imag];
-    int istart = 130;
-
-    if (imag >= 2)
-      istart = 135;
-    int iend = 140;
-    if (imag >= 2)
-      iend = 145;
-
-    float bfit = 0;
-    if (imag == 0)
-    {
-      istart = 120;
-      iend = 130;
-    }
-    for (int i = istart; i <= iend; ++i)
-      bfit += arr[imag][i] - i / 10.0;
-    bfit = bfit / (iend - istart + 1);
-    for (int i = iend; i <= 160; ++i)
-      arr[imag][i] = 1 * i / 10.0 + bfit;
-  }
-}
-
 void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
 {  
   // Extend the satellite occupation function for high-mass halos
@@ -999,6 +1016,11 @@ void populate_simulation_omp(int imag, SampleType type)
   if (color_sep[imag] > 0 && type == ALL)
     return;
 
+  // Setup a RNG at the same place for every time we want to build a mock
+  // Thus if the group catalog state is the same, the mock will be the same
+  struct drand48_data rng;
+  srand48_r(generate_mock_seed(imag, type), &rng);
+
   imag_offset = (int)fabs(maglim[0]);
   imag_mult = 1;
   if (STELLAR_MASS)
@@ -1030,7 +1052,7 @@ void populate_simulation_omp(int imag, SampleType type)
     mass = HALO[i].mass;
     logm = log10(mass);
     ncen_calc = N_cen(mass, imag, type);
-    r = rand_f();
+    r = rand_f(&rng);
     if (r < ncen_calc)
     {
       fprintf(outf, "%.5f %.5f %.5f %f %f %f %d %f\n",
@@ -1042,7 +1064,7 @@ void populate_simulation_omp(int imag, SampleType type)
     // Assume poisson variance in the number of satellites
     // TODO could update this to use our measured variance?
     nsat_calc = N_sat(mass, imag, type);
-    nsat_rand = poisson_deviate(nsat_calc);
+    nsat_rand = poisson_deviate(nsat_calc, &rng);
 
     // For a really bad set of parameters, we can get a huge number of satellites for some halos.
     // Cap it so we don't print off a 10 Terabyte file! Any MCMC or whatever will move on hopefully.
@@ -1057,8 +1079,8 @@ void populate_simulation_omp(int imag, SampleType type)
 
     for (j = 1; j <= nsat_rand; ++j)
     {
-      NFW_position(mass, xg);
-      NFW_velocity(mass, vg);
+      NFW_position(mass, xg, &rng);
+      NFW_velocity(mass, vg, &rng);
       xh[0] = HALO[i].x;
       xh[1] = HALO[i].y;
       xh[2] = HALO[i].z;
@@ -1185,7 +1207,7 @@ float N_sat(float m, int imag, SampleType type)
 //=    - Input:  Mean value of distribution                                 =
 //=    - Output: Returns with Poisson distributed random variable           =
 //===========================================================================
-int poisson_deviate(float mean)
+int poisson_deviate(float mean, struct drand48_data *rng)
 {
   // Efficient Poisson deviate using inversion for small mean, normal approx for large mean
   if (mean <= 0)
@@ -1196,50 +1218,22 @@ int poisson_deviate(float mean)
     float p = 1.0f;
     int k = 0;
     do {
-      p *= rand_f();
+      p *= rand_f(rng);
       k++;
     } while (p > L);
     return k - 1;
   } else {
     // Normal approximation for large mean
     float g = sqrtf(mean);
-    float val = mean + g * rand_gaussian();
+    float val = mean + g * rand_gaussian(rng);
     if (val < 0) val = 0;
     return (int)(val + 0.5f);
   }
 }
 
-int poisson_deviate_old(float x)
-{
-  float r;
-  int poi_value; // Computed Poisson value to be returned
-  double t_sum;  // Time sum value
-
-  if (x > 50)
-    return (int)x;
-
-  x = 1 / x; //???
-  // Loop to generate Poisson values using exponential distribution
-  poi_value = 0;
-  t_sum = 0.0;
-  while (1)
-  {
-    r = rand_f();
-    t_sum = t_sum - x * log(r);
-    // printf("POI %d %e %e %e %e\n",poi_value,x,r,log(r),t_sum);
-    if (t_sum >= 1.0)
-      break;
-    poi_value++;
-  }
-
-  return (poi_value);
-}
-
-float rand_gaussian()
+float rand_gaussian(struct drand48_data *rng)
 {
   // Use Box-Muller transform with drand48_r for thread safety
-  int tnum = omp_get_thread_num();
-  struct drand48_data *rng = &rng_buffers[tnum];
   double u, v, s;
 
   do {
@@ -1256,10 +1250,8 @@ float rand_gaussian()
 }
 
 
-float rand_f()
+float rand_f(struct drand48_data *rng)
 {
-  int tnum = omp_get_thread_num();
-  struct drand48_data *rng = &(rng_buffers[tnum]);
   double r;
   drand48_r(rng, &r);
   return (float)r;
@@ -1269,7 +1261,7 @@ float rand_f()
  * a probability given by the NFW profile for a halo of the input
  * mass (and including the CVIR_FAC)
  */
-float NFW_position(float mass, float x[])
+float NFW_position(float mass, float x[], struct drand48_data *rng)
 {
   float r, pr, max_p, costheta, sintheta, phi1, signs, rvir, rs, cvir, mfac = 1;
   double rr;
@@ -1280,16 +1272,16 @@ float NFW_position(float mass, float x[])
 
   for (;;)
   {
-    r = rand_f() * rvir;
+    r = rand_f(rng) * rvir;
     pr = NFW_density(r, rs, 1.0) * r * r * 4.0 * PI / max_p;
 
-    if (rand_f() <= pr)
+    if (rand_f(rng) <= pr)
     {
-      costheta = 2. * (rand_f() - .5);
+      costheta = 2. * (rand_f(rng) - .5);
       sintheta = sqrt(1. - costheta * costheta);
-      signs = 2. * (rand_f() - .5);
+      signs = 2. * (rand_f(rng) - .5);
       costheta = signs * costheta / fabs(signs);
-      phi1 = 2.0 * PI * rand_f();
+      phi1 = 2.0 * PI * rand_f(rng);
 
       x[0] = r * sintheta * cos(phi1);
       x[1] = r * sintheta * sin(phi1);
@@ -1308,7 +1300,7 @@ float NFW_density(float r, float rs, float ps)
 
 /* This sets the velocity to be isotropic Gaussian.
  */
-float NFW_velocity(float mass, float v[])
+float NFW_velocity(float mass, float v[], struct drand48_data *rng)
 {
   // static float fac = -1;
   float sigv, vbias = 1, mfac = 1;
@@ -1318,7 +1310,7 @@ float NFW_velocity(float mass, float v[])
   fac = sqrt(4.499E-48) * pow(4 * DELTA_HALO * PI * OMEGA_M * RHO_CRIT / 3, 1.0 / 6.0) * 3.09E19 * sqrt(1 + REDSHIFT);
   sigv = fac * pow(mass, 1.0 / 3.0) / ROOT2;
   for (i = 0; i < 3; ++i)
-    v[i] = rand_gaussian() * sigv;
+    v[i] = rand_gaussian(rng) * sigv;
   return (0);
 }
 

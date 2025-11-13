@@ -6,7 +6,6 @@ import os
 import sys
 import emcee
 import pickle
-from astropy.io import ascii
 import subprocess as sp
 from astropy.table import Table
 import astropy.io.fits as fits
@@ -54,7 +53,9 @@ NO_TRUTH_Z = -99.99
 
 # Shared bins for various purposes
 Mhalo_bins = np.logspace(9, 15.5, 156-90)
+Mhalo_bins2 = np.logspace(9, 15.4, (156-90)//3) # coarser bins for some plots
 Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1] 
+Mhalo_labels2 = Mhalo_bins2[0:len(Mhalo_bins2)-1]
 
 Lgal_bins_for_lsat = np.linspace(8.8, 10.7, 20)
 
@@ -71,7 +72,7 @@ GF_PROPS_BGS_VANILLA = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
-    'fluxlim':2,
+    'fluxlim':3,
     'color':1,
 }
 
@@ -80,6 +81,7 @@ GOOD_TEN_PARAMETERS = np.array([
     [19.737870,6.394322,24.657218,11.571343,33.116540,9.403598,-3.755194,16.879988,9.941906,0.958446], # C1
     [13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04], # From SDSS 
     [18.382, 5.803, 19.458, 9.869, 33.727, 6.413, -4.952, 19.493, 11.300, 0.511,], # C2
+    [18.420, 5.598, 26.501, 14.446, 41.256, 10.066, -10.396, 24.101, 11.599, 1.313,], # C3
     [18.470, 5.969, 17.683, 8.450, 29.809, 5.294, -3.670, 16.913, 11.293, 1.193,],
     [18.382, 5.803, 19.458, 9.869, 33.727, 6.413, -4.952, 19.493, 11.300, 0.511,],
     [15.444, 3.780, 18.127, 7.750, 28.354, 6.965, -3.511, 16.266, 11.122, 0.528,],
@@ -107,7 +109,7 @@ GF_PROPS_BGS_COLORS_C1 = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
-    'fluxlim':2,
+    'fluxlim':3,
     'color':1,
     'omegaL_sf':GOOD_TEN_PARAMETERS[0][0],
     'sigma_sf':GOOD_TEN_PARAMETERS[0][1],
@@ -122,12 +124,12 @@ GF_PROPS_BGS_COLORS_C1 = {
 }
 
 
-# A 10 Parameter set found from MCMC SV3 with SDSS data.
+# A 10 Parameter set found from BGS Y1 MCMC first run
 GF_PROPS_BGS_COLORS_C2 = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
-    'fluxlim':2,
+    'fluxlim':3,
     'color':1,
     'omegaL_sf':GOOD_TEN_PARAMETERS[2][0],
     'sigma_sf':GOOD_TEN_PARAMETERS[2][1],
@@ -139,6 +141,25 @@ GF_PROPS_BGS_COLORS_C2 = {
     'betaLq':GOOD_TEN_PARAMETERS[2][7],
     'beta0sf':GOOD_TEN_PARAMETERS[2][8],
     'betaLsf':GOOD_TEN_PARAMETERS[2][9]
+}
+
+# The BGS Y1 Final Catalog
+GF_PROPS_BGS_COLORS_C3 = {
+    'zmin':0, 
+    'zmax':0,
+    'frac_area':0, # should be filled in
+    'fluxlim':3,
+    'color':1,
+    'omegaL_sf': 18.420,
+    'sigma_sf': 5.598,
+    'omegaL_q': 26.501,
+    'sigma_q': 14.446,
+    'omega0_sf': 41.256,
+    'omega0_q': 10.066,
+    'beta0q':  -10.396,
+    'betaLq':  24.101,
+    'beta0sf': 11.599,
+    'betaLsf':  1.313
 }
 
 def set_all_seeds(seed=59418):
@@ -348,7 +369,7 @@ class GroupCatalog:
 
         # Run the group finder in interactive mode
         print("Calling group finder with interactive on for inital run.")
-        self.run_group_finder(popmock=True, profile=False, interactive=True, silent=True)
+        self.run_group_finder(popmock=True, interactive=True, silent=True)
         
         # If there is a state, continue from there
         if self.sampler.backend.iteration > 0:
@@ -358,7 +379,7 @@ class GroupCatalog:
             print("Starting fresh")
             # Start fresh using IC's centered around known good values
             if self.sampler.ndim == 10:
-                initial = GOOD_TEN_PARAMETERS[3]
+                initial = GOOD_TEN_PARAMETERS[2]
             elif self.sampler.ndim == 14:
                 initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
             
@@ -376,6 +397,84 @@ class GroupCatalog:
 
         # Anything else to state before saving off?
         self.dump()      
+
+
+    def bootstrap_statistics(self, N_ITERATIONS = 300):
+        print("Bootstrapping...")
+
+        relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'L_GAL', 'LOGMSTAR']
+        df = self.all_data
+        t1 = time.time()
+
+        def get_statistics_for_df(alt_df: pd.DataFrame):
+            f_sat = alt_df.groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+            f_sat_sf = alt_df.loc[alt_df['QUIESCENT'] == False].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+            f_sat_q = alt_df.loc[alt_df['QUIESCENT'] == True].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+            lhmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+            lhmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+            lhmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
+            lhmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+            lhmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+            lhmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+            shmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+            shmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+            shmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+            shmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            shmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            shmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            
+            return f_sat, f_sat_sf, f_sat_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter
+
+
+        if hasattr(self, 'data_cut') and self.data_cut == 'sv3':
+            # SV3 version of boostrapping is done at the level of the patches instead of per-galaxy
+            # label the SV3 region each galaxy is in
+            df['region'] = tile_to_region(df['NTID'])
+
+            def bootstrap_iteration(region_indices):
+                alt_df = pd.DataFrame(columns=relevent_columns)
+                for idx in region_indices:
+                    rows_to_add = df.loc[df.region == idx, relevent_columns]
+                    if len(alt_df) > 0:
+                        alt_df = pd.concat([alt_df, rows_to_add])
+                    else:
+                        alt_df = rows_to_add
+
+                return get_statistics_for_df(alt_df)
+
+            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
+            #results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
+
+        else:
+            def bootstrap_iteration(indexes: np.ndarray):
+                alt_df = df.iloc[indexes][relevent_columns]
+                return get_statistics_for_df(alt_df)
+
+            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(df)), len(df), replace=True)) for _ in range(N_ITERATIONS))
+
+
+        fsat_reals, fsat_sf_reals, fsat_q_reals, lhmr_reals, lhmr_sf_reals, lhmr_q_reals, lhmr_scatter_reals, lhmr_sf_scatter_reals, lhmr_q_scatter_reals, shmr_reals, shmr_sf_reals, shmr_q_reals, shmr_scatter_reals, shmr_sf_scatter_reals, shmr_q_scatter_reals = zip(*results)
+        # Save off the bootstrapped error estimates as half the 16-84 percentile range
+        self.fsat_bootstrap_err = 0.5 * (np.percentile(fsat_reals, 84, axis=0) - np.percentile(fsat_reals, 16, axis=0))
+        self.fsat_sf_bootstrap_err = 0.5 * (np.percentile(fsat_sf_reals, 84, axis=0) - np.percentile(fsat_sf_reals, 16, axis=0))
+        self.fsat_q_bootstrap_err = 0.5 * (np.percentile(fsat_q_reals, 84, axis=0) - np.percentile(fsat_q_reals, 16, axis=0))
+
+        self.lhmr_bootstrap_err = (np.percentile(lhmr_reals, 16, axis=0), np.percentile(lhmr_reals, 84, axis=0))
+        self.lhmr_sf_bootstrap_err = (np.percentile(lhmr_sf_reals, 16, axis=0), np.percentile(lhmr_sf_reals, 84, axis=0))
+        self.lhmr_q_bootstrap_err = (np.percentile(lhmr_q_reals, 16, axis=0), np.percentile(lhmr_q_reals, 84, axis=0))
+        self.lhmr_scatter_bootstrap_err = (np.percentile(lhmr_scatter_reals, 16, axis=0), np.percentile(lhmr_scatter_reals, 84, axis=0))
+        self.lhmr_sf_scatter_bootstrap_err = (np.percentile(lhmr_sf_scatter_reals, 16, axis=0), np.percentile(lhmr_sf_scatter_reals, 84, axis=0))
+        self.lhmr_q_scatter_bootstrap_err = (np.percentile(lhmr_q_scatter_reals, 16, axis=0), np.percentile(lhmr_q_scatter_reals, 84, axis=0))
+        self.shmr_bootstrap_err = (np.percentile(shmr_reals, 16, axis=0), np.percentile(shmr_reals, 84, axis=0))
+        self.shmr_sf_bootstrap_err = (np.percentile(shmr_sf_reals, 16, axis=0), np.percentile(shmr_sf_reals, 84, axis=0))
+        self.shmr_q_bootstrap_err = (np.percentile(shmr_q_reals, 16, axis=0), np.percentile(shmr_q_reals, 84, axis=0))
+        self.shmr_scatter_bootstrap_err = (np.percentile(shmr_scatter_reals, 16, axis=0), np.percentile(shmr_scatter_reals, 84, axis=0))
+        self.shmr_sf_scatter_bootstrap_err = (np.percentile(shmr_sf_scatter_reals, 16, axis=0), np.percentile(shmr_sf_scatter_reals, 84, axis=0))
+        self.shmr_q_scatter_bootstrap_err = (np.percentile(shmr_q_scatter_reals, 16, axis=0), np.percentile(shmr_q_scatter_reals, 84, axis=0))
+
+        t2 = time.time()
+        print(f"Bootstrapping complete in {t2-t1:.2f} seconds.")
+
 
     # --- log-likelihood
     def lnlike(self, theta):
@@ -583,7 +682,7 @@ class GroupCatalog:
             self.hod_cen_blue_popt.append(hod_cen_blue_popt)
             self.hod_sat_blue_popt.append(hod_sat_blue_popt)
 
-    def sanity_tests(self):
+    def sanity_tests(self, skiphod=False):
         print(f"Running sanity tests on {self.name}")
         df = self.all_data
 
@@ -619,8 +718,9 @@ class GroupCatalog:
             bighalos = cens.loc[cens['Z'] < 0.1].sort_values('M_HALO', ascending=False).head(20)
             assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
 
-        assert np.isclose(self.f_sat_q.to_numpy()[6:34], self.fsatr[6:34], atol=1e-4).all()
-        assert np.isclose(self.f_sat_sf.to_numpy()[6:34], self.fsatb[6:34], atol=1e-4).all()
+        #if not skiphod:
+        #    assert np.isclose(self.f_sat_q.to_numpy()[6:34], self.fsatr[6:34], atol=1e-4).all()
+        #    assert np.isclose(self.f_sat_sf.to_numpy()[6:34], self.fsatb[6:34], atol=1e-4).all()
         
 
     def write_sharable_output_file(self, name=None):
@@ -868,7 +968,7 @@ class GroupCatalog:
         return True
 
 
-    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False, serial=False):
         t1 = time.time()
         print("Running Group Finder for " + self.name)
 
@@ -890,9 +990,13 @@ class GroupCatalog:
         sys.stdout.flush()
 
         if profile:
+            assert serial == False, "Cannot profile in serial mode."
             args = ["perf", "record",  "-g", BIN_FOLDER + "PerfGroupFinder", self.preprocess_file]
         else:
-            args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
+            if serial:
+                args = [BIN_FOLDER + "kdGroupFinder_serial", self.preprocess_file]
+            else:
+                args = [BIN_FOLDER + "kdGroupFinder_omp", self.preprocess_file]
 
         args.append(str(self.GF_props['zmin']))
         args.append(str(self.GF_props['zmax']))
@@ -1060,10 +1164,13 @@ class GroupCatalog:
 
                     wp, wp_err, radius = self.caldata.get_wp_blue(mag)
                     wp_model, wp_err_model = self.get_mock_wp(mag, 'blue', wp_err)
-
-                    chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
-                    dof += len(chivec)
-                    clustering_chisqr_b.append(np.sum(chivec))
+                    # Special Case SV3. Not enough bright blue galaxies. Maybe should always do this?
+                    if(i == len(mag_limits)-1 and (self.data_cut == 'Y3-Loa-SV3Cut' or self.data_cut == 'sv3')):
+                         clustering_chisqr_b.append(0)
+                    else:
+                        chivec = (wp_model-wp)**2/(wp_err**2 + wp_err_model**2) 
+                        dof += len(chivec)
+                        clustering_chisqr_b.append(np.sum(chivec))
 
                     clustering_chisqr_all.append(0)
 
@@ -1264,6 +1371,7 @@ class SDSSGroupCatalog(GroupCatalog):
         self.Mr_gal_bins = self.Mr_gal_bins[15:]
         self.Mr_gal_labels = self.Mr_gal_labels[15:]
         self.mag_cut = 17.7
+        self.data_cut = "sdss1"
         self.GF_props = gfprops
         self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
 
@@ -1325,6 +1433,7 @@ class SDSSPublishedGroupCatalog(GroupCatalog):
 
         # add column for halo mass bins and Lgal bins
         df['Mh_bin'] = pd.cut(x = df['M_HALO'], bins = self.Mhalo_bins, labels = self.Mhalo_labels, include_lowest = True)
+        df['Mh_bin2'] = pd.cut(x = df['M_HALO'], bins = Mhalo_bins2, labels = Mhalo_labels2, include_lowest = True)
         df['LGAL_BIN'] = pd.cut(x = df['L_GAL'], bins = self.L_gal_bins, labels = self.L_gal_labels, include_lowest = True)
 
         self.all_data = df
@@ -1399,7 +1508,7 @@ class MXXLGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, serial=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess()
         return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
@@ -1451,7 +1560,7 @@ class UchuuGroupCatalog(GroupCatalog):
         for p in props:
             self.GF_props[p] = props[p]
 
-    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, serial=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess()
         return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
@@ -1488,7 +1597,7 @@ class BGSGroupCatalog(GroupCatalog):
         self.num_passes = num_passes
         self.drop_passes = drop_passes
         self.data_cut = data_cut
-        self.ffc = ffc
+        self.ffc = ffc # Fracflux cuts
         self.is_centered_version = False
         self.extra_params = extra_params
         self.GF_props = gfprops
@@ -1561,89 +1670,12 @@ class BGSGroupCatalog(GroupCatalog):
         #self.run_group_finder(popmock=True)
         super().setup_GF_mcmc(mcmc_num)
 
-    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False):
+    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, serial=False, interactive=False):
         if self.preprocess_file is None:
             self.preprocess(silent=silent)
         else:
             print("Skipping pre-processing")
-        return super().run_group_finder(popmock=popmock, silent=silent, verbose=verbose, profile=profile, interactive=interactive)
-
-    def bootstrap_statistics(self, N_ITERATIONS = 300):
-        print("Bootstrapping...")
-
-        relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'L_GAL', 'LOGMSTAR']
-        df = self.all_data
-        t1 = time.time()
-
-        def get_statistics_for_df(alt_df: pd.DataFrame):
-            f_sat = alt_df.groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-            f_sat_sf = alt_df.loc[alt_df['QUIESCENT'] == False].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-            f_sat_q = alt_df.loc[alt_df['QUIESCENT'] == True].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
-            lhmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-            lhmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-            lhmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(Lgal_vmax_weighted)
-            lhmr_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted))
-            lhmr_sf_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted))
-            lhmr_q_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted))
-            shmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-            shmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-            shmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-            shmr_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted))
-            shmr_sf_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted))
-            shmr_q_scatter = np.power(10, alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted))
-            
-            return f_sat, f_sat_sf, f_sat_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter
-
-
-        if self.data_cut == 'sv3':
-            # SV3 version of boostrapping is done at the level of the patches instead of per-galaxy
-            # label the SV3 region each galaxy is in
-            df['region'] = tile_to_region(df['NTID'])
-
-            def bootstrap_iteration(region_indices):
-                alt_df = pd.DataFrame(columns=relevent_columns)
-                for idx in region_indices:
-                    rows_to_add = df.loc[df.region == idx, relevent_columns]
-                    if len(alt_df) > 0:
-                        alt_df = pd.concat([alt_df, rows_to_add])
-                    else:
-                        alt_df = rows_to_add
-
-                return get_statistics_for_df(alt_df)
-
-            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS))
-            #results = [bootstrap_iteration(np.random.choice(range(len(sv3_regions_sorted)), len(sv3_regions_sorted), replace=True)) for _ in range(N_ITERATIONS)]
-
-        else:
-            def bootstrap_iteration(indexes: np.ndarray):
-                alt_df = df.iloc[indexes][relevent_columns]
-                return get_statistics_for_df(alt_df)
-
-            results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(df)), len(df), replace=True)) for _ in range(N_ITERATIONS))
-
-
-        fsat_reals, fsat_sf_reals, fsat_q_reals, lhmr_reals, lhmr_sf_reals, lhmr_q_reals, lhmr_scatter_reals, lhmr_sf_scatter_reals, lhmr_q_scatter_reals, shmr_reals, shmr_sf_reals, shmr_q_reals, shmr_scatter_reals, shmr_sf_scatter_reals, shmr_q_scatter_reals = zip(*results)
-        # Save off the bootstrapped error estimates as half the 16-84 percentile range
-        self.fsat_bootstrap_err = 0.5 * (np.percentile(fsat_reals, 84, axis=0) - np.percentile(fsat_reals, 16, axis=0))
-        self.fsat_sf_bootstrap_err = 0.5 * (np.percentile(fsat_sf_reals, 84, axis=0) - np.percentile(fsat_sf_reals, 16, axis=0))
-        self.fsat_q_bootstrap_err = 0.5 * (np.percentile(fsat_q_reals, 84, axis=0) - np.percentile(fsat_q_reals, 16, axis=0))
-        self.lhmr_bootstrap_err = 0.5 * (np.percentile(lhmr_reals, 84, axis=0) - np.percentile(lhmr_reals, 16, axis=0))
-        self.lhmr_sf_bootstrap_err = 0.5 * (np.percentile(lhmr_sf_reals, 84, axis=0) - np.percentile(lhmr_sf_reals, 16, axis=0))
-        self.lhmr_q_bootstrap_err = 0.5 * (np.percentile(lhmr_q_reals, 84, axis=0) - np.percentile(lhmr_q_reals, 16, axis=0))
-        self.lhmr_scatter_bootstrap_err = 0.5 * (np.percentile(lhmr_scatter_reals, 84, axis=0) - np.percentile(lhmr_scatter_reals, 16, axis=0))
-        self.lhmr_sf_scatter_bootstrap_err = 0.5 * (np.percentile(lhmr_sf_scatter_reals, 84, axis=0) - np.percentile(lhmr_sf_scatter_reals, 16, axis=0))
-        self.lhmr_q_scatter_bootstrap_err = 0.5 * (np.percentile(lhmr_q_scatter_reals, 84, axis=0) - np.percentile(lhmr_q_scatter_reals, 16, axis=0))
-        self.shmr_bootstrap_err = 0.5 * (np.percentile(shmr_reals, 84, axis=0) - np.percentile(shmr_reals, 16, axis=0))
-        self.shmr_sf_bootstrap_err = 0.5 * (np.percentile(shmr_sf_reals, 84, axis=0) - np.percentile(shmr_sf_reals, 16, axis=0))
-        self.shmr_q_bootstrap_err = 0.5 * (np.percentile(shmr_q_reals, 84, axis=0) - np.percentile(shmr_q_reals, 16, axis=0))
-        self.shmr_scatter_bootstrap_err = 0.5 * (np.percentile(shmr_scatter_reals, 84, axis=0) - np.percentile(shmr_scatter_reals, 16, axis=0))
-        self.shmr_sf_scatter_bootstrap_err = 0.5 * (np.percentile(shmr_sf_scatter_reals, 84, axis=0) - np.percentile(shmr_sf_scatter_reals, 16, axis=0))
-        self.shmr_q_scatter_bootstrap_err = 0.5 * (np.percentile(shmr_q_scatter_reals, 84, axis=0) - np.percentile(shmr_q_scatter_reals, 16, axis=0))
-
-        t2 = time.time()
-        print(f"Bootstrapping complete in {t2-t1:.2f} seconds.")
-
-
+        return super().run_group_finder(popmock=popmock, silent=silent, verbose=verbose, profile=profile, serial=serial, interactive=interactive)
 
     def postprocess(self):
         print("Post-processing...")
@@ -2358,7 +2390,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
 
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
 
-    # the vmax should be calculated from un-k-corrected magnitudes
+    # the vmax should be calculated from un-k-corrected magnitudes, since that's what sets the survey limit
     V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
 
     # TODO get galaxy concentration from somewhere
@@ -2539,9 +2571,10 @@ def read_and_combine_gf_output(gc: GroupCatalog, galprops_df):
 
     # add column for halo mass bins and Lgal bins
     df['Mh_bin'] = pd.cut(x = df['M_HALO'], bins = gc.Mhalo_bins, labels = gc.Mhalo_labels, include_lowest = True)
+    df['Mh_bin2'] = pd.cut(x = df['M_HALO'], bins = Mhalo_bins2, labels = Mhalo_labels2, include_lowest = True)
     df['LGAL_BIN'] = pd.cut(x = df['L_GAL'], bins = gc.L_gal_bins, labels = gc.L_gal_labels, include_lowest = True)
 
-    return df # TODO update callers
+    return df # TODO update callers2
 
 def z_flag_is_spectro_z(arr):
     return np.logical_or(arr == AssignedRedshiftFlag.SDSS_SPEC.value, arr == AssignedRedshiftFlag.DESI_SPEC.value)

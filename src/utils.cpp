@@ -22,6 +22,26 @@ float func_dr1(float z)
   return pow(OMEGA_M * (1 + z) * (1 + z) * (1 + z) + (1 - OMEGA_M), -0.5);
 }
 
+/**
+ * @brief Compute the comoving line-of-sight distance for a given redshift.
+ *
+ * Evaluates the integral
+ *   D(z) = (c / H0) * ∫_0^z func_dr1(z') dz'
+ * using the qromo integrator with the mid-point rule. The integrand
+ * is provided by func_dr1 and the prefactor c_on_H0 represents c / H0
+ * in distance units (for example Mpc when H0 is in km/s/Mpc).
+ *
+ * @param z Redshift at which to compute the distance. If z <= 0, the
+ *          function returns 0.
+ *
+ * @return Comoving radial distance to redshift z in the same units as
+ *         c_on_H0 (typically Mpc).
+ *
+ * @note The numerical accuracy depends on the implementation of func_dr1
+ *       and the settings of the qromo/midpnt integrator. Ensure that
+ *       c_on_H0 and func_dr1 are defined consistently with the chosen
+ *       cosmological model.
+ */
 float distance_redshift(float z)
 {
   float x;
@@ -69,7 +89,17 @@ float psat(struct galaxy *central, float dr, float dz, float bprob)
   #ifndef OPTIMIZE
   if (isnan(result))
   {
-    fprintf(stderr, "Unexpected nan result in psat: dr=%f dz=%f bprob=%f prob_ang=%f prob_rad%f RESULT: %f\n", dr, dz, bprob, prob_ang, prob_rad, result);
+    LOG_WARN("WARNING: Unexpected nan result in psat: dr=%f dz=%f bprob=%f prob_ang=%f prob_rad=%f RESULT: %f\n", dr, dz, bprob, prob_ang, prob_rad, result);
+    result = 0.0;
+  }
+  if (result > 1.0)
+  {
+    LOG_WARN("WARNING: Unexpected result > 1 in psat: dr=%f dz=%f bprob=%f prob_ang=%f prob_rad=%f RESULT: %f\n", dr, dz, bprob, prob_ang, prob_rad, result);
+    result = 1.0;
+  }
+  if (result < 0.0)
+  {
+    LOG_WARN("WARNING: Unexpected result < 0 in psat: dr=%f dz=%f bprob=%f prob_ang=%f prob_rad=%f RESULT: %f\n", dr, dz, bprob, prob_ang, prob_rad, result);
     result = 0.0;
   }
   #endif
@@ -108,7 +138,7 @@ float compute_p_proj(float mass, float dr, float rad, float ang_rad)
   return 1.0 / c_on_H0 * 2 * rs * delta * f;
 }
 /* Computes p(delta z) assuming a gaussian as per Yang et al 2005 eq 9.
- * dz is the redshift difference between the galaxy and the group center times the speed of light
+ * cdz is the redshift difference between the galaxy and the group center times the speed of light
  * sigmav is the velocity dispersion of the group
  */
 float compute_p_z(float cdz, float sigmav)

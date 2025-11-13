@@ -41,11 +41,11 @@ float density2host_halo(float galaxy_density)
  * Using a vmax correction for galaxies that can't make it
  * to the end of the redshift bin.
  */
-float density2host_halo_zbins3(float z, float vmax)
+float density2host_halo_zbins3(float z, double vmax)
 {
 #define NZBIN 200
   int i, iz;
-  float rlo, rhi, dz, dzmin, vv;
+  double rlo, rhi, dz, dzmin, vv;
   static int flag = 1, negcnt[NZBIN];
   static double zcnt[NZBIN];
   static float volume[NZBIN], zlo[NZBIN], zhi[NZBIN],
@@ -108,10 +108,8 @@ float density2host_halo_zbins3(float z, float vmax)
 
       if (vv < 0.0)
       {
-        fprintf(stderr, "vmax = %e %e %e %e %e %e %e\n", vmax, vlo[i], vhi[i], zlo[i], zhi[i], z, zcnt[i]);
+        LOG_ERROR("vmax = %e.  %e %e %e %e %e %e\n", vmax, vlo[i], vhi[i], zlo[i], zhi[i], z, zcnt[i]);
       }
-      // fprintf(stdout,"> %d %e %e %e %e\n",i,vv,vmax,vlo[i],vhi[i]);
-      // fflush(stdout);
     }
     dz = fabs(z - (zhi[i] + zlo[i]) / 2);
     if (dz < dzmin)
