@@ -6,7 +6,4 @@
 
 float halo_abundance(float m);
 float halo_abundance2(float m);
-float halo_abundance_old(float m);
-float halo_abundance2_old(float m);
 float func_match_nhost(float mass, float galaxy_density);
-float func_match_nhost_old(float mass, float galaxy_density);

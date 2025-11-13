@@ -63,28 +63,36 @@ perf: $(BDIR)/PerfGroupFinder $(BDIR)/tests
 
 # Object file to c file dependencies
 $(ODIR)/%.o: $(SRCDIR)/%.cpp
+	@mkdir -p $(ODIR)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 $(ODIR_SERIAL)/%.o: $(SRCDIR)/%.cpp
+	@mkdir -p $(ODIR_SERIAL)
 	$(CC) -c -o $@ $< $(CFLAGS_SERIAL)
 
 # Build main program
 $(BDIR)/kdGroupFinder_omp:	$(OBJ) $(GF_OBJ)
+	@mkdir -p $(BDIR)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIB) -Wl,-rpath,/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
 $(BDIR)/kdGroupFinder_serial:	$(OBJ_SERIAL) $(GF_OBJ_SERIAL)
+	@mkdir -p $(BDIR)
 	$(CC) -o $@ $^ $(CFLAGS_SERIAL) $(LIB_SERIAL) -pthread -Wl,-rpath,/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
 # Build main program for profiling
 $(BDIR)/PerfGroupFinder:	$(OBJ) $(GF_OBJ)
+	@mkdir -p $(BDIR)
 	$(CC) -o $@ $^ $(CFLAGS) -g $(LIB) -Wl,-rpath,/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
 # Build tests program
 $(BDIR)/tests: $(OBJ) $(TESTS_OBJ)
+	@mkdir -p $(BDIR)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIB) -Wl,-rpath,/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
 clean:
 	rm -f *.o $(ODIR)/*.o
+	rm -f *.o $(ODIR_SERIAL)/*.o
 	rm -f $(BDIR)/kdGroupFinder_omp
+	rm -f $(BDIR)/kdGroupFinder_serial
 	rm -f $(BDIR)/PerfGroupFinder
 	rm -f $(BDIR)/tests
