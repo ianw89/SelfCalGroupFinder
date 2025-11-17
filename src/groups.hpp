@@ -106,7 +106,6 @@ extern const char *INPUTFILE;
 extern const char *HALO_MASS_FUNC_FILE;
 extern const char *MOCK_FILE;
 extern const char *VOLUME_BINS_FILE;
-extern int NVOLUME_BINS;
 extern FILE *MSG_PIPE;
 
 /* Variables for determining threshold if a galaxy is a satellite */

@@ -295,7 +295,7 @@ int main(int argc, char **argv)
 
       t2 = get_wtime();
       
-      //for (i = 0; i < NVOLUME_BINS*3; i += 1)
+      //for (i = 0; i < HOD.NVOLUME_BINS*3; i += 1)
       //{
       //  populate_simulation_omp(i/3, static_cast<SampleType>(i%3));
       //}
@@ -303,7 +303,7 @@ int main(int argc, char **argv)
       {
         istart = get_thread_num();
         istep = get_num_threads();
-        for(i=istart; i< NVOLUME_BINS*3; i+=istep)
+        for(i=istart; i< HOD.NVOLUME_BINS*3; i+=istep)
         {
           populate_simulation_omp(i/3, static_cast<SampleType>(i%3));
         }

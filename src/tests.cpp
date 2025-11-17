@@ -3,10 +3,23 @@
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+#include <iostream>
 #include "timing.hpp"
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
 #include "sham.hpp"
+
+#define TEST_CASE(condition, value, message) \
+    if (!(condition)) { \
+        std::cerr << "Test failed: " << message << "\n" \
+                  << "  Value: " << (value) << "\n" \
+                  << "  File: " << __FILE__ << ", Line: " << __LINE__ << "\n"; \
+        std::abort(); \
+    }
+
+bool isclose(double a, double b, double rel_tol = 1e-6, double abs_tol = 0.0000001) {
+    return std::fabs(a - b) <= std::max(rel_tol * std::max(std::fabs(a), std::fabs(b)), abs_tol);
+}
 
 void test_float_vs_double_math() {
     printf("=== DOUBLE VS FLOAT MATH TEST ===\n");
@@ -255,6 +268,57 @@ void test_func_match_nhost_baseline() {
     printf(" *** func_match_nhost baseline tests passed.\n\n");
 }
 
+void test_tabulate_hod() {
+    // Setup 3 non-color seperated magnitude wide bins
+    HOD.NVOLUME_BINS = 1;
+    HOD.maglim[0] = -19; 
+    HOD.maglim[1] = -20; 
+    HOD.maglim[2] = -21;
+    HOD.magmax[0] = -20;
+    HOD.magmax[1] = -21;
+    HOD.magmax[2] = -22;
+    HOD.maxz[0] = 0.149771;
+    HOD.maxz[1] = 0.226200;
+    HOD.maxz[2] = 0.336937;
+    HOD.volume[0] = 1e6;
+    HOD.volume[1] = 1e7;
+    HOD.volume[2] = 1e8;
+    HOD.color_sep[0] = 0;
+    HOD.color_sep[1] = 0;
+    HOD.color_sep[2] = 0;
+
+    // Make a GAL array
+    NGAL = 10;
+    GAL = new struct galaxy[NGAL];
+    for (int i = 0; i < NGAL; ++i) {
+        GAL[i].igrp = i;
+        if (i % 2 == 1) {
+            GAL[i].igrp = i-1; // Put all in the same mh bin
+        }
+        GAL[i].loglum = (4.65 - (-19.5)) / 2.5; // All in first bin
+        GAL[i].lum = pow(10, GAL[i].loglum);
+        GAL[i].redshift = 0.05;
+        GAL[i].vmax = HOD.volume[0] * 1.5;
+        GAL[i].psat = i%2 == 0 ? 0.0 : 1.0; // Alternate between central and satellite
+        GAL[i].color = 0.0;
+        GAL[i].mass = 1e12;
+        update_galaxy_halo_props(&GAL[i]);
+    }
+    // Print off GAL array
+    for (int i = 0; i < NGAL; ++i) {
+        printf("GAL[%d]: igrp=%d, loglum=%.2f, redshift=%.2f, vmax=%.2e, psat=%.1f, mass=%.2e\n", i, GAL[i].igrp, GAL[i].loglum, GAL[i].redshift, GAL[i].vmax, GAL[i].psat, GAL[i].mass);
+    }
+ 
+    tabulate_hods();
+
+    // TODO 
+    TEST_CASE(HOD.nhalo_int[0][120] == 5, HOD.nhalo_int[0][120], "Expected 5 halos in the mh bin");
+    TEST_CASE(isclose(HOD.nhalo[0][120], 5e-6), HOD.nhalo[0][120], "Expected 5 weighted halos in the mh bin");
+    std::cout << HOD.ncen[0][120] << std::endl;
+    TEST_CASE(isclose(HOD.ncen[0][120], log10(5e-6 / 5e-6)), HOD.ncen[0][120], "Expected 5 centrals in the mh bin");
+    TEST_CASE(isclose(HOD.nsat[0][120], log10(5e-6 / 5e-6)), HOD.nsat[0][120], "Expected 5 sats in the mh bin");
+  }
+
 int main(int argc, char **argv) {
 
     test_func_match_nhost_baseline();
@@ -263,6 +327,7 @@ int main(int argc, char **argv) {
     test_angular_separation();
     test_psat();
     test_float_vs_double_math();
+    test_tabulate_hod();
 
     printf(" *** ALL TESTS PASSED ***\n");
 }

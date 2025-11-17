@@ -18,9 +18,7 @@
 #include "nrutil.h"
 
 // Definitions
-#define MAXBINS 10 // This is the max number of magnitude bins we use for the HOD. The actual amount we use is read in from VOLUME_BINS_FILE
 #define MAX_SATELLITES 1500 // Print a warning and cap the number of satellites to this if it is exceeded. Likely bad parameters.
-#define HALO_BINS 200 // log10(M_halo) / 0.1
 #define MIN_HALO_IDX 90 // log10(M_halo) = 9.0
 #define MAX_HALO_IDX 155 // log10(M_halo) = 9.0
 
@@ -30,16 +28,7 @@ float BOX_SIZE = 250.0;
 float BOX_EPSILON = 0.01;
 
 /* Globals for the tabulated HODs */
-int NVOLUME_BINS = 0;
-// TODO replace these with dynamic sized arrays
-// These are the HOD in bins
-double ncenr[MAXBINS][HALO_BINS], nsatr[MAXBINS][HALO_BINS], ncenb[MAXBINS][HALO_BINS], nsatb[MAXBINS][HALO_BINS], ncen[MAXBINS][HALO_BINS], nsat[MAXBINS][HALO_BINS], nhalo[MAXBINS][HALO_BINS];
-double nhalo_int[MAXBINS][HALO_BINS]; // integer version of nhalo (no vmax weight)
-float maglim[MAXBINS]; // the fainter limit of the mag bin
-float magmax[MAXBINS]; // the brighter limit of the mag bin
-int color_sep[MAXBINS]; // 1 means do red/blue seperately, 0 means all together
-float maxz[MAXBINS];  // the max redshift of the mag bin, calculated from the fainter mag limit
-float volume[MAXBINS]; // volume of the mag bin in [Mpc/h]^3
+struct hod HOD;
 
 // These are the HOD in thresholds
 //double ncenr_th[MAXBINS][HALO_BINS], nsatr_th[MAXBINS][HALO_BINS], ncenb_th[MAXBINS][HALO_BINS], nsatb_th[MAXBINS][HALO_BINS], ncen_th[MAXBINS][HALO_BINS], nsat_th[MAXBINS][HALO_BINS], nhalo_th[MAXBINS][HALO_BINS];
@@ -55,10 +44,7 @@ float REDSHIFT = 0.0,
 
 int RANDOM_SEED = 753;
 
-/* local functions
-
-
- */
+/* local functions */
 void nsat_smooth(double arr[MAXBINS][HALO_BINS]);
 void nsat_extrapolate(double arr[MAXBINS][HALO_BINS]);
 float NFW_position(float mass, float x[], struct drand48_data *rng);
@@ -108,21 +94,21 @@ void write_hodinner(int type) {
     uint8_t resp_msg_type = type;
     uint8_t resp_data_type = TYPE_DOUBLE;
     uint32_t rows = MAX_HALO_IDX - MIN_HALO_IDX;
-    uint32_t cols = NVOLUME_BINS * 7 + 1;
+    uint32_t cols = HOD.NVOLUME_BINS * 7 + 1;
     uint32_t total = rows * cols;
     double *buffer = (double *)malloc(sizeof(double) * total);
     size_t idx = 0;
     for (int i = MIN_HALO_IDX; i < MAX_HALO_IDX; ++i) {
       double mass = i / 10.0;
       buffer[idx++] = mass;
-      for (int j = 0; j < NVOLUME_BINS; ++j) {
-        buffer[idx++] = ncenr[j][i];
-        buffer[idx++] = nsatr[j][i];
-        buffer[idx++] = ncenb[j][i];
-        buffer[idx++] = nsatb[j][i];
-        buffer[idx++] = ncen[j][i];
-        buffer[idx++] = nsat[j][i];
-        buffer[idx++] = nhalo_int[j][i];
+      for (int j = 0; j < HOD.NVOLUME_BINS; ++j) {
+        buffer[idx++] = HOD.ncenr[j][i];
+        buffer[idx++] = HOD.nsatr[j][i];
+        buffer[idx++] = HOD.ncenb[j][i];
+        buffer[idx++] = HOD.nsatb[j][i];
+        buffer[idx++] = HOD.ncen[j][i];
+        buffer[idx++] = HOD.nsat[j][i];
+        buffer[idx++] = HOD.nhalo_int[j][i];
       }
     }
     
@@ -148,33 +134,33 @@ void print_hod(const char* filename)
   FILE *fp = fopen(filename, "w");
   fprintf(fp, "# HODs for volume limited samples\n");
   fprintf(fp, "# Volume bins: ");
-  for (i = 0; i < NVOLUME_BINS; ++i)
-    fprintf(fp, "%.1f %.1f", maglim[i], magmax[i]);
+  for (i = 0; i < HOD.NVOLUME_BINS; ++i)
+    fprintf(fp, "%.1f %.1f", HOD.maglim[i], HOD.magmax[i]);
   fprintf(fp, "\n");
   fprintf(fp, "# Redshift limits: ");
-  for (i = 0; i < NVOLUME_BINS; ++i)
-    fprintf(fp, "%f ", maxz[i]);
+  for (i = 0; i < HOD.NVOLUME_BINS; ++i)
+    fprintf(fp, "%f ", HOD.maxz[i]);
   fprintf(fp, "\n");
   fprintf(fp, "# Volume limits: ");
-  for (i = 0; i < NVOLUME_BINS; ++i)
-    fprintf(fp, "%.1f ", volume[i]);
+  for (i = 0; i < HOD.NVOLUME_BINS; ++i)
+    fprintf(fp, "%.1f ", HOD.volume[i]);
   fprintf(fp, "\n");
   for (i = MIN_HALO_IDX; i < MAX_HALO_IDX; ++i)
   {
     // Print off halo occupancy fractions in narrow mass bins for each galaxy mag bin
     // Format is <M_h> [<ncenr_i> <nsatr_i> <ncenb_i> <nsatb_i> <ncen_i> <nsat_i>  <nhalo_i> for each i mag bin]
     fprintf(fp, "%.2f", i / 10.0);
-    for (j = 0; j < NVOLUME_BINS; ++j) 
+    for (j = 0; j < HOD.NVOLUME_BINS; ++j) 
     { 
       fprintf(fp, " %e %e %e %e %e %e %e %d", 
-        ncenr[j][i],
-        nsatr[j][i], 
-        ncenb[j][i],
-        nsatb[j][i],
-        ncen[j][i],
-        nsat[j][i],
-        nhalo[j][i],
-        nhalo_int[j][i]);
+        HOD.ncenr[j][i],
+        HOD.nsatr[j][i], 
+        HOD.ncenb[j][i],
+        HOD.nsatb[j][i],
+        HOD.ncen[j][i],
+        HOD.nsat[j][i],
+        HOD.nhalo[j][i],
+        HOD.nhalo_int[j][i]);
     }
     fprintf(fp, "\n");
   }
@@ -494,11 +480,12 @@ void tabulate_hods()
   double w0 = 1.0;
   int nbins = 0;
 
-  if (NVOLUME_BINS <= 0) {
+  if (HOD.NVOLUME_BINS <= 0) {
+    
     LOG_VERBOSE("Reading Volume Bins...\n");
 
     bins_fp = fopen(VOLUME_BINS_FILE, "r");
-    while (fscanf(bins_fp, "%f %f %f %f %d", &maglim[nbins], &magmax[nbins], &maxz[nbins], &volume[nbins], &color_sep[nbins]) == 5)
+    while (fscanf(bins_fp, "%f %f %f %f %d", &HOD.maglim[nbins], &HOD.magmax[nbins], &HOD.maxz[nbins], &HOD.volume[nbins], &HOD.color_sep[nbins]) == 5)
     {
       nbins++;
       if (nbins >= MAXBINS)
@@ -509,15 +496,15 @@ void tabulate_hods()
       }
     }
     fclose(bins_fp);
-    NVOLUME_BINS = nbins;
+    HOD.NVOLUME_BINS = nbins;
   }
 
   LOG_INFO("Tabulating HODs...\n");
 
-  for (i = 0; i < NVOLUME_BINS; ++i)
+  for (i = 0; i < HOD.NVOLUME_BINS; ++i)
     for (j = 0; j < HALO_BINS; ++j)
     {
-      ncenr[i][j] = nsatr[i][j] = nhalo[i][j] = ncenb[i][j] = nsatb[i][j] = ncen[i][j] = nsat[i][j] = nhalo_int[i][j]= 0.0;
+      HOD.ncenr[i][j] = HOD.nsatr[i][j] = HOD.nhalo[i][j] = HOD.ncenb[i][j] = HOD.nsatb[i][j] = HOD.ncen[i][j] = HOD.nsat[i][j] = HOD.nhalo_int[i][j]= 0.0;
     }
   
   for (j=0; j < HALO_BINS; ++j)
@@ -548,20 +535,21 @@ void tabulate_hods()
     im = (int)(log10(GAL[i].mass) / 0.1);
     assert (im >= 0 && im < HALO_BINS);
 
-    for (j = 0; j < NVOLUME_BINS; ++j){
-      if (GAL[i].redshift < maxz[j])
+    for (j = 0; j < HOD.NVOLUME_BINS; ++j){
+      if (GAL[i].redshift < HOD.maxz[j])
       {
-        w0 = 1 / volume[j];
-        if (GAL[i].vmax < volume[j]) {
-          //LOG_WARN("WARNING: vmax (%f) < volume (%f) for halo index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, volume[j], i, mag, maglim[j], GAL[i].redshift, maxz[j]);
+        w0 = 1 / HOD.volume[j];
+        if (GAL[i].vmax < HOD.volume[j]) {
+          mag = -2.5 * GAL[i].loglum + 4.65; // convert to r-band mag
+          //LOG_WARN("WARNING: vmax (%f) < volume (%f) for halo index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, HOD.volume[j], i, mag, HOD.maglim[j], GAL[i].redshift, HOD.maxz[j]);
           w0 = 1 / GAL[i].vmax;
         }
         if (!isfinite(w0) || isnan(w0)) {
             LOG_ERROR("ERROR: w0 is invalid for halo %d with vmax=%f\n", igrp, GAL[igrp].vmax);
             assert(false);
         }
-        nhalo[j][im] += w0; // 1/vmax weight the halo count
-        nhalo_int[j][im]++; // integer version of nhalo (no vmax weight)
+        HOD.nhalo[j][im] += w0; // 1/vmax weight the halo count
+        HOD.nhalo_int[j][im]++; // integer version of nhalo (no vmax weight)
       }
     }
   }
@@ -582,8 +570,8 @@ void tabulate_hods()
     if (STELLAR_MASS) {
       mag = GAL[i].loglum; // log(M*)
 
-      for (j = 0; j < NVOLUME_BINS; ++j) {
-        if (mag >= maglim[j] && mag < (magmax[j])) {
+      for (j = 0; j < HOD.NVOLUME_BINS; ++j) {
+        if (mag >= HOD.maglim[j] && mag < (HOD.magmax[j])) {
             ibin = j;
             break;
         }
@@ -592,75 +580,75 @@ void tabulate_hods()
     else {
       mag = -2.5 * GAL[i].loglum + 4.65; // convert to r-band mag
 
-      for (j = 0; j < NVOLUME_BINS; ++j) {
-          if (mag <= maglim[j] && mag > (magmax[j])) {
+      for (j = 0; j < HOD.NVOLUME_BINS; ++j) {
+          if (mag <= HOD.maglim[j] && mag > (HOD.magmax[j])) {
               ibin = j;
               break;
           }
       }
     }
 
-    if (ibin < 0 || ibin >= NVOLUME_BINS)
+    if (ibin < 0 || ibin >= HOD.NVOLUME_BINS)
       continue; // skip if not in any bins mag range
-    if (GAL[i].redshift > maxz[ibin])
+    if (GAL[i].redshift > HOD.maxz[ibin])
       continue; // skip if not in the redshift range of it's bin, not sure how it happens
     assert (im >= 0 && im < HALO_BINS);
 
     // vmax-weight everything
-    w0 = 1 / volume[ibin];
-    if (GAL[i].vmax < volume[ibin])
+    w0 = 1 / HOD.volume[ibin];
+    if (GAL[i].vmax < HOD.volume[ibin])
     {
       // Most of the galaxies that hit this are because of k-corrections. 
       // VMAX should always use un-corrected mags, which means at the faint edge of the bin it is possible
       // for a galaxy to have a vmax less than the volume of the bin.
       // However, in some rare cases it seems to be happening even away from the edges, which I don't understand. BUG
-      //LOG_WARN("WARNING: vmax (%f) < volume (%f) for galaxy index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, volume[ibin], i, mag, maglim[ibin], GAL[i].redshift, maxz[ibin]);
+      //LOG_WARN("WARNING: vmax (%f) < volume (%f) for galaxy index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, HOD.volume[ibin], i, mag, HOD.maglim[ibin], GAL[i].redshift, HOD.maxz[ibin]);
       w0 = 1 / GAL[i].vmax;
     }
 
     if (GAL[i].psat > 0.5) {
-      nsat[ibin][im] += w0;
+      HOD.nsat[ibin][im] += w0;
       if (GAL[i].color > 0.8) // red
-        nsatr[ibin][im] += w0;
+        HOD.nsatr[ibin][im] += w0;
       else // blue
-        nsatb[ibin][im] += w0;
+        HOD.nsatb[ibin][im] += w0;
     }
     else {
-      ncen[ibin][im] += w0;
+      HOD.ncen[ibin][im] += w0;
       if (GAL[i].color > 0.8) // red
-        ncenr[ibin][im] += w0;
+        HOD.ncenr[ibin][im] += w0;
       else // blue
-        ncenb[ibin][im] += w0;
+        HOD.ncenb[ibin][im] += w0;
     }
   }
 
   // If nsatr/b > 0 but nhalo = 0, it was an edge case for a rare halo. Just set nhalo to nsatr/b there.
   // This happens when the central (and thus the halo) didn't go into a volume bin, but a satellite did.
   // Peculiar velocities at the z boundary can do this I think.
-  for (i = 0; i < NVOLUME_BINS; ++i)
+  for (i = 0; i < HOD.NVOLUME_BINS; ++i)
     for (j = 0; j < HALO_BINS; ++j) {
-      if (nsatr[i][j] > 0 && nhalo[i][j] == 0) {
-        LOG_WARN("WARNING: nhalo[%d][%d] = 0, setting to nsatr[%d][%d] = %e\n", i, j, i, j, nsatr[i][j]);
-        nhalo[i][j] = nsatr[i][j];
+      if (HOD.nsatr[i][j] > 0 && HOD.nhalo[i][j] == 0) {
+        LOG_WARN("WARNING: nhalo[%d][%d] = 0, setting to nsatr[%d][%d] = %e\n", i, j, i, j, HOD.nsatr[i][j]);
+        HOD.nhalo[i][j] = HOD.nsatr[i][j];
       }
-      if (nsatb[i][j] > 0 && nhalo[i][j] == 0) {
-        LOG_WARN("WARNING: nhalo[%d][%d] = 0, setting to nsatb[%d][%d] = %e\n", i, j, i, j, nsatb[i][j]);
-        nhalo[i][j] = nsatb[i][j];
+      if (HOD.nsatb[i][j] > 0 && HOD.nhalo[i][j] == 0) {
+        LOG_WARN("WARNING: nhalo[%d][%d] = 0, setting to nsatb[%d][%d] = %e\n", i, j, i, j, HOD.nsatb[i][j]);
+        HOD.nhalo[i][j] = HOD.nsatb[i][j];
       }
-      assert(!isnan(ncenr[i][j]));
-      assert(!isnan(nsatr[i][j]));
-      assert(!isnan(ncenb[i][j]));
-      assert(!isnan(nsatb[i][j]));
-      assert(!isnan(nsat[i][j]));
-      assert(!isnan(ncen[i][j]));
-      assert(!isnan(nhalo[i][j]));
-      assert(isfinite(ncenr[i][j]));
-      assert(isfinite(nsatr[i][j]));
-      assert(isfinite(ncenb[i][j]));
-      assert(isfinite(nsatb[i][j]));
-      assert(isfinite(nsat[i][j]));
-      assert(isfinite(ncen[i][j]));
-      assert(isfinite(nhalo[i][j]));
+      assert(!isnan(HOD.ncenr[i][j]));
+      assert(!isnan(HOD.nsatr[i][j]));
+      assert(!isnan(HOD.ncenb[i][j]));
+      assert(!isnan(HOD.nsatb[i][j]));
+      assert(!isnan(HOD.nsat[i][j]));
+      assert(!isnan(HOD.ncen[i][j]));
+      assert(!isnan(HOD.nhalo[i][j]));
+      assert(isfinite(HOD.ncenr[i][j]));
+      assert(isfinite(HOD.nsatr[i][j]));
+      assert(isfinite(HOD.ncenb[i][j]));
+      assert(isfinite(HOD.nsatb[i][j]));
+      assert(isfinite(HOD.nsat[i][j]));
+      assert(isfinite(HOD.ncen[i][j]));
+      assert(isfinite(HOD.nhalo[i][j]));
     }
 
   //print_hod("hodtest.out");
@@ -761,14 +749,14 @@ void tabulate_hods()
   // Back to HODs: switch to log10 of the fractions for the rest of the code later
   for (i = MIN_HALO_IDX; i < HALO_BINS; ++i)
   {
-    for (j = 0; j < NVOLUME_BINS; ++j)
+    for (j = 0; j < HOD.NVOLUME_BINS; ++j)
     {
-      ncenr[j][i] = log10(ncenr[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
-      nsatr[j][i] = log10(nsatr[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
-      ncenb[j][i] = log10(ncenb[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
-      nsatb[j][i] = log10(nsatb[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
-      ncen[j][i] = log10(ncen[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
-      nsat[j][i] = log10(nsat[j][i] / (nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.ncenr[j][i] = log10(HOD.ncenr[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.nsatr[j][i] = log10(HOD.nsatr[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.ncenb[j][i] = log10(HOD.ncenb[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.nsatb[j][i] = log10(HOD.nsatb[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.ncen[j][i] = log10(HOD.ncen[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.nsat[j][i] = log10(HOD.nsat[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
     }
   }
 
@@ -778,9 +766,9 @@ void tabulate_hods()
   //nsat_smooth(nsatr);
   //nsat_smooth(nsatb);
   //nsat_smooth(nsat);
-  nsat_extrapolate(nsatr);
-  nsat_extrapolate(nsatb);
-  nsat_extrapolate(nsat);
+  nsat_extrapolate(HOD.nsatr);
+  nsat_extrapolate(HOD.nsatb);
+  nsat_extrapolate(HOD.nsat);
 
   write_hodfit();
 }
@@ -859,9 +847,9 @@ void nsat_smooth(double arr[MAXBINS][HALO_BINS])
 {
   // For places in the array where nhalo_int is < 5, smooth that value with the neighboring two.
   int imag, i;
-  for (imag = 0; imag < NVOLUME_BINS; ++imag) {
+  for (imag = 0; imag < HOD.NVOLUME_BINS; ++imag) {
     for (i = MIN_HALO_IDX + 1; i < MAX_HALO_IDX - 2; ++i) {
-      if (nhalo_int[imag][i] < 5) {
+      if (HOD.nhalo_int[imag][i] < 5) {
         // Average with neighbors
         arr[imag][i] = (arr[imag][i - 1] + arr[imag][i] + arr[imag][i + 1]) / 3.0;
       }
@@ -877,10 +865,10 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
   int istart, iend, badpoints, idx;
   double bfit, mfit, mag;
 
-  for (int imag = 0; imag < NVOLUME_BINS; ++imag)
+  for (int imag = 0; imag < HOD.NVOLUME_BINS; ++imag)
   {
     iend = 0;
-    mag = maglim[imag];
+    mag = HOD.maglim[imag];
 
     // Start in a known good place with lots of data for each magbin.
     // Search up from there (in halo mass) until we run low on data.
@@ -902,7 +890,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
     }
     for (int i = istart; i < MAX_HALO_IDX; ++i)
     {
-      if (nhalo_int[imag][i] < 10) // need 10 halos to be considered sufficient data
+      if (HOD.nhalo_int[imag][i] < 10) // need 10 halos to be considered sufficient data
       {
         iend++;
         if (iend == 3)
@@ -1010,10 +998,10 @@ void populate_simulation_omp(int imag, SampleType type)
   // If this combination of imag and type isn't needed, skip it
   assert (type == QUIESCENT || type == STARFORMING || type == ALL);
   assert (imag >= 0 || imag == -1);
-  assert (imag < NVOLUME_BINS);
-  if (color_sep[imag] == 0 && type != ALL)
+  assert (imag < HOD.NVOLUME_BINS);
+  if (HOD.color_sep[imag] == 0 && type != ALL)
     return;
-  if (color_sep[imag] > 0 && type == ALL)
+  if (HOD.color_sep[imag] > 0 && type == ALL)
     return;
 
   // Setup a RNG at the same place for every time we want to build a mock
@@ -1021,7 +1009,7 @@ void populate_simulation_omp(int imag, SampleType type)
   struct drand48_data rng;
   srand48_r(generate_mock_seed(imag, type), &rng);
 
-  imag_offset = (int)fabs(maglim[0]);
+  imag_offset = (int)fabs(HOD.maglim[0]);
   imag_mult = 1;
   if (STELLAR_MASS)
   {
@@ -1135,16 +1123,16 @@ float N_cen(float m, int imag, SampleType type)
   switch (type)
   {
     case QUIESCENT:
-      y0 = ncenr[imag][im];
-      y1 = ncenr[imag][im + 1];
+      y0 = HOD.ncenr[imag][im];
+      y1 = HOD.ncenr[imag][im + 1];
       break;
     case STARFORMING:
-      y0 = ncenb[imag][im];
-      y1 = ncenb[imag][im + 1];
+      y0 = HOD.ncenb[imag][im];
+      y1 = HOD.ncenb[imag][im + 1];
       break;
     case ALL:
-      y0 = ncen[imag][im];
-      y1 = ncen[imag][im + 1];
+      y0 = HOD.ncen[imag][im];
+      y1 = HOD.ncen[imag][im + 1];
       break;
     default:
       LOG_ERROR("ERROR: Unknown sample type %d in N_cen\n", type);
@@ -1181,16 +1169,16 @@ float N_sat(float m, int imag, SampleType type)
   switch (type)
   {
     case QUIESCENT:
-      y0 = nsatr[imag][im];
-      y1 = nsatr[imag][im + 1];
+      y0 = HOD.nsatr[imag][im];
+      y1 = HOD.nsatr[imag][im + 1];
       break;
     case STARFORMING:
-      y0 = nsatb[imag][im];
-      y1 = nsatb[imag][im + 1];
+      y0 = HOD.nsatb[imag][im];
+      y1 = HOD.nsatb[imag][im + 1];
       break;
     case ALL:
-      y0 = nsat[imag][im];
-      y1 = nsat[imag][im + 1];
+      y0 = HOD.nsat[imag][im];
+      y1 = HOD.nsat[imag][im + 1];
       break;
   }
 
