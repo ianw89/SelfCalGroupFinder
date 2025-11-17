@@ -21,6 +21,24 @@ bool isclose(double a, double b, double rel_tol = 1e-6, double abs_tol = 0.00000
     return std::fabs(a - b) <= std::max(rel_tol * std::max(std::fabs(a), std::fabs(b)), abs_tol);
 }
 
+void test_halo_abundance(){
+    printf("=== HALO ABUNDANCE TESTS ===\n");
+
+    // Test known values from halo mass function file
+    float masses[] = {3.053856e+08, 1.047616e10, 4.037017e+12, 3.944206e+15};
+    float expected_abundances[] = {1.766049e-08, 2.075124e-11, 2.753379e-16, 5.447430e-25}; // Example expected values
+    int n_tests = sizeof(masses) / sizeof(masses[0]);
+    for (int i = 0; i < n_tests; ++i) {
+        float abundance = halo_abundance(masses[i]);
+        printf("Mass: %e, Abundance: %e, Expected: %e\n", masses[i], abundance, expected_abundances[i]);
+        assert(fabs(abundance - expected_abundances[i]) / expected_abundances[i] < 0.0001 && "Halo abundance deviates more than 0.01% from expected");
+    }
+    
+    // TODO Test easy interpolations
+
+    printf(" *** Halo abundance tests passed.\n\n");
+}
+
 void test_float_vs_double_math() {
     printf("=== DOUBLE VS FLOAT MATH TEST ===\n");
     struct drand48_data rng;
@@ -321,6 +339,7 @@ void test_tabulate_hod() {
 
 int main(int argc, char **argv) {
 
+    test_halo_abundance();
     test_func_match_nhost_baseline();
     test_poisson_deviate_basic();
     test_poisson_deviate_edge_cases();

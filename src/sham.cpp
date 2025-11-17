@@ -167,12 +167,21 @@ float func_match_nhost(float mass, float galdensity)
     return exp(a) - galdensity;
 }
 
-float halo_abundance2(float m)
+/**
+ * Given the natural log of a halo mass m, return the mass * abundance from the halo mass function.
+ */
+float halo_abundance2(float logM)
 {
-  m = exp(m);
+  float m = exp(logM);
   return halo_abundance(m) * m;
 }
 
+/**
+ * Given a halo mass m, return the abundance from the halo mass function.
+ * 
+ * Tinker website says the default file is in Bolshoi Planck cosmology using Tinker08 mass function.
+ * 
+ */
 float halo_abundance(float m)
 {
     int i;
