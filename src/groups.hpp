@@ -58,7 +58,7 @@ struct galaxy {
   int igrp;
   int listid; // only used in fof group finder...
   int next;
-  int grp_rank;
+  int grp_rank; // Rank of the group it's in when finding satellites (lower number means higher priority)
   
   // halo properties  
   float mass,

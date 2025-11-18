@@ -970,7 +970,8 @@ class GroupCatalog:
 
     def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, interactive=False, serial=False):
         t1 = time.time()
-        print("Running Group Finder for " + self.name)
+        if (not silent):
+            print("Running Group Finder for " + self.name)
 
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
@@ -1030,7 +1031,8 @@ class GroupCatalog:
         fds = (write_fd,)
         args.append(f"--pipe={write_fd}")
 
-        print(args)
+        if (not silent):
+            print(args)
 
         # The galaxies are written to stdout, so send ot the GF_outfile file stream
         self.outstream = open(self.GF_outfile, "w")
@@ -1060,7 +1062,8 @@ class GroupCatalog:
             self.proc = None
 
         t2 = time.time()
-        print(f"run_group_finder() took {t2-t1:.1f} seconds.")
+        if (not silent):
+            print(f"run_group_finder() took {t2-t1:.1f} seconds.")
         return success
 
 

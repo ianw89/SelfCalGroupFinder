@@ -97,7 +97,7 @@ void groupfind()
   double *fsat_arr;
 
 
-  static std::vector<int> flag;
+  static int *unvisited;
   static double volume; 
   // xtmp stores the values of what we sort by and the index in the GAL array (first, second). It gets sorted and we find sats in that order.
   // Initially it gets setup with the lgal values; after it gets setup with the lgrp values (the effective length becomes ngrp then).
@@ -114,7 +114,10 @@ void groupfind()
     NGAL = filesize(fp);
     LOG_INFO("Allocating space for [%d] galaxies\n", NGAL);
     GAL = (struct galaxy*) calloc(NGAL, sizeof(struct galaxy));
-    flag.resize(NGAL);
+    if (unvisited)
+      free(unvisited);
+    unvisited = (int *) calloc(NGAL, sizeof(int));
+    //unvisited.resize(NGAL);
 
     // For volume-limited samples, we calculate the volume and put that in the vmax
     // property of each galxaxy.
@@ -261,8 +264,8 @@ void groupfind()
       GAL[j].igrp = -1;
       GAL[j].psat = 0;
       GAL[j].nsat = 0;
-      GAL[j].lgrp = GAL[j].lum; //* GAL[j].chiweight;
-      flag[j] = 1;
+      GAL[j].lgrp = GAL[j].lum;
+      unvisited[j] = 1;
     }
 
     // Find the satellites for each halo, in order of group lum/mass
@@ -275,7 +278,7 @@ void groupfind()
     for (i1_par = 0; i1_par < ngrp_prev; ++i1_par)
     {
       i_par = xtmp[i1_par].second;
-      flag[i_par] = 0;
+      unvisited[i_par] = 0;
       find_satellites(i_par, tree);
     }
     t_end_findsats = get_wtime();
@@ -293,25 +296,28 @@ void groupfind()
       }
     }
 
-    // go back and check objects are newly-exposed centrals
+    // Go back and check objects that are newly-exposed centrals for whatever reason 
+    // (Their central got a smaller halo this iteration maybe)
     int j_par;
     #pragma omp parallel for private(j_par) schedule(static)
     for (j_par = 0; j_par < NGAL; ++j_par)
     {
-      if (flag[j_par] && GAL[j_par].psat <= 0.5)
+      if (unvisited[j_par] && GAL[j_par].psat <= 0.5)
       {
-        //LOG_INFO("Newly exposed central: %d.\n", j);
+        //LOG_INFO("Newly exposed central: %d with psat=%.3f.\n", j_par, GAL[j_par].psat);
         find_satellites(j_par, tree);
       }
     }
-    for (j_par = 0; j_par < NGAL; ++j_par)
+
+    for (int k = 0; k < NGAL; ++k)
     {
-      if (flag[j_par] && GAL[j_par].psat <= 0.5)
+      if (unvisited[k] && GAL[k].psat <= 0.5)
       {
-        GAL[j_par].igrp = j_par;
-        xtmp[ngrp] = std::make_pair(lgrp_to_matching_rank(j_par), j_par);
+        GAL[k].igrp = k;
+        xtmp[ngrp] = std::make_pair(lgrp_to_matching_rank(k), k);
         ngrp++;
-        GAL[j_par].listid = ngrp;
+        GAL[k].listid = ngrp;
+        // No need to mark as visited here, loop is ending
       }
     }
 
@@ -326,7 +332,7 @@ void groupfind()
       // Orphaned Satellite - it's central became a satellite in the final iteration. Need to reassign.
       if (GAL[GAL[k].igrp].igrp != GAL[k].igrp) { 
          // Consider this a central now, next loop will process it.
-        //LOG_WARN("WARNING - psat>0.5 galaxy %d points to central %d which isn't a central!\n", k, GAL[k].igrp);
+        //LOG_INFO("psat>0.5 galaxy %d points to central %d which isn't a central anymore\n", k, GAL[k].igrp);
         GAL[k].igrp = k;
         GAL[k].psat = 0.0;
         GAL[k].nsat = 0;
@@ -483,9 +489,8 @@ void recalc_galprops() {
  */
 void find_satellites(int icen, GalaxyKDTree *tree)
 {
-  int j, k;
-  double dx, dy, theta, prob_ang, vol_corr, prob_rad, grp_lum, p0;
-  double bprob;
+  int j;
+  double theta, prob_ang, vol_corr, prob_rad, p0;
   std::vector<nanoflann::ResultItem<unsigned int, double>> ret_matches;
   nanoflann::SearchParameters params = nanoflann::SearchParameters();
   double sat[3];
@@ -549,47 +554,55 @@ void find_satellites(int icen, GalaxyKDTree *tree)
     double cdz = fabs(GAL[icen].redshift - GAL[j].redshift) * SPEED_OF_LIGHT;
     p0 = psat(&GAL[icen], theta, cdz, GAL[j].bprob);
 
-    // Keep track of the highest psat so far
+    // Only let one thread enter this section at a time, where we actually update the GAL array
     #pragma omp critical
     {
-      if (p0 > GAL[j].psat)
-        GAL[j].psat = p0;    
-    }
-    if (p0 <= 0.5)
-      continue;
-
-    // This is considered a member of the group
-    #pragma omp critical
-    {
-      if (p0 >= GAL[j].psat)
+      if (GAL[j].psat > 0.5 && GAL[icen].grp_rank > GAL[GAL[j].igrp].grp_rank) 
       {
-        // If this was previously a member of another (lower-rank) group, remove it from that.
-        if (GAL[j].igrp >= 0)
-        {
-          // It was it's own central 
-          // Not entirely sure how this happens given the ordering of the loop, but it can. I don't think it's a bug?
-          // Perhaps it's because of parallelization?
-          if (GAL[j].igrp == j) 
-          {
-              // If this galaxy has satellites, they become orphans now. We deal with them later.
-          }
-          else // Was just a sat of another group, update that group's properties
-          {
-            GAL[GAL[j].igrp].nsat--;
-            GAL[GAL[j].igrp].lgrp -= GAL[j].lum;
-          }
-        }
-
-        // Assign it to this group
-        GAL[j].psat = p0;
-        GAL[j].nsat = 0;
-        GAL[j].igrp = icen;
-        GAL[icen].lgrp += GAL[j].lum;
-        GAL[icen].nsat++;
-        //red_sats++;
+        // Skip if already assigned to a central, UNLESS current group has priority
+        // (This condition from above must be rechecked due to parallelization)
       }
-    }
-  }
+      else if (GAL[icen].psat < 0.5) // Also recheck that this central is still a central
+      {
+        // Keep track of the highest psat until we assign it to a group
+        if (p0 > GAL[j].psat && p0 <= 0.5)
+          GAL[j].psat = p0;    
+
+        if (p0 > 0.5)
+        {
+          // It will enter here only if it's psat is high enough for this central, and this central has higher priority than any previous one.
+
+          // If this was previously a member of another lower priority groups (higher grp_rank), we need to update that group's properties
+          if (GAL[j].igrp >= 0)
+          {
+
+            if (GAL[j].igrp == j) 
+            {
+              // It was it's own central 
+              // I believe this only happens because of parallization
+              // If this galaxy has satellites, they become orphans now. We deal with them later.
+            }
+            else // Was a sat of another group, update that group's properties
+            {
+              GAL[GAL[j].igrp].nsat--;
+              GAL[GAL[j].igrp].lgrp -= GAL[j].lum;
+            }
+          }
+
+          // Assign it to this group
+          GAL[j].psat = p0;
+          GAL[j].nsat = 0;
+          GAL[j].igrp = icen;
+          GAL[icen].lgrp += GAL[j].lum;
+          GAL[icen].nsat++;
+          //red_sats++;
+
+        } // end of check if we are assigning as a satellite
+      } // end of check that central is still a central
+      
+    } // end of critical section
+
+  } // end of loop over nearby galaxies
 
   //if (red_candidates > 3) {
   //  LOG_INFO("find_satellites (z=%f): %d red candidates. %d red sats\n", GAL[icen].redshift, red_candidates, red_sats);
