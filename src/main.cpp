@@ -284,7 +284,7 @@ int main(int argc, char **argv)
     {
       t0 = get_wtime();
       lsat_model();
-      tabulate_hods();
+      process_hods();
       prepare_halos();
       t1 = get_wtime();
       LOG_PERF("lsat + hod + prep popsim: %.2f sec\n", t1 - t0);

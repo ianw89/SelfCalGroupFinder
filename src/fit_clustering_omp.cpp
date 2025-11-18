@@ -764,6 +764,13 @@ void tabulate_hods()
     }
   }
 
+
+}
+
+void process_hods() 
+{
+  
+  tabulate_hods();
   write_hod();
 
   // Smooth and extrapolate the satellite HODs to handle gaps in the data and the high-mass end where there is little data.

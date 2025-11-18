@@ -359,11 +359,91 @@ void test_tabulate_hod() {
     TEST_CASE(isclose(HOD.nsat[1][120], log10(4.0/5.0)), HOD.nsat[1][120], "Expected 4 sats in the middle L bin");
     TEST_CASE(HOD.nsat[2][120] < -15, HOD.nsat[2][120], "Expected 0 sats in the highest L bin");
 
-    // Ensure all halos have been have a central counted
-    // If there are centrals outside the L bins we use then it won't add up to one.
-    // But if they are all in the range we have, then it should be 1. Otherwise the vmax weighting is inconsistent.
-    double centrals = pow(10, HOD.ncen[0][120]) + pow(10, HOD.ncen[1][120]) + pow(10, HOD.ncen[2][120]);
-    TEST_CASE(isclose(centrals, 1.0), centrals, "All halos should have a central counted across all L bins");
+    // TODO Ensure all halos have been have a central counted
+    // If there are centrals outside the L bins we use then it won't add up to one. 
+    // But if they are all in the range we have, as is the case for this test,
+    //  then it should be 1. Otherwise the vmax weighting would be inconsistent.
+    // However, because each L bin measurement only looks a different subset of the data, it won't be true.
+    //   Basically the HOD model of the universe each one comes up with is different because they see different halos.
+    // For this to pass we would somehow need to incorproate knowledge of the halos seen at redshfits higher than
+    //   a given L bin into it, which I haven't thought throught carefully.
+    //double centrals = pow(10, HOD.ncen[0][120]) + pow(10, HOD.ncen[1][120]) + pow(10, HOD.ncen[2][120]);
+    //TEST_CASE(isclose(centrals, 1.0), centrals, "All halos should have a central counted across all L bins");
+  }
+
+  
+void test_tabulate_hod_2() {
+    // Setup 3 non-color seperated magnitude wide bins
+    VERBOSE = 0;
+    HOD.NVOLUME_BINS = 3;
+    HOD.maglim[0] = -19; 
+    HOD.maglim[1] = -20; 
+    HOD.maglim[2] = -21;
+    HOD.magmax[0] = -20;
+    HOD.magmax[1] = -21;
+    HOD.magmax[2] = -22;
+    HOD.maxz[0] = 0.1;
+    HOD.maxz[1] = 0.2;
+    HOD.maxz[2] = 0.3;
+    HOD.volume[0] = 1e6;
+    HOD.volume[1] = 1e7;
+    HOD.volume[2] = 1e8;
+    HOD.color_sep[0] = 0;
+    HOD.color_sep[1] = 0;
+    HOD.color_sep[2] = 0;
+
+    NGAL = 6;
+    GAL = new struct galaxy[NGAL];
+    for (int i = 0; i < NGAL; ++i) {
+        GAL[i].igrp = i; // only centrals
+        GAL[i].psat = 0.0;
+        GAL[i].color = 0.0;
+        GAL[i].mass = 1e12;
+        update_galaxy_halo_props(&GAL[i]);
+    }
+
+    GAL[0].loglum = ((-19.5) - 4.65)/ -2.5; 
+    GAL[0].redshift = 0.05;
+    GAL[0].vmax = HOD.volume[0] * 2;
+    GAL[1].loglum = ((-20.5) - 4.65)/ -2.5; 
+    GAL[1].redshift = 0.05;
+    GAL[1].vmax = HOD.volume[1] * 2;
+    GAL[2].loglum = ((-21.5) - 4.65)/ -2.5; 
+    GAL[2].redshift = 0.05;
+    GAL[2].vmax = HOD.volume[2] * 2;
+    GAL[3].loglum = ((-20.5) - 4.65)/ -2.5;
+    GAL[3].redshift = 0.15;
+    GAL[3].vmax = HOD.volume[1] * 2;
+    GAL[4].loglum = ((-21.5) - 4.65)/ -2.5; 
+    GAL[4].redshift = 0.15;
+    GAL[4].vmax = HOD.volume[2] * 2;
+    GAL[5].loglum = ((-21.5) - 4.65)/ -2.5; 
+    GAL[5].redshift = 0.25;
+    GAL[5].vmax = HOD.volume[2] * 2;
+
+    for (int i = 0; i < NGAL; ++i) {
+        GAL[i].lum = pow(10, GAL[i].loglum);
+    }
+
+    // Print off GAL array
+    for (int i = 0; i < NGAL; ++i) {
+        printf("GAL[%d]: igrp=%d, loglum=%.2f, redshift=%.2f, vmax=%.2e, psat=%.1f, mass=%.2e\n", i, GAL[i].igrp, GAL[i].loglum, GAL[i].redshift, GAL[i].vmax, GAL[i].psat, GAL[i].mass);
+    }
+
+    tabulate_hods();   
+
+    TEST_CASE(HOD.nhalo_int[0][120] == 3, HOD.nhalo_int[0][120], "Expected 3 halos for lowest L bin");
+    TEST_CASE(HOD.nhalo_int[1][120] == 5, HOD.nhalo_int[1][120], "Expected 5 halos for middle L bin");
+    TEST_CASE(HOD.nhalo_int[2][120] == 6, HOD.nhalo_int[2][120], "Expected 6 halos for highest L bin");
+
+    TEST_CASE(isclose(HOD.ncen[0][120], log10(1.0/3.0)), HOD.ncen[0][120], "Expected 1 central for lowest L bin");
+    TEST_CASE(HOD.ncen[1][120] <  log10(2.0/5.0),  HOD.ncen[1][120], "Expected < 2 central for middle L bin due to upweighting the lower L ones");
+    TEST_CASE(HOD.ncen[2][120] <  log10(3.0/6.0),  HOD.ncen[2][120], "Expected < 3 central for highest L bin due to upweighting the lower L ones");
+
+    TEST_CASE(HOD.nsat[0][120] <  -15,  HOD.nsat[0][120], "Expected 0 sats for lowest L bin");
+    TEST_CASE(HOD.nsat[1][120] <  -15,  HOD.nsat[1][120], "Expected 0 sats for middle L bin");
+    TEST_CASE(HOD.nsat[2][120] <  -15,  HOD.nsat[2][120], "Expected 0 sats for highest L bin");
+    
   }
 
 int main(int argc, char **argv) {
@@ -376,6 +456,7 @@ int main(int argc, char **argv) {
     test_psat();
     test_float_vs_double_math();
     test_tabulate_hod();
+    test_tabulate_hod_2();
 
     printf(" *** ALL TESTS PASSED ***\n");
 }
