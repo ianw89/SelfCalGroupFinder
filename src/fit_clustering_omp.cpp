@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <vector>
 #include <stdint.h>
+#include <iostream>
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
 #include "nrutil.h"
@@ -467,7 +468,7 @@ void lsat_model()
 void tabulate_hods()
 {
   FILE *fp, *bins_fp;
-  int i, j, im, igrp, ibin;
+  int i, j, im, igrp, Lbin;
   float mag;
   // these are for MXXL-BGS
   // float maxz[MAXBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158 };
@@ -536,7 +537,7 @@ void tabulate_hods()
     assert (im >= 0 && im < HALO_BINS);
 
     for (j = 0; j < HOD.NVOLUME_BINS; ++j){
-      if (GAL[i].redshift < HOD.maxz[j])
+      if (GAL[i].redshift < HOD.maxz[j]) // Redshift of the halo (central's) must fall within a L bin to count it
       {
         w0 = 1 / HOD.volume[j];
         if (GAL[i].vmax < HOD.volume[j]) {
@@ -548,6 +549,7 @@ void tabulate_hods()
             LOG_ERROR("ERROR: w0 is invalid for halo %d with vmax=%f\n", igrp, GAL[igrp].vmax);
             assert(false);
         }
+        LOG_INFO("Adding halo %d to Lbin %d, Mbin %d, weight=%e\n", igrp, j, im, w0);
         HOD.nhalo[j][im] += w0; // 1/vmax weight the halo count
         HOD.nhalo_int[j][im]++; // integer version of nhalo (no vmax weight)
       }
@@ -565,14 +567,14 @@ void tabulate_hods()
     }
     im = (int)(log10(GAL[i].mass) / 0.1);
 
-    // Get the mag (or mass) bin index
-    ibin = -1;
+    // Get the mag (or stellar mass) bin index
+    Lbin = -1;
     if (STELLAR_MASS) {
       mag = GAL[i].loglum; // log(M*)
 
       for (j = 0; j < HOD.NVOLUME_BINS; ++j) {
         if (mag >= HOD.maglim[j] && mag < (HOD.magmax[j])) {
-            ibin = j;
+            Lbin = j;
             break;
         }
       }
@@ -582,43 +584,45 @@ void tabulate_hods()
 
       for (j = 0; j < HOD.NVOLUME_BINS; ++j) {
           if (mag <= HOD.maglim[j] && mag > (HOD.magmax[j])) {
-              ibin = j;
+              Lbin = j;
               break;
           }
       }
     }
+    LOG_INFO("Galaxy %d: mag=%f, Lbin=%d\n", i, mag, Lbin);
 
-    if (ibin < 0 || ibin >= HOD.NVOLUME_BINS)
+    if (Lbin < 0 || Lbin >= HOD.NVOLUME_BINS)
       continue; // skip if not in any bins mag range
-    if (GAL[i].redshift > HOD.maxz[ibin])
+    if (GAL[i].redshift > HOD.maxz[Lbin])
       continue; // skip if not in the redshift range of it's bin, not sure how it happens
     assert (im >= 0 && im < HALO_BINS);
 
     // vmax-weight everything
-    w0 = 1 / HOD.volume[ibin];
-    if (GAL[i].vmax < HOD.volume[ibin])
+    w0 = 1 / HOD.volume[Lbin];
+    if (GAL[i].vmax < HOD.volume[Lbin])
     {
       // Most of the galaxies that hit this are because of k-corrections. 
       // VMAX should always use un-corrected mags, which means at the faint edge of the bin it is possible
       // for a galaxy to have a vmax less than the volume of the bin.
       // However, in some rare cases it seems to be happening even away from the edges, which I don't understand. BUG
-      //LOG_WARN("WARNING: vmax (%f) < volume (%f) for galaxy index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, HOD.volume[ibin], i, mag, HOD.maglim[ibin], GAL[i].redshift, HOD.maxz[ibin]);
+      //LOG_WARN("WARNING: vmax (%f) < volume (%f) for galaxy index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, HOD.volume[Lbin], i, mag, HOD.maglim[Lbin], GAL[i].redshift, HOD.maxz[Lbin]);
       w0 = 1 / GAL[i].vmax;
     }
+    LOG_INFO("Adding gal %d (halo %d) to Lbin %d, Mbin %d, weight=%e\n", i, igrp, Lbin, im, w0);
 
     if (GAL[i].psat > 0.5) {
-      HOD.nsat[ibin][im] += w0;
+      HOD.nsat[Lbin][im] += w0;
       if (GAL[i].color > 0.8) // red
-        HOD.nsatr[ibin][im] += w0;
+        HOD.nsatr[Lbin][im] += w0;
       else // blue
-        HOD.nsatb[ibin][im] += w0;
+        HOD.nsatb[Lbin][im] += w0;
     }
     else {
-      HOD.ncen[ibin][im] += w0;
+      HOD.ncen[Lbin][im] += w0;
       if (GAL[i].color > 0.8) // red
-        HOD.ncenr[ibin][im] += w0;
+        HOD.ncenr[Lbin][im] += w0;
       else // blue
-        HOD.ncenb[ibin][im] += w0;
+        HOD.ncenb[Lbin][im] += w0;
     }
   }
 
