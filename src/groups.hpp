@@ -1,4 +1,7 @@
+#pragma once
+
 #include <cstdio>
+#include "fit_clustering_omp.hpp" // <-- Add this include
 
 // Definitions
 #define OMEGA_M 0.25
@@ -101,6 +104,7 @@ extern double GALAXY_DENSITY;
 extern int SILENT;
 extern int VERBOSE;
 extern int RECENTERING;
+extern HodWeightType HOD_WEIGHT_TYPE;
 extern int POPULATE_MOCK;
 extern const char *INPUTFILE;
 extern const char *HALO_MASS_FUNC_FILE;

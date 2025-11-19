@@ -63,6 +63,7 @@ static struct argp_option options[] = {
   {"wcen",         'w', "MASS,SIGMA,MASSR,SIGMAR,NORM,NORMR", 0,  "Six parameters for weighting the centrals", 2},
   {"bsat",         'b', "RED,XRED,BLUE,XBLUE",                0,  "Four parameters for the satellite probability", 2},
   {"chi1",         'x', "WEIGHT_B,WEIGHT_R,SLOPE_B,SLOPE_R",  0,  "Four parameters per-galaxy extra property weighting", 2},
+  {"hodw",         't', "TYPE",                               0,  "Weighting scheme 0 for ORIGINAL, 1 for TOTAL_VMAX, 2 for UNWEIGHTED", 2},
   {"verbose",      'v', 0,                                    0,  "Produce verbose stderr logging", 3},
   {"quiet",        'q', 0,                                    0,  "Don't produce any output to stderr", 3 },
   {"silent",       's', 0,                                    OPTION_ALIAS },
@@ -146,6 +147,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       break;
     case 'h':
       HALO_MASS_FUNC_FILE = arg;
+      break;
+    case 't':
+      sscanf(arg, "%d", (int *)&HOD_WEIGHT_TYPE);
       break;
     case 'k':
       INTERACTIVE = 1;
@@ -284,7 +288,7 @@ int main(int argc, char **argv)
     {
       t0 = get_wtime();
       lsat_model();
-      process_hods();
+      process_hods(HOD_WEIGHT_TYPE);
       prepare_halos();
       t1 = get_wtime();
       LOG_PERF("lsat + hod + prep popsim: %.2f sec\n", t1 - t0);

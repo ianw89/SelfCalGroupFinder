@@ -1,3 +1,4 @@
+#pragma once
 
 // Min/Max for SHAMing. 
 // Note that when populating mock we have a tighter range.

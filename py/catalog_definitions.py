@@ -203,6 +203,11 @@ bgs_y1_pzp_2_6_c2 = BGSGroupCatalog("BGS Y1 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0
 bgs_y1_pzp_2_6_c2.marker = '-'
 bgs_y1_pzp_2_6_c2.color = 'darkgreen'
 
+bgs_y1_pzp_2_6_c2_vmaxhod = BGSGroupCatalog("BGS Y1 C2 TOTAL_VMAX", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
+bgs_y1_pzp_2_6_c2_vmaxhod.GF_props['hodw'] = 1
+bgs_y1_pzp_2_6_c2_vmaxhod.marker = '-'
+bgs_y1_pzp_2_6_c2_vmaxhod.color = 'darkorange'
+
 bgs_y1_pzp_2_6_c2_serial = BGSGroupCatalog("BGS Y1 C2 Serial", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y1_pzp_2_6_c2_serial.marker = '-'
 bgs_y1_pzp_2_6_c2_serial.color = 'darkorange'

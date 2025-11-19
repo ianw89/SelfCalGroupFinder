@@ -147,7 +147,8 @@ def pre_process_uchuu(in_filepath: str, mode: int, outname_base: str, app_mag_cu
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_me_k) 
 
     # the vmax should be calculated from un-k-corrected magnitudes
-    V_max = get_max_observable_volume(abs_mag_me, z_eff, app_mag_cut, FOOTPRINT_FRAC)
+    # TODO wrong z range?
+    V_max = get_max_observable_volume(abs_mag_me, 0.0, np.max(z_eff), app_mag_cut, FOOTPRINT_FRAC)
 
     colors = np.zeros(count, dtype=np.int32) # TODO compute colors. Use color cut as per Alex's paper.
     chi = np.zeros(count, dtype=np.int32) # TODO compute chi

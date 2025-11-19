@@ -82,8 +82,9 @@ int SECOND_PARAMETER = 0; // default is no extra per-galaxy parameters
 int SILENT = 0; // TODO make this work
 int VERBOSE = 0; // TODO make this work
 int POPULATE_MOCK = 0; // default is do not populate mock
-int MAX_ITER = 5; // default is to go until fsat 0.001 convergence; can provide a number in parametrs instead
-int ALLOW_EARLY_EXIT = 0; // default is to not allow early exit, but this is used in MCMC to speedups
+HodWeightType HOD_WEIGHT_TYPE = HodWeightType::ORIGINAL; // default is Tinker2020 scheme
+int MAX_ITER = 5; // default is 5 iterations, but can set anything desired in the command line arguments
+int ALLOW_EARLY_EXIT = 0; // default is to not allow early exit, but this is used in MCMC to speedups. See command line args.
 FILE *MSG_PIPE = NULL; // default is no message pipe
 
 void groupfind()
@@ -139,11 +140,16 @@ void groupfind()
       GAL[i].dec *= PI / 180.;
       GAL[i].rco = distance_redshift(GAL[i].redshift);
       // check if the stellar mass (or luminosity) is in log
-      if (GAL[i].lum < 100)
+      if (GAL[i].lum < 15) // assume it's log10 instead
         GAL[i].lum = pow(10.0, GAL[i].lum);
-      GAL[i].loglum = log10(GAL[i].lum);
-      if (FLUXLIM)
+      GAL[i].loglum = log10(GAL[i].lum); // store this version too so we don't have to keep calculating it
+      if (FLUXLIM) {
         fscanf(fp, "%lf", &GAL[i].vmax);
+        if (GAL[i].vmax <= 0 || isnan(GAL[i].vmax) || !isfinite(GAL[i].vmax)) {
+          LOG_ERROR("ERROR: vmax is invalid for galaxy %d with vmax=%f\n", i, GAL[i].vmax);
+          assert(false);
+        } 
+      }
       else
         GAL[i].vmax = volume;
       if (COLOR)

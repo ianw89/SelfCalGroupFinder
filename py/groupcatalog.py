@@ -28,7 +28,6 @@ from redshift_guesser import SimpleRedshiftGuesser, PhotometricRedshiftGuesser
 from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
 from bgs_helpers import *
-import wp
 from calibrationdata import *
 from hod import fit_hod_models, HODThresholdsTabulated, HODTabulated, fit_hod_threshold_models
 
@@ -82,26 +81,6 @@ GOOD_TEN_PARAMETERS = np.array([
     [13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04], # From SDSS 
     [18.382, 5.803, 19.458, 9.869, 33.727, 6.413, -4.952, 19.493, 11.300, 0.511,], # C2
     [18.420, 5.598, 26.501, 14.446, 41.256, 10.066, -10.396, 24.101, 11.599, 1.313,], # C3
-    [18.470, 5.969, 17.683, 8.450, 29.809, 5.294, -3.670, 16.913, 11.293, 1.193,],
-    [18.382, 5.803, 19.458, 9.869, 33.727, 6.413, -4.952, 19.493, 11.300, 0.511,],
-    [15.444, 3.780, 18.127, 7.750, 28.354, 6.965, -3.511, 16.266, 11.122, 0.528,],
-    [17.465, 5.202, 18.915, 8.778, 31.077, 6.879, -3.900, 17.320, 10.603, 1.536,],
-    [20.217, 6.681, 27.327, 15.667, 49.620, 10.274, -10.521, 30.636, 11.673, 0.654,],
-    [17.367, 5.184, 18.498, 8.736, 30.643, 6.452, -3.826, 16.994, 10.828, 0.703,],
-    [17.244, 5.012, 19.269, 9.069, 30.528, 6.652, -3.687, 17.177, 11.338, -0.405,],
-    [17.573, 5.284, 18.465, 8.808, 30.479, 5.981, -3.874, 17.368, 11.467, 0.147,],
-    [18.208, 5.687, 19.612, 9.818, 33.689, 6.603, -4.815, 19.551, 11.323, 0.633,],
-    [17.238, 5.021, 18.977, 8.840, 29.867, 6.473, -3.550, 16.891, 11.348, -0.329,],
-    [17.723, 5.392, 18.738, 9.511, 32.620, 5.755, -4.572, 18.840, 11.297, -0.882,],
-    [17.572, 5.162, 21.369, 10.668, 34.753, 7.918, -6.142, 19.555, 10.878, 1.449,],
-    [18.444, 5.962, 17.665, 8.675, 31.001, 5.300, -4.221, 17.748, 11.315, 1.127,],
-    [15.885, 4.027, 20.413, 9.298, 30.443, 8.098, -4.144, 17.069, 12.130, 1.393,],
-    [16.471, 4.485, 19.034, 8.796, 30.166, 6.750, -4.017, 17.470, 12.051, 0.862,],
-    [18.228, 5.695, 18.929, 9.360, 32.341, 5.902, -4.445, 18.440, 11.239, 0.419,],
-    [17.878, 5.464, 19.313, 9.506, 32.953, 6.581, -4.613, 19.119, 11.313, 0.643,],
-    [18.336, 6.058, 15.160, 7.959, 32.486, 3.927, -5.676, 20.169, 12.183, 2.611,],
-    [17.788, 5.406, 19.196, 9.402, 32.697, 6.529, -4.544, 18.976, 11.293, 0.563,],
-    [17.277, 4.971, 20.690, 10.183, 33.755, 7.526, -4.356, 18.569, 11.288, -0.779,]
     ])
 
 # A 10 Parameter set found from MCMC SV3 with SDSS data.
@@ -253,8 +232,8 @@ class GroupCatalog:
         self.lhmr_b_m : np.ndarray = None # lhmr model blue
         self.lhmr_b_std : np.ndarray = None # lhmr model blue scatter
         self.lsat_ratios : np.ndarray = None # lsat ratios, 107-88+1 values
-        self.hod : np.ndarray = None # Raw mag binned HOD from C++
-        self.hodfit : np.ndarray = None # Mag binned HOD from C++ with modifications; this is what was used to populate mocks
+        self.hod : HODTabulated = None # Raw Binned HOD from C++
+        self.hodfit : HODTabulated = None # Binned HOD from C++ with modifications; this is what was used to populate mocks
 
         # Bootstrapped error estimates
         self.fsat_bootstrap_err: np.ndarray = None
@@ -947,12 +926,14 @@ class GroupCatalog:
             elif msg_type == MSG_HOD:
                 cols = self.caldata.bincount*7 + 1
                 rows = len(data) // cols
-                self.hod = np.array(data, dtype=dtype).reshape((rows, cols))
+                arr = np.array(data, dtype=dtype).reshape((rows, cols))
+                self.hod = HODTabulated.from_cpp(arr, self.caldata) 
 
             elif msg_type == MSG_HODFIT:
                 cols = self.caldata.bincount*7 + 1
                 rows = len(data) // cols
-                self.hodfit = np.array(data, dtype=dtype).reshape((rows, cols))
+                arr = np.array(data, dtype=dtype).reshape((rows, cols))
+                self.hodfit = HODTabulated.from_cpp(arr, self.caldata) 
             
             elif msg_type == MSG_COMPLETED:
                 #print("Group Finder completed successfully.")
@@ -1018,6 +999,8 @@ class GroupCatalog:
             args.append(f"--popmock={MOCK_FILE_FOR_POPMOCK},volume_bins.dat")
         if verbose:
             args.append("-v")
+        if 'hodw' in self.GF_props:
+            args.append(f"--hodw={self.GF_props['hodw']}")
         if interactive:
             args.append("-k") # keep alive
         if 'omegaL_sf' in self.GF_props:
@@ -1717,7 +1700,6 @@ class BGSGroupCatalog(GroupCatalog):
         The maximum z will be calculated automatiaclly for the given flux limit of this catalog.
         """
         zmax = get_max_observable_z(dim_mag, self.mag_cut)
-        zmax = zmax.value
 
         if zmin > zmax:
             raise ValueError(f"zmin {zmin:.5f} is greater than zmax {zmax:.5f}. Cannot create volume-limited sample.")
@@ -1927,7 +1909,7 @@ def get_footprint_deg(data_cut, mode, num_passes_required):
         print("Invalid data cut. Exiting.")
         exit(2)
 
-def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT, sdss_fill, num_passes_required, drop_passes, data_cut, extra_params, ffc):
+def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sdss_fill, num_passes_required, drop_passes, data_cut, extra_params, ffc):
     """
     Pre-processes the BGS data for use with the group finder.
     """
@@ -2087,8 +2069,8 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     if not np.all(np.isin(photsys, [b"N", b"S"])):
         print("ERROR: PHOTSYS column has values other than N or S. Exiting.")
         exit(2)
-    keep &= np.where(photsys == b"N", app_mag_r < (APP_MAG_CUT + offset), (app_mag_r < APP_MAG_CUT))
-    print(f"After app_mag_r < {APP_MAG_CUT} cut: {keep.sum():,}")
+    keep &= np.where(photsys == b"N", app_mag_r < (fluxlimit + offset), (app_mag_r < fluxlimit))
+    print(f"After app_mag_r < {fluxlimit} cut: {keep.sum():,}")
 
     keep &= ~np.isin(target_id, bad_targets)
     catalog_keep &= ~np.isin(target_id, bad_targets)
@@ -2195,7 +2177,7 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
         # Filter down inputs to the ones we want in the catalog for NN and similar calculations
         # TODO why bother with this for the real data? Use all we got, right? 
         # I upped the cut to 21 so it doesn't do anything
-        catalog_keep &= app_mag_r < CATALOG_APP_MAG_CUT 
+        catalog_keep &= app_mag_r < catalog_fluxlimit 
         catalog_keep &= redshift_filter
         catalog_keep &= redshift_hi_filter
         catalog_keep &= deltachi2_filter
@@ -2394,7 +2376,8 @@ def pre_process_BGS(fname, mode, outname_base, APP_MAG_CUT, CATALOG_APP_MAG_CUT,
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
 
     # the vmax should be calculated from un-k-corrected magnitudes, since that's what sets the survey limit
-    V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
+    #V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
+    V_max = get_max_observable_volume(abs_mag_R, BGS_Z_MIN, BGS_Z_MAX, fluxlimit, frac_area)
 
     # TODO get galaxy concentration from somewhere
     chi = np.zeros(count, dtype=np.int32) 

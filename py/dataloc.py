@@ -167,6 +167,10 @@ LHMR_VALUES_FROM_LOGS = OUTPUT_FOLDER + "lhmr_values_from_log.npy"
 LSAT_VALUES_FROM_LOGS = OUTPUT_FOLDER + "lsat_values_from_log.npy"
 # Note: backup versions of these exist for the July Y1 analysis; same name with ~ at end
 
+# OTHER AUXILIARY FILES
+###############################
+LUM_DIST_CACHE = OUTPUT_FOLDER + "ld_cache.npz" # This is built by the LuminosityDistanceCache class in distances.py
+
 # RANDOMS FILES MATCHING OUR FOOTPRINTS
 #######################################
 # ##### SV3 (FUJI) Randoms #####

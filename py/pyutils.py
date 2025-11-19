@@ -18,6 +18,7 @@ import pickle
 import emcee
 from emcee.backends import Backend
 from numpy.polynomial.polynomial import Polynomial
+from astropy.cosmology import z_at_value
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -380,10 +381,12 @@ def z_to_ldist(zs):
     """
     Gets the luminosity distance of the provided redshifts in Mpc.
     """
-    return _cosmo_h.luminosity_distance(zs).value
+    ld_cache = LuminosityDistanceCache()
+    return ld_cache.luminosity_distance(zs)
     
 def distmod(zs):
-    return 5 * (np.log10(_cosmo_h.luminosity_distance(zs).value * 1E6) - 1)
+    ld_cache = LuminosityDistanceCache()
+    return 5 * (np.log10(ld_cache.luminosity_distance(zs) * 1E6) - 1)
 
 def bgs_mag_to_sdsslike_mag(mag, band='r'):
     """
@@ -443,48 +446,143 @@ def abs_mag_r_to_solar_L(arr):
 def log_solar_L_to_abs_mag_r(arr):
     return SOLAR_L_R_BAND - 2.5 * arr
 
-from astropy.cosmology import z_at_value
+class LuminosityDistanceCache:
+    """
+    A singleton class that manages a persisted, interpolated lookup table for
+    luminosity distances to accelerate calculations.
+
+    On first instantiation, it generates a lookup table for z -> luminosity_distance
+    and its inverse, saves it to a file, and uses fast numpy interpolation for
+    all subsequent requests. All subsequent instantiations will return the
+    same cached object.
+
+    Args (used only on first creation):
+        z_max (float): Maximum redshift for the lookup table.
+        num_points (int): Number of points in the lookup table.
+    """
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            # Create the new instance
+            cls._instance = super(LuminosityDistanceCache, cls).__new__(cls)
+            instance = cls._instance
+
+            # --- Initialization logic (runs only once) ---
+            instance.cosmology = get_cosmology()
+            instance.z_max = 0.51
+            instance.num_points = 200000
+            instance.cache_file = LUM_DIST_CACHE
+
+            instance.z_table = None
+            instance.dist_table = None
+
+            if instance._cache_exists():
+                instance._load_cache()
+            else:
+                instance._generate_cache()
+        
+        return cls._instance
+
+
+    def _cache_exists(self):
+        """Check if the cache file exists and is valid."""
+        return os.path.exists(self.cache_file)
+
+    def _generate_cache(self):
+        """Generate the luminosity distance table and save it to a file."""
+        print(f"Generating new luminosity distance cache at {self.cache_file}...")
+        # Create a high-resolution redshift grid
+        self.z_table = np.linspace(0, self.z_max, self.num_points)
+        
+        # Calculate luminosity distance for each point (this is the slow part)
+        self.dist_table = self.cosmology.luminosity_distance(self.z_table).to(u.Mpc).value
+        
+        # Save to a compressed numpy file for persistence
+        np.savez_compressed(self.cache_file, z=self.z_table, dist=self.dist_table)
+        print("Cache generation complete.")
+
+    def _load_cache(self):
+        """Load the lookup table from the cache file."""
+        # print(f"Loading luminosity distance cache from {self.cache_file}")
+        with np.load(self.cache_file) as data:
+            self.z_table = data['z']
+            self.dist_table = data['dist']
+
+        # Ensure it has the expected shape and values
+        if self.z_table.shape[0] != self.num_points or self.dist_table.shape[0] != self.num_points:
+            print("Cache file has unexpected shape. Regenerating cache.")
+            self._generate_cache()  
+
+    def luminosity_distance(self, z):
+        """
+        Get luminosity distances for given redshifts using fast interpolation.
+
+        Args:
+            z (float or np.ndarray): Redshift(s).
+
+        Returns:
+            np.ndarray: Luminosity distance(s) in Mpc.
+        """
+        return np.interp(z, self.z_table, self.dist_table)
+
+    def z_at_value(self, dist):
+        """
+        Get redshifts for given luminosity distances using inverse interpolation.
+
+        Args:
+            dist (float or np.ndarray): Luminosity distance(s) in Mpc.
+
+        Returns:
+            np.ndarray: Redshift(s).
+        """
+        return np.interp(dist, self.dist_table, self.z_table)
+
 
 def get_max_observable_z(abs_mags, fluxlimit):
     # Use distance modulus
     d_l = (10 ** ((fluxlimit - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
-
-    return z_at_value(_cosmo_h.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
+    #return z_at_value(_cosmo_h.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
+    ld_cache = LuminosityDistanceCache()
+    return ld_cache.z_at_value(d_l)
 
 def get_max_observable_z_m30(abs_mags, fluxlimit):
     d_l = (10 ** ((fluxlimit - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
-    return z_at_value(_cosmo_h_m30.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
+    return z_at_value(_cosmo_h_m30.luminosity_distance, d_l*u.Mpc).value # TODO what cosmology to use?
 
 def get_max_observable_z_mxxlcosmo(abs_mags, fluxlimit):
-    # Use distance modulus
     d_l = (10 ** ((fluxlimit - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
-
-    return z_at_value(_cosmo_mxxl.luminosity_distance, d_l*u.Mpc) # TODO what cosmology to use?
+    return z_at_value(_cosmo_mxxl.luminosity_distance, d_l*u.Mpc).value # TODO what cosmology to use?
 
 def get_volume_at_z(z, frac_area):
     """
     Calculate the comoving volume out to redshift z.
     """
-    return (4/3*np.pi) * _cosmo_h.luminosity_distance(z).value**3 / (1 + z)**3 * frac_area
+    ld_cache = LuminosityDistanceCache()
+    return (4/3*np.pi) * ld_cache.luminosity_distance(z)**3 / (1 + z)**3 * frac_area
 
-
-def get_max_observable_volume(abs_mags, z_obs, m_cut, frac_area):
+def get_max_observable_volume(abs_mags, z_min, z_max_survey, fluxlimit, frac_area):
     """
     Calculate the Vmax (max volume at which the galaxy could be seen) in comoving coords.
+    This is the volume between z_min and min(z_max_survey, z_max_galaxy).
     """
+    # 1. Find the maximum redshift at which a galaxy of this absolute magnitude is visible
+    z_max_galaxy = get_max_observable_z(abs_mags, fluxlimit)
 
-    # Use distance modulus
-    d_l = (10 ** ((m_cut - abs_mags + 5) / 5)) / 1e6 # luminosity distance in Mpc
-    d_cm = d_l / (1 + z_obs) # comoving distance in Mpc
+    # 2. The effective z_max is the smaller of the survey's z limit and the galaxy's visibility limit
+    effective_z_max = np.minimum(z_max_survey, z_max_galaxy)
+    
+    assert np.all(effective_z_max >= z_min)
 
-    v_max = (d_cm**3) * (4*np.pi/3) # in comoving Mpc^3 
+    # 3. Calculate comoving volume out to z_min and effective_z_max
+    vol_max = get_volume_at_z(effective_z_max, frac_area)
+    vol_min = get_volume_at_z(z_min, frac_area)
 
-    # TODO BUG is this supposed to have / h in it?
-    # TODO BUG I'm not convinced that everywhere we use Vmax frac_area should be baked into it
-    # Group finder seems to expect this but not 100% confident
-    # My fsat calculations that have 1/Vmax weightings are not affected by this
-    return v_max * frac_area
-
+    # 4. The observable volume is the difference
+    v_max = vol_max - vol_min
+    
+    # Handle weird edge cases
+    return np.maximum(v_max, 0.001)
 
 
 

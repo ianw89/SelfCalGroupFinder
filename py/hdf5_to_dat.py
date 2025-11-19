@@ -249,7 +249,8 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_k) 
 
     # the vmax should be calculated from un-k-corrected magnitudes
-    V_max = get_max_observable_volume(abs_mag, z_eff, APP_MAG_CUT, FOOTPRINT_FRAC)
+    # TODO wrong z range?
+    V_max = get_max_observable_volume(abs_mag, 0.0, np.max(z_eff), APP_MAG_CUT, FOOTPRINT_FRAC)
 
     if COLORS_ON:
         quiescent = is_quiescent_BGS_gmr(log_L_gal, g_r).astype(int) 

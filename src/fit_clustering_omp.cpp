@@ -46,8 +46,10 @@ float REDSHIFT = 0.0,
 int RANDOM_SEED = 753;
 
 /* local functions */
+void count_halos(HodWeightType type);
+void count_galaxies(HodWeightType type);
 void nsat_smooth(double arr[MAXBINS][HALO_BINS]);
-void nsat_extrapolate(double arr[MAXBINS][HALO_BINS]);
+void nsat_extrapolate(double arr[MAXBINS][HALO_BINS], const char* color);
 float NFW_position(float mass, float x[], struct drand48_data *rng);
 float NFW_velocity(float mass, float v[], struct drand48_data *rng);
 float NFW_density(float r, float rs, float ps);
@@ -153,14 +155,15 @@ void print_hod(const char* filename)
     fprintf(fp, "%.2f", i / 10.0);
     for (j = 0; j < HOD.NVOLUME_BINS; ++j) 
     { 
-      fprintf(fp, " %e %e %e %e %e %e %e %d", 
+      fprintf(fp, " %e %e %e %e %e %e %e %e %d", 
         HOD.ncenr[j][i],
         HOD.nsatr[j][i], 
         HOD.ncenb[j][i],
         HOD.nsatb[j][i],
         HOD.ncen[j][i],
         HOD.nsat[j][i],
-        HOD.nhalo[j][i],
+        HOD.nhalo_forcen[j][i],
+        HOD.nhalo_forsat[j][i],
         HOD.nhalo_int[j][i]);
     }
     fprintf(fp, "\n");
@@ -456,6 +459,171 @@ void lsat_model()
   return;
 }
 
+/**
+ * @brief Counts the number of halos in each luminosity bin and halo mass bin, applying the specified weighting scheme.
+ */
+void count_halos(HodWeightType type)
+{
+  std::vector<bool> halo_counted(NGAL, false); // Keep track of which centrals (halos) have been counted
+  int igrp, im, j;
+  float w0, mag;
+
+  // Loop over each halo to get nhalo counts
+  for (int idx = 0; idx < NGAL; ++idx)
+  {
+    // Determine the host halo's central galaxy index
+    if (GAL[idx].psat > 0.5)
+    {
+      igrp = GAL[idx].igrp;
+    } else {
+      igrp = idx;
+    }
+
+    // If we've already processed this halo, skip it
+    if (halo_counted[igrp]) {
+      continue;
+    }
+    halo_counted[igrp] = true;  
+
+    im = (int)(log10(GAL[igrp].mass) / 0.1);
+    assert (im >= 0 && im < HALO_BINS);
+
+    switch(type)
+    {
+      case ORIGINAL:
+        for (j = 0; j < HOD.NVOLUME_BINS; ++j){
+          if (GAL[igrp].redshift < HOD.maxz[j]) // Redshift of the halo (central's) must fall within a L bin to count it
+          {
+            w0 = 1 / HOD.volume[j];
+            if (GAL[igrp].vmax < HOD.volume[j]) {
+              //mag = -2.5 * GAL[i].loglum + 4.65; // convert to r-band mag
+              //LOG_WARN("WARNING: vmax (%f) < volume (%f) for halo index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, HOD.volume[j], i, mag, HOD.maglim[j], GAL[i].redshift, HOD.maxz[j]);
+              w0 = 1 / GAL[igrp].vmax;
+            }
+            HOD.nhalo_forcen[j][im] += w0;
+            HOD.nhalo_forsat[j][im] += w0;
+            HOD.nhalo_int[j][im]++;
+          }
+        }
+        break;
+
+      case TOTAL_VMAX:
+        for (j = 0; j < HOD.NVOLUME_BINS; ++j){
+          HOD.nhalo_forcen[j][im] += 1 / GAL[igrp].vmax;
+          HOD.nhalo_int[j][im]++;
+          //if (GAL[igrp].redshift < HOD.maxz[j]) // For sats, only track halos that could host these satellites TODO hmm
+          HOD.nhalo_forsat[j][im] += 1 / GAL[igrp].vmax;
+        }
+        break;
+
+      case UNWEIGHTED:
+        for (j = 0; j < HOD.NVOLUME_BINS; ++j){
+          if (GAL[igrp].redshift < HOD.maxz[j]) // Redshift of the halo (central's) must fall within a L bin to count it
+          {
+            HOD.nhalo_forcen[j][im]++;
+            HOD.nhalo_forsat[j][im]++;
+            HOD.nhalo_int[j][im]++;
+          }
+        }
+        break;
+      
+      default:
+        LOG_ERROR("Invalid HodWeightType: %d\n", type);
+        exit(EXIT_FAILURE);
+      }
+    }
+}
+
+/**
+ * @brief Counts the number of galaxies in each luminosity bin and halo mass bin, applying the specified weighting scheme.
+ */
+void count_galaxies(HodWeightType type)
+{
+  int im, Lbin;
+  float w0, mag;
+
+  for (int i = 0; i < NGAL; ++i)
+  {
+    im = (int)(log10(GAL[i].mass) / 0.1);
+
+    // Get the L (or stellar mass) bin index
+    Lbin = -1;
+    if (STELLAR_MASS) {
+      mag = GAL[i].loglum; // log(M*)
+
+      for (int j = 0; j < HOD.NVOLUME_BINS; ++j) {
+        if (mag >= HOD.maglim[j] && mag < (HOD.magmax[j])) {
+            Lbin = j;
+            break;
+        }
+      }
+    }
+    else {
+      mag = -2.5 * GAL[i].loglum + 4.65; // convert to r-band mag
+
+      for (int j = 0; j < HOD.NVOLUME_BINS; ++j) {
+          if (mag <= HOD.maglim[j] && mag > (HOD.magmax[j])) {
+              Lbin = j;
+              break;
+          }
+      }
+    }
+    //LOG_INFO("Galaxy %d: mag=%f, Lbin=%d\n", i, mag, Lbin);
+
+    if (Lbin < 0 || Lbin >= HOD.NVOLUME_BINS)
+      continue; // skip if not in any bins mag range
+    if (type != TOTAL_VMAX && GAL[i].redshift > HOD.maxz[Lbin])
+      continue; // skip if not in the redshift range of it's bin, not sure how it happens
+    assert (im >= 0 && im < HALO_BINS);
+
+    switch(type)
+    {
+      case ORIGINAL:
+        // vmax-weight everything
+        w0 = 1 / HOD.volume[Lbin];
+        if (GAL[i].vmax < HOD.volume[Lbin])
+        {
+          // Most of the galaxies that hit this are because of k-corrections. 
+          // VMAX should always use un-corrected mags, which means at the faint edge of the bin it is possible
+          // for a galaxy to have a vmax less than the volume of the bin.
+          // However, in some rare cases it seems to be happening even away from the edges, which I don't understand. BUG
+          //LOG_WARN("WARNING: vmax (%f) < volume (%f) for galaxy index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, HOD.volume[Lbin], i, mag, HOD.maglim[Lbin], GAL[i].redshift, HOD.maxz[Lbin]);
+          w0 = 1 / GAL[i].vmax;
+        }
+        break;
+
+      case TOTAL_VMAX:
+        w0 = 1 / GAL[i].vmax;
+        break;
+
+      case UNWEIGHTED:
+        w0 = 1.0;
+        break;
+      
+      default:
+        LOG_ERROR("Invalid HodWeightType: %d\n", type);
+        exit(EXIT_FAILURE);
+    }
+
+    //LOG_INFO("Adding gal %d (halo %d) to Lbin %d, Mbin %d, weight=%e\n", i, igrp, Lbin, im, w0);
+
+    if (GAL[i].psat > 0.5) {
+      HOD.nsat[Lbin][im] += w0;
+      if (GAL[i].color > 0.8) // red
+        HOD.nsatr[Lbin][im] += w0;
+      else // blue
+        HOD.nsatb[Lbin][im] += w0;
+    }
+    else {
+      HOD.ncen[Lbin][im] += w0;
+      if (GAL[i].color > 0.8) // red
+        HOD.ncenr[Lbin][im] += w0;
+      else // blue
+        HOD.ncenb[Lbin][im] += w0;
+    }
+  }
+}
+
 /* tabluate the HODs for magnitude bins (specified below)
  * for red/blue subsamples. This code assumes a flux-limited
  * sample, so it partitions the data into volume-limited
@@ -465,10 +633,10 @@ void lsat_model()
  * The results are left in globals, which are then called to
  * populate the simulations for measuring clustering.
  */
-void tabulate_hods()
+void tabulate_hods(HodWeightType type)
 {
   FILE *fp, *bins_fp;
-  int i, j, im, igrp, Lbin;
+  int im, igrp, Lbin;
   float mag;
   // these are for MXXL-BGS
   // float maxz[MAXBINS] = { 0.0633186, 0.098004, 0.150207, 0.227501, 0.340158 };
@@ -502,142 +670,38 @@ void tabulate_hods()
 
   LOG_INFO("Tabulating HODs...\n");
 
-  for (i = 0; i < HOD.NVOLUME_BINS; ++i)
-    for (j = 0; j < HALO_BINS; ++j)
+  for (int i = 0; i < HOD.NVOLUME_BINS; ++i)
+    for (int j = 0; j < HALO_BINS; ++j)
     {
-      HOD.ncenr[i][j] = HOD.nsatr[i][j] = HOD.nhalo[i][j] = HOD.ncenb[i][j] = HOD.nsatb[i][j] = HOD.ncen[i][j] = HOD.nsat[i][j] = HOD.nhalo_int[i][j]= 0.0;
+      HOD.ncenr[i][j] = HOD.nsatr[i][j] = HOD.nhalo_forcen[i][j] = HOD.nhalo_forcen[i][j] = HOD.ncenb[i][j] = HOD.nsatb[i][j] = HOD.ncen[i][j] = HOD.nsat[i][j] = HOD.nhalo_int[i][j]= 0.0;
     }
   
-  for (j=0; j < HALO_BINS; ++j)
+  for (int j=0; j < HALO_BINS; ++j)
   {
     mean_cen[j] = mean_cenr[j] = mean_cenb[j] = std_cen[j] = std_cenr[j] = std_cenb[j] = nhalo_tot[j] = nhalo_b_tot[j] = nhalo_r_tot[j] = 0.0;
     logmean_cen[j] = logmean_cenr[j] = logmean_cenb[j] = 0.0;
   }
+
+  // Populates nhalo and nhalo_int
+  count_halos(type);
   
-  std::vector<bool> halo_counted(NGAL, false); // Keep track of which centrals (halos) have been counted
+  // Populates ncenr, nsatr, ncenb, nsatb, ncen, nsat
+  count_galaxies(type);
 
-  // First loop over each halo to get nhalo counts
-  for (i = 0; i < NGAL; ++i)
-  {
-    // Determine the host halo's central galaxy index
-    if (GAL[i].psat > 0.5)
-    {
-      igrp = GAL[i].igrp;
-    } else {
-      igrp = i;
-    }
-
-    // If we've already processed this halo, skip it
-    if (halo_counted[igrp]) {
-      continue;
-    }
-    halo_counted[igrp] = true;  
-
-    im = (int)(log10(GAL[i].mass) / 0.1);
-    assert (im >= 0 && im < HALO_BINS);
-
-    for (j = 0; j < HOD.NVOLUME_BINS; ++j){
-      if (GAL[i].redshift < HOD.maxz[j]) // Redshift of the halo (central's) must fall within a L bin to count it
-      {
-        w0 = 1 / HOD.volume[j];
-        if (GAL[i].vmax < HOD.volume[j]) {
-          mag = -2.5 * GAL[i].loglum + 4.65; // convert to r-band mag
-          //LOG_WARN("WARNING: vmax (%f) < volume (%f) for halo index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, HOD.volume[j], i, mag, HOD.maglim[j], GAL[i].redshift, HOD.maxz[j]);
-          w0 = 1 / GAL[i].vmax;
-        }
-        if (!isfinite(w0) || isnan(w0)) {
-            LOG_ERROR("ERROR: w0 is invalid for halo %d with vmax=%f\n", igrp, GAL[igrp].vmax);
-            assert(false);
-        }
-        LOG_INFO("Adding halo %d to Lbin %d, Mbin %d, weight=%e\n", igrp, j, im, w0);
-        HOD.nhalo[j][im] += w0; // 1/vmax weight the halo count
-        HOD.nhalo_int[j][im]++; // integer version of nhalo (no vmax weight)
-      }
-    }
-  }
-
-  // Then loop over each galaxy to get ncen/nsat counts
-  for (i = 0; i < NGAL; ++i)
-  {
-    if (GAL[i].psat > 0.5)
-    {
-      igrp = GAL[i].igrp;
-    } else {
-      igrp = i;
-    }
-    im = (int)(log10(GAL[i].mass) / 0.1);
-
-    // Get the mag (or stellar mass) bin index
-    Lbin = -1;
-    if (STELLAR_MASS) {
-      mag = GAL[i].loglum; // log(M*)
-
-      for (j = 0; j < HOD.NVOLUME_BINS; ++j) {
-        if (mag >= HOD.maglim[j] && mag < (HOD.magmax[j])) {
-            Lbin = j;
-            break;
-        }
-      }
-    }
-    else {
-      mag = -2.5 * GAL[i].loglum + 4.65; // convert to r-band mag
-
-      for (j = 0; j < HOD.NVOLUME_BINS; ++j) {
-          if (mag <= HOD.maglim[j] && mag > (HOD.magmax[j])) {
-              Lbin = j;
-              break;
-          }
-      }
-    }
-    LOG_INFO("Galaxy %d: mag=%f, Lbin=%d\n", i, mag, Lbin);
-
-    if (Lbin < 0 || Lbin >= HOD.NVOLUME_BINS)
-      continue; // skip if not in any bins mag range
-    if (GAL[i].redshift > HOD.maxz[Lbin])
-      continue; // skip if not in the redshift range of it's bin, not sure how it happens
-    assert (im >= 0 && im < HALO_BINS);
-
-    // vmax-weight everything
-    w0 = 1 / HOD.volume[Lbin];
-    if (GAL[i].vmax < HOD.volume[Lbin])
-    {
-      // Most of the galaxies that hit this are because of k-corrections. 
-      // VMAX should always use un-corrected mags, which means at the faint edge of the bin it is possible
-      // for a galaxy to have a vmax less than the volume of the bin.
-      // However, in some rare cases it seems to be happening even away from the edges, which I don't understand. BUG
-      //LOG_WARN("WARNING: vmax (%f) < volume (%f) for galaxy index %d. Mag=%f, maglim=%.1f. z=%f, zmax=%f\n", GAL[i].vmax, HOD.volume[Lbin], i, mag, HOD.maglim[Lbin], GAL[i].redshift, HOD.maxz[Lbin]);
-      w0 = 1 / GAL[i].vmax;
-    }
-    LOG_INFO("Adding gal %d (halo %d) to Lbin %d, Mbin %d, weight=%e\n", i, igrp, Lbin, im, w0);
-
-    if (GAL[i].psat > 0.5) {
-      HOD.nsat[Lbin][im] += w0;
-      if (GAL[i].color > 0.8) // red
-        HOD.nsatr[Lbin][im] += w0;
-      else // blue
-        HOD.nsatb[Lbin][im] += w0;
-    }
-    else {
-      HOD.ncen[Lbin][im] += w0;
-      if (GAL[i].color > 0.8) // red
-        HOD.ncenr[Lbin][im] += w0;
-      else // blue
-        HOD.ncenb[Lbin][im] += w0;
-    }
-  }
-
+  // Fix edge cases and check for NaNs and Infs in the HOD arrays.
   // If nsatr/b > 0 but nhalo = 0, it was an edge case for a rare halo. Just set nhalo to nsatr/b there.
   // This happens when the central (and thus the halo) didn't go into a volume bin, but a satellite did.
-  // Peculiar velocities at the z boundary can do this I think.
-  for (i = 0; i < HOD.NVOLUME_BINS; ++i)
-    for (j = 0; j < HALO_BINS; ++j) {
-      if (HOD.nsatr[i][j] > 0 && HOD.nhalo[i][j] == 0) {
-        LOG_WARN("WARNING: nhalo[%d][%d] = 0, setting to nsatr[%d][%d] = %e\n", i, j, i, j, HOD.nsatr[i][j]);
-        HOD.nhalo[i][j] = HOD.nsatr[i][j];
+  // Peculiar velocities at the z boundary can do this I think?
+  for (int i = 0; i < HOD.NVOLUME_BINS; ++i)
+    for (int j = 0; j < HALO_BINS; ++j) {
+      // These should no longer happen due to our halo counting using satellites as well.
+      if (HOD.nsatr[i][j] > 0 && HOD.nhalo_forsat[i][j] == 0) {
+        LOG_ERROR("ERROR: nhalo_forsat[%d][%d] = 0, setting to nsatr[%d][%d] = %e\n", i, j, i, j, HOD.nsatr[i][j]);
+        HOD.nhalo_forsat[i][j] = HOD.nsatr[i][j];
       }
-      if (HOD.nsatb[i][j] > 0 && HOD.nhalo[i][j] == 0) {
-        LOG_WARN("WARNING: nhalo[%d][%d] = 0, setting to nsatb[%d][%d] = %e\n", i, j, i, j, HOD.nsatb[i][j]);
-        HOD.nhalo[i][j] = HOD.nsatb[i][j];
+      if (HOD.nsatb[i][j] > 0 && HOD.nhalo_forsat[i][j] == 0) {
+        LOG_ERROR("ERROR: nhalo_forsat[%d][%d] = 0, setting to nsatb[%d][%d] = %e\n", i, j, i, j, HOD.nsatb[i][j]);
+        HOD.nhalo_forsat[i][j] = HOD.nsatb[i][j];
       }
       assert(!isnan(HOD.ncenr[i][j]));
       assert(!isnan(HOD.nsatr[i][j]));
@@ -645,14 +709,16 @@ void tabulate_hods()
       assert(!isnan(HOD.nsatb[i][j]));
       assert(!isnan(HOD.nsat[i][j]));
       assert(!isnan(HOD.ncen[i][j]));
-      assert(!isnan(HOD.nhalo[i][j]));
+      assert(!isnan(HOD.nhalo_forcen[i][j]));
+      assert(!isnan(HOD.nhalo_forsat[i][j]));
       assert(isfinite(HOD.ncenr[i][j]));
       assert(isfinite(HOD.nsatr[i][j]));
       assert(isfinite(HOD.ncenb[i][j]));
       assert(isfinite(HOD.nsatb[i][j]));
       assert(isfinite(HOD.nsat[i][j]));
       assert(isfinite(HOD.ncen[i][j]));
-      assert(isfinite(HOD.nhalo[i][j]));
+      assert(isfinite(HOD.nhalo_forcen[i][j]));
+      assert(isfinite(HOD.nhalo_forsat[i][j]));
     }
 
   //print_hod("hodtest.out");
@@ -663,7 +729,7 @@ void tabulate_hods()
   // Calculate the means
   // Means in linear space, but scatter in log space as is stndard for this.
   double lum_weighted = 0.0;
-  for (i=0; i<NGAL; ++i)
+  for (int i=0; i<NGAL; ++i)
   {
     if (GAL[i].psat > 0.5)
       continue;
@@ -683,7 +749,7 @@ void tabulate_hods()
       nhalo_b_tot[im] += 1.0/GAL[i].vmax;
     }
   }
-  for (i=0; i<HALO_BINS; ++i)
+  for (int i=0; i<HALO_BINS; ++i)
   {
     if (nhalo_tot[i] > 0)
     {
@@ -697,7 +763,7 @@ void tabulate_hods()
   }
 
   // Calculate log-normal scatter 
-  for (i = 0; i < NGAL; ++i)
+  for (int i = 0; i < NGAL; ++i)
   {
     if (GAL[i].psat > 0.5)
       continue;
@@ -711,7 +777,7 @@ void tabulate_hods()
       std_cenb[im] += pow(GAL[i].loglum - logmean_cenb[im], 2) * 1.0 / GAL[i].vmax;
     }
   }
-  for (i = 0; i < HALO_BINS; ++i)
+  for (int i = 0; i < HALO_BINS; ++i)
   {
     if (nhalo_tot[i] > 0)
     {
@@ -741,7 +807,7 @@ void tabulate_hods()
   }
   else if (!SILENT)
   {
-    for (i = MIN_HALO_IDX; i < MAX_HALO_IDX; ++i)
+    for (int i = MIN_HALO_IDX; i < MAX_HALO_IDX; ++i)
     {
       // Format is: <log10(M_h)> <mean_cenr> <std_cenr> <mean_cenb> <std_cenb> <mean_cen> <std_cen>
       LOG_VERBOSE("LHMR> %.2f %e %e %e %e %e %e\n", i / 10.0,
@@ -751,35 +817,33 @@ void tabulate_hods()
   }
 
   // Back to HODs: switch to log10 of the fractions for the rest of the code later
-  for (i = MIN_HALO_IDX; i < HALO_BINS; ++i)
+  for (int i = MIN_HALO_IDX; i < HALO_BINS; ++i)
   {
-    for (j = 0; j < HOD.NVOLUME_BINS; ++j)
+    for (int j = 0; j < HOD.NVOLUME_BINS; ++j)
     {
-      HOD.ncenr[j][i] = log10(HOD.ncenr[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
-      HOD.nsatr[j][i] = log10(HOD.nsatr[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
-      HOD.ncenb[j][i] = log10(HOD.ncenb[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
-      HOD.nsatb[j][i] = log10(HOD.nsatb[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
-      HOD.ncen[j][i] = log10(HOD.ncen[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
-      HOD.nsat[j][i] = log10(HOD.nsat[j][i] / (HOD.nhalo[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.ncenr[j][i] = log10(HOD.ncenr[j][i] / (HOD.nhalo_forcen[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.nsatr[j][i] = log10(HOD.nsatr[j][i] / (HOD.nhalo_forsat[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.ncenb[j][i] = log10(HOD.ncenb[j][i] / (HOD.nhalo_forcen[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.nsatb[j][i] = log10(HOD.nsatb[j][i] / (HOD.nhalo_forsat[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.ncen[j][i] = log10(HOD.ncen[j][i] / (HOD.nhalo_forcen[j][i] + 1.0E-20) + 1.0E-20);
+      HOD.nsat[j][i] = log10(HOD.nsat[j][i] / (HOD.nhalo_forsat[j][i] + 1.0E-20) + 1.0E-20);
     }
   }
-
-
 }
 
-void process_hods() 
+void process_hods(HodWeightType type) 
 {
   
-  tabulate_hods();
+  tabulate_hods(type);
   write_hod();
 
   // Smooth and extrapolate the satellite HODs to handle gaps in the data and the high-mass end where there is little data.
   //nsat_smooth(nsatr);
   //nsat_smooth(nsatb);
   //nsat_smooth(nsat);
-  nsat_extrapolate(HOD.nsatr);
-  nsat_extrapolate(HOD.nsatb);
-  nsat_extrapolate(HOD.nsat);
+  nsat_extrapolate(HOD.nsatr, "red");
+  nsat_extrapolate(HOD.nsatb, "blue");
+  nsat_extrapolate(HOD.nsat, "all");
 
   write_hodfit();
 }
@@ -868,7 +932,7 @@ void nsat_smooth(double arr[MAXBINS][HALO_BINS])
   }
 }
 
-void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
+void nsat_extrapolate(double arr[MAXBINS][HALO_BINS], const char* color)
 {  
   // Extend the satellite occupation function for high-mass halos
   // using a linear fit.
@@ -879,7 +943,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
   for (int imag = 0; imag < HOD.NVOLUME_BINS; ++imag)
   {
     iend = 0;
-    mag = HOD.maglim[imag];
+    mag = HOD.maglim[imag]; // fainter edge
 
     // Start in a known good place with lots of data for each magbin.
     // Search up from there (in halo mass) until we run low on data.
@@ -901,7 +965,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
     }
     for (int i = istart; i < MAX_HALO_IDX; ++i)
     {
-      if (HOD.nhalo_int[imag][i] < 10) // need 10 halos to be considered sufficient data
+      if (HOD.nhalo_forsat[imag][i] < 10.0/HOD.volume[imag]) // need ~10 halos in this bin worth of weight to be considered good data
       {
         iend++;
         if (iend == 3)
@@ -914,7 +978,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS])
 
     if (iend < 3 || iend == MAX_HALO_IDX-1) {
       // We had plenty of data everywhere
-      LOG_INFO("No HOD extrapolation needed for imag=%d\n", imag);
+      LOG_INFO("No HOD extrapolation needed for %s mag=%.1f to %.1f\n", color, mag, HOD.magmax[imag]);
       continue;
     }
 
