@@ -293,7 +293,7 @@ void groupfind()
     for (int i1 = 0; i1 < ngrp_prev; ++i1)
     {
       int i = xtmp[i1].second;
-      if (GAL[i].psat <= 0.5)
+      if (GAL[i].psat <= 0.5) // xtmp was all centrals, but some may have become satellites
       {
         GAL[i].igrp = i;
         xtmp[ngrp] = std::make_pair(lgrp_to_matching_rank(i), i);

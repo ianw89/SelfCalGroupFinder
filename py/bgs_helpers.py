@@ -155,13 +155,22 @@ def add_mag_columns(table):
     abs_mag_R = app_mag_to_abs_mag(app_mag_r, z_obs)
     abs_mag_R_k = k_correct(abs_mag_R, z_obs, g_r, band='r')
     abs_mag_R_k_BEST = np.where(no_spectra, abs_mag_R_k, table['ABSMAG01_SDSS_R'])
+    bad_fsf = np.abs(abs_mag_R_k[~no_spectra] - table['ABSMAG01_SDSS_R'][~no_spectra]) > 1.0
+    if bad_fsf.any():
+        # TODO Stellar mass will be bad too... maybe set to nan and then update later code to use the lookup for any nans.
+        print(f"Warning: Found {bad_fsf.sum()} galaxies with large (>1 mag) difference between k-corrected and fastspecfit ABSMAG01_SDSS_R. Using k-corrected value for these.")
+        abs_mag_R_k_BEST[~no_spectra][bad_fsf] = abs_mag_R_k[~no_spectra][bad_fsf]
+
     abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_obs)
     abs_mag_G_k = k_correct(abs_mag_G, z_obs, g_r, band='g')
     abs_mag_G_k_BEST = np.where(no_spectra, abs_mag_G_k, table['ABSMAG01_SDSS_G'])
+    bad_fsf = np.abs(abs_mag_G_k[~no_spectra] - table['ABSMAG01_SDSS_G'][~no_spectra]) > 1.0
+    if bad_fsf.any():
+        print(f"Warning: Found {bad_fsf.sum()} galaxies with large (>1 mag) difference between k-corrected and fastspecfit ABSMAG01_SDSS_G. Using k-corrected value for these.")
+        abs_mag_G_k_BEST[~no_spectra][bad_fsf] = abs_mag_G_k[~no_spectra][bad_fsf]
+
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k_BEST) 
-    G_R_k = abs_mag_G_k - abs_mag_R_k # based on the polynomial k-corr
-    G_R_k_fastspecfit = table['ABSMAG01_SDSS_G'] - table['ABSMAG01_SDSS_R'] # based on fastspecfit k-corr
-    G_R_BEST = np.where(no_spectra, G_R_k, G_R_k_fastspecfit)
+    G_R_BEST = abs_mag_G_k_BEST - abs_mag_R_k_BEST
     #x, y, z, zz, quiescent_kmeans, missing = is_quiescent_BGS_kmeans(log_L_gal, dn4000, halpha, ssfr, G_R_BEST, model=QUIESCENT_MODEL_V2)
     quiescent = is_quiescent_BGS_dn4000(log_L_gal, dn4000, G_R_BEST)
     table.add_column(app_mag_r, name='APP_MAG_R') 
@@ -210,7 +219,7 @@ def add_photz_columns(table, phot_z_file):
     return final_table
 
 
-def table_to_df(table: Table):
+def get_radec_df(table: Table):
     """
     This does not work for all purposes yet.
     """
@@ -434,7 +443,7 @@ def add_NTILE_MINE_to_table(table_file :str|Table, year: str):
     else:
         raise ValueError("table_file must be a string or astropy Table")
     
-    galaxies_df = table_to_df(table)
+    galaxies_df = get_radec_df(table)
     
     ntiles_inside, nearest_tile_ids = find_tiles_for_galaxies(tiles_df, galaxies_df, 15)
     if 'NTILE_MINE' in table.columns:

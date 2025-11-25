@@ -1126,15 +1126,17 @@ def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     label_property = 10**logmstar_labels if mstar else L_gal_labels
     for f in datasets:
         data = f.all_data.loc[np.all([~f.all_data['IS_SAT']], axis=0)]
+
+        plt.plot(label_property[:-4], data.groupby(groupby_property, observed=False).apply(qf_vmax_weighted)[:-4], f.marker, label=get_dataset_display_name(f), color=f.color)
+
         if test_methods:
             qf_gmr = f.centrals.groupby(groupby_property, observed=False).apply(qf_BGS_gmr_vmax_weighted)
-            qf_dn4000 = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
+            #qf_dn4000 = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000_smart_eq_vmax_weighted)
             qf_dn4000model = f.centrals.groupby(groupby_property, observed=False).apply(qf_Dn4000MODEL_smart_eq_vmax_weighted)
-            plt.plot(label_property, qf_gmr, '.', label=f'(g-r)^0.1 < {GLOBAL_RED_COLOR_CUT}', color='b')
-            plt.plot(label_property, qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
-            plt.plot(label_property, qf_dn4000model, '-', label='Dn4000_M Eq. 1', color='purple')
-        else:
-           plt.plot(label_property[:-4], data.groupby(groupby_property, observed=False).apply(qf_vmax_weighted)[:-4], f.marker, label=get_dataset_display_name(f), color=f.color)
+            plt.plot(label_property, qf_gmr, '--', label=f'g-r(L)', color='g')
+            #plt.plot(label_property, qf_dn4000, '-', label='Dn4000 Eq.1', color='g')
+            plt.plot(label_property, qf_dn4000model, '--', label='Dn4000_M Eq. 1', color='purple')
+       
 
     ax1.set_xscale('log')
     if not mstar:

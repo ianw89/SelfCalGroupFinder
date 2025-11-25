@@ -1,3 +1,4 @@
+import uuid
 import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
@@ -1859,15 +1860,9 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     assert np.isnan(app_mag_r[idx]).any() == False, f"app_mag_r has NaN values at {np.where(np.isnan(app_mag_r))}"
     assert np.isnan(z_eff[idx]).any() == False, f"z_eff has NaN values at {np.where(np.isnan(z_eff))}"
 
-    # Replace z_eff by 0.001 when it is too low
-    z_eff[idx] = np.where(z_eff[idx] < 0.001, 0.001, z_eff[idx])
+    # Replace z_eff by 0.001 when it is too low.  Will get removed later if exactly at BGS_Z_MIN
+    z_eff[idx] = np.where(z_eff[idx] < BGS_Z_MIN, BGS_Z_MIN, z_eff[idx]) 
     np.put(abs_mag_R, idx, app_mag_to_abs_mag(app_mag_r[idx], z_eff[idx]))
-    nanindex = np.isnan(abs_mag_R[idx])
-    if nanindex.any():
-        print(f"Warning: abs_mag_R has NaN values at {np.where(nanindex)}")
-        print(f"app_mag_r[idx]: {app_mag_r[idx][nanindex]}")
-        print(f"z_eff[idx]: {z_eff[idx][nanindex]}")
-        print(f"abs_mag_R[idx]: {abs_mag_R[idx][nanindex]}")
     assert np.isnan(abs_mag_R[idx]).any() == False, f"abs_mag_R[idx] has NaN values at {np.where(np.isnan(abs_mag_R[idx]))}"
     np.put(abs_mag_R_k, idx, k_correct(abs_mag_R[idx], z_eff[idx], g_r_apparent[idx], band='r'))
     np.put(abs_mag_R_k_BEST, idx, abs_mag_R_k[idx]) # won't overwrite the FSF ones because this only happens for lost galaxies (or bad spectro-z where we wanna overwrite anyway)
@@ -2064,13 +2059,22 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     keep &= ntile_mine >= num_passes_required
     print(f"After NTILE_MINE >= {num_passes_required} cut: {keep.sum():,}")
 
+    # Print number of galaxies that we will keep at this point that have Lgal between 4x10^8 and 8x10^8
+    in_lgal_range = (log_L_gal > 8.6) & (log_L_gal < 8.9)
+    in_range_red = quiescent & in_lgal_range
+    in_range_blue = (~quiescent) & in_lgal_range
+    print(f"  ! Blue in L range: {(keep & in_range_blue).sum():,}, Red in L range: {(keep & in_range_red).sum():,}")
+
     offset = 0.04 # N gets this offset in the app_mag_r cut
+    fluxlimits = np.zeros(len(z_obs)) + fluxlimit
+    fluxlimits = np.where(photsys == b"N", fluxlimits + offset, fluxlimits)
     # assert PHOTSYS is N or S for everything
     if not np.all(np.isin(photsys, [b"N", b"S"])):
         print("ERROR: PHOTSYS column has values other than N or S. Exiting.")
         exit(2)
-    keep &= np.where(photsys == b"N", app_mag_r < (fluxlimit + offset), (app_mag_r < fluxlimit))
+    keep &= app_mag_r < fluxlimits
     print(f"After app_mag_r < {fluxlimit} cut: {keep.sum():,}")
+    print(f"  ! Blue in L range: {(keep & in_range_blue).sum():,}, Red in L range: {(keep & in_range_red).sum():,}")
 
     keep &= ~np.isin(target_id, bad_targets)
     catalog_keep &= ~np.isin(target_id, bad_targets)
@@ -2116,17 +2120,16 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         # Find the nearest neighbor (excluding self)
         MAX_SEARCHES = 10
         n = 2
+        treename = f"sga_nn_tree_{uuid.uuid4()}" # unique name for the KDTree
         while (n<MAX_SEARCHES):
-            idx, d2d, d3d = coord.match_coordinates_sky(sgabluecat, sgacat, nthneighbor=n, storekdtree=False)
+            idx, d2d, d3d = coord.match_coordinates_sky(sgabluecat, sgacat, nthneighbor=n, storekdtree=treename)
             close = (d2d < 45*u.arcsec) 
-            
-            # If you have a neighbor within 45 arcseconds that is apparently brighter than you are, mark to remove
-            for i in np.where(close)[0]:
-                neighbor = idx[i]
-                if sgaappmag[i] > sgaappmag[neighbor]:
-                    to_remove_nn[i] = True
+            close_idx = np.nonzero(close)[0]
+            if close_idx.size > 0:
+                neighbors = idx[close_idx]
+                to_remove_nn[close_idx] = to_remove_nn[close_idx] | (sgaappmag[close_idx] > sgaappmag[neighbors])
 
-            if np.sum(to_remove_nn) == 0:
+            if not np.any(to_remove_nn):
                 break
             n += 1
 
@@ -2149,7 +2152,8 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     else:
         print("WARNING: missing MASKBITS columns. No shredding elimination possible.")
 
- 
+    print(f"  ! Blue in L range: {(keep & in_range_blue).sum():,}, Red in L range: {(keep & in_range_red).sum():,}")
+
     # Fiberflux cuts, too remove confusing overlapping objects which likely have bad spectra.
     if ffc and ff_g is not None and ff_r is not None and ff_z is not None:
         FF_CUT = 0.65 # LOW Z folks used 0.35 for this in target selection. LSSCats don't cut on it at all. 
@@ -2163,7 +2167,10 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         #        print(f"{r},{d},{t}", file=f)
 
         keep &= ff_req
+        catalog_keep &= ff_req
         print(f"After fiberflux cut: {keep.sum():,}")
+    
+        print(f"  ! Blue in L range: {(keep & in_range_blue).sum():,}, Red in L range: {(keep & in_range_red).sum():,}")
 
     observed_requirements = np.all([galaxy_observed_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
     treat_as_unobserved = np.all([galaxy_observed_filter, np.invert(deltachi2_filter)], axis=0)
@@ -2189,6 +2196,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         print(f"{len(z_obs_catalog):,} galaxies in the neighbor catalog.")
 
     print (f"After observed/unobserved requirements: {keep.sum():,} galaxies left")
+    print(f"  ! Blue in L range: {(keep & in_range_blue).sum():,}, Red in L range: {(keep & in_range_red).sum():,}")
 
     # Apply filters
     obj_type = obj_type[keep]
@@ -2220,6 +2228,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     #tileid = tileid[keep]
     ntile = ntile[keep]
     ntile_mine = ntile_mine[keep]
+    fluxlimits = fluxlimits[keep]
 
     observed = np.invert(unobserved)
     idx_unobserved = np.flatnonzero(unobserved)
@@ -2231,6 +2240,15 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     print(f'{first_need_redshift_count} ({100*first_need_redshift_count / len(unobserved) :.1f})% need redshifts')
 
     z_eff = np.copy(z_obs)
+
+    # TODO switch to assertion once fixed in merged file
+    bad_fsf = (np.abs(abs_mag_R_k_BEST - abs_mag_R_k) > 1.0) | (np.abs(abs_mag_G_k_BEST - abs_mag_G_k) > 1.0)
+    if np.any(bad_fsf):
+        print(f"WARNING: {np.sum(bad_fsf):,} galaxies have |ABS_MAG_R_K_BEST - ABS_MAG_R_K| > 1.0. Using ABS_MAG_R_K for those galaxies instead of the _BEST value.")
+        abs_mag_R_k_BEST[bad_fsf] = abs_mag_R_k[bad_fsf]
+        abs_mag_G_k_BEST[bad_fsf] = abs_mag_G_k[bad_fsf]
+        gmr_best[bad_fsf] = abs_mag_G_k_BEST[bad_fsf] - abs_mag_R_k_BEST[bad_fsf]
+        log_L_gal[bad_fsf] =  abs_mag_r_to_log_solar_L(abs_mag_R_k_BEST[bad_fsf])
 
     ############################################################################
     # If a lost galaxy matches the SDSS catalog, grab it's redshift and use that
@@ -2374,13 +2392,11 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent, logmstar)
 
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
+    in_lgal_range = (log_L_gal > 8.6) & (log_L_gal < 8.9)
+    in_range_red = quiescent & in_lgal_range
+    in_range_blue = (~quiescent) & in_lgal_range
+    print(f"  ! Blue in L range: {(in_range_blue).sum():,}, Red in L range: {(in_range_red).sum():,}")
 
-    # the vmax should be calculated from un-k-corrected magnitudes, since that's what sets the survey limit
-    #V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
-    V_max = get_max_observable_volume(abs_mag_R, BGS_Z_MIN, BGS_Z_MAX, fluxlimit, frac_area)
-
-    # TODO get galaxy concentration from somewhere
-    chi = np.zeros(count, dtype=np.int32) 
 
     ####################################################################################
     # FINAL QUALITY CONTROL
@@ -2408,6 +2424,21 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     final_selection = np.all([qa1, qa2, qa3, qa4], axis=0)
 
     print(f"Final Catalog Size: {np.sum(final_selection):,}.")
+    in_lgal_range = (log_L_gal > 8.6) & (log_L_gal < 8.9)
+    in_range_red = quiescent & in_lgal_range
+    in_range_blue = (~quiescent) & in_lgal_range
+    print(f"  ! Blue in L range: {(final_selection & in_range_blue).sum():,}, Red in L range: {(final_selection & in_range_red).sum():,}")
+
+    ####################################################################################
+    # Extra properties
+    ####################################################################################
+
+    # the vmax should be calculated from un-k-corrected magnitudes, since that's what sets the survey limit
+    #V_max = get_max_observable_volume(abs_mag_R, z_eff, APP_MAG_CUT, frac_area)
+    V_max = get_max_observable_volume(abs_mag_R[final_selection], BGS_Z_MIN, BGS_Z_MAX, fluxlimits[final_selection], frac_area)
+
+    # TODO get galaxy concentration from somewhere
+    chi = np.zeros(len(V_max), dtype=np.int32) 
 
     ####################################################################################
     # Write the completed preprocess files for the group finder / post-processing to use
@@ -2433,7 +2464,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     t2 = time.time()
     print(f"Galprops pickling took {t2-t1:.4f} seconds")
 
-    write_dat_files(ra[final_selection], dec[final_selection], z_eff[final_selection], log_L_gal[final_selection], V_max[final_selection], quiescent[final_selection], chi[final_selection], outname_base)
+    write_dat_files(ra[final_selection], dec[final_selection], z_eff[final_selection], log_L_gal[final_selection], V_max, quiescent[final_selection], chi, outname_base)
 
     return outname_base + ".dat", {'zmin': np.min(z_eff[final_selection]), 'zmax': np.max(z_eff[final_selection]), 'frac_area': frac_area }
 

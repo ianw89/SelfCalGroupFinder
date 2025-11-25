@@ -572,17 +572,17 @@ def get_max_observable_volume(abs_mags, z_min, z_max_survey, fluxlimit, frac_are
     # 2. The effective z_max is the smaller of the survey's z limit and the galaxy's visibility limit
     effective_z_max = np.minimum(z_max_survey, z_max_galaxy)
     
-    assert np.all(effective_z_max >= z_min)
+    assert np.all(effective_z_max > z_min)
 
     # 3. Calculate comoving volume out to z_min and effective_z_max
     vol_max = get_volume_at_z(effective_z_max, frac_area)
-    vol_min = get_volume_at_z(z_min, frac_area)
+    vol_min = get_volume_at_z(z_min, frac_area) * 0.9 # Don't want anything with crazy vmax if at the edge
 
     # 4. The observable volume is the difference
     v_max = vol_max - vol_min
     
-    # Handle weird edge cases
-    return np.maximum(v_max, 0.001)
+    assert np.all(v_max >= 1), "Vmax calculation looks way too small!"
+    return v_max
 
 
 
@@ -666,25 +666,25 @@ def LogMstar_lognormal_scatter_vmax_weighted(series):
         return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
 
 def qf_vmax_weighted(series):
-    if len(series) == 0:
+    if len(series) <= 19:
         return np.nan
     else:
         return np.average(series['QUIESCENT'], weights=1/series['VMAX'])
 
 def qf_Dn4000MODEL_smart_eq_vmax_weighted(series):
-    if len(series) == 0:
+    if len(series) <= 19:
         return np.nan
     else:
         return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000_MODEL'], series['G_R']), weights=1/series['VMAX'])
 
 def qf_Dn4000_smart_eq_vmax_weighted(series):
-    if len(series) == 0:
+    if len(series) <= 19:
         return np.nan
     else:
         return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000'], series.G_R), weights=1/series['VMAX'])
 
 def qf_BGS_gmr_vmax_weighted(series):
-    if len(series) == 0:
+    if len(series) <= 19:
         return np.nan
     else:
         return np.average(is_quiescent_BGS_gmr(series['LOGLGAL'], series.G_R), weights=1/series['VMAX'])
@@ -840,10 +840,16 @@ class dn4000lookup:
             raise ValueError(f"File {file} does not exist. The Dn4000 lookup table must be built first; see BGS_study.ipynb.")
         self.tree, self.dn4000_values, self.logmstar_values = pickle.load(open(file, 'rb'))
 
-    def query(self, abs_mag_array, gmr_array, k=50):
+    def query(self, abs_mag_array, gmr_array, k=1):
         query_points = np.vstack((abs_mag_array * self.METRIC_MAG, gmr_array * self.METRIC_GMR)).T  # Scale the query points
         distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points
         #print(np.shape(distances), np.shape(indices))
+
+        if k == 1:
+            # If k=1, return single nearest neighbor values
+            dn4000_toreturn = self.dn4000_values[indices]
+            logmstar_toreturn = self.logmstar_values[indices]
+            return dn4000_toreturn, logmstar_toreturn
 
         # Pick random neighbors for each query point, weighted by distance
         dn4000_toreturn = []
@@ -1173,7 +1179,7 @@ def is_quiescent_BGS_dn4000(logLgal, Dn4000, gmr):
     a very blue cut.
     """
     if Dn4000 is None:
-        return is_quiescent_BGS_gmr(logLgal, gmr)
+        raise ValueError("Dn4000 cannot be None for is_quiescent_BGS_dn4000.")
     Dcrit = get_Dn4000_crit(logLgal)
     missing = np.isnan(Dn4000)
     results = np.where(missing, is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
@@ -1183,19 +1189,6 @@ def is_quiescent_BGS_dn4000(logLgal, Dn4000, gmr):
     results = np.where(very_blue, False, results)
     #print(f"Overall Quiescent Fraction after very blue cut: {np.mean(results):.2%}")
     return results
-
-
-def is_quiescent_BGS_dn4000_hardvariant(logLgal, Dn4000, gmr):
-    """
-    Takes in two arrays of log Lgal and Dn4000 and returns an array 
-    indicating if the galaxies are quiescent using Dn4000 < 1.6 
-    when Dn4000 is available and using g-r color cut when it is not.
-    """
-    if Dn4000 is None:
-        return is_quiescent_BGS_gmr(logLgal, gmr)
-    Dcrit = 1.6
-    print(f"Dn4000 missing for {np.mean(np.isnan(Dn4000)):.1%}")
-    return np.where(np.isnan(Dn4000), is_quiescent_BGS_gmr(logLgal, gmr), Dn4000 > Dcrit)
 
 def is_quiescent_BGS_kmeans(logLgal, Dn4000, halpha, ssfr, gmr, model=None):
 

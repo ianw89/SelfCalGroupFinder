@@ -54,7 +54,7 @@ create_merged_file(BGS_Y3_ANY_FULL_FILE, IAN_BGS_Y3_MERGED_FILE_LOA, "3")
 # Add columns to allow the possibility to make a Y3 catalog that is cut to SV3 regions.
 table = Table.read(IAN_BGS_Y3_MERGED_FILE_LOA, format='fits')
 sv3tiles = read_tiles_Y3_sv3()
-ntiles_inside, nearest_tile_ids = find_tiles_for_galaxies(sv3tiles, table_to_df(table), 10)
+ntiles_inside, nearest_tile_ids = find_tiles_for_galaxies(sv3tiles, get_radec_df(table), 10)
 if 'NTILE_MINE_SV3' in table.columns:
     table.remove_columns(['NTILE_MINE_SV3'])
 if 'NEAREST_TILEIDS_SV3' in table.columns:
