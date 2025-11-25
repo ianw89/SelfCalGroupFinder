@@ -99,25 +99,8 @@ sdss_vanilla_v2 = SDSSGroupCatalog(
         'color': 1,
     }
 )
-_cat = sdss_vanilla_v2
-_cat.color = get_color(4)
-_cat.marker = '-'
-
-sdss_bgscut = SDSSGroupCatalog(
-    "SDSS BGS Cut", 
-    SDSS_BGSCUT_DAT_FILE, 
-    SDSS_BGSCUT_GALPROPS_FILE, 
-    gfprops={
-        'zmin': 0,
-        'zmax': 1.0, 
-        'frac_area': 0.128,
-        'fluxlim': 1,
-        'color': 1,
-    }
-)
-_cat = sdss_bgscut
-_cat.color = get_color(4)
-_cat.marker = '--'
+sdss_vanilla_v2.color = get_color(4)
+sdss_vanilla_v2.marker = '-'
 
 sdss_colors_v2 = SDSSGroupCatalog("SDSS Colors v2", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE, gfprops=sdss_colors.GF_props.copy())
 sdss_colors_v2.color = get_color(4)
@@ -248,10 +231,6 @@ bgs_y1_hybrid8_v1_mcmc.color = 'darkgreen'
 bgs_y3_pzp_2_6 = BGSGroupCatalog("BGS Y3 PZP v2.6 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y3_pzp_2_6.color = 'darkorange'
 bgs_y3_pzp_2_6.marker = '-'
-
-bgs_y3_pzp_2_6_c1 = BGSGroupCatalog("BGS Y3 PZP v2.6 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
-bgs_y3_pzp_2_6_c1.color = 'darkorange'
-bgs_y3_pzp_2_6_c1.marker = '--'
 
 bgs_y3_pzp_2_6_c2 = BGSGroupCatalog("BGS Y3 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y3_pzp_2_6_c2.color = 'darkorange'
@@ -564,7 +543,6 @@ sdss_list : list[GroupCatalog] = [
     sdss_vanilla_v2,
     sdss_colors_v2,
     sdss_colors_chi_v2,
-    sdss_bgscut,
     sdss_colors_v2_desiparams_v1,
 ]
 uchuu_list : list[GroupCatalog] = [
@@ -603,7 +581,7 @@ bgs_aux_list : list[GroupCatalog] = [
 ]
 bgs_y1_list : list[GroupCatalog] = [
     bgs_y1_pzp_2_6_c2,
-    bgs_y1mini_pzp_2_6_c1,
+    bgs_y1_pzp_2_6_c2_vmaxhod,
     bgs_y1_pzp_2_6,
 ]
 bgs_y3_list : list[GroupCatalog] = [
