@@ -637,13 +637,8 @@ class GroupCatalog:
     def fit_hod_bins_to_model_for_display(self):
         if self.hod is None:
             raise Exception("HOD data not available")
-        data = self.hod
-        n_cols = data.shape[1]
-        n_lbins = (n_cols - 1) // 7
-        if n_cols % 7 != 1:
-            raise ValueError(f"Expected 7*n_lbins + 1 columns, got {n_cols} columns")
-
-        log_Mhalo = data[:, 0]
+        
+        n_lbins = self.hod.central_q.shape[0]
 
         self.hod_cen_red_popt = []
         self.hod_sat_red_popt = []
@@ -651,12 +646,12 @@ class GroupCatalog:
         self.hod_sat_blue_popt = []
 
         for lbin in range(n_lbins):
-            log_r_cen_fraction = data[:, 1 + lbin * 7]
-            log_r_sat_fraction = data[:, 2 + lbin * 7]
-            log_b_cen_fraction = data[:, 3 + lbin * 7]
-            log_b_sat_fraction = data[:, 4 + lbin * 7]
-            hod_cen_red_popt, hod_sat_red_popt = fit_hod_models(log_Mhalo, log_r_cen_fraction, log_r_sat_fraction)
-            hod_cen_blue_popt, hod_sat_blue_popt = fit_hod_models(log_Mhalo, log_b_cen_fraction, log_b_sat_fraction)
+            log_r_cen_fraction = self.hod.central_q[lbin, :]
+            log_r_sat_fraction = self.hod.satellite_q[lbin, :]
+            log_b_cen_fraction = self.hod.central_sf[lbin, :]
+            log_b_sat_fraction = self.hod.satellite_sf[lbin, :]
+            hod_cen_red_popt, hod_sat_red_popt = fit_hod_models(self.hod.logM_bin_centers, log_r_cen_fraction, log_r_sat_fraction)
+            hod_cen_blue_popt, hod_sat_blue_popt = fit_hod_models(self.hod.logM_bin_centers, log_b_cen_fraction, log_b_sat_fraction)
             self.hod_cen_red_popt.append(hod_cen_red_popt)
             self.hod_sat_red_popt.append(hod_sat_red_popt)
             self.hod_cen_blue_popt.append(hod_cen_blue_popt)
@@ -1989,6 +1984,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     dec = get_tbl_column(table, 'DEC', required=True)
     ra = get_tbl_column(table, 'RA', required=True)
     maskbits = get_tbl_column(table, 'MASKBITS')
+    morphtype = get_tbl_column(table, 'MORPHTYPE')
     #ref_cat = get_tbl_column(table, 'REF_CAT')
     tileid = get_tbl_column(table, 'TILEID')
     target_id = get_tbl_column(table, 'TARGETID', required=True)
@@ -2000,6 +1996,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     g_r_apparent = app_mag_g - app_mag_r
     abs_mag_R = get_tbl_column(table, 'ABS_MAG_R', required=True)
     abs_mag_R_k = get_tbl_column(table, 'ABS_MAG_R_K', required=True)
+    #abs_mag_R_FSF = get_tbl_column(table, 'ABSMAG01_SDSS_R', required=True)
     abs_mag_R_k_BEST = get_tbl_column(table, 'ABS_MAG_R_K_BEST', required=True) # absolute R-K using fastspecfit k-corr when possible or polynomial for unobserved
     abs_mag_G = get_tbl_column(table, 'ABS_MAG_G', required=True)
     abs_mag_G_k = get_tbl_column(table, 'ABS_MAG_G_K', required=True)
@@ -2063,7 +2060,6 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     in_lgal_range = (log_L_gal > 8.6) & (log_L_gal < 8.9)
     in_range_red = quiescent & in_lgal_range
     in_range_blue = (~quiescent) & in_lgal_range
-    print(f"  ! Blue in L range: {(keep & in_range_blue).sum():,}, Red in L range: {(keep & in_range_red).sum():,}")
 
     offset = 0.04 # N gets this offset in the app_mag_r cut
     fluxlimits = np.zeros(len(z_obs)) + fluxlimit
@@ -2074,7 +2070,6 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         exit(2)
     keep &= app_mag_r < fluxlimits
     print(f"After app_mag_r < {fluxlimit} cut: {keep.sum():,}")
-    print(f"  ! Blue in L range: {(keep & in_range_blue).sum():,}, Red in L range: {(keep & in_range_red).sum():,}")
 
     keep &= ~np.isin(target_id, bad_targets)
     catalog_keep &= ~np.isin(target_id, bad_targets)
@@ -2109,7 +2104,9 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
 
         # TODO also use morphology. If extended, do not include in the possible cutlist
         # Maybe SER > 4 required. Need something for every morphtype though.
-        sga_collision_blue = sga_collision & (g_r_apparent < 0.70) # blue enough to be HII region
+        sga_collision_blue = sga_collision & (g_r_apparent < 0.70) & (g_r_apparent >= 0.25) # blue enough to be HII region
+
+        sga_collision_veryblue = sga_collision & (g_r_apparent < 0.25) # fully assume it's an HII region
         
         sgacat = coord.SkyCoord(ra=ra[sga_collision]*u.degree, dec=dec[sga_collision]*u.degree, frame='icrs')
         sgabluecat = coord.SkyCoord(ra=ra[sga_collision_blue]*u.degree, dec=dec[sga_collision_blue]*u.degree, frame='icrs')
@@ -2123,7 +2120,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         treename = f"sga_nn_tree_{uuid.uuid4()}" # unique name for the KDTree
         while (n<MAX_SEARCHES):
             idx, d2d, d3d = coord.match_coordinates_sky(sgabluecat, sgacat, nthneighbor=n, storekdtree=treename)
-            close = (d2d < 45*u.arcsec) 
+            close = (d2d < 60*u.arcsec) 
             close_idx = np.nonzero(close)[0]
             if close_idx.size > 0:
                 neighbors = idx[close_idx]
@@ -2136,6 +2133,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         # Map back to the original array
         to_remove_nn_full = np.zeros(orig_count, dtype=bool)
         to_remove_nn_full[np.where(sga_collision_blue)[0][to_remove_nn]] = True
+        to_remove_nn_full[np.where(sga_collision_veryblue)[0]] = True
         keep &= ~to_remove_nn_full
         catalog_keep &= ~to_remove_nn_full
         print(f"After SGA nearest neighbor cut: {keep.sum():,}")
@@ -2152,7 +2150,6 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     else:
         print("WARNING: missing MASKBITS columns. No shredding elimination possible.")
 
-    print(f"  ! Blue in L range: {(keep & in_range_blue).sum():,}, Red in L range: {(keep & in_range_red).sum():,}")
 
     # Fiberflux cuts, too remove confusing overlapping objects which likely have bad spectra.
     if ffc and ff_g is not None and ff_r is not None and ff_z is not None:
@@ -2170,7 +2167,14 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         catalog_keep &= ff_req
         print(f"After fiberflux cut: {keep.sum():,}")
     
-        print(f"  ! Blue in L range: {(keep & in_range_blue).sum():,}, Red in L range: {(keep & in_range_red).sum():,}")
+
+    # Try to cut out unobserved galaxy targets that are likely bluish stars
+    # Could have looked in the MWS catalog to see if its a target there too, as a hint.
+    # This will also remove quasars, which if legit, can always be added back in via matching with QSO catalog by a user.
+    probably_star_or_qso = (unobserved) & (gmr_best < 0.2) & (morphtype == 'PSF')
+    print(f"Found {probably_star_or_qso.sum():,} likely star/quasar based on unobserved PSF and blue color.")
+    keep &= ~probably_star_or_qso
+    print(f"After unobserved PSF+Blue (likely star) cut: {keep.sum():,}")
 
     observed_requirements = np.all([galaxy_observed_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
     treat_as_unobserved = np.all([galaxy_observed_filter, np.invert(deltachi2_filter)], axis=0)
@@ -2196,7 +2200,6 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         print(f"{len(z_obs_catalog):,} galaxies in the neighbor catalog.")
 
     print (f"After observed/unobserved requirements: {keep.sum():,} galaxies left")
-    print(f"  ! Blue in L range: {(keep & in_range_blue).sum():,}, Red in L range: {(keep & in_range_red).sum():,}")
 
     # Apply filters
     obj_type = obj_type[keep]
@@ -2204,6 +2207,11 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     ra = ra[keep]
     z_obs = z_obs[keep]
     target_id = target_id[keep]
+    morphtype = morphtype[keep]
+    maskbits = maskbits[keep]
+    ff_g = ff_g[keep]
+    ff_r = ff_r[keep]
+    ff_z = ff_z[keep]
     app_mag_r = app_mag_r[keep]
     app_mag_g = app_mag_g[keep]
     p_obs = p_obs[keep]
@@ -2393,9 +2401,6 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
 
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
     in_lgal_range = (log_L_gal > 8.6) & (log_L_gal < 8.9)
-    in_range_red = quiescent & in_lgal_range
-    in_range_blue = (~quiescent) & in_lgal_range
-    print(f"  ! Blue in L range: {(in_range_blue).sum():,}, Red in L range: {(in_range_red).sum():,}")
 
 
     ####################################################################################
@@ -2425,9 +2430,6 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
 
     print(f"Final Catalog Size: {np.sum(final_selection):,}.")
     in_lgal_range = (log_L_gal > 8.6) & (log_L_gal < 8.9)
-    in_range_red = quiescent & in_lgal_range
-    in_range_blue = (~quiescent) & in_lgal_range
-    print(f"  ! Blue in L range: {(final_selection & in_range_blue).sum():,}, Red in L range: {(final_selection & in_range_red).sum():,}")
 
     ####################################################################################
     # Extra properties

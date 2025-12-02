@@ -25,6 +25,7 @@ LGAL_MIN = 1E7
 LGAL_MAX_TIGHT = 2E11
 LOG_LGAL_MAX_TIGHT = np.log10(LGAL_MAX_TIGHT)
 LGAL_MAX = 4E11
+LOG_LGAL_MAX = np.log10(LGAL_MAX)
 
 MSTAR_MIN = 1E7
 MSTAR_MAX = 1E12
@@ -1115,6 +1116,54 @@ def compare_L_funcs(one: pd.DataFrame, two: pd.DataFrame):
     one_counts = one.groupby('LGAL_BIN').RA.count()
     two_counts = two.groupby('LGAL_BIN').RA.count()
     L_func_plot([one, two], [one_counts, two_counts])
+
+
+def quiescent_classification_dbl_plot(catalog: GroupCatalog, sdss: GroupCatalog):
+
+    # See BGS_study Quiescent vs Star-Forming Analysis section
+    mean_logLgal_per_bin = [8.04, 8.63, 8.97, 9.27, 9.57, 9.80, 10.00, 10.20, 10.46, 10.82]
+    thresholds = [1.47, 1.5, 1.55, 1.57, 1.61, 1.63, 1.65, 1.67, 1.68, 1.69] 
+
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(16,6), dpi=DPI)
+    plt.sca(axes[0])
+    plt.plot(mean_logLgal_per_bin, thresholds, 'o', label='Binned Thresholds Chosen', color='blue')
+    x = np.linspace(6.5, 11.5, 1000)
+    plt.plot(x, get_Dn4000_crit(x), label='Fitted Threshold Used Here', color='k', lw=3)
+    plt.plot(x, get_SDSS_Dcrit(x), '--', label='Tinker 2021 SDSS Threshold', color='green', lw=2)
+    plt.xlabel('log($L_{\\rm gal} / (L_\odot h^{-2}))$')
+    plt.ylabel('$D_n4000$ Threshold')
+    plt.xlim(np.log10(LGAL_MIN), LOG_LGAL_MAX_TIGHT)
+    #plt.text(6.4, 1.675, f"Uses DN4000_MODEL from fastspecfit")
+    #plt.text(6.4, 1.65, f"$g-r$ < 0.65 always Star-Forming")
+    plt.legend()
+    plt.twiny()
+    plt.xlim(log_solar_L_to_abs_mag_r(6.5), log_solar_L_to_abs_mag_r(11.5))
+    plt.xticks(np.arange(-23, -12, 2))
+    plt.xlabel("$M_r$ - 5log($h$)")
+    
+    plt.sca(axes[1])
+    df = catalog.all_data
+    #df = df.loc[z_flag_is_spectro_z(df['Z_ASSIGNED_FLAG'])]
+    #df = df.loc[df['IS_SAT'] == False]
+
+    sdss_df = sdss.all_data
+    sdss_df = sdss_df.loc[sdss_df['IS_SAT'] == False]
+    qf_gmr = df.groupby('LGAL_BIN', observed=False).apply(qf_BGS_gmr_vmax_weighted)
+    qf_dn4000model = df.groupby('LGAL_BIN', observed=False).apply(qf_Dn4000MODEL_smart_eq_vmax_weighted)
+    plt.step(LogLgal_labels, qf_dn4000model, '-', label='Dn4000(L) Used Here', color='k', lw=3)
+    #plt.plot(LogLgal_labels, df.groupby('LGAL_BIN', observed=False).apply(qf_vmax_weighted), '--', label='From Catalog', color='purple', lw=2)
+    plt.step(LogLgal_labels, qf_gmr, '--', label=f'g-r(L) Alternative', color='red', lw=2)
+    plt.step(LogLgal_labels, sdss_df.groupby('LGAL_BIN', observed=False).apply(qf_vmax_weighted), '--', label='Tinker 2021 SDSS', color='green', lw=2)
+    plt.xlabel('log($L_{\\rm gal} / (L_\odot h^{-2}))$')
+    plt.ylabel("$f_{\\mathrm{Q}}$ ")
+    plt.xlim(np.log10(LGAL_MIN), LOG_LGAL_MAX_TIGHT)
+    plt.ylim(0.0, 1.0)
+    plt.legend()
+    plt.twiny()
+    plt.xlim(log_solar_L_to_abs_mag_r(6.5), log_solar_L_to_abs_mag_r(11.5))
+    plt.xticks(np.arange(-23, -12, 2))
+    plt.xlabel("$M_r$ - 5log($h$)")
+
 
 def qf_cen_plot(*datasets, test_methods=False, mstar=False):
     """
