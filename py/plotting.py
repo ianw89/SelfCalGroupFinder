@@ -1372,6 +1372,88 @@ def hod_bins_plot(gc: GroupCatalog, hodtab: hod.HODTabulated, model=False, seper
 
       
 
+def hod_bins_plot_diff(gc1: GroupCatalog, gc2: GroupCatalog, color: str):
+    """
+    Plots the percentage difference in HODs between two catalogs for a given color.
+
+    Args:
+        gc1 (GroupCatalog): The first catalog (numerator).
+        gc2 (GroupCatalog): The second catalog (denominator/baseline).
+        color (str): The galaxy type to compare, either 'r' for quiescent or 'b' for star-forming.
+    """
+    if not hasattr(gc1, 'hodfit') or not hasattr(gc2, 'hodfit'):
+        print("Error: Both catalogs must have a 'hodfit' attribute.")
+        return
+    if color not in ['r', 'b']:
+        print("Error: color must be 'r' or 'b'.")
+        return
+
+    data1 = gc1.hodfit
+    data2 = gc2.hodfit
+    
+    n_lbins = len(data1.mag_bin_centers)
+    log_Mhalo = data1.logM_bin_centers
+
+    if color == 'r':
+        log_cen1, log_sat1 = data1.central_q, data1.satellite_q
+        log_cen2, log_sat2 = data2.central_q, data2.satellite_q
+        plot_color = 'red'
+        color_label = 'Quiescent'
+    else: # color == 'b'
+        log_cen1, log_sat1 = data1.central_sf, data1.satellite_sf
+        log_cen2, log_sat2 = data2.central_sf, data2.satellite_sf
+        plot_color = 'blue'
+        color_label = 'Star-forming'
+
+
+    # --- BUG FIX: Convert from log-space to linear space before calculating difference ---
+    cen1, sat1 = 10**log_cen1, 10**log_sat1
+    cen2, sat2 = 10**log_cen2, 10**log_sat2
+
+    # Calculate percentage difference in log-space
+    with np.errstate(divide='ignore', invalid='ignore'):
+        cen_diff = np.divide(cen1 - cen2, cen1) * 100
+        sat_diff = np.divide(sat1 - sat2, sat1) * 100
+
+    ncols = int(np.ceil(n_lbins / 2))
+    nrows = 2 if n_lbins > 1 else 1
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows), dpi=DPI, sharey=True)
+    axes = np.array(axes).reshape(-1)
+
+    for lbin in range(n_lbins):
+        ax = axes[lbin]
+        
+        ax.plot(log_Mhalo, cen_diff[lbin], '-', color=plot_color, label='Centrals', linewidth=2)
+        ax.plot(log_Mhalo, sat_diff[lbin], ':', color=plot_color, label='Satellites', linewidth=2)
+        
+        ax.axhline(0, color='k', linestyle='--', linewidth=1)
+
+        if lbin >= ncols * (nrows - 1):
+            ax.set_xlabel('log($M_h$ / [$M_\odot / h$])')
+        
+        ax.set_xlim(10.5, 15.0)
+        ax.set_ylim(-200, 200)
+        ax.set_title(f'{gc1.caldata.magbins[lbin]} > $M_r$ > {gc1.caldata.magbins[lbin+1]}')
+        
+        if lbin % ncols == 0:
+            ax.set_ylabel('% Difference')
+
+        #if lbin == 0:
+            #ax.legend(loc='upper left')
+        ax.grid(True)
+
+    # Hide unused axes
+    for i in range(n_lbins, nrows * ncols):
+        fig.delaxes(axes[i])
+
+    fig.suptitle(f'HOD % Difference: {gc1.name} vs {gc2.name}', fontsize=16)
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.show()
+
+
+
+
+
 
 def proj_clustering_plot(gc: GroupCatalog):
     caldata = gc.caldata
