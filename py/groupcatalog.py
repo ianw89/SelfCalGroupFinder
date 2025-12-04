@@ -2171,10 +2171,10 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     # Try to cut out unobserved galaxy targets that are likely bluish stars
     # Could have looked in the MWS catalog to see if its a target there too, as a hint.
     # This will also remove quasars, which if legit, can always be added back in via matching with QSO catalog by a user.
-    probably_star_or_qso = (unobserved) & (gmr_best < 0.2) & (morphtype == 'PSF')
-    print(f"Found {probably_star_or_qso.sum():,} likely star/quasar based on unobserved PSF and blue color.")
+    probably_star_or_qso = (unobserved) & (morphtype == 'PSF')
+    print(f"Found {probably_star_or_qso.sum():,} likely star/quasar based on unobserved PSF.")
     keep &= ~probably_star_or_qso
-    print(f"After unobserved PSF+Blue (likely star) cut: {keep.sum():,}")
+    print(f"After unobserved PSF (likely star) cut: {keep.sum():,}")
 
     observed_requirements = np.all([galaxy_observed_filter, redshift_filter, redshift_hi_filter, deltachi2_filter], axis=0)
     treat_as_unobserved = np.all([galaxy_observed_filter, np.invert(deltachi2_filter)], axis=0)
