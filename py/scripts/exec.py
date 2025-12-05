@@ -73,18 +73,13 @@ def process_gc(gc: GroupCatalog):
         if result:
             gc.calc_wp_for_mock()
             gc.postprocess()
+            gc.bootstrap_statistics()
+            gc.fit_hod_thresholds_to_model_for_display()
+            gc.fit_hod_bins_to_model_for_display()
+
         else:
             print(f"Group finder failed for {name}, skipping further processing.")
             return
-
-    elif execution_mode == 'clustering':
-        gc.run_group_finder(popmock=True)
-        gc.calc_wp_for_mock()
-        gc.postprocess()
-        gc.calculate_projected_clustering(with_extra_randoms=True)
-        gc.calculate_projected_clustering_in_magbins(with_extra_randoms=True) 
-        if gc == cat.bgs_sv3_pz_2_4_10p:
-            gc.add_jackknife_err_to_proj_clustering(with_extra_randoms=True, for_mag_bins=True)
 
     elif execution_mode == 'mcmc':
         gc.setup_GF_mcmc(mcmc_num=mcmcnum)
@@ -174,8 +169,6 @@ if __name__ == "__main__":
         for arg in sys.argv[1:]:
             if arg == 'mcmc':
                 execution_mode = 'mcmc'
-            elif arg == 'clustering':
-                execution_mode = 'clustering'
             elif arg == 'once':
                 execution_mode = 'once'
             elif arg.startswith('x'): # specify mcmc folder number

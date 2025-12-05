@@ -69,7 +69,7 @@ def _thresh_log_probability(theta, x, y, yerr, model_func, lower_bounds, upper_b
         return -np.inf
     return lp + _thresh_log_likelihood(theta, x, y, yerr, model_func)
 
-def fit_hod_thresholds_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0.1, nwalkers=10, nsteps=3000, discard=300):
+def fit_hod_thresholds_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0.1, nwalkers=10, nsteps=10000, discard=300):
     """
     Fits a threshold HOD model to data using MCMC with emcee.
     """
