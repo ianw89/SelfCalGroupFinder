@@ -237,12 +237,13 @@ _cosmo_h = FlatLambdaCDM(H0=100, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04)
 _cosmo_h_m30 = FlatLambdaCDM(H0=100, Om0=0.30, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 _cosmo_mxxl = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 
-def get_cosmology():
+def get_cosmology() -> FlatLambdaCDM:
     return _cosmo_h 
 
-_rho_m = (get_cosmology().critical_density(0) * get_cosmology().Om(0))
 def get_vir_radius_mine(halo_mass):
     """Gets virial radius given halo masses (in solMass/h) in kpc/h."""
+    _rho_m = (get_cosmology().critical_density(0) * get_cosmology().Om(0))
+
     return np.power(((3/(4*math.pi)) * halo_mass / (200*_rho_m)), 1/3).to(u.kpc).value
 
 SIM_Z_THRESH = 0.005
@@ -367,6 +368,14 @@ def photoz_plus_metric_4(z_guessed: np.ndarray[float], z_truth: np.ndarray[float
     # The mean of them all is a sufficient statistic
     return - np.mean(score)
 
+
+
+
+###################################################################
+# Common Astronomy Conversions
+###################################################################
+
+
 def get_app_mag(flux):
     """This converts nanomaggies into Pogson magnitudes"""
     return 22.5 - 2.5*np.log10(flux.clip(1e-16))
@@ -376,6 +385,17 @@ def get_app_mag(flux):
     #z = 22.5 - 2.5*np.log10(zflux.clip(1e-16))
     #w1 = 22.5 - 2.5*np.log10(w1flux.clip(1e-16))
     #rfib = 22.5 - 2.5*np.log10(rfiberflux.clip(1e-16))
+
+def get_physical_angular_diameter_distance(arcsec, z):
+    """
+    Converts an angular separation in arcseconds at redshift z to a physical transverse distance in kpc/h.
+    """
+    cosmo = get_cosmology()
+    ang_diam_dist = cosmo.angular_diameter_distance(z) # in Mpc / h
+    # Convert arcsec to radians: 1 arcsec = (1/3600)*(pi/180) radians
+    radians = arcsec * (np.pi / 180) / 3600.0
+    physical_dist = ang_diam_dist * radians # in Mpc / h
+    return physical_dist.to(u.kpc).value # return in kpc / h
 
 def z_to_ldist(zs):
     """
@@ -435,7 +455,6 @@ def k_correct_bgs_v2(abs_mag, z_obs, gmr, band='r'):
 def k_correct(abs_mag, z_obs, gmr, band='r'):
     return k_correct_gama(abs_mag, z_obs, gmr, band)
 
-# TODO UPDATE ALL THIS IS WRONG
 SOLAR_L_R_BAND = 4.65
 def abs_mag_r_to_log_solar_L(arr):
     return (SOLAR_L_R_BAND - arr) / 2.5

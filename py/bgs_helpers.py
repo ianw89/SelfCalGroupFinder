@@ -66,16 +66,17 @@ def determine_unobserved_from_z(column):
     """
     Determine if a galaxy is unobserved based on the Z column.
     """
-    # Check if the column is a pandas Series or a numpy ndarray
     if np.ma.is_masked(column):
         unobserved = column.mask # the masked values are what is unobserved
     else:
-        if np.isnan(column).any():
-            # If there are NaN values, we need to check for them
-            unobserved = np.isnan(column)
-        else:
-            # Some older versions have sentinal value instead.
-            unobserved = column.astype("<f8") > 50
+        unobserved = np.zeros(len(column), dtype=bool)
+
+    # Anything marked nan is unobserved
+    unobserved |= np.isnan(column)
+
+    # Some versions have sentinal values (99999)
+    # Mark anythin obviously too high as unobserved
+    unobserved |= column.astype("<f8") > 50
 
     return unobserved
 
@@ -311,6 +312,7 @@ def read_fastspecfit_y3():
                 print(f"  Found {filename}")
                 hdul = fits.open(filename, memmap=True)
                 fastspecfit_table = Table([
+                    hdul[1].data['Z'],
                     hdul[2].data['TARGETID'], 
                     hdul[2].data['DN4000'], 
                     hdul[2].data['DN4000_IVAR'], 
@@ -329,7 +331,7 @@ def read_fastspecfit_y3():
                     hdul[3].data['HBETA_EW'],
                     hdul[3].data['HBETA_EW_IVAR'],
                     ], 
-                    names=('TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
+                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
                 hdul.close()
                 if h == hp[0]:
                     all_fastspecfit_table = fastspecfit_table
@@ -453,10 +455,28 @@ def add_NTILE_MINE_to_table(table_file :str|Table, year: str):
 
     return table
 
+def add_physical_halflight_radius(table):
+    print("Adding physical half-light radius to table.", flush=True)
+    if 'SHAPE_R' not in table.columns:
+        print("No SHAPE_R column found in table. Skipping.")
+        return table
+
+    if 'Z' not in table.columns:
+        print("No Z column found in table. Skipping.")
+        return table
+
+    # Convert SHAPE_R from arcsec to kpc using the redshift
+    shape_r_arcsec = table['SHAPE_R'].astype("<f8")  # Ensure it's float64
+    z = table['Z'].astype("<f8")
+    shape_r_kpc = get_physical_angular_diameter_distance(shape_r_arcsec, z)
+    table.add_column(shape_r_kpc, name='SHAPE_R_KPC')
+
+    return table
+
 
 def create_merged_file(orig_tbl_fn : str, merged_fn : str, year : str, photoz_wspec=True):
     print(f"CREATING MERGED FILE {merged_fn} for year {year}.", flush=True)
-    columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS']
+    columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS', 'DCHISQ']
     if ON_NERSC:
         import fitsio
         table = Table(fitsio.read(orig_tbl_fn, columns=columns))
