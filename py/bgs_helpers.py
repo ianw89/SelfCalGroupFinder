@@ -136,18 +136,12 @@ def add_mag_columns(table):
     app_mag_g = get_app_mag(table['FLUX_G'])
     g_r = app_mag_g - app_mag_r
 
-    # Should I Convert all masked coluns here? Look at later code.
-    if np.ma.is_masked(table['Z']):
-        z_obs = table['Z'].data.data
-    else:
-        z_obs = table['Z']
-        z_obs = np.where(z_obs.astype("<f8") > 50, np.nan, z_obs)
-
-    no_spectra = np.isnan(z_obs) | np.isnan(table['ABSMAG01_SDSS_R']) | np.isnan(table['ABSMAG01_SDSS_G'])
+    z_obs = get_tbl_column(table, 'Z', required=True).astype("<f8")
+    no_spectra = determine_unobserved_from_z(z_obs)# | np.isnan(table['ABSMAG01_SDSS_R']) | np.isnan(table['ABSMAG01_SDSS_G'])
 
     # Where z_obs is nan, use the photo-z for absolute magnitude conversions
     speczcount = (~no_spectra).sum()
-    z_obs = np.where(no_spectra, table['Z_PHOT'], z_obs)
+    z_obs[no_spectra] = table['Z_PHOT'][no_spectra].astype("<f8")
     stillmissing = np.isnan(z_obs).sum()
     photozcount = (~np.isnan(z_obs)).sum() - speczcount
     print(f"For absolute magnitude conversions, we have {speczcount:,} using spec-z, {photozcount:,} using photo-z, and {stillmissing:,} with neither.", flush=True)
@@ -155,20 +149,28 @@ def add_mag_columns(table):
     # nans for lost galaxies will propagate through the calculations as desired
     abs_mag_R = app_mag_to_abs_mag(app_mag_r, z_obs)
     abs_mag_R_k = k_correct(abs_mag_R, z_obs, g_r, band='r')
-    abs_mag_R_k_BEST = np.where(no_spectra, abs_mag_R_k, table['ABSMAG01_SDSS_R'])
+    abs_mag_R_k_BEST = np.where(np.isnan(table['ABSMAG01_SDSS_R']), abs_mag_R_k, table['ABSMAG01_SDSS_R'])
+
     bad_fsf = np.abs(abs_mag_R_k[~no_spectra] - table['ABSMAG01_SDSS_R'][~no_spectra]) > 1.0
     if bad_fsf.any():
-        # TODO Stellar mass will be bad too... maybe set to nan and then update later code to use the lookup for any nans.
         print(f"Warning: Found {bad_fsf.sum()} galaxies with large (>1 mag) difference between k-corrected and fastspecfit ABSMAG01_SDSS_R. Using k-corrected value for these.")
         abs_mag_R_k_BEST[~no_spectra][bad_fsf] = abs_mag_R_k[~no_spectra][bad_fsf]
+        table['LOGMSTAR'][~no_spectra][bad_fsf] = np.nan    
+        table['DN4000_MODEL'][~no_spectra][bad_fsf] = np.nan    
+        # Print off 10 targetid examples
+        #print("Examples of targetids with bad FSF ABSMAG01_SDSS_R:")
+        #print(table['TARGETID'][~no_spectra][bad_fsf][:10])
 
     abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_obs)
     abs_mag_G_k = k_correct(abs_mag_G, z_obs, g_r, band='g')
-    abs_mag_G_k_BEST = np.where(no_spectra, abs_mag_G_k, table['ABSMAG01_SDSS_G'])
+    abs_mag_G_k_BEST = np.where(np.isnan(table['ABSMAG01_SDSS_G']), abs_mag_G_k, table['ABSMAG01_SDSS_G'])
+    
     bad_fsf = np.abs(abs_mag_G_k[~no_spectra] - table['ABSMAG01_SDSS_G'][~no_spectra]) > 1.0
     if bad_fsf.any():
         print(f"Warning: Found {bad_fsf.sum()} galaxies with large (>1 mag) difference between k-corrected and fastspecfit ABSMAG01_SDSS_G. Using k-corrected value for these.")
         abs_mag_G_k_BEST[~no_spectra][bad_fsf] = abs_mag_G_k[~no_spectra][bad_fsf]
+        table['LOGMSTAR'][~no_spectra][bad_fsf] = np.nan    
+        table['DN4000_MODEL'][~no_spectra][bad_fsf] = np.nan   
 
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k_BEST) 
     G_R_BEST = abs_mag_G_k_BEST - abs_mag_R_k_BEST
@@ -240,6 +242,7 @@ def read_fastspecfit_sv3():
     # Small data, no need to reduce it a priori
     hdul = fits.open(BGS_SV3_FASTSPEC_FILE, memmap=True)
     fastspecfit_table = Table([
+        hdul[1].data['Z'],
         hdul[1].data['TARGETID'], 
         hdul[1].data['DN4000'], 
         hdul[1].data['DN4000_MODEL'], 
@@ -254,7 +257,7 @@ def read_fastspecfit_sv3():
         hdul[1].data['HBETA_EW'],
         hdul[1].data['HBETA_EW_IVAR'],
         ], 
-        names=('TARGETID', 'DN4000','DN4000_MODEL','ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
+        names=('Z_FSF', 'TARGETID', 'DN4000','DN4000_MODEL','ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
     hdul.close()
     return fastspecfit_table
 
@@ -269,6 +272,7 @@ def read_fastspecfit_y1():
                 print(f"  Found {filename}")
                 hdul = fits.open(filename, memmap=True)
                 fastspecfit_table = Table([
+                    hdul[1].data['Z'],
                     hdul[2].data['TARGETID'], 
                     hdul[2].data['DN4000'], 
                     hdul[2].data['DN4000_IVAR'], 
@@ -287,7 +291,7 @@ def read_fastspecfit_y1():
                     hdul[3].data['HBETA_EW'],
                     hdul[3].data['HBETA_EW_IVAR'],
                     ], 
-                    names=('TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
+                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
                 hdul.close()
                 if h == hp[0]:
                     all_fastspecfit_table = fastspecfit_table
@@ -394,13 +398,30 @@ def add_photometric_columns(existing_table, version: str):
 
 def add_fastspecfit_columns(main_table, version:str):
     print("Adding fastspecfit columns to table.", flush=True)
-    if version == 'sv3':
+    if version.lower() == 'sv3':
         fastspecfit_table = read_fastspecfit_sv3()
     elif version == '1':
         fastspecfit_table = read_fastspecfit_y1()
     elif version == '3':
         fastspecfit_table = read_fastspecfit_y3()
     final_table = join(main_table, fastspecfit_table, join_type='left', keys="TARGETID")
+    final_table = final_table.filled(np.nan) # convert masked to nan
+
+    no_spectra = determine_unobserved_from_z(main_table['Z'])
+
+    # If FSF and LSScats don't agree on the Z, LSScats wins (there are more than one way to decide on final Z). 
+    # In these cases, nan out the FSF columns that use the Z.
+    bad_fsf = np.abs(final_table['Z'][~no_spectra] - final_table['Z_FSF'][~no_spectra]) > 0.001
+    if bad_fsf.any():
+        print(f"Warning: Found {bad_fsf.sum()} galaxies with large (>0.001) difference between observed Z and fastspecfit Z. Setting fastspecfit-based columns to nan for these.")
+        for c in fastspecfit_table.colnames: 
+            if c != 'TARGETID' and c != 'Z_FSF':
+                final_table[c][~no_spectra][bad_fsf] = np.nan
+        # Unclear if we need to only wipe out ABS MAGS or everything. Assuming everything to be safe.
+        #final_table['ABSMAG01_SDSS_G'][~no_spectra][bad_fsf] = np.nan
+        #final_table['ABSMAG01_SDSS_R'][~no_spectra][bad_fsf] = np.nan
+
+
     return final_table
 
 def read_tiles_Y1_main():
@@ -476,7 +497,8 @@ def add_physical_halflight_radius(table):
 
 def create_merged_file(orig_tbl_fn : str, merged_fn : str, year : str, photoz_wspec=True):
     print(f"CREATING MERGED FILE {merged_fn} for year {year}.", flush=True)
-    columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS', 'DCHISQ']
+    # 'DCHISQ' not in SV3
+    columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS']
     if ON_NERSC:
         import fitsio
         table = Table(fitsio.read(orig_tbl_fn, columns=columns))
@@ -490,7 +512,9 @@ def create_merged_file(orig_tbl_fn : str, merged_fn : str, year : str, photoz_ws
     # Fill masked values with NaN everywhere and remove stars
     table = table.filled(np.nan)  
     table = table[table['SPECTYPE'] != 'STAR']
-    print(f"Removed stars, now {len(table)} galaxies.", flush=True)
+    print(f"Removed stars, now {len(table)} objects.", flush=True)
+    table = table[table['SPECTYPE'] != 'QSO']
+    print(f"Removed quasars, now {len(table)} objects.", flush=True)
 
     # Add additional derived columns from fastspecfit
     # The lost galaxies will get nans for the fsf columns

@@ -1867,13 +1867,8 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     np.put(log_L_gal, idx, abs_mag_r_to_log_solar_L(abs_mag_R_k_BEST[idx]))
     G_R_k = abs_mag_G_k - abs_mag_R_k
     np.put(gmr_best, idx, G_R_k[idx])
-    lookup = dn4000lookup()
     assert np.isnan(abs_mag_R_k[idx]).any() == False, f"abs_mag_R_k[idx] has NaN values at {np.where(np.isnan(abs_mag_R_k[idx]))}"
     assert np.isnan(G_R_k[idx]).any() == False, f"G_R_k[idx] has NaN values at {np.where(np.isnan(G_R_k[idx]))}"
-    dn4000_values, logmstar_values = lookup.query(abs_mag_R_k[idx], G_R_k[idx])
-    np.put(dn4000_model, idx, dn4000_values)
-    np.put(logmstar, idx, logmstar_values)
-    np.put(quiescent, idx, is_quiescent_BGS_dn4000(log_L_gal[idx], dn4000_model[idx], G_R_k[idx]))
 
 def get_footprint_deg(data_cut, mode, num_passes_required):
     if mode == Mode.ALL.value:
@@ -1964,17 +1959,9 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         print("Invalid mode. Exiting.")
         exit(2)
 
-
-    # Some versions of the LSS Catalogs use astropy's Table used masked arrays for unobserved spectral targets    
-    if np.ma.is_masked(table['Z']):
-        z_obs = table['Z'].data.data
-        unobserved = table['Z'].mask # the masked values are what is unobserved
-        no_truth_z = unobserved.copy()
-    else:
-        # SV3 version didn't do this
-        z_obs = table['Z']
-        unobserved = table['Z'].astype("<i8") >  100
-        no_truth_z = unobserved.copy()
+    z_obs = get_tbl_column(table, 'Z', required=True)
+    unobserved = determine_unobserved_from_z(table['Z'])
+    no_truth_z = unobserved.copy()
 
     obj_type = get_tbl_column(table, 'SPECTYPE', required=True)
     deltachi2 = get_tbl_column(table, 'DELTACHI2', required=True)
@@ -2055,11 +2042,6 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
 
     keep &= ntile_mine >= num_passes_required
     print(f"After NTILE_MINE >= {num_passes_required} cut: {keep.sum():,}")
-
-    # Print number of galaxies that we will keep at this point that have Lgal between 4x10^8 and 8x10^8
-    in_lgal_range = (log_L_gal > 8.6) & (log_L_gal < 8.9)
-    in_range_red = quiescent & in_lgal_range
-    in_range_blue = (~quiescent) & in_lgal_range
 
     offset = 0.04 # N gets this offset in the app_mag_r cut
     fluxlimits = np.zeros(len(z_obs)) + fluxlimit
@@ -2250,6 +2232,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     z_eff = np.copy(z_obs)
 
     # TODO switch to assertion once fixed in merged file
+    # Fixed in merged file but still some remain?! 
     bad_fsf = (np.abs(abs_mag_R_k_BEST - abs_mag_R_k) > 1.0) | (np.abs(abs_mag_G_k_BEST - abs_mag_G_k) > 1.0)
     if np.any(bad_fsf):
         print(f"WARNING: {np.sum(bad_fsf):,} galaxies have |ABS_MAG_R_K_BEST - ABS_MAG_R_K| > 1.0. Using ABS_MAG_R_K for those galaxies instead of the _BEST value.")
@@ -2398,9 +2381,16 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     # Now that we have redshifts for lost galaxies, we can calculate the rest of the properties
     if len(idx_unobserved) > 0:
         update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent, logmstar)
+    
+    lookup = dn4000lookup()
+    needs_props = np.flatnonzero(np.isnan(dn4000_model) | np.isnan(logmstar))
+    print(f"{len(needs_props):,} galaxies need Dn4000 and/or LogMstar from lookup table.")
+    dn4000_values, logmstar_values = lookup.query(abs_mag_R_k[needs_props], gmr_best[needs_props])
+    np.put(dn4000_model, needs_props, dn4000_values)
+    np.put(logmstar, needs_props, logmstar_values)
+    np.put(quiescent, needs_props, is_quiescent_BGS_dn4000(log_L_gal[needs_props], dn4000_model[needs_props], gmr_best[needs_props]))
 
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
-    in_lgal_range = (log_L_gal > 8.6) & (log_L_gal < 8.9)
 
 
     ####################################################################################
@@ -2427,9 +2417,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     assert np.all(z_assigned_flag >= -3), "z_assigned_flag is unset for some targets."
 
     final_selection = np.all([qa1, qa2, qa3, qa4], axis=0)
-
     print(f"Final Catalog Size: {np.sum(final_selection):,}.")
-    in_lgal_range = (log_L_gal > 8.6) & (log_L_gal < 8.9)
 
     ####################################################################################
     # Extra properties
@@ -2462,6 +2450,12 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         'NTILE': ntile[final_selection].astype("<i8"),
         'NTILE_MINE': ntile_mine[final_selection].astype("<i8"),
     })
+
+    # assert no nans in entirety of galprops
+    if galprops.isnull().values.any():
+        nan_counts = galprops.isnull().sum()
+        print(f"ERROR: NaN values found in galprops DataFrame:\n{nan_counts[nan_counts > 0]}")
+
     galprops.to_pickle(outname_base + "_galprops.pkl")  
     t2 = time.time()
     print(f"Galprops pickling took {t2-t1:.4f} seconds")
