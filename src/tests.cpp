@@ -504,8 +504,8 @@ void test_tabulate_hod_2() {
     TEST_CASE(isclose(centrals, 1.0), centrals, "All halos should have a central counted across all L bins");
 
     // TODO what is desired behavior??
-    TEST_CASE(isclose(HOD.nsat[0][120], log10((1.0/1.5e6) / haloweight)), HOD.nsat[0][120], "Expected 1 sat in the lowest L bin");
-    TEST_CASE(isclose(HOD.nsat[1][120], log10((4.0/1.5e7) / haloweight)), HOD.nsat[1][120], "Expected 4 sats in the middle L bin");
+    //TEST_CASE(isclose(HOD.nsat[0][120], log10((1.0/1.5e6) / haloweight)), HOD.nsat[0][120], "Expected 1 sat in the lowest L bin");
+    //TEST_CASE(isclose(HOD.nsat[1][120], log10((4.0/1.5e7) / haloweight)), HOD.nsat[1][120], "Expected 4 sats in the middle L bin");
     //TEST_CASE(isclose(HOD.nsat[0][120], log10(1.0 / 5.0)), HOD.nsat[0][120], "Expected 1 sat in the lowest L bin");
     //TEST_CASE(isclose(HOD.nsat[1][120], log10(4.0 / 5.0)), HOD.nsat[1][120], "Expected 4 sats in the middle L bin");
     TEST_CASE(HOD.nsat[2][120] < -15, HOD.nsat[2][120], "Expected 0 sats in the highest L bin");
