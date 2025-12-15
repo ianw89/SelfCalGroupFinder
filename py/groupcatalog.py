@@ -706,12 +706,15 @@ class GroupCatalog:
 
         fitsname = name.replace(".csv", ".fits")
 
+        self.all_data['ABS_MAG_R'] = log_solar_L_to_abs_mag_r(np.log10(self.all_data['L_GAL']))
+
         columns_to_write = [
             'TARGETID', 
             'RA',
             'DEC',
             'Z',
             'L_GAL', 
+            'ABS_MAG_R',
             'VMAX',
             'P_SAT', 
             'M_HALO',

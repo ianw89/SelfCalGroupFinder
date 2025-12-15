@@ -23,7 +23,8 @@ Each row in the table is a single galaxy. The columns are:
 - **RA (float64)**: right ascension in [degrees].
 - **DEC (float64)**: declination in [degrees].
 - **Z (float64)**: redshift; either as observed or assigned. See Z_ASSIGNED_FLAG.
-- **L_GAL (float64)**: luminosity in [solar luminosities / h^2] as converted from r-band absolute Mag.
+- **L_GAL (float64)**: luminosity in [solar luminosities / h^2] as converted from r-band absolute Mag (see below).
+- **ABS_MAG_R (float64)**: absolute magnitude in r-band, k-corrected to z=0.1, with H=100.
 - **VMAX (float64)**: max volume this galaxy could be observed in based on L_GAL; intended for 1/VMAX corrections for this flux-limited sample.
 - **P_SAT (float64)**: a number between 0 and 1 indicating how likely this galaxy is to be a satellite as per the group finding algorithm. It is not a true probability; See the Tinker papers for details. When greater than 0.5 the galaxy is considered a satellite, and IS_SAT will be marked True.
 - **M_HALO (float64)**: group property - assigned halo mass (of entire group) in [solar masses / h]
