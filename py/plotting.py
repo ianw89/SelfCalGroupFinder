@@ -1504,7 +1504,7 @@ def proj_clustering_plot(gc: GroupCatalog):
         # Plot config
         ax.set_xscale('log')
         ax.set_yscale('log')
-        ax.set_xlabel('$r_p$ [Mpch^{-1}]')
+        ax.set_xlabel('$r_p$ [Mpc $h^{-1}$]')
         ax.set_ylabel('$w_p(r_p)$')
         ax.set_ylim(1, 4000)
         ax.set_title(f'[{-i}, {caldata.magbins[idx+1]}]')

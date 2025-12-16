@@ -64,7 +64,7 @@ int group_center(int icen0, struct kdtree *kd)
   
   // make range only 2sigma_v
   range = 2*GAL[icen0].sigmav/100.0*(1+GAL[icen0].redshift)/
-    sqrt(OMEGA_M*pow(1+GAL[icen0].redshift,3.0) + 1-OMEGA_M);
+    sqrt(OMEGA_M*pow(1+GAL[icen0].redshift,3.0) + OMEGA_L);
 
   // get the halo radius
   rhalo = GAL[icen0].theta;

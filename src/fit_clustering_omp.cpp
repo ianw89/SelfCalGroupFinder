@@ -1329,7 +1329,7 @@ float NFW_position(float mass, float x[], struct drand48_data *rng)
   float r, pr, max_p, costheta, sintheta, phi1, signs, rvir, rs, cvir, mfac = 1;
   double rr;
   cvir = halo_concentration(mass) * CVIR_FAC;
-  rvir = pow(3 * mass / (4 * DELTA_HALO * PI * RHO_CRIT * OMEGA_M), 1.0 / 3.0);
+  rvir = pow(3 * mass / (4 * DELTA_HALO * PI * RHO_CRIT * OMEGA_M), THIRD);
   rs = rvir / cvir;
   max_p = NFW_density(rs, rs, 1.0) * rs * rs * 4.0 * PI;
 
@@ -1370,7 +1370,7 @@ float NFW_velocity(float mass, float v[], struct drand48_data *rng)
   int i;
   float fac;
 
-  fac = sqrt(4.499E-48) * pow(4 * DELTA_HALO * PI * OMEGA_M * RHO_CRIT / 3, 1.0 / 6.0) * 3.09E19 * sqrt(1 + REDSHIFT);
+  fac = sqrt(4.499E-48) * pow(4.0 * DELTA_HALO * PI * OMEGA_M * RHO_CRIT / 3.0, 1.0 / 6.0) * 3.09E19 * sqrt(1 + REDSHIFT);
   sigv = fac * pow(mass, 1.0 / 3.0) / ROOT2;
   for (i = 0; i < 3; ++i)
     v[i] = rand_gaussian(rng) * sigv;

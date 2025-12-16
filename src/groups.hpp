@@ -4,7 +4,8 @@
 #include "fit_clustering_omp.hpp" // <-- Add this include
 
 // Definitions
-#define OMEGA_M 0.25
+#define OMEGA_M 0.315192  // In past, 0.25 was used.
+#define OMEGA_L (1 - OMEGA_M)
 #define PI 3.141592741
 #define RHO_CRIT 2.775E+11
 #define DELTA_HALO 200

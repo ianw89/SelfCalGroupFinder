@@ -19,7 +19,7 @@ void update_galaxy_halo_props(struct galaxy *galaxy)
  */
 float func_dr1(float z)
 {
-  return pow(OMEGA_M * (1 + z) * (1 + z) * (1 + z) + (1 - OMEGA_M), -0.5);
+  return pow(OMEGA_M * (1 + z) * (1 + z) * (1 + z) + OMEGA_L, -0.5);
 }
 
 /**

@@ -516,7 +516,7 @@ void find_satellites(int icen, GalaxyKDTree *tree)
   // Nearest neighbour search should go out to about 4*sigma, the velocity dispersion of the SHAMed halo.
   // find all galaxies in 3D that are within 4sigma of the velocity dispersion
   const double range = 4 * GAL[icen].sigmav / 100.0 * (1 + GAL[icen].redshift) /
-          sqrt(OMEGA_M * pow(1 + GAL[icen].redshift, 3.0) + 1 - OMEGA_M);
+          sqrt(OMEGA_M * pow(1 + GAL[icen].redshift, 3.0) + OMEGA_L);
   const double search_radius = range * range; // nanoflann expects squared radius
   ret_matches.reserve(20); 
 

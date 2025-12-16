@@ -233,7 +233,8 @@ def mode_to_color(mode: Mode):
         return 'k'
 
 # using _h one makes distances Mpc / h instead
-_cosmo_h = FlatLambdaCDM(H0=100, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
+_cosmo_h_old = FlatLambdaCDM(H0=100, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
+_cosmo_h = FlatLambdaCDM(H0=100, Om0=0.315192, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 _cosmo_h_m30 = FlatLambdaCDM(H0=100, Om0=0.30, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 _cosmo_mxxl = FlatLambdaCDM(H0=73, Om0=0.25, Ob0=0.045, Tcmb0=2.725, Neff=3.04) 
 
