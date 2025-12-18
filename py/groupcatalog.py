@@ -2391,7 +2391,8 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     dn4000_values, logmstar_values = lookup.query(abs_mag_R_k[needs_props], gmr_best[needs_props])
     np.put(dn4000_model, needs_props, dn4000_values)
     np.put(logmstar, needs_props, logmstar_values)
-    np.put(quiescent, needs_props, is_quiescent_BGS_dn4000(log_L_gal[needs_props], dn4000_model[needs_props], gmr_best[needs_props]))
+    # For lost galaxies, the g-r method is better than using the lookup table Dn4000 to determine quiescent status. 81% vs 76% correct.
+    np.put(quiescent, needs_props, is_quiescent_BGS_gmr(log_L_gal[needs_props], gmr_best[needs_props]))
 
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
 

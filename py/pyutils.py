@@ -443,13 +443,21 @@ def k_correct_gama(abs_mag, z_obs, gmr, band='r'):
     corrector = gamakc.GAMA_KCorrection(band=band)
     return abs_mag - corrector.k(z_obs, gmr)
 
-def k_correct_bgs(abs_mag, z_obs, gmr, band='r'):
-    corrector  = desikc.DESI_KCorrection(band=band, file='jmext', photsys='S')
-    return abs_mag - corrector.k(z_obs, gmr)
+def k_correct_bgs(abs_mag, z_obs, gmr, photsys, band='r'):
+    correctorS  = desikc.DESI_KCorrection(band=band, file='jmext', photsys='S')
+    correctorN  = desikc.DESI_KCorrection(band=band, file='jmext', photsys='N')
+    kS = correctorS.k(z_obs, gmr)
+    kN = correctorN.k(z_obs, gmr)
+    return abs_mag - np.where(photsys=='S', kS, kN)
 
-def k_correct_bgs_v2(abs_mag, z_obs, gmr, band='r'):
+def k_correct_bgs_v2(abs_mag, z_obs, gmr, photsys, band='r'):
     corrector  = desikc2.DESI_KCorrection(band=band, file='jmext', photsys='S')
     return abs_mag - corrector.k(z_obs, gmr)
+
+def k_correct_fromlookup(abs_mag_r, abs_mag_g, z_obs):
+    lookup = kcorrlookup()
+    k_r, k_g = lookup.query(abs_mag_r, abs_mag_g, z_obs)
+    return abs_mag_r - k_r, abs_mag_g - k_g
 
 # TODO switch to new DESI version - but it is worse at recovering the fastspecfit distrubtion of colors...
 # This is what gets called in production code
@@ -848,20 +856,69 @@ def build_app_mag_to_z_map_4(app_mag, z_phot, z_obs):
 
     return app_mag_bins, z_phot_bins, the_map
 
-class dn4000lookup:
+class kcorrlookup:
     """
+    This is a lookup table for k-corrections based on absolute magnitudes 
+    """
+
+    METRIC_Z = 40 # tuned to maximize % correct
+    METRIC_ABSMAG_R = 1 # Not used
+    METRIC_ABSMAG_G = 1 # Not used
+    METRIC_GMR = 8.2 # tuned to maximize % correct
+
+    def __init__(self, file = BGS_Y3_KCORR_LOOKUP_FILE):
+        if file is None or os.path.isfile(file) is False:
+            raise ValueError(f"File {file} does not exist. The k-correction lookup table must be built first; see BGS_study.ipynb.")
+        self.tree, self.kcorr_r_values, self.kcorr_g_values = pickle.load(open(file, 'rb'))
+        print("kcorrlookup loaded")
+
+    def query(self, abs_mag_r_array, abs_mag_g_array, z_array, k=1):
+        """
+        Docstring for query
+        
+        :param abs_mag_r_array: Absolute magnitude in the r band with no corrections applied.
+        :param abs_mag_g_array: Absolute magnitude in the g band with no corrections applied.
+        :param z_array: Redshifts.
+        :param k: Number of neighbors to consider.
+        """
+        gmr_array = abs_mag_g_array - abs_mag_r_array
+        query_points = np.vstack((gmr_array * kcorrlookup.METRIC_GMR,
+                                  z_array * kcorrlookup.METRIC_Z)).T  # Scale the query points
+        distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points
+
+        if k == 1:
+            # If k=1, return single nearest neighbor values
+            kcorr_r_toreturn = self.kcorr_r_values[indices]
+            kcorr_g_toreturn = self.kcorr_g_values[indices]
+            return kcorr_r_toreturn, kcorr_g_toreturn
+
+        # Pick random neighbors for each query point, weighted by distance
+        kcorr_r_toreturn = []
+        kcorr_g_toreturn = []
+        for i in range(len(query_points)):
+            wt = (1 / distances[i]) / np.sum(1 / distances[i])
+            idx = np.random.choice(indices[i], p=wt, size=1)[0]
+            kcorr_r_toreturn.append(self.kcorr_r_values[idx])
+            kcorr_g_toreturn.append(self.kcorr_g_values[idx])
+
+        return np.array(kcorr_r_toreturn), np.array(kcorr_g_toreturn)
+
+class dn4000lookup:
+    """ 
     This is a lookup table for dn4000 values based on absolute magnitude and g-r color.
     It uses a KDTree for fast nearest neighbor search.
     """
+
+    METRIC_MAG = 1
+    METRIC_GMR = 5
+
     def __init__(self, file = BGS_Y3_DN4000_LOOKUP_FILE):
-        self.METRIC_MAG = 1
-        self.METRIC_GMR = 5
         if file is None or os.path.isfile(file) is False:
             raise ValueError(f"File {file} does not exist. The Dn4000 lookup table must be built first; see BGS_study.ipynb.")
         self.tree, self.dn4000_values, self.logmstar_values = pickle.load(open(file, 'rb'))
 
     def query(self, abs_mag_array, gmr_array, k=1):
-        query_points = np.vstack((abs_mag_array * self.METRIC_MAG, gmr_array * self.METRIC_GMR)).T  # Scale the query points
+        query_points = np.vstack((abs_mag_array * dn4000lookup.METRIC_MAG, gmr_array * dn4000lookup.METRIC_GMR)).T  # Scale the query points
         distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points
         #print(np.shape(distances), np.shape(indices))
 
