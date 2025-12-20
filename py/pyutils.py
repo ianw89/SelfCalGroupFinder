@@ -437,7 +437,7 @@ def app_mag_to_abs_mag_k(app_mag, z_obs, gmr, band='r'):
     Converts apparent mags to absolute mags using MXXL cosmology and provided observed redshifts,
     with GAMA k-corrections.
     """
-    return k_correct(app_mag_to_abs_mag(app_mag, z_obs), z_obs, gmr, band=band)
+    return k_correct_gama(app_mag_to_abs_mag(app_mag, z_obs), z_obs, gmr, band=band)
 
 def k_correct_gama(abs_mag, z_obs, gmr, band='r'):
     corrector = gamakc.GAMA_KCorrection(band=band)
@@ -458,11 +458,6 @@ def k_correct_fromlookup(abs_mag_r, abs_mag_g, z_obs):
     lookup = kcorrlookup()
     k_r, k_g = lookup.query(abs_mag_r, abs_mag_g, z_obs)
     return abs_mag_r - k_r, abs_mag_g - k_g
-
-# TODO switch to new DESI version - but it is worse at recovering the fastspecfit distrubtion of colors...
-# This is what gets called in production code
-def k_correct(abs_mag, z_obs, gmr, band='r'):
-    return k_correct_gama(abs_mag, z_obs, gmr, band)
 
 SOLAR_L_R_BAND = 4.65
 def abs_mag_r_to_log_solar_L(arr):
@@ -860,11 +855,9 @@ class kcorrlookup:
     """
     This is a lookup table for k-corrections based on absolute magnitudes 
     """
-
-    METRIC_Z = 40 # tuned to maximize % correct
-    METRIC_ABSMAG_R = 1 # Not used
-    METRIC_ABSMAG_G = 1 # Not used
-    METRIC_GMR = 8.2 # tuned to maximize % correct
+    # tuned to maximize % correct in abs mag R and g-r
+    METRIC_Z = 4.87 
+    METRIC_GMR = 1 
 
     def __init__(self, file = BGS_Y3_KCORR_LOOKUP_FILE):
         if file is None or os.path.isfile(file) is False:
@@ -872,16 +865,14 @@ class kcorrlookup:
         self.tree, self.kcorr_r_values, self.kcorr_g_values = pickle.load(open(file, 'rb'))
         print("kcorrlookup loaded")
 
-    def query(self, abs_mag_r_array, abs_mag_g_array, z_array, k=1):
+    def query(self, gmr_array, z_array, k=1):
         """
         Docstring for query
         
-        :param abs_mag_r_array: Absolute magnitude in the r band with no corrections applied.
-        :param abs_mag_g_array: Absolute magnitude in the g band with no corrections applied.
+        :param gmr_array: g - r
         :param z_array: Redshifts.
         :param k: Number of neighbors to consider.
         """
-        gmr_array = abs_mag_g_array - abs_mag_r_array
         query_points = np.vstack((gmr_array * kcorrlookup.METRIC_GMR,
                                   z_array * kcorrlookup.METRIC_Z)).T  # Scale the query points
         distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points

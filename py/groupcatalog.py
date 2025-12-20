@@ -1861,17 +1861,19 @@ def update_properties_for_indices(idx, app_mag_r, app_mag_g, g_r_apparent, z_eff
     # Replace z_eff by 0.001 when it is too low.  Will get removed later if exactly at BGS_Z_MIN
     z_eff[idx] = np.where(z_eff[idx] < BGS_Z_MIN, BGS_Z_MIN, z_eff[idx]) 
     np.put(abs_mag_R, idx, app_mag_to_abs_mag(app_mag_r[idx], z_eff[idx]))
-    assert np.isnan(abs_mag_R[idx]).any() == False, f"abs_mag_R[idx] has NaN values at {np.where(np.isnan(abs_mag_R[idx]))}"
-    np.put(abs_mag_R_k, idx, k_correct(abs_mag_R[idx], z_eff[idx], g_r_apparent[idx], band='r'))
-    np.put(abs_mag_R_k_BEST, idx, abs_mag_R_k[idx]) # won't overwrite the FSF ones because this only happens for lost galaxies (or bad spectro-z where we wanna overwrite anyway)
     np.put(abs_mag_G, idx, app_mag_to_abs_mag(app_mag_g[idx], z_eff[idx]))
-    np.put(abs_mag_G_k, idx, k_correct(abs_mag_G[idx], z_eff[idx], g_r_apparent[idx], band='g'))
-    np.put(abs_mag_G_k_BEST, idx, abs_mag_G_k[idx])
+    assert np.isnan(abs_mag_R[idx]).any() == False, f"abs_mag_R[idx] has NaN values at {np.where(np.isnan(abs_mag_R[idx]))}"
+    new_abs_mag_R_k, new_abs_mag_G_k = k_correct_fromlookup(abs_mag_R[idx], abs_mag_G[idx], z_eff[idx])
+
+    np.put(abs_mag_R_k, idx, new_abs_mag_R_k)
+    np.put(abs_mag_R_k_BEST, idx, new_abs_mag_R_k) # won't overwrite the FSF ones because this only happens for lost galaxies (or bad spectro-z where we wanna overwrite anyway)
+    np.put(abs_mag_G_k, idx, new_abs_mag_G_k)
+    np.put(abs_mag_G_k_BEST, idx, new_abs_mag_G_k)
     np.put(log_L_gal, idx, abs_mag_r_to_log_solar_L(abs_mag_R_k_BEST[idx]))
-    G_R_k = abs_mag_G_k - abs_mag_R_k
-    np.put(gmr_best, idx, G_R_k[idx])
+    np.put(gmr_best, idx, new_abs_mag_G_k - new_abs_mag_R_k)
+    
     assert np.isnan(abs_mag_R_k[idx]).any() == False, f"abs_mag_R_k[idx] has NaN values at {np.where(np.isnan(abs_mag_R_k[idx]))}"
-    assert np.isnan(G_R_k[idx]).any() == False, f"G_R_k[idx] has NaN values at {np.where(np.isnan(G_R_k[idx]))}"
+    assert np.isnan(gmr_best[idx]).any() == False, f"gmr_best[idx] has NaN values at {np.where(np.isnan(gmr_best[idx]))}"
 
 def get_footprint_deg(data_cut, mode, num_passes_required):
     if mode == Mode.ALL.value:
@@ -2391,8 +2393,9 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     dn4000_values, logmstar_values = lookup.query(abs_mag_R_k[needs_props], gmr_best[needs_props])
     np.put(dn4000_model, needs_props, dn4000_values)
     np.put(logmstar, needs_props, logmstar_values)
-    # For lost galaxies, the g-r method is better than using the lookup table Dn4000 to determine quiescent status. 81% vs 76% correct.
-    np.put(quiescent, needs_props, is_quiescent_BGS_gmr(log_L_gal[needs_props], gmr_best[needs_props]))
+    # For lost galaxies, when we used the GAMA polynomial k-corr, the g-r method was better than the Dn4000 lookup to determine quiescent: 81% vs 76% correct.
+    # Now we are using a nearest neighbor lookup table to get k-corrections for lost galaxies, which is less biased in abs mag R but worse in g-r. So use dn4000 now.
+    np.put(quiescent, needs_props, is_quiescent_BGS_dn4000(log_L_gal[needs_props], dn4000_model[needs_props], gmr_best[needs_props]))
 
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
 
