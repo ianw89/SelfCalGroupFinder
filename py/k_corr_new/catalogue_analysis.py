@@ -1,20 +1,20 @@
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import host_subplot
-import colour_lookup as col
+import SelfCalGroupFinder.py.k_corr_new.colour_lookup as col
 import numpy as np
 from scipy import stats
 from astropy.table import join,Table,Column,vstack, setdiff
-from smith_kcorr   import DESI_KCorrection 
-from rootfinders import root_itp,root_sec,root_itp2
+from SelfCalGroupFinder.py.k_corr_new.smith_kcorr   import DESI_KCorrection 
+from SelfCalGroupFinder.py.k_corr_new.rootfinders import root_itp,root_sec,root_itp2
 from astropy.cosmology import FlatLambdaCDM
 from scipy.ndimage import gaussian_filter
 
 #from desiutil.plots import prepare_data, init_sky, plot_grid_map, plot_healpix_map, plot_sky_circles, plot_sky_binned
 
 cosmo = FlatLambdaCDM(H0=100, Om0=0.313, Tcmb0=2.725)   #Standard Planck Cosmology in Mpc/h units
-import kcorr_generator as kg
-from   cosmo2              import volcom, distmod
-from schechter import schechter, named_schechter
+import SelfCalGroupFinder.py.k_corr_new.kcorr_generator as kg
+from   SelfCalGroupFinder.py.k_corr_new.cosmo2              import volcom, distmod
+from SelfCalGroupFinder.py.k_corr_new.schechter import schechter, named_schechter
 
 
 ########################################################################################################################    

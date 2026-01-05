@@ -11,9 +11,9 @@ from astropy.table import Table, join
 #sys.path.append(os.environ['CODE_ROOT'])
 
 from SelfCalGroupFinder.py.k_corr_new.cosmo2 import cosmo, distmod, volcom
-import kcorr_generator as kg
-import catalogue_analysis as ca
-from smith_kcorr   import DESI_KCorrection 
+import SelfCalGroupFinder.py.k_corr_new.kcorr_generator as kg
+import SelfCalGroupFinder.py.k_corr_new.catalogue_analysis as ca
+from SelfCalGroupFinder.py.k_corr_new.smith_kcorr   import DESI_KCorrection 
 
 
 def pc10(x):  #returns 10th percentile (for use in binned_statistics)

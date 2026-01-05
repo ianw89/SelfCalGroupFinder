@@ -13,7 +13,6 @@ if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from dataloc import *
 from   k_corr_new.cosmo2             import cosmo, distmod, volcom
-from   k_corr_new.tmr_kcorr         import tmr_kcorr
 
 
 
@@ -600,8 +599,8 @@ class DESI_KCorrection(object):
         #raw_dir = os.environ['CODE_ROOT'] + '/data/'        
         #print(os.environ['CODE_ROOT'])
 
-        raw_dir = PY_SRC_FOLDER + 'k_corr_new/data' #'/home/users/imw2293/SelfCalGroupFinder/desi/kcorr/parameters'
-        
+        raw_dir = PY_SRC_FOLDER + 'k_corr/parameters' #'/home/users/imw2293/SelfCalGroupFinder/desi/kcorr/parameters'
+
         # check pointing to right directory.
         # print('FILE:', file)
         # print('PHOTSYS:', photsys)

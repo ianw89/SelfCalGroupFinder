@@ -243,7 +243,7 @@ def pre_process_mxxl(in_filepath: str, mode: int, outname_base: str, APP_MAG_CUT
             print(f"Assigning missing redshifts complete.")   
     
     abs_mag = app_mag_to_abs_mag(app_mag, z_eff)
-    abs_mag_k = k_correct(abs_mag, z_eff, g_r)
+    abs_mag_k = k_correct_gama(abs_mag, z_eff, g_r)
 
     # the luminosities sent to the group finder will be k-corrected to z=0.1
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_k) 

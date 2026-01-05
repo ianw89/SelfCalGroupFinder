@@ -141,7 +141,7 @@ def pre_process_uchuu(in_filepath: str, mode: int, outname_base: str, app_mag_cu
     z_eff = z_obs # TODO go back to copying if UCHUU gets fiber assignment and we run other modes!
           
     abs_mag_me = app_mag_to_abs_mag(app_mag, z_eff)
-    abs_mag_me_k = k_correct(abs_mag_me, z_eff, g_r)
+    abs_mag_me_k = k_correct_gama(abs_mag_me, z_eff, g_r)
 
     # the luminosities sent to the group finder will be k-corrected to z=0.1
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_me_k) 

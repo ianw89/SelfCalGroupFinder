@@ -148,29 +148,13 @@ def add_mag_columns(table):
 
     # nans for lost galaxies will propagate through the calculations as desired
     abs_mag_R = app_mag_to_abs_mag(app_mag_r, z_obs)
-    abs_mag_R_k = k_correct(abs_mag_R, z_obs, g_r, band='r')
-    abs_mag_R_k_BEST = np.where(np.isnan(table['ABSMAG01_SDSS_R']), abs_mag_R_k, table['ABSMAG01_SDSS_R'])
-
-    bad_fsf = np.abs(abs_mag_R_k[~no_spectra] - table['ABSMAG01_SDSS_R'][~no_spectra]) > 1.0
-    if bad_fsf.any():
-        print(f"Warning: Found {bad_fsf.sum()} galaxies with large (>1 mag) difference between k-corrected and fastspecfit ABSMAG01_SDSS_R. Using k-corrected value for these.")
-        abs_mag_R_k_BEST[~no_spectra][bad_fsf] = abs_mag_R_k[~no_spectra][bad_fsf]
-        table['LOGMSTAR'][~no_spectra][bad_fsf] = np.nan    
-        table['DN4000_MODEL'][~no_spectra][bad_fsf] = np.nan    
-        # Print off 10 targetid examples
-        #print("Examples of targetids with bad FSF ABSMAG01_SDSS_R:")
-        #print(table['TARGETID'][~no_spectra][bad_fsf][:10])
-
     abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_obs)
-    abs_mag_G_k = k_correct(abs_mag_G, z_obs, g_r, band='g')
+    abs_mag_R_k, abs_mag_G_k = k_correct_fromlookup(abs_mag_R, abs_mag_G, z_obs)
+    # Old polynomial way
+    #abs_mag_R_k = k_correct_gama(abs_mag_R, z_obs, g_r, band='r')
+    #abs_mag_G_k = k_correct_gama(abs_mag_G, z_obs, g_r, band='g')
+    abs_mag_R_k_BEST = np.where(np.isnan(table['ABSMAG01_SDSS_R']), abs_mag_R_k, table['ABSMAG01_SDSS_R'])
     abs_mag_G_k_BEST = np.where(np.isnan(table['ABSMAG01_SDSS_G']), abs_mag_G_k, table['ABSMAG01_SDSS_G'])
-    
-    bad_fsf = np.abs(abs_mag_G_k[~no_spectra] - table['ABSMAG01_SDSS_G'][~no_spectra]) > 1.0
-    if bad_fsf.any():
-        print(f"Warning: Found {bad_fsf.sum()} galaxies with large (>1 mag) difference between k-corrected and fastspecfit ABSMAG01_SDSS_G. Using k-corrected value for these.")
-        abs_mag_G_k_BEST[~no_spectra][bad_fsf] = abs_mag_G_k[~no_spectra][bad_fsf]
-        table['LOGMSTAR'][~no_spectra][bad_fsf] = np.nan    
-        table['DN4000_MODEL'][~no_spectra][bad_fsf] = np.nan   
 
     log_L_gal = abs_mag_r_to_log_solar_L(abs_mag_R_k_BEST) 
     G_R_BEST = abs_mag_G_k_BEST - abs_mag_R_k_BEST

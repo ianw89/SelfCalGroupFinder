@@ -5,7 +5,6 @@ import os
 
 from   scipy.interpolate import interp1d
 from   pkg_resources     import resource_filename
-from   tmr_kcorr         import tmr_kcorr
 
 
 #raw_dir = os.environ['PYTHONPATH']
