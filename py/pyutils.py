@@ -456,7 +456,7 @@ def k_correct_bgs_v2(abs_mag, z_obs, gmr, photsys, band='r'):
 
 def k_correct_fromlookup(abs_mag_r, abs_mag_g, z_obs):
     lookup = kcorrlookup()
-    k_r, k_g = lookup.query(abs_mag_r, abs_mag_g, z_obs)
+    k_r, k_g = lookup.query(abs_mag_g - abs_mag_r, z_obs)
     return abs_mag_r - k_r, abs_mag_g - k_g
 
 SOLAR_L_R_BAND = 4.65
@@ -873,26 +873,41 @@ class kcorrlookup:
         :param z_array: Redshifts.
         :param k: Number of neighbors to consider.
         """
-        query_points = np.vstack((gmr_array * kcorrlookup.METRIC_GMR,
-                                  z_array * kcorrlookup.METRIC_Z)).T  # Scale the query points
-        distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points
+        # Create mask for valid (non-nan, non-inf) inputs
+        valid_mask = np.isfinite(gmr_array) & np.isfinite(z_array)
+        
+        # Initialize output arrays with nan
+        kcorr_r_toreturn = np.full_like(gmr_array, np.nan, dtype=float)
+        kcorr_g_toreturn = np.full_like(gmr_array, np.nan, dtype=float)
+        
+        # If no valid inputs, return nan arrays
+        if not np.any(valid_mask):
+            return kcorr_r_toreturn, kcorr_g_toreturn
+        
+        # Only query valid points
+        query_points = np.vstack((gmr_array[valid_mask] * kcorrlookup.METRIC_GMR,
+                                  z_array[valid_mask] * kcorrlookup.METRIC_Z)).T
+        distances, indices = self.tree.query(query_points, k=k)
 
         if k == 1:
             # If k=1, return single nearest neighbor values
-            kcorr_r_toreturn = self.kcorr_r_values[indices]
-            kcorr_g_toreturn = self.kcorr_g_values[indices]
+            kcorr_r_toreturn[valid_mask] = self.kcorr_r_values[indices]
+            kcorr_g_toreturn[valid_mask] = self.kcorr_g_values[indices]
             return kcorr_r_toreturn, kcorr_g_toreturn
 
         # Pick random neighbors for each query point, weighted by distance
-        kcorr_r_toreturn = []
-        kcorr_g_toreturn = []
+        kcorr_r_valid = []
+        kcorr_g_valid = []
         for i in range(len(query_points)):
             wt = (1 / distances[i]) / np.sum(1 / distances[i])
             idx = np.random.choice(indices[i], p=wt, size=1)[0]
-            kcorr_r_toreturn.append(self.kcorr_r_values[idx])
-            kcorr_g_toreturn.append(self.kcorr_g_values[idx])
+            kcorr_r_valid.append(self.kcorr_r_values[idx])
+            kcorr_g_valid.append(self.kcorr_g_values[idx])
 
-        return np.array(kcorr_r_toreturn), np.array(kcorr_g_toreturn)
+        kcorr_r_toreturn[valid_mask] = np.array(kcorr_r_valid)
+        kcorr_g_toreturn[valid_mask] = np.array(kcorr_g_valid)
+        
+        return kcorr_r_toreturn, kcorr_g_toreturn
 
 class dn4000lookup:
     """ 
