@@ -2288,7 +2288,6 @@ def assigned_halo_analysis(*sets):
 
 #def molleweide_map_for_catalog(catalog: GroupCatalog, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
 #    return make_map(catalog.all_data.RA.to_numpy(), catalog.all_data['DEC'].to_numpy(), alpha, dpi, fig, dotsize)
-
 def make_map(ra, dec, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
     """
     Give numpy array of ra and dec.
@@ -2299,9 +2298,7 @@ def make_map(ra, dec, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
     if isinstance(dec, pd.Series):
         dec = dec.to_numpy()
 
-    #if np.any(ra > 180.0): # if data given is 0 to 360
     assert np.all(ra > -0.1)
-    ra = ra - 180
     if np.any(dec > 90.0): # if data is 0 to 180
         print(f"WARNING: Dec values are 0 to 180. Subtracting 90 to get -90 to 90.")
         assert np.all(dec > -0.1)
@@ -2309,20 +2306,35 @@ def make_map(ra, dec, alpha=0.1, dpi=150, fig=None, dotsize=0.01):
 
     # Build a map of the galaxies
     ra_angles = coord.Angle(ra*u.degree)
-    ra_angles = ra_angles.wrap_at(180*u.degree)
-    #ra_angles = ra_angles.wrap_at(360*u.degree)
+    ra_angles = ra_angles.wrap_at(360*u.degree)
     dec_angles = coord.Angle(dec*u.degree)
 
     if fig == None:
-        fig = plt.figure(figsize=(12,12))
+        fig = plt.figure(figsize=(12,6))
         fig.dpi=dpi
         ax = fig.add_subplot(111, projection="mollweide")
+        # Move the center of the projection to 120 degrees RA
+        ax.set_longitude_grid(30)
         plt.grid(visible=True, which='both')
-        ax.set_xticklabels(['30°', '60°', '90°', '120°', '150°', '180°', '210°', '240°', '270°', '300°', '330°'])
+
+        # Format the labels to be 0-360
+        labels = []
+        # RA increases to the left on a sky plot, so we are effectively "inverting" it
+        # by making the labels ascending left-to-right.
+        for xtick in sorted(ax.get_xticks()):
+            deg = 120 - np.rad2deg(xtick)
+            if deg < 0:
+                deg += 360
+            if deg > 360:
+                deg -= 360
+            labels.append(f'{int(deg)}°')
+        ax.set_xticklabels(labels)
     else:
         ax=fig.get_axes()[0]
 
-    ax.scatter(ra_angles.radian, dec_angles.radian, alpha=alpha, s=dotsize)
+    # Convert RA to radians and shift for the new center
+    ra_rad = (ra_angles - 120*u.degree).wrap_at(180*u.degree).radian
+    ax.scatter(-ra_rad, dec_angles.radian, alpha=alpha, s=dotsize)
     return fig
 
 
