@@ -15,7 +15,7 @@ from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
 import astropy.coordinates as coord
 import pickle
-import emcee
+from astropy.table import Table
 from emcee.backends import Backend
 from numpy.polynomial.polynomial import Polynomial
 from astropy.cosmology import z_at_value
@@ -92,6 +92,8 @@ LogLgal_labels = LogLgal_bins[0:len(LogLgal_bins)-1]
 
 DEGREES_ON_SPHERE = 41253
 
+# See https://www.legacysurvey.org/dr9/bitmasks/
+# https://github.com/legacysurvey/legacypipe/blob/master/py/legacypipe/bits.py
 MASKBITS = dict(
     NPRIMARY   = 0x1,   # not PRIMARY
     BRIGHT     = 0x2,
@@ -105,7 +107,7 @@ MASKBITS = dict(
     WISEM2     = 0x200,
     BAILOUT    = 0x400, # bailed out of processing
     MEDIUM     = 0x800, # medium-bright star                  NOTHING has this at this point anyway
-    GALAXY     = 0x1000, # SGA large galaxy
+    GALAXY     = 0x1000, # In the SGA large galaxy mask
     CLUSTER    = 0x2000, # Cluster catalog source
 )
 
@@ -850,6 +852,22 @@ def build_app_mag_to_z_map_4(app_mag, z_phot, z_obs):
         del the_map[key]
 
     return app_mag_bins, z_phot_bins, the_map
+
+
+def get_sga_ellipse_positions():
+    if not os.path.exists(SGA_FILE):
+        raise ValueError(f"File {SGA_FILE} does not exist. Cannot load SGA ellipse positions.")
+    if not os.path.isfile(SGA_MINI_FILE):
+        # Make the quick mini version with only the columns we need
+        sga_full = Table.read(SGA_FILE, format='fits')
+        ra = np.array(sga_full['RA'])
+        dec = np.array(sga_full['DEC'])
+        pickle.dump((ra, dec), open(SGA_MINI_FILE, 'wb'))
+        print(f"Created SGA mini file at {SGA_MINI_FILE}")
+        
+    ra, dec = pickle.load(open(SGA_MINI_FILE, 'rb'))
+    return ra, dec
+
 
 class kcorrlookup:
     """

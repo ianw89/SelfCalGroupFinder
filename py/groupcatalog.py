@@ -1977,7 +1977,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     ra = get_tbl_column(table, 'RA', required=True)
     maskbits = get_tbl_column(table, 'MASKBITS')
     morphtype = get_tbl_column(table, 'MORPHTYPE')
-    #ref_cat = get_tbl_column(table, 'REF_CAT')
+    #ref_cat = get_tbl_column(table, 'REF_CAT') # This was supposed to tell me what targets in the SGA mask are on the center of the galaxies, but it doesn't work at all...
     tileid = get_tbl_column(table, 'TILEID')
     target_id = get_tbl_column(table, 'TARGETID', required=True)
     ntid = get_tbl_column(table, 'NEAREST_TILEIDS')
@@ -1997,6 +1997,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     log_L_gal = get_tbl_column(table, 'LOG_L_GAL', required=True)
     quiescent = get_tbl_column(table, 'QUIESCENT', required=True)
     logmstar = get_tbl_column(table, 'LOGMSTAR', required=True)
+    #sersic = get_tbl_column(table, 'SERSIC', required=False)
     p_obs = get_tbl_column(table, 'PROB_OBS', required=True)
     z_sv3 = get_tbl_column(table, 'Z_SV3')
     photsys = get_tbl_column(table, 'PHOTSYS', required=True)
@@ -2087,52 +2088,49 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     
     # Roughly remove HII regions of low z, high angular size galaxies (SGA catalog)
     if maskbits is not None:
-        sga_collision = keep & ((maskbits & MASKBITS['GALAXY']) != 0)
+        # Get all the targets we are planning on keeping but are in the SGA mask 
+        sga_mask = keep & ((maskbits & MASKBITS['GALAXY']) != 0)
+        sga_mask_idx = np.flatnonzero(sga_mask)
 
-        # TODO also use morphology. If extended, do not include in the possible cutlist
-        # Maybe SER > 4 required. Need something for every morphtype though.
-        sga_collision_blue = sga_collision & (g_r_apparent < 0.70) & (g_r_apparent >= 0.25) # blue enough to be HII region
+        ellipse_ra, ellipse_dec = get_sga_ellipse_positions()
 
-        sga_collision_veryblue = sga_collision & (g_r_apparent < 0.25) # fully assume it's an HII region
+        #sga_mask_but_refcat_central = sga_mask & (ref_cat == b'L3')
+        #with open("refcatL3.txt", "w") as f:
+        #    print("RA,DEC,TARGETID", file=f)
+        #    for r, d, t in zip(ra[sga_mask_but_refcat_central][100:], dec[sga_mask_but_refcat_central][100:], target_id[sga_mask_but_refcat_central][100:]):
+        #        print(f"{r},{d},{t}", file=f)
+
+        ellipse_cat = coord.SkyCoord(ra=ellipse_ra*u.degree, dec=ellipse_dec*u.degree, frame='icrs')
+        sgamasked_targets_cat = coord.SkyCoord(ra=ra[sga_mask]*u.degree, dec=dec[sga_mask]*u.degree, frame='icrs')
+        idx, d2d, d3d = coord.match_coordinates_sky(sgamasked_targets_cat, ellipse_cat)
+
+        # Find all the sga_masked targets that are within 3 arcsec of the ellipse centers
+        # Those are the fibers on the center of these large SGA galaxies. Keep those.
+        close_to_ellipse_center = (d2d < 3*u.arcsec)
+        sga_mask_idx_noncen = sga_mask_idx[~close_to_ellipse_center]
+
+        #with open("shredded_allcolors.txt", "w") as f:
+        #    print("RA,DEC,TARGETID", file=f)
+        #    for r, d, t in zip(ra[sga_mask_idx_noncen][:100], dec[sga_mask_idx_noncen][:100], target_id[sga_mask_idx_noncen][:100]):
+        #        print(f"{r},{d},{t}", file=f)
+
+        # Let's only throw out the blue-ish ones that are likely HII regions. Redder ones are probably just galaxies within the mask.
+        HII_COLOR_CUT = 0.65
+        #HII_SERSIC_CUT = 3.5
+        cut = g_r_apparent[sga_mask_idx_noncen] < HII_COLOR_CUT
+        #if sersic is not None:
+        #    cut &= sersic[sga_mask_idx_noncen] > HII_SERSIC_CUT # also require high sersic index / concentrated profile to be HII region
+        to_remove_idx = sga_mask_idx_noncen[cut]
+
+        #with open("shredded_blueish.txt", "w") as f:
+        #    print("RA,DEC,TARGETID", file=f)
+        #    for r, d, t in zip(ra[to_remove_idx][:100], dec[to_remove_idx][:100], target_id[to_remove_idx][:100]):
+        #        print(f"{r},{d},{t}", file=f)
         
-        sgacat = coord.SkyCoord(ra=ra[sga_collision]*u.degree, dec=dec[sga_collision]*u.degree, frame='icrs')
-        sgabluecat = coord.SkyCoord(ra=ra[sga_collision_blue]*u.degree, dec=dec[sga_collision_blue]*u.degree, frame='icrs')
-        sgaappmag = app_mag_r[sga_collision]
+        keep[to_remove_idx] = False
+        catalog_keep[to_remove_idx] = False
 
-        to_remove_nn = np.zeros(len(sgabluecat), dtype=bool)
-
-        # Find the nearest neighbor (excluding self)
-        MAX_SEARCHES = 10
-        n = 2
-        treename = f"sga_nn_tree_{uuid.uuid4()}" # unique name for the KDTree
-        while (n<MAX_SEARCHES):
-            idx, d2d, d3d = coord.match_coordinates_sky(sgabluecat, sgacat, nthneighbor=n, storekdtree=treename)
-            close = (d2d < 60*u.arcsec) 
-            close_idx = np.nonzero(close)[0]
-            if close_idx.size > 0:
-                neighbors = idx[close_idx]
-                to_remove_nn[close_idx] = to_remove_nn[close_idx] | (sgaappmag[close_idx] > sgaappmag[neighbors])
-
-            if not np.any(to_remove_nn):
-                break
-            n += 1
-
-        # Map back to the original array
-        to_remove_nn_full = np.zeros(orig_count, dtype=bool)
-        to_remove_nn_full[np.where(sga_collision_blue)[0][to_remove_nn]] = True
-        to_remove_nn_full[np.where(sga_collision_veryblue)[0]] = True
-        keep &= ~to_remove_nn_full
-        catalog_keep &= ~to_remove_nn_full
         print(f"After SGA nearest neighbor cut: {keep.sum():,}")
-
-        #with open("shredding.txt", "w") as f:
-        #    for r, d, t in zip(ra[to_remove_nn_full], dec[to_remove_nn_full], target_id[to_remove_nn_full]):
-        #        print(f"{r},{d},{t}", file=f)
-
-        #sgakeep = sga_collision & ~to_remove_nn_full
-        #with open("sga_keep.txt", "w") as f:
-        #    for r, d, t in zip(ra[sgakeep], dec[sgakeep], target_id[sgakeep]):
-        #        print(f"{r},{d},{t}", file=f)
 
     else:
         print("WARNING: missing MASKBITS columns. No shredding elimination possible.")

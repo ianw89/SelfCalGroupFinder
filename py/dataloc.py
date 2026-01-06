@@ -29,6 +29,7 @@ BGS_Y1_FOLDER = DATA_FOLDER + 'BGS_IRON/'
 BGS_FUJI_FOLDER = DATA_FOLDER + 'BGS_FUJI/'
 BGS_Y3_FOLDER_KIBO = DATA_FOLDER + 'BGS_KIBO/'
 BGS_Y3_FOLDER_LOA = DATA_FOLDER + 'BGS_LOA/'
+SGA_FOLDER = DATA_FOLDER + 'SGA/'
 #MXXL_DATA_DIR="/export/sirocco2/tinker/DESI/MXXL_MOCKS/"
 MXXL_DATA_DIR=DATA_FOLDER + "MXXL/"
 UCHUU_FILES_FOLDER="/export/sirocco2/tinker/DESI/UCHUU_MOCKS/"
@@ -87,6 +88,11 @@ TEST_GALPROPS_FILE = DATA_FOLDER + 'test_mini_galprops.dat'
 #######################
 MXXL_FILE = MXXL_DATA_DIR + "weights_3pass.hdf5"
 UCHUU_FILE = UCHUU_FILES_FOLDER + "BGS_LC_Uchuu.fits"
+
+# SGA Data Files
+################
+SGA_FILE = SGA_FOLDER + "SGA-2020.fits"
+SGA_MINI_FILE = SGA_FOLDER + "SGA-2020-MINI.fits"
 
 # BGS SV3 DATA FILES
 ###################
