@@ -1330,6 +1330,7 @@ class SDSSGroupCatalog(GroupCatalog):
             'frac_area':0.179,
             'fluxlim':1,
             'color':1,
+            'halomassfunc':HMF_T08_BOL_FILE,
             'omegaL_sf':values[0],
             'sigma_sf':values[1],
             'omegaL_q':values[2],
