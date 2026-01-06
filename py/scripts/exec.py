@@ -73,9 +73,10 @@ def process_gc(gc: GroupCatalog):
         if result:
             gc.calc_wp_for_mock()
             gc.postprocess()
-            gc.bootstrap_statistics()
-            gc.fit_hod_thresholds_to_model_for_display()
-            gc.fit_hod_bins_to_model_for_display()
+            if name == "BGS Y1 C2":
+                gc.bootstrap_statistics()
+                gc.fit_hod_thresholds_to_model_for_display()
+                gc.fit_hod_bins_to_model_for_display()
 
         else:
             print(f"Group finder failed for {name}, skipping further processing.")

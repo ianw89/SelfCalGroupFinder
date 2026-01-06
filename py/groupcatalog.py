@@ -1002,6 +1002,8 @@ class GroupCatalog:
             args.append(f"--hodw={self.GF_props['hodw']}")
         if interactive:
             args.append("-k") # keep alive
+        if 'halomassfunc' in self.GF_props:
+            args.append(f"--halomassfunc={self.GF_props['halomassfunc']}")
         if 'omegaL_sf' in self.GF_props:
             args.append(f"--wcen={self.GF_props['omegaL_sf']},{self.GF_props['sigma_sf']},{self.GF_props['omegaL_q']},{self.GF_props['sigma_q']},{self.GF_props['omega0_sf']},{self.GF_props['omega0_q']}")
         if 'beta0q' in self.GF_props:
@@ -1572,7 +1574,7 @@ class UchuuGroupCatalog(GroupCatalog):
 
 class BGSGroupCatalog(GroupCatalog):
     
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, ffc:bool=True, drop_passes: int = 0, data_cut: str = "Y1-Iron", gfprops=None, extra_params = None, caldata_ctor=None):
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, ffc:bool=True, drop_passes: int = 0, data_cut: str = "Y1-Iron", gfprops: dict=None, extra_params = None, caldata_ctor=None):
         super().__init__(name)
         self.mode = mode
         self.mag_cut = mag_cut
@@ -1588,6 +1590,8 @@ class BGSGroupCatalog(GroupCatalog):
         self.GF_props = gfprops
         frac_area = get_footprint_deg(data_cut, mode, num_passes) / DEGREES_ON_SPHERE
         self.GF_props['frac_area'] = frac_area
+        if 'halomassfunc' not in self.GF_props:
+            self.GF_props['halomassfunc'] = HMF_T08_P18_FILE
         if caldata_ctor is None:
             self.caldata = CalibrationData.BGS_Y1_8bin(self.mag_cut, self.GF_props['frac_area'])
         else:

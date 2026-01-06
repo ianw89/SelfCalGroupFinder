@@ -146,7 +146,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       sscanf(arg, "%lf,%lf,%lf,%lf", &(PROPX_WEIGHT_BLUE), &(PROPX_WEIGHT_RED), &(PROPX_SLOPE_BLUE), &(PROPX_SLOPE_RED));
       break;
     case 'h':
-      HALO_MASS_FUNC_FILE = arg;
+      HALO_MASS_FUNC_FILE = strdup(arg);
       break;
     case 't':
       sscanf(arg, "%d", (int *)&HOD_WEIGHT_TYPE);

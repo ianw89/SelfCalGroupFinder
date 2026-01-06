@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <errno.h>
 #include "groups.hpp"
 
 /*
@@ -186,8 +187,8 @@ FILE *openfile(const char *ff)
   FILE *fp;
   if(!(fp=fopen(ff,"r")))
     {
-      fprintf(stderr,"ERROR opening [%s]\n",ff);
-      exit(0);
+      fprintf(stderr,"ERROR opening %s\n",ff);
+      exit(ENOENT);
     }
   return(fp);
 }

@@ -69,7 +69,7 @@ def _thresh_log_probability(theta, x, y, yerr, model_func, lower_bounds, upper_b
         return -np.inf
     return lp + _thresh_log_likelihood(theta, x, y, yerr, model_func)
 
-def fit_hod_thresholds_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0.1, nwalkers=10, nsteps=10000, discard=300):
+def fit_hod_thresholds_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0.2, nwalkers=10, nsteps=10000, discard=0):
     """
     Fits a threshold HOD model to data using MCMC with emcee.
     """
@@ -103,7 +103,9 @@ def fit_hod_threshold_models(log_halo_mass, logncen, lognsat, color):
     
     # --- Satellites ---
     satmask = lognsat > -3 # For the fitting, only use these points
-    p0_sat = [log_halo_mass[satmask][0], log_halo_mass[satmask][-1], 1.0]
+    p0_sat = [log_halo_mass[satmask][0], log_halo_mass[satmask][8], 1.0]
+    if color == 'b':
+        p0_sat[2] = 0.8
     bounds_sat = ([9, 10, 0.1], [16, 17, 3.0])
     print(f"Initial guess for satellites: {p0_sat}, bounds: {bounds_sat}")
 
