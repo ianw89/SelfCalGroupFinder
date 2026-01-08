@@ -656,19 +656,19 @@ def Mhalo_std_vmax_weighted(series):
         return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
     
 def Lgal_vmax_weighted(series):
-    if len(series) <= 4:
+    if len(series) <= 99:
         return np.nan
     else:
         return np.average(series['L_GAL'], weights=1/series['VMAX'])
 
 def LogLgal_vmax_weighted(series):
-    if len(series) <= 4:
+    if len(series) <= 99:
         return np.nan
     else:
         return np.log10(np.average(series['L_GAL'], weights=1/series['VMAX']))
 
 def LogLgal_lognormal_scatter_vmax_weighted(series):
-    if len(series) <= 4:
+    if len(series) <= 99:
         return np.nan
     else:
         totweight = np.sum(1/series['VMAX'])
@@ -677,12 +677,12 @@ def LogLgal_lognormal_scatter_vmax_weighted(series):
         return np.sqrt(np.sum((values - mu)**2 * 1/series['VMAX']) / totweight)
 
 def mstar_vmax_weighted(series):
-    if len(series) <= 19:
+    if len(series) <= 99:
         return np.nan
     return np.average(np.power(10, series['LOGMSTAR']), weights=1/series['VMAX'])
 
 def LogMstar_lognormal_scatter_vmax_weighted(series):
-    if len(series) <= 19:
+    if len(series) <= 99:
         return np.nan
     else:
         totweight = np.sum(1/series['VMAX'])
