@@ -349,6 +349,23 @@ def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
         ax_inset.axhline(1.0, color='gray', linestyle='--', alpha=0.5)
 
 
+def SHMR_likereview(f: GroupCatalog):
+    
+    mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+
+    plt.figure(dpi=DPI)
+    x_vals = np.log10(Mhalo_labels)
+    y_vals = mean_all / Mhalo_labels
+
+    plt.plot(x_vals, np.log10(y_vals), '-', color='k', label='All', alpha=1.0, lw=3)
+    #plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    #plt.ylabel(r'log$(\langle M_{\star} \rangle / [M_{\odot} h^{-2}])$')
+    plt.xlim(7.3,15)
+    plt.ylim(-5,-1)
+    #plt.legend()
+    plt.tight_layout()
+    
+
 def SHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
 
     mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
@@ -426,9 +443,12 @@ def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
     plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
 
     if show_all:
-        plt.fill_between(x_vals, lhmr_all_scatter_err[0], lhmr_all_scatter_err[1], color='gray', alpha=0.2)
-    plt.fill_between(x_vals, lhmr_r_scatter_err[0], lhmr_r_scatter_err[1], color='red', alpha=0.2)
-    plt.fill_between(x_vals, lhmr_b_scatter_err[0], lhmr_b_scatter_err[1], color='blue', alpha=0.2)
+        all_valid = ~np.isnan(scatter_all)
+        plt.fill_between(x_vals[all_valid], lhmr_all_scatter_err[0][all_valid], lhmr_all_scatter_err[1][all_valid], color='gray', alpha=0.2)
+    r_valid = ~np.isnan(scatter_r)
+    plt.fill_between(x_vals[r_valid], lhmr_r_scatter_err[0][r_valid], lhmr_r_scatter_err[1][r_valid], color='red', alpha=0.2)
+    b_valid = ~np.isnan(scatter_b)
+    plt.fill_between(x_vals[b_valid], lhmr_b_scatter_err[0][b_valid], lhmr_b_scatter_err[1][b_valid], color='blue', alpha=0.2)
 
     plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}}~/~[L_{\odot} h^{-2}])}$')
@@ -1369,6 +1389,72 @@ def hod_bins_plot(gc: GroupCatalog, hodtab: hod.HODTabulated, model=False, seper
 
     return (fig, fig2) if seperate else fig
 
+
+
+def hod_bins_plot_like_zehavi(gc: GroupCatalog, hodtab: hod.HODTabulated, model=False):
+    """
+    Plot the HOD from a file, overlaying with a histogram of the number of halos (nhalo).
+    """
+    data = hodtab
+    n_lbins = 3
+    log_Mhalo = data.logM_bin_centers
+
+    ncols = 1
+    nrows = 3 
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows), dpi=DPI, sharey=True)
+    axes = np.array(axes).reshape(-1)  # flatten in case axes is 2D
+
+    for lbin in range(n_lbins):
+        offset = 3
+        ax = axes[lbin]
+        ax2 = ax
+
+        if lbin == n_lbins - 1:
+            ax.set_xlabel('log($M_h$ / [$M_\odot / h$])')
+
+        lbin += offset
+
+        alpha = 0.6
+        if model:
+            ax.plot(log_Mhalo, data.central_q[lbin], 'rd', label='Q Cen', markersize=9)
+            ax.plot(log_Mhalo, data.satellite_q[lbin], 'r.', label='Q Sat', markersize=9)
+            ax2.plot(log_Mhalo, data.central_sf[lbin], 'bd', label='SF Cen', markersize=9)
+            ax2.plot(log_Mhalo, data.satellite_sf[lbin], 'b.', label='SF Sat', markersize=9)
+        else:
+            ax.plot(log_Mhalo, data.central_q[lbin], 'r-', label='Q Cen', alpha=alpha, linewidth=3)
+            ax.plot(log_Mhalo, data.satellite_q[lbin], 'r:', label='Q Sat', alpha=alpha, linewidth=3)
+            ax2.plot(log_Mhalo, data.central_sf[lbin], 'b-', label='SF Cen', alpha=alpha, linewidth=3)
+            ax2.plot(log_Mhalo, data.satellite_sf[lbin], 'b:', label='SF Sat', alpha=alpha, linewidth=3)
+        #else:
+        #    ax.plot(log_halo_mass, log_all_cen_fraction, 'k-', label='All Cen', alpha=alpha, linewidth=3)
+        #    ax.plot(log_halo_mass, log_all_sat_fraction, 'k--', label='All Sat', alpha=alpha, linewidth=3)
+   
+        ax.set_xlim(11.0, 14.5)
+        ax.set_ylim(-2, 2)
+        ax.set_title(f'{gc.caldata.magbins[lbin]} > $M_r$ - 5log($h$) > {gc.caldata.magbins[lbin+1]}')
+        ax2.set_title(f'{gc.caldata.magbins[lbin]} > $M_r$ - 5log($h$) > {gc.caldata.magbins[lbin+1]}')
+        if lbin % ncols == 0:
+            ax.set_ylabel('log(fraction)')
+            ax2.set_ylabel('log(fraction)')
+
+        ax.grid(True)
+
+        if model:
+            ax.plot(log_Mhalo, hod.hod_central_model2(log_Mhalo, *gc.hod_cen_red_popt[lbin]), 'k-', label='Q Cen Model', linewidth=3)
+            ax.plot(log_Mhalo, hod.hod_satellite_model(log_Mhalo, *gc.hod_sat_red_popt[lbin]), 'k--', label='Q Sat Model', linewidth=3)
+            ax2.plot(log_Mhalo, hod.hod_central_model2(log_Mhalo, *gc.hod_cen_blue_popt[lbin]), 'k-', label='SF Cen Model', linewidth=3)
+            ax2.plot(log_Mhalo, hod.hod_satellite_model(log_Mhalo, *gc.hod_sat_blue_popt[lbin]), 'k--', label='SF Sat Model', linewidth=3)
+
+            # Print the parameters onto the plot
+            ax.text(10.2, 1.7, f"α: {gc.hod_sat_red_popt[lbin][2]:.2f}")
+            ax.text(10.2, 1.4, f"$M_\star$: {gc.hod_sat_red_popt[lbin][1]:.2f}")
+            ax.text(10.2, 1.1, f"$M_{{cut}}$: {gc.hod_sat_red_popt[lbin][0]:.2f}")
+            ax2.text(10.2, 1.7, f"α: {gc.hod_sat_blue_popt[lbin][2]:.2f}")
+            ax2.text(10.2, 1.4, f"$M_\star$: {gc.hod_sat_blue_popt[lbin][1]:.2f}")
+            ax2.text(10.2, 1.1, f"$M_{{cut}}$: {gc.hod_sat_blue_popt[lbin][0]:.2f}")
+
+    fig.tight_layout()
+    return fig
 
       
 
