@@ -79,9 +79,10 @@ GF_PROPS_BGS_VANILLA = {
 # ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
 GOOD_TEN_PARAMETERS = np.array([
     [19.737870,6.394322,24.657218,11.571343,33.116540,9.403598,-3.755194,16.879988,9.941906,0.958446], # C1
-    [13.1,2.42,12.9,4.84,17.4,2.67,-0.92,10.25,12.993,-8.04], # From SDSS 
-    [18.382, 5.803, 19.458, 9.869, 33.727, 6.413, -4.952, 19.493, 11.300, 0.511,], # C2
-    [18.420, 5.598, 26.501, 14.446, 41.256, 10.066, -10.396, 24.101, 11.599, 1.313,], # C3
+    [13.1, 2.42, 12.9, 4.84, 17.4, 2.67, -0.92, 10.25, 12.993, -8.04], # From SDSS 
+    [18.382, 5.803, 19.458, 9.869, 33.727, 6.413, -4.952, 19.493, 11.300, 0.511], # C2
+    [18.420, 5.598, 26.501, 14.446, 41.256, 10.066, -10.396, 24.101, 11.599, 1.313], # C3
+    [13.1, 2.42, 12.9, 4.84, 17.4, 2.67, -4.952, 19.493, 11.300, 0.511],
     ])
 
 # A 10 Parameter set found from MCMC SV3 with SDSS data.
@@ -349,7 +350,7 @@ class GroupCatalog:
 
         # Run the group finder in interactive mode
         print("Calling group finder with interactive on for inital run.")
-        self.run_group_finder(popmock=True, interactive=True, silent=True)
+        self.run_group_finder(popmock=True, interactive=True, silent=False)
         
         # If there is a state, continue from there
         if self.sampler.backend.iteration > 0:
@@ -359,19 +360,20 @@ class GroupCatalog:
             print("Starting fresh")
             # Start fresh using IC's centered around known good values
             if self.sampler.ndim == 10:
-                initial = GOOD_TEN_PARAMETERS[2]
+                # Set each walker to a random one of the "GOOD_TEN_PARAMETERS"
+                initial = np.zeros((self.sampler.nwalkers, self.sampler.ndim))
+                for i in range(self.sampler.nwalkers):
+                    initial[i] = GOOD_TEN_PARAMETERS[np.random.randint(0, len(GOOD_TEN_PARAMETERS))]
             elif self.sampler.ndim == 14:
                 initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
             
-            spread_factor = 0.5
-            p0 = initial + spread_factor * (np.random.randn(self.sampler.nwalkers, self.sampler.ndim) - 0.5)
+            # Now randomly spread them out by a Gaussian factor 
+            p0 = initial + 0.5 * np.random.randn(self.sampler.nwalkers, self.sampler.ndim)
             
             # Set a walker to each set of saved off parameters
             for i in range(len(GOOD_TEN_PARAMETERS)):
                 if i < self.sampler.nwalkers:
                     p0[i] = GOOD_TEN_PARAMETERS[i]
-
-            print(np.shape(p0))
 
             pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
 
@@ -622,9 +624,9 @@ class GroupCatalog:
         self.hodt_sat_all_popt = []
 
         for idx, lcut in enumerate(lum_cuts):
-            cen_red_popt, sat_red_popt = fit_hod_threshold_models(np.log10(self.Mhalo_labels), self.hod_thresholds.central_q[idx, :], self.hod_thresholds.satellite_q[idx, :], 'r')
-            cen_blue_popt, sat_blue_popt = fit_hod_threshold_models(np.log10(self.Mhalo_labels), self.hod_thresholds.central_sf[idx, :], self.hod_thresholds.satellite_sf[idx, :], 'b')
-            cen_all_popt, sat_all_popt = fit_hod_threshold_models(np.log10(self.Mhalo_labels), self.hod_thresholds.central_all[idx, :], self.hod_thresholds.satellite_all[idx, :], 'k')
+            cen_red_popt, sat_red_popt = fit_hod_threshold_models(np.log10(self.Mhalo_labels), self.hod_thresholds.central_q[idx, :], self.hod_thresholds.satellite_q[idx, :], self.hod_thresholds.unweighted_counts, 'r')
+            cen_blue_popt, sat_blue_popt = fit_hod_threshold_models(np.log10(self.Mhalo_labels), self.hod_thresholds.central_sf[idx, :], self.hod_thresholds.satellite_sf[idx, :], self.hod_thresholds.unweighted_counts, 'b')
+            cen_all_popt, sat_all_popt = fit_hod_threshold_models(np.log10(self.Mhalo_labels), self.hod_thresholds.central_all[idx, :], self.hod_thresholds.satellite_all[idx, :], self.hod_thresholds.unweighted_counts, 'k')
 
             self.hodt_cen_red_popt.append(cen_red_popt)
             self.hodt_sat_red_popt.append(sat_red_popt)
@@ -935,7 +937,7 @@ class GroupCatalog:
                 self.hodfit = HODTabulated.from_cpp(arr, self.caldata) 
             
             elif msg_type == MSG_COMPLETED:
-                #print("Group Finder completed successfully.")
+                print("Group Finder completed successfully.")
                 return True
             
             elif msg_type == MSG_ABORTED:
@@ -945,6 +947,7 @@ class GroupCatalog:
             else:
                 raise Exception(f"Unexpected message type: {msg_type}")
 
+        print("Group Finder process ended.")
         return True
 
 
@@ -965,7 +968,6 @@ class GroupCatalog:
             return
         
         # Group Finder expects these files in working directory
-        sp.run(["cp", HALO_MASS_FUNC_FILE , self.output_folder])
         sp.run(["cp", LSAT_LOOKUP_FILE , self.output_folder])
 
         sys.stdout.flush()
@@ -1075,6 +1077,10 @@ class GroupCatalog:
         pimax = 40
         boxsize = 250
 
+        # Force a sync to ensure the mock files from the C++ process are fully written to disk
+        # before we try to read them with corrfunc. This prevents a potential race condition.
+        sp.run(["sync"], check=True)
+
         # Call corrfunc compiled executable to compute wp on the mock that was populated with the HOD extracted from this catalog
         for i in range(len(mag_starts)):
             m = abs(mag_starts[i])
@@ -1094,8 +1100,15 @@ class GroupCatalog:
                     print(f"Error running command: {cmd}")
                 self.wp_mock[(color, m)] = np.loadtxt(f'{self.output_folder}{outf}', skiprows=0, dtype='float')
 
+                # Now delete the mock file to save space
+                os.remove(f"{self.output_folder}mock_{color}_M{m}.dat")
+                os.remove(f"{self.output_folder}wp_mock_{color}_M{m}.dat")
+
         t2 = time.time()
-        print(f"Done with wp on mock populated with HOD from this sample (time = {t2-t1:.1f}s).")
+
+
+
+        #print(f"Done with wp on mock populated with HOD from this sample (time = {t2-t1:.1f}s).")
 
     def refresh_df_views(self):
         if self.all_data is not None:
@@ -1232,23 +1245,17 @@ class GroupCatalog:
         if self.pipereader is None:
             raise Exception("Group finder pipe reader is no longer open, but expected to be.")
 
-        self.GF_props = {
-            'zmin':self.GF_props['zmin'],
-            'zmax':self.GF_props['zmax'],
-            'frac_area':self.GF_props['frac_area'],
-            'fluxlim':self.GF_props['fluxlim'],
-            'color':self.GF_props['color'],
-            'omegaL_sf':params[0],
-            'sigma_sf':params[1],
-            'omegaL_q':params[2],
-            'sigma_q':params[3],
-            'omega0_sf':params[4],  
-            'omega0_q':params[5],    
-            'beta0q':params[6],    
-            'betaLq':params[7],
-            'beta0sf':params[8],
-            'betaLsf':params[9],
-        }
+        self.GF_props['omegaL_sf'] = params[0]
+        self.GF_props['sigma_sf'] = params[1]
+        self.GF_props['omegaL_q'] = params[2]
+        self.GF_props['sigma_q'] = params[3]
+        self.GF_props['omega0_sf'] = params[4]  
+        self.GF_props['omega0_q'] = params[5]    
+        self.GF_props['beta0q'] = params[6]    
+        self.GF_props['betaLq'] = params[7]
+        self.GF_props['beta0sf'] = params[8]
+        self.GF_props['betaLsf'] = params[9]
+
         if len(params) == 14:
             self.GF_props['omega_chi_0_sf'] = params[10]
             self.GF_props['omega_chi_0_q'] = params[11]
@@ -1257,7 +1264,12 @@ class GroupCatalog:
 
         # Send message to GF TODO
         # &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR), &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE)
-        #print("Sending message for next GF iteration")
+        print("Trying parameters: ", end="")
+        for p in params:
+            print(f"{p:.2f} ", end="")
+        print("")
+        sys.stdout.flush()
+
         msg = struct.pack("<BBI", MSG_REQUEST, TYPE_DOUBLE, len(params)) + struct.pack(f"<{len(params)}d", *params)
         self.proc.stdin.write(msg)
         self.proc.stdin.flush()
@@ -1266,6 +1278,7 @@ class GroupCatalog:
         success = self.monitor_pipe()  
         if not success:
             # GF aborted early for very bad parameters or something similar
+            print("Group Finder aborted early, returning infinite chi squared.")
             return np.inf
 
         # No issues, calculate goodness of fit and give it back to emcee
@@ -2462,8 +2475,9 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     })
 
     # assert no nans in entirety of galprops
-    if galprops.isnull().values.any():
-        nan_counts = galprops.isnull().sum()
+    galprops_nozobs = galprops.drop(columns=['Z_OBS'])
+    if galprops_nozobs.isnull().values.any():
+        nan_counts = galprops_nozobs.isnull().sum()
         print(f"ERROR: NaN values found in galprops DataFrame:\n{nan_counts[nan_counts > 0]}")
 
     galprops.to_pickle(outname_base + "_galprops.pkl")  

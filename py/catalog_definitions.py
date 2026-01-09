@@ -213,8 +213,6 @@ bgs_y1_pzp_2_6_c2_flm0.GF_props['fluxlim'] = 0
 bgs_y1_pzp_2_6_c2_flm0.color = 'magenta'
 bgs_y1_pzp_2_6_c2_flm0.marker = '--'
 
-bgs_y1mini_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Mini Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1mini)
-
 bgs_y1_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_6bin)
 bgs_y1_hybrid_mcmc.marker = '.'
 bgs_y1_hybrid_mcmc.color = 'darkgreen'
@@ -224,7 +222,8 @@ bgs_y1_hybrid8_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 MCMC", Mode.PHOTOZ_PLUS_v2
 bgs_y1_hybrid8_mcmc.marker = '.'
 bgs_y1_hybrid8_mcmc.color = 'darkgreen'
 
-bgs_y1_hybrid8_v1_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 v1 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
+# Itering this one until final v1.0 catalog is ready
+bgs_y1_hybrid8_v1_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 v1 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
 bgs_y1_hybrid8_v1_mcmc.marker = '.'
 bgs_y1_hybrid8_v1_mcmc.color = 'darkgreen'
 

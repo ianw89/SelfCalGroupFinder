@@ -46,7 +46,8 @@ halo *HALO = nullptr;
 int NGAL = 0;
 int NHALO = 0;
 const char *INPUTFILE = nullptr; 
-const char *HALO_MASS_FUNC_FILE = "halo_mass_function.dat"; // Default value
+//const char *HALO_MASS_FUNC_FILE = "halo_mass_function.dat"; // Default value
+const char *HALO_MASS_FUNC_FILE = nullptr;
 const char *MOCK_FILE = nullptr;
 const char *VOLUME_BINS_FILE = nullptr;
 
@@ -108,6 +109,8 @@ void groupfind()
 
   fsat_arr = (double *) calloc(MAX_ITER, sizeof(double));
 
+  // In interactive mode, groupfind() can be called more than once (changing the GF parameters between calls).
+  // So we only do this initialization the first time.
   if (first_call)
   {
     first_call = 0;
@@ -488,6 +491,12 @@ void recalc_galprops() {
     GAL[i].chiweight = get_chi_weight(i);
     GAL[i].bprob = get_bprob(i);
     GAL[i].lgrp = GAL[i].lum; // reset lgrp to lum
+    GAL[i].mass = 0;
+    GAL[i].rad = 0;
+    GAL[i].sigmav = 0;
+    GAL[i].theta = 0;
+    GAL[i].psat = 0;
+    GAL[i].nsat = 0;
   }
 }
 

@@ -59,6 +59,7 @@ def _thresh_log_prior(theta, lower_bounds, upper_bounds):
 def _thresh_log_likelihood(theta, x, y, yerr, model_func):
     """Gaussian log-likelihood, assuming model and data are in log space."""
     model_y = model_func(x, *theta)
+    # yerr can be a scalar or an array
     sigma2 = yerr**2
     return -0.5 * np.sum((y - model_y)**2 / sigma2)
 
@@ -69,10 +70,23 @@ def _thresh_log_probability(theta, x, y, yerr, model_func, lower_bounds, upper_b
         return -np.inf
     return lp + _thresh_log_likelihood(theta, x, y, yerr, model_func)
 
-def fit_hod_thresholds_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0.2, nwalkers=10, nsteps=10000, discard=0):
+def fit_hod_thresholds_mcmc(log_halo_mass, logn, unweighted_counts, model_func, p0, bounds, min_counts=1, base_err=0.1, nwalkers=10, nsteps=10000, discard=0):
     """
     Fits a threshold HOD model to data using MCMC with emcee.
+    The error is calculated from the unweighted counts.
     """
+    # Calculate y_err based on unweighted counts
+    # Error on log10(N) is approx 1 / (sqrt(N) * sqrt(N_halos) * ln(10))
+    N = 10**logn
+    N_halos = unweighted_counts
+    
+    # Avoid division by zero for N or N_halos, and add a floor to the error
+    valid_mask = (N > 0) & (N_halos >= min_counts)
+    y_err = np.full_like(logn, np.inf) # Start with infinite error
+    y_err[valid_mask] = 1.0 / (np.sqrt(N[valid_mask]) * np.sqrt(N_halos[valid_mask]) * np.log(10))
+    # Add a base error in quadrature to prevent overly small errors
+    y_err = np.sqrt(y_err**2 + base_err**2)
+
     ndim = len(p0)
     lower_bounds, upper_bounds = bounds
     # Initialize walkers randomly between the bounds
@@ -87,7 +101,7 @@ def fit_hod_thresholds_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0
     # TODO instead of just keeping best fit, consider keeping and plotting the posterior somehow
     return best_params
 
-def fit_hod_threshold_models(log_halo_mass, logncen, lognsat, color):
+def fit_hod_threshold_models(log_halo_mass, logncen, lognsat, unweighted_counts, color):
     """
     Fits HOD threshold data to standard models using either curve_fit or MCMC.
     """
@@ -95,14 +109,14 @@ def fit_hod_threshold_models(log_halo_mass, logncen, lognsat, color):
     lognsat = np.clip(lognsat, -6, 5)
     
     # --- Centrals ---
-    cenmask = logncen > -3 # For the fitting, only use these points
+    cenmask = logncen > -4 # For the fitting, only use these points
     p0_cen = [log_halo_mass[cenmask][0], 0.3, log_halo_mass[cenmask][5], 2.5] if color == 'b' else [log_halo_mass[cenmask][0], 0.3]
     bounds_cen = ([8, 0.01, 8, 0.01], [16, 3.0, 16, 10.0]) if color == 'b' else ([8, 0.01], [16, 3.0])
     print(f"Initial guess for centrals: {p0_cen}, bounds: {bounds_cen}")
     cenmodel = hod_central_threshold_blue_model if color == 'b' else hod_central_threshold_model
     
     # --- Satellites ---
-    satmask = lognsat > -3 # For the fitting, only use these points
+    satmask = lognsat > -4 # For the fitting, only use these points
     p0_sat = [log_halo_mass[satmask][0], log_halo_mass[satmask][8], 1.0]
     if color == 'b':
         p0_sat[2] = 0.8
@@ -110,9 +124,9 @@ def fit_hod_threshold_models(log_halo_mass, logncen, lognsat, color):
     print(f"Initial guess for satellites: {p0_sat}, bounds: {bounds_sat}")
 
     print(f"--- Fitting Centrals (Threshold) using {len(logncen[cenmask])} points  ---")
-    popt_cen = fit_hod_thresholds_mcmc(log_halo_mass[cenmask], logncen[cenmask], cenmodel, p0_cen, bounds_cen)
+    popt_cen = fit_hod_thresholds_mcmc(log_halo_mass[cenmask], logncen[cenmask], unweighted_counts[cenmask], cenmodel, p0_cen, bounds_cen)
     print(f"\n--- Fitting Satellites (Threshold) using {len(lognsat[satmask])} points ---")
-    popt_sat = fit_hod_thresholds_mcmc(log_halo_mass[satmask], lognsat[satmask], hod_satellite_threshold_model, p0_sat, bounds_sat)
+    popt_sat = fit_hod_thresholds_mcmc(log_halo_mass[satmask], lognsat[satmask], unweighted_counts[satmask], hod_satellite_threshold_model, p0_sat, bounds_sat)
 
     return popt_cen, popt_sat
 
@@ -213,6 +227,7 @@ def fit_hod_models(log_halo_mass, logncen, lognsat, use_mcmc=True):
     """
     Fits HOD data to standard models using either curve_fit or MCMC.
     """
+
     logncen = np.clip(logncen, -6, 2)
     lognsat = np.clip(lognsat, -6, 5)
     
@@ -229,9 +244,9 @@ def fit_hod_models(log_halo_mass, logncen, lognsat, use_mcmc=True):
 
     if use_mcmc:
         print("--- Fitting Centrals with MCMC ---")
-        popt_cen = fit_hod_mcmc(log_halo_mass[cenmask], logncen[cenmask], hod_central_model2, p0_cen, bounds_cen)
+        popt_cen = fit_hod_mcmc(log_halo_mass[cenmask], logncen[cenmask], unweighted_counts[cenmask], hod_central_model2, p0_cen, bounds_cen)
         print("\n--- Fitting Satellites with MCMC ---")
-        popt_sat = fit_hod_mcmc(log_halo_mass[satmask], lognsat[satmask], hod_satellite_model, p0_sat, bounds_sat)
+        popt_sat = fit_hod_mcmc(log_halo_mass[satmask], lognsat[satmask], unweighted_counts[satmask], hod_satellite_model, p0_sat, bounds_sat)
     else:
         print("--- Fitting with curve_fit ---")
         popt_cen, _ = curve_fit(hod_central_model2, log_halo_mass[cenmask], logncen[cenmask], p0=p0_cen, bounds=bounds_cen)
@@ -249,6 +264,7 @@ def _bin_log_prior(theta, lower_bounds, upper_bounds):
 def _bin_log_likelihood(theta, x, y, yerr, model_func):
     """Gaussian log-likelihood, assuming model and data are in log space."""
     model_y = model_func(x, *theta)
+    # yerr can be a scalar or an array
     sigma2 = yerr**2
     return -0.5 * np.sum((y - model_y)**2 / sigma2)
 
@@ -260,9 +276,10 @@ def _bin_log_probability(theta, x, y, yerr, model_func, lower_bounds, upper_boun
     return lp + _bin_log_likelihood(theta, x, y, yerr, model_func)
 
 
-def fit_hod_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0.1, nwalkers=12, nsteps=10000, discard=100):
+def fit_hod_mcmc(log_halo_mass, logn, unweighted_counts, model_func, p0, bounds, min_counts=1, base_err=0.1, nwalkers=12, nsteps=10000, discard=100):
     """
     Fits a model to data using MCMC with emcee.
+    The error is calculated from the unweighted counts.
 
     Parameters
     ----------
@@ -270,14 +287,18 @@ def fit_hod_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0.1, nwalker
         The x-data (log10 halo mass).
     logn : array
         The y-data to be fit (log10 occupation).
+    unweighted_counts : array
+        The number of halos in each mass bin.
     model_func : function
         The model function to fit (e.g., hod_central_model2).
     p0 : list
         Initial guess for the parameters.
     bounds : tuple
         A tuple of (lower_bounds, upper_bounds) for the parameters.
-    y_err : float, optional
-        The uncertainty on the y-data points.
+    min_counts : int, optional
+        The minimum number of halos in a bin to be included in the fit.
+    base_err : float, optional
+        A base error added in quadrature to prevent overly small errors.
     nwalkers : int, optional
         The number of MCMC walkers.
     nsteps : int, optional
@@ -290,6 +311,18 @@ def fit_hod_mcmc(log_halo_mass, logn, model_func, p0, bounds, y_err=0.1, nwalker
     array
         The median of the posterior distributions for each parameter.
     """
+    # Calculate y_err based on unweighted counts
+    # Error on log10(N) is approx 1 / (sqrt(N) * sqrt(N_halos) * ln(10))
+    N = 10**logn
+    N_halos = unweighted_counts
+    
+    # Avoid division by zero for N or N_halos, and add a floor to the error
+    valid_mask = (N > 0) & (N_halos >= min_counts)
+    y_err = np.full_like(logn, np.inf) # Start with infinite error
+    y_err[valid_mask] = 1.0 / (np.sqrt(N[valid_mask]) * np.sqrt(N_halos[valid_mask]) * np.log(10))
+    # Add a base error in quadrature to prevent overly small errors
+    y_err = np.sqrt(y_err**2 + base_err**2)
+
     ndim = len(p0)
     lower_bounds, upper_bounds = bounds
 

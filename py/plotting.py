@@ -1258,7 +1258,7 @@ def hod_thresholds_plot(gc: GroupCatalog, color):
                 ax.plot(logm, hod.hod_central_threshold_model(logm, *gc.hodt_cen_red_popt[idx]), 'k-', label='Q Central Fit', linewidth=3)
                 ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_red_popt[idx]), 'k--', label='Q Satellite Fit', linewidth=3)
                 ax.text(12.1, 2.7, f"$M_{{cut}}$: {gc.hodt_sat_red_popt[idx][0]:.2f}", fontsize=inset_fontsize)
-                ax.text(12.1, 2.35, f"$M_\star$: {gc.hodt_sat_red_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.35, f"$M_{{sat}}$: {gc.hodt_sat_red_popt[idx][1]:.2f}", fontsize=inset_fontsize)
                 ax.text(12.1, 2.0, f"α: {gc.hodt_sat_red_popt[idx][2]:.2f}", fontsize=inset_fontsize)
                 ax.text(10.1, 2.65, f"$M_{{min}}$: {gc.hodt_cen_red_popt[idx][0]:.2f}", fontsize=inset_fontsize)
                 ax.text(10.1, 2.3, f"$σ_{{min}}$: {gc.hodt_cen_red_popt[idx][1]:.2f}", fontsize=inset_fontsize)
@@ -1267,7 +1267,7 @@ def hod_thresholds_plot(gc: GroupCatalog, color):
                 ax.plot(logm, hod.hod_central_threshold_blue_model(logm, *gc.hodt_cen_blue_popt[idx]), 'k-', label='SF Central Fit', linewidth=3)
                 ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_blue_popt[idx]), 'k--', label='SF Satellite Fit', linewidth=3)
                 ax.text(12.1, 2.7, f"$M_{{cut}}$: {gc.hodt_sat_blue_popt[idx][0]:.2f}", fontsize=inset_fontsize)
-                ax.text(12.1, 2.35, f"$M_\star$: {gc.hodt_sat_blue_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.35, f"$M_{{sat}}$: {gc.hodt_sat_blue_popt[idx][1]:.2f}", fontsize=inset_fontsize)
                 ax.text(12.1, 2.0, f"α: {gc.hodt_sat_blue_popt[idx][2]:.2f}", fontsize=inset_fontsize)
                 ax.text(10.1, 2.7, f"$M_{{min}}$: {gc.hodt_cen_blue_popt[idx][0]:.2f}", fontsize=inset_fontsize)
                 ax.text(10.1, 2.35, f"$σ_{{min}}$: {gc.hodt_cen_blue_popt[idx][1]:.2f}", fontsize=inset_fontsize)
@@ -1278,7 +1278,7 @@ def hod_thresholds_plot(gc: GroupCatalog, color):
                 ax.plot(logm, hod.hod_central_threshold_model(logm, *gc.hodt_cen_all_popt[idx]), 'k-', label='All Central Fit', linewidth=3)
                 ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_all_popt[idx]), 'k--', label='All Satellite Fit', linewidth=3)
                 ax.text(12.1, 2.7, f"$M_{{cut}}$: {gc.hodt_sat_all_popt[idx][0]:.2f}", fontsize=inset_fontsize)
-                ax.text(12.1, 2.35, f"$M_\star$: {gc.hodt_sat_all_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.35, f"$M_{{sat}}$: {gc.hodt_sat_all_popt[idx][1]:.2f}", fontsize=inset_fontsize)
                 ax.text(12.1, 2.0, f"α: {gc.hodt_sat_all_popt[idx][2]:.2f}", fontsize=inset_fontsize)
                 ax.text(10.1, 2.7, f"$M_{{min}}$: {gc.hodt_cen_all_popt[idx][0]:.2f}", fontsize=inset_fontsize)
                 ax.text(10.1, 2.35, f"$σ_{{min}}$: {gc.hodt_cen_all_popt[idx][1]:.2f}", fontsize=inset_fontsize)
@@ -1300,6 +1300,47 @@ def hod_thresholds_plot(gc: GroupCatalog, color):
 
     #plt.tight_layout()
     #plt.draw()
+
+def hodt_satparams_evolution(gc: GroupCatalog, colors: list):
+    """
+    Plot the evolution of the satellite HOD parameters with luminosity cut.
+    """
+    maglims = gc.caldata.magbins[:-1] 
+
+    fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(15,5), dpi=DPI)
+    
+    for color in colors:
+        if color == 'k':
+            popt = gc.hodt_sat_all_popt
+            label = 'All'
+        elif color == 'r':
+            popt = gc.hodt_sat_red_popt
+            label = 'Quiescent'
+        elif color == 'b':
+            popt = gc.hodt_sat_blue_popt
+            label = 'Star-forming'
+
+        popt = np.array(popt) # Convert list to numpy array to allow slicing
+        # Reverse direction
+        axes[0].plot(maglims, popt[:,0], marker='o', label=label, color=color, alpha=0.7)
+        axes[1].plot(maglims, popt[:,1], marker='o', label=label, color=color, alpha=0.7)
+        axes[2].plot(maglims, popt[:,2], marker='o', label=label, color=color, alpha=0.7)
+
+    # x axis is reversed
+    for ax in axes:
+        ax.invert_xaxis()
+    axes[0].set_xlabel("$M_r$ Threshold")
+    axes[0].set_ylabel("$M_{cut}$")
+    axes[1].set_xlabel("$M_r$ Threshold")
+    axes[1].set_ylabel("$M_{sat}$")
+    axes[2].set_xlabel("$M_r$ Threshold")
+    axes[2].set_ylabel("α")
+
+    for ax in axes:
+        ax.grid(True)
+        ax.legend()
+    
+    plt.tight_layout()
 
 
 def hod_bins_plot(gc: GroupCatalog, hodtab: hod.HODTabulated, model=False, seperate=False):
@@ -2876,6 +2917,58 @@ def plot_parameters(params):
 
     plt.tight_layout()
     plt.show()
+
+def plot_parameters_wcenratio(axes, params):
+    # ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
+    def bsat(p0, p1, L):
+        return np.maximum(p0 + p1 * (L - 9.5), 0.5)
+    def cweight(w0, wl, s, L):
+        return - (w0 / 2) * (1 + special.erf((L - wl) / s))
+    def w_plot(q_w, sf_w):
+        return np.log10(q_w / sf_w)
+
+    LMIN = 6.5
+    x = np.linspace(6, 11.5, 100)
+    axes[0].set_xlabel("log$(L_{\\mathrm{cen}} / (L_{\\odot} h^{-2}) )$")
+    axes[0].set_ylabel("log$(w_{\\rm cen}^q / w_{\\rm cen}^{sf})$")
+    axes[0].set_ylim(-1,1)
+    axes[0].set_xlim(LMIN, 11.1)
+    axes[0].set_xticks(np.arange(7,12,1))
+    ax0 = axes[0].twiny() # Mag axis on top
+    ax0.set_xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
+    ax0.set_xticks(np.arange(-13, -25, -2))
+    ax0.set_xlabel("$M_r$ - 5log(h)")
+
+    axes[1].set_xlabel("log$(L_{\\mathrm{cen}}~/~(L_{\\odot} h^{-2}) )$")
+    axes[1].set_ylabel("$B_{\\mathrm{sat}}$")
+    axes[1].set_ylim(-1,40)
+    axes[1].set_xlim(LMIN, 11.1)
+    axes[1].set_xticks(np.arange(7,12,1))
+    ax1 = axes[1].twiny() # Mag axis on top
+    ax1.set_xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
+    ax1.set_xticks(np.arange(-13, -25, -2))
+    ax1.set_xlabel("$M_r$ - 5log(h)")
+
+    axes[0].plot(
+        x,
+        w_plot(
+            cweight(params[4], params[0], params[1], x),
+            cweight(params[5], params[2], params[3], x)
+        ),
+        color='purple'
+    )
+    axes[1].plot(
+        x,
+        bsat(params[6], params[7], x),
+        color='red'
+    )
+    axes[1].plot(
+        x,
+        bsat(params[8], params[9], x),
+        color='blue'
+    )
+    # Horizontal line at y=0
+    axes[0].axhline(0, color='k', linestyle='--', lw=1, alpha=0.5)
 
 
 def gfparams_plots(gc: GroupCatalog, chains_flat):

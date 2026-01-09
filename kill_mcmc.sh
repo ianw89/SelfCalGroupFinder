@@ -17,7 +17,7 @@ kill_node() {
     ssh -T $node << EOF
         echo "Connected to $node"
         
-        # Kill existing python3 processes for user
+        # Kill python3 processes and kdGroupFinder_omp for user
         echo "Killing existing python3 processes for $USERNAME on $node..."
         pkill -u $USERNAME python3
         # Also kill group finder
@@ -30,51 +30,16 @@ EOF
     
     echo "----------------------------------------"
 }
-
-process_node() {
-    local node=$1
-    local node_num=${node//[!0-9]/}
-    local node_output_file="${OUTPUT_FILE/.out/_$node.out}"
-       echo "Processing node: $node"
-    
-    ssh -T $node << EOF
-        echo "Connected to $node"
-        
-        # Kill existing python3 processes for user
-        echo "Killing existing python3 processes for $USERNAME on $node..."
-        pkill -u $USERNAME python3
-        # Also kill group finder
-        pkill -u $USERNAME kdGroupFinder_omp
-        sleep 5
-        
-        # Change to working directory
-        cd $WORK_DIR
-        
-       # Start the job
-        echo "Starting MCMC job on $node..."
-        nohup $PYTHON_CMD x$(($node_num - 1)) &> "$node_output_file" &
-        
-        # Show the new process
-        sleep 2
-        echo "New python3 processes on $node:"
-        pgrep -u $USERNAME python3
-EOF
-    
-    echo "----------------------------------------"
-}
-
 # Main execution
-echo "Starting distributed MCMC job deployment..."
+echo "Killing MCMC jobs..."
 echo "Target nodes: ${NODES[@]}"
-echo "Command: $PYTHON_CMD"
 echo "=========================================="
 
 # Process each node
 for node in "${NODES[@]}"; do
-    #kill_node $node
-    process_node $node
+    kill_node $node
 done
 
-echo "All nodes processed!"
+echo "All nodes killed!"
 echo "To check status, run:"
 echo "for node in ${NODES[@]}; do echo \"=== \$node ===\"; ssh \$node 'pgrep -u $USERNAME python3 | wc -l'; done"
