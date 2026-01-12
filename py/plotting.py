@@ -1301,6 +1301,7 @@ def hod_thresholds_plot(gc: GroupCatalog, color):
     #plt.tight_layout()
     #plt.draw()
 
+
 def hodt_satparams_evolution(gc: GroupCatalog, colors: list):
     """
     Plot the evolution of the satellite HOD parameters with luminosity cut.
@@ -1336,6 +1337,44 @@ def hodt_satparams_evolution(gc: GroupCatalog, colors: list):
     axes[2].set_xlabel("$M_r$ Threshold")
     axes[2].set_ylabel("α")
 
+    for ax in axes:
+        ax.grid(True)
+        ax.legend()
+    
+    plt.tight_layout()
+
+def hodt_satparams_evolution_2(gc: GroupCatalog, colors: list):
+    """
+    Plot the evolution of the satellite HOD parameters with luminosity cut.
+    """
+    maglims = gc.caldata.magbins
+    magcenters = 0.5 * (maglims[1:] + maglims[:-1])
+
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,5), dpi=DPI)
+    
+    for color in colors:
+        if color == 'k':
+            popt = gc.hodt_sat_all_popt
+            label = 'All'
+        elif color == 'r':
+            popt = gc.hodt_sat_red_popt
+            label = 'Quiescent'
+        elif color == 'b':
+            popt = gc.hodt_sat_blue_popt
+            label = 'Star-forming'
+
+        popt = np.array(popt) # Convert list to numpy array to allow slicing
+        # Reverse direction
+        axes[0].plot(magcenters, 10**popt[:,1] / 10**popt[:,0], marker='o', label=label, color=color, alpha=0.7)
+        axes[1].plot(magcenters, popt[:,2], marker='o', label=label, color=color, alpha=0.7)
+
+    # x axis is reversed
+    for ax in axes:
+        ax.invert_xaxis()
+    axes[0].set_xlabel("$M_r$ Threshold")
+    axes[0].set_ylabel("$M_{sat} / M_{cut}$")
+    axes[1].set_xlabel("$M_r$ Threshold")
+    axes[1].set_ylabel("α")
     for ax in axes:
         ax.grid(True)
         ax.legend()
