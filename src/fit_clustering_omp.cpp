@@ -670,12 +670,12 @@ void tabulate_hods(HodWeightType type)
 
   LOG_INFO("Tabulating HODs...\n");
 
+  // Initialize all HOD arrays to zero; could have values from previous runs in MCMC mode
   for (int i = 0; i < HOD.NVOLUME_BINS; ++i)
     for (int j = 0; j < HALO_BINS; ++j)
     {
-      HOD.ncenr[i][j] = HOD.nsatr[i][j] = HOD.nhalo_forcen[i][j] = HOD.nhalo_forcen[i][j] = HOD.ncenb[i][j] = HOD.nsatb[i][j] = HOD.ncen[i][j] = HOD.nsat[i][j] = HOD.nhalo_int[i][j]= 0.0;
+      HOD.ncenr[i][j] = HOD.nsatr[i][j] = HOD.nhalo_forcen[i][j] = HOD.nhalo_forsat[i][j] = HOD.ncenb[i][j] = HOD.nsatb[i][j] = HOD.ncen[i][j] = HOD.nsat[i][j] = HOD.nhalo_int[i][j]= 0.0;
     }
-  
   for (int j=0; j < HALO_BINS; ++j)
   {
     mean_cen[j] = mean_cenr[j] = mean_cenb[j] = std_cen[j] = std_cenr[j] = std_cenb[j] = nhalo_tot[j] = nhalo_b_tot[j] = nhalo_r_tot[j] = 0.0;
@@ -848,6 +848,14 @@ void process_hods(HodWeightType type)
   write_hodfit();
 }
 
+void cleanup_hods()
+{
+  if (HOD.NVOLUME_BINS <= 0) {
+    return; // Nothing to clean up
+  }
+
+}
+
 /* Do the same as above, but now giving
  * each halo an actual value of Lsat from the simulation.
  * Thus, we test if scatter (and fraction of Lsat=0's)
@@ -978,7 +986,7 @@ void nsat_extrapolate(double arr[MAXBINS][HALO_BINS], const char* color)
 
     if (iend < 3 || iend == MAX_HALO_IDX-1) {
       // We had plenty of data everywhere
-      LOG_INFO("No HOD extrapolation needed for %s mag=%.1f to %.1f\n", color, mag, HOD.magmax[imag]);
+      //LOG_INFO("No HOD extrapolation needed for %s mag=%.1f to %.1f\n", color, mag, HOD.magmax[imag]);
       continue;
     }
 
