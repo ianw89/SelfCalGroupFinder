@@ -20,6 +20,7 @@ sdss_vanilla = SDSSGroupCatalog(
     SDSS_v1_DAT_FILE, 
     SDSS_v1_1_GALPROPS_FILE, 
     gfprops={
+        'halomassfunc':HMF_T08_BOL_FILE,
         'zmin': 0,
         'zmax': 1.0,
         'frac_area': 0.179,
@@ -36,6 +37,7 @@ sdss_colors = SDSSGroupCatalog(
     SDSS_v1_DAT_FILE, 
     SDSS_v1_1_GALPROPS_FILE, 
     gfprops={
+        'halomassfunc':HMF_T08_BOL_FILE,
         'zmin': 0,
         'zmax': 1.0,
         'frac_area': 0.179,
@@ -62,6 +64,7 @@ sdss_colors_chi = SDSSGroupCatalog(
     SDSS_v1_DAT_FILE, 
     SDSS_v1_1_GALPROPS_FILE, 
     gfprops={
+        'halomassfunc':HMF_T08_BOL_FILE,
         'zmin': 0,
         'zmax': 1.0,
         'frac_area': 0.179,
@@ -92,6 +95,7 @@ sdss_vanilla_v2 = SDSSGroupCatalog(
     SDSS_v2_DAT_FILE, 
     SDSS_v2_GALPROPS_FILE, 
     gfprops={
+        'halomassfunc':HMF_T08_BOL_FILE,
         'zmin': 0,
         'zmax': 1.0,
         'frac_area': 0.179,
@@ -111,6 +115,7 @@ sdss_colors_chi_v2.color = get_color(4)
 sdss_colors_chi_v2.marker = '.'
 
 sdss_colors_v2_mcmc = SDSSGroupCatalog("SDSS Colors v2 MCMC", SDSS_v2_DAT_FILE, SDSS_v2_GALPROPS_FILE, gfprops={
+    'halomassfunc':HMF_T08_BOL_FILE,
     'zmin':0,
     'zmax':1.0,
     'frac_area':0.179,
@@ -118,7 +123,7 @@ sdss_colors_v2_mcmc = SDSSGroupCatalog("SDSS Colors v2 MCMC", SDSS_v2_DAT_FILE, 
     'color':1,
 })
 
-props = GF_PROPS_BGS_COLORS_C1
+props = GF_PROPS_BGS_COLORS_C1.copy()
 props['zmin'] = 0
 props['zmax'] = 1.0
 props['frac_area'] = 0.179

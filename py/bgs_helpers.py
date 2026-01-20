@@ -619,7 +619,7 @@ def read_randoms(base: str, n: int) -> pd.DataFrame:
 
     return randoms_df
 
-def read_randoms_with_addons(base, n, tiles_df, apply_10p_cut):
+def read_sv3_randoms_with_addons(base, n, tiles_df, apply_10p_cut):
     randoms_df = read_randoms(base, n)
     ntiles_inside, nearest_tile_ids = find_tiles_for_galaxies(tiles_df, randoms_df, NTILE_MIN_TO_FIND)
     randoms_df['NTILE_MINE'] = ntiles_inside
@@ -646,21 +646,21 @@ def build_sv3footprint_randoms_files(randoms_file, mini_output_file, mini_output
     tiles_sv3 = read_tiles_Y3_sv3() # Gets the SV3 bright tiles from the Y3 master tile list
 
     # Make a mini version from one randoms file
-    randoms_df0 = read_randoms_with_addons(randoms_file, 0, tiles_sv3, apply_10p_cut)
+    randoms_df0 = read_sv3_randoms_with_addons(randoms_file, 0, tiles_sv3, apply_10p_cut)
     pickle.dump(randoms_df0, open(mini_output_file, "wb"))
     to_remove = np.isin(randoms_df0['REGION'], sv3_poor_y3overlap)
     randoms_df0 = randoms_df0.loc[~to_remove]
     pickle.dump(randoms_df0, open(mini_output_file_filtered, "wb"))
 
     # Make a big version combining all randoms files
-    big_rand_df = read_randoms_with_addons(randoms_file, 0, tiles_sv3, apply_10p_cut)
+    big_rand_df = read_sv3_randoms_with_addons(randoms_file, 0, tiles_sv3, apply_10p_cut)
     for i in range(1, 18):
-        rand_df = read_randoms_with_addons(randoms_file, i, tiles_sv3, apply_10p_cut)
+        rand_df = read_sv3_randoms_with_addons(randoms_file, i, tiles_sv3, apply_10p_cut)
         big_rand_df = pd.concat([big_rand_df, rand_df])
 
     if has_NS_split:
         for i in range(0, 18):
-            rand_df = read_randoms_with_addons(randoms_file.replace("_N_", "_S_"), i, tiles_sv3, apply_10p_cut)
+            rand_df = read_sv3_randoms_with_addons(randoms_file.replace("_N_", "_S_"), i, tiles_sv3, apply_10p_cut)
             big_rand_df = pd.concat([big_rand_df, rand_df])
 
     pickle.dump(big_rand_df, open(big_output_file, "wb"))
