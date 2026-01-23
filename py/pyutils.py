@@ -681,8 +681,8 @@ def mstar_vmax_weighted(series):
         return np.nan
     return np.average(np.power(10, series['LOGMSTAR']), weights=1/series['VMAX'])
 
-def LogMstar_lognormal_scatter_vmax_weighted(series):
-    if len(series) <= 99:
+def LogMstar_lognormal_scatter_vmax_weighted(series, cut=99):
+    if len(series) <= cut:
         return np.nan
     else:
         totweight = np.sum(1/series['VMAX'])
@@ -1670,7 +1670,8 @@ def save_from_backend(backend: Backend|list, overwrite=False):
     def save_array_if_needed(filename, data, overwrite):
         if os.path.exists(filename):
             if overwrite:
-                print(f"WARNING: {filename} already exists. Overwriting.")
+                print(f"WARNING: {filename} already exists. Moving previous version to backup.")
+                os.rename(filename, filename + ".bak")
                 np.save(filename, data)
             else:
                 print(f"WARNING: {filename} already exists. Will not overwrite.")

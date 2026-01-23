@@ -53,7 +53,7 @@ NO_TRUTH_Z = -99.99
 
 # Shared bins for various purposes
 Mhalo_bins = np.logspace(9, 15.5, 156-90)
-Mhalo_bins2 = np.logspace(9, 15.4, (156-90)//3) # coarser bins for some plots
+Mhalo_bins2 = np.logspace(9, 15.4, (156-90)//2) # coarser bins for some plots
 Mhalo_labels = Mhalo_bins[0:len(Mhalo_bins)-1] 
 Mhalo_labels2 = Mhalo_bins2[0:len(Mhalo_bins2)-1]
 
@@ -125,22 +125,23 @@ GF_PROPS_BGS_COLORS_C2 = {
 }
 
 # The BGS Y1 Final Catalog
+# 15.03044341  3.42680675 20.08414158  8.03495555 21.46680977  6.66865935 -4.24948264 16.31571356 10.14649033 -0.05370222
 GF_PROPS_BGS_COLORS_C3 = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
     'fluxlim':3,
     'color':1,
-    'omegaL_sf': 18.420,
-    'sigma_sf': 5.598,
-    'omegaL_q': 26.501,
-    'sigma_q': 14.446,
-    'omega0_sf': 41.256,
-    'omega0_q': 10.066,
-    'beta0q':  -10.396,
-    'betaLq':  24.101,
-    'beta0sf': 11.599,
-    'betaLsf':  1.313
+    'omegaL_sf': 15.03044341,
+    'sigma_sf': 3.42680675,
+    'omegaL_q': 20.08414158,
+    'sigma_q': 8.03495555,
+    'omega0_sf': 21.46680977,
+    'omega0_q': 6.66865935,
+    'beta0q':  -4.24948264,
+    'betaLq': 16.31571356,
+    'beta0sf': 10.14649033,
+    'betaLsf': -0.05370222
 }
 
 def set_all_seeds(seed=59418):
@@ -384,7 +385,7 @@ class GroupCatalog:
     def bootstrap_statistics(self, N_ITERATIONS = 300):
         print("Bootstrapping...")
 
-        relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'L_GAL', 'LOGMSTAR']
+        relevent_columns = ['LGAL_BIN', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'Mh_bin2', 'L_GAL', 'LOGMSTAR']
         df = self.all_data
         t1 = time.time()
 
@@ -398,12 +399,12 @@ class GroupCatalog:
             lhmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
             lhmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
             lhmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
-            shmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-            shmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-            shmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-            shmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
-            shmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
-            shmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            shmr = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+            shmr_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+            shmr_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+            shmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            shmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            shmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
             
             return f_sat, f_sat_sf, f_sat_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter
 
@@ -434,13 +435,14 @@ class GroupCatalog:
 
             results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(df)), len(df), replace=True)) for _ in range(N_ITERATIONS))
 
+        f_sat, f_sat_sf, f_sat_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter = get_statistics_for_df(df)
 
         fsat_reals, fsat_sf_reals, fsat_q_reals, lhmr_reals, lhmr_sf_reals, lhmr_q_reals, lhmr_scatter_reals, lhmr_sf_scatter_reals, lhmr_q_scatter_reals, shmr_reals, shmr_sf_reals, shmr_q_reals, shmr_scatter_reals, shmr_sf_scatter_reals, shmr_q_scatter_reals = zip(*results)
         # Save off the bootstrapped error estimates as half the 16-84 percentile range
-        self.fsat_bootstrap_err = 0.5 * (np.percentile(fsat_reals, 84, axis=0) - np.percentile(fsat_reals, 16, axis=0))
-        self.fsat_sf_bootstrap_err = 0.5 * (np.percentile(fsat_sf_reals, 84, axis=0) - np.percentile(fsat_sf_reals, 16, axis=0))
-        self.fsat_q_bootstrap_err = 0.5 * (np.percentile(fsat_q_reals, 84, axis=0) - np.percentile(fsat_q_reals, 16, axis=0))
-
+        self.fsat_bootstrap_err = (f_sat - np.percentile(fsat_reals, 16, axis=0), np.percentile(fsat_reals, 84, axis=0) - f_sat)
+        self.fsat_sf_bootstrap_err = (f_sat_sf - np.percentile(fsat_sf_reals, 16, axis=0), np.percentile(fsat_sf_reals, 84, axis=0) - f_sat_sf)
+        self.fsat_q_bootstrap_err = (f_sat_q - np.percentile(fsat_q_reals, 16, axis=0), np.percentile(fsat_q_reals, 84, axis=0) - f_sat_q)
+        # The comparison to the actual catalog value is done later in the plotting code for these.
         self.lhmr_bootstrap_err = (np.percentile(lhmr_reals, 16, axis=0), np.percentile(lhmr_reals, 84, axis=0))
         self.lhmr_sf_bootstrap_err = (np.percentile(lhmr_sf_reals, 16, axis=0), np.percentile(lhmr_sf_reals, 84, axis=0))
         self.lhmr_q_bootstrap_err = (np.percentile(lhmr_q_reals, 16, axis=0), np.percentile(lhmr_q_reals, 84, axis=0))
@@ -492,7 +494,7 @@ class GroupCatalog:
             self.set_output_folder(main_output)
         
         mcmc_folders = [name for name in os.listdir(main_output) if os.path.isdir(os.path.join(main_output, name)) and name.startswith('mcmc_')]
-        print(f"Found {len(mcmc_folders)} mcmc/optuna folders")
+        print(f"Found {len(mcmc_folders)} mcmc folders")
 
         backends = []
         # Get the best parameters from each mcmc run and choose the best ones
@@ -525,18 +527,50 @@ class GroupCatalog:
             raise Exception("Unknown backend type")
 
 
-    def load_best_params_across_runs(self, save=False):
+    def load_best_params_across_runs(self, save=False, median_best=False):
         backends, mcmc_folders = self.get_backends()
 
         # Get the best parameters from each mcmc run and choose the best ones
         best_params_list = []
         for backend, folder in zip(backends, mcmc_folders):
             if isinstance(backend, emcee.backends.Backend):
-                chains = backend.get_log_prob(flat=False)
-                idx = np.argmax(backend.get_log_prob(flat=True))
-                values = backend.get_chain(flat=True)[idx]
-                chisqr = (-2) * backend.get_log_prob(flat=True)[idx]
-                print(f"Best chi^2 for {folder} (N={chains.shape[0]} x {chains.shape[1]}): {chisqr:.3f}")
+                if median_best:
+                    log_prob_flat = backend.get_log_prob(flat=True)
+                    chain_flat = backend.get_chain(flat=True)
+                    ndim = backend.get_chain().shape[2]
+                    
+                    # Start with a mask that includes all walkers
+                    middle_mask = np.ones(len(chain_flat), dtype=bool)
+                    
+                    # For each parameter, find its middle 50% range and update the mask
+                    for i in range(ndim):
+                        param_chain = chain_flat[:, i]
+                        p25 = np.percentile(param_chain, 25)
+                        p75 = np.percentile(param_chain, 75)
+                        middle_mask &= (param_chain >= p25) & (param_chain <= p75)
+
+                    # Filter the log_prob and chain using the combined mask
+                    middle_log_prob = log_prob_flat[middle_mask]
+                    middle_chain = chain_flat[middle_mask]
+
+                    if middle_chain.shape[0] > 0:
+                        # From the filtered set, find the one with the best log_prob
+                        best_idx_in_middle = np.argmax(middle_log_prob)
+                        values = middle_chain[best_idx_in_middle]
+                        chisqr = -2 * middle_log_prob[best_idx_in_middle]
+                        print(f"Median-range best chi^2 for {folder}: {chisqr:.3f} (from {middle_chain.shape[0]} samples)")
+                    else:
+                        print(f"Could not find any samples in the median parameter range for {folder}, falling back to absolute best.")
+                        best_idx = np.argmax(log_prob_flat)
+                        values = chain_flat[best_idx]
+                        chisqr = -2 * log_prob_flat[best_idx]
+                else:
+                    chains = backend.get_log_prob(flat=False)
+                    idx = np.argmax(backend.get_log_prob(flat=True))
+                    values = backend.get_chain(flat=True)[idx]
+                    chisqr = (-2) * backend.get_log_prob(flat=True)[idx]
+                    print(f"Best chi^2 for {folder} (N={chains.shape[0]} x {chains.shape[1]}): {chisqr:.3f}")
+
                 best_params_list.append((chisqr, values))
 
         best_params_list.sort(key=lambda x: x[0])
@@ -694,6 +728,14 @@ class GroupCatalog:
         if len(df) > 1000:
             bighalos = cens.loc[cens['Z'] < 0.1].sort_values('M_HALO', ascending=False).head(20)
             assert np.all(bighalos['N_SAT'] > 0), f"Big halos at low z should have satellites, but {np.sum(bighalos['N_SAT'] == 0)} do not."
+
+        # Select lost galaxy blue centrals below 10^11 halo mass
+        lost_blue_smallhalo_centrals = df.loc[(~df['IS_SAT']) & (df['M_HALO'] < 1e11) & (z_flag_is_not_spectro_z(df['Z_ASSIGNED_FLAG']))]
+        # assert all luminosities are less than 10^9 and stellar masses less than 10^9.5
+        bad_luminosity = lost_blue_smallhalo_centrals['L_GAL'] > 1e9
+        bad_stellarmass = lost_blue_smallhalo_centrals['LOGMSTAR'] > 9.5
+        assert np.sum(bad_luminosity) == 0, f"Lost blue centrals in small halos should have L_GAL < 1e9, but {np.sum(bad_luminosity)} do not."
+        assert np.sum(bad_stellarmass) == 0, f"Lost blue centrals in small halos should have LOGMSTAR < 9.5, but {np.sum(bad_stellarmass)} do not."
 
         #if not skiphod:
         #    assert np.isclose(self.f_sat_q.to_numpy()[6:34], self.fsatr[6:34], atol=1e-4).all()
@@ -1433,7 +1475,7 @@ class SDSSPublishedGroupCatalog(GroupCatalog):
         df['LOGLGAL'] = np.log10(df['L_GAL'])
 
         # add column for halo mass bins and Lgal bins
-        df['Mh_bin'] = pd.cut(x = df['M_HALO'], bins = self.Mhalo_bins, labels = self.Mhalo_labels, include_lowest = True)
+        df['Mh_bin'] = pd.cut(x = df['M_HALO'], bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
         df['Mh_bin2'] = pd.cut(x = df['M_HALO'], bins = Mhalo_bins2, labels = Mhalo_labels2, include_lowest = True)
         df['LGAL_BIN'] = pd.cut(x = df['L_GAL'], bins = self.L_gal_bins, labels = self.L_gal_labels, include_lowest = True)
 
@@ -2031,8 +2073,8 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         z_phot = np.ones(len(z_obs)) * np.nan
     dn4000_model = get_tbl_column(table, 'DN4000_MODEL', required=True)
 
-    # A manually curated list of bad targets, usually from visual inspection of images
-    bad_targets = [39627705590745283, 39628011489723373]
+    # A manually curated list of bad targets, usually from visual inspection of images. Stuff that survived SGA mask cuts that I don't want to, mostly.
+    bad_targets = [39627705590745283, 39628011489723373, 39627758099238929, 39627758099238866, 39627758099238853, 39627770250134490, 39627770271107731, 39627776327685362, 39627782271011492, 39627782333928117, 39627782380061799, 39627782380061871, 39627782380067208, 39627841607829248]
 
     # For SV3 Analysis we can pretend to not have observed some galaxies
     # This procedure is really accurate and doesn't produce a main-like situation. 
@@ -2108,10 +2150,13 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     if maskbits is not None:
         # Get all the targets we are planning on keeping but are in the SGA mask 
         sga_mask = keep & ((maskbits & MASKBITS['GALAXY']) != 0)
-        sga_mask_idx = np.flatnonzero(sga_mask)
+        sga_mask_idx = np.flatnonzero(sga_mask) # Indices in the full catalog\
+        print(f"There are {sga_mask_idx.size} targets in the SGA mask")
 
         ellipse_ra, ellipse_dec = get_sga_ellipse_positions()
 
+        # This ref cat was supposed to tell you which targets are on the center of the SGA galaxies, but it doesn't work.
+        # So we have to do a nearest neighbor match to the center of the ellipses ourselves.
         #sga_mask_but_refcat_central = sga_mask & (ref_cat == b'L3')
         #with open("refcatL3.txt", "w") as f:
         #    print("RA,DEC,TARGETID", file=f)
@@ -2120,17 +2165,18 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
 
         ellipse_cat = coord.SkyCoord(ra=ellipse_ra*u.degree, dec=ellipse_dec*u.degree, frame='icrs')
         sgamasked_targets_cat = coord.SkyCoord(ra=ra[sga_mask]*u.degree, dec=dec[sga_mask]*u.degree, frame='icrs')
-        idx, d2d, d3d = coord.match_coordinates_sky(sgamasked_targets_cat, ellipse_cat)
-
-        # Find all the sga_masked targets that are within 3 arcsec of the ellipse centers
-        # Those are the fibers on the center of these large SGA galaxies. Keep those.
+        idx, d2d, d3d = coord.match_coordinates_sky(ellipse_cat, sgamasked_targets_cat)
+        # idx is the indices in sga_masked_targets_cat that are closest to each ellipse center
+        # d2d is the on-sky distance between them
+        print(f"Matched {len(idx)} ellipses to {len(sgamasked_targets_cat)} SGA-masked targets")
         close_to_ellipse_center = (d2d < 3*u.arcsec)
-        sga_mask_idx_noncen = sga_mask_idx[~close_to_ellipse_center]
-
-        #with open("shredded_allcolors.txt", "w") as f:
-        #    print("RA,DEC,TARGETID", file=f)
-        #    for r, d, t in zip(ra[sga_mask_idx_noncen][:100], dec[sga_mask_idx_noncen][:100], target_id[sga_mask_idx_noncen][:100]):
-        #        print(f"{r},{d},{t}", file=f)
+        idx = idx[close_to_ellipse_center]
+        print(f"Targets close to ellipse centers: {len(idx)}")
+        idx = np.unique(idx)
+        print(f"Unique matched targets: {len(idx)}")
+        sga_masked_centers_idx = sga_mask_idx[idx]
+        sga_mask_idx_noncen = np.setdiff1d(sga_mask_idx, sga_masked_centers_idx)
+        print(f"Targets in SGA mask but NOT near center: {len(sga_mask_idx_noncen)}")
 
         # Let's only throw out the blue-ish ones that are likely HII regions. Redder ones are probably just galaxies within the mask.
         HII_COLOR_CUT = 0.65
@@ -2139,10 +2185,16 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         #if sersic is not None:
         #    cut &= sersic[sga_mask_idx_noncen] > HII_SERSIC_CUT # also require high sersic index / concentrated profile to be HII region
         to_remove_idx = sga_mask_idx_noncen[cut]
+        print(f"Removing {to_remove_idx.size} likely HII regions based on SGA mask and color cut of g-r < {HII_COLOR_CUT}")
 
         #with open("shredded_blueish.txt", "w") as f:
         #    print("RA,DEC,TARGETID", file=f)
-        #    for r, d, t in zip(ra[to_remove_idx][:100], dec[to_remove_idx][:100], target_id[to_remove_idx][:100]):
+        #    for r, d, t in zip(ra[to_remove_idx], dec[to_remove_idx], target_id[to_remove_idx]):
+        #        print(f"{r},{d},{t}", file=f)
+
+        #with open("shredded_redder.txt", "w") as f:
+        #    print("RA,DEC,TARGETID", file=f)
+        #    for r, d, t in zip(ra[sga_mask_idx_noncen[~cut]], dec[sga_mask_idx_noncen[~cut]], target_id[sga_mask_idx_noncen[~cut]]):
         #        print(f"{r},{d},{t}", file=f)
         
         keep[to_remove_idx] = False

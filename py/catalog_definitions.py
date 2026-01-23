@@ -190,6 +190,7 @@ bgs_y1_pzp_2_6_c1.color = 'darkgreen'
 bgs_y1_pzp_2_6_c2 = BGSGroupCatalog("BGS Y1 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y1_pzp_2_6_c2.marker = '-'
 bgs_y1_pzp_2_6_c2.color = 'darkgreen'
+bgs_y1_pzp_2_6_c2.GF_props['iterations'] = 10
 
 bgs_y1_pzp_2_6_c2_vmaxold = BGSGroupCatalog("BGS Y1 C2 OLDHOD", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y1_pzp_2_6_c2_vmaxold.GF_props['hodw'] = 0
@@ -218,6 +219,11 @@ bgs_y1_pzp_2_6_c2_flm0.GF_props['fluxlim'] = 0
 bgs_y1_pzp_2_6_c2_flm0.color = 'magenta'
 bgs_y1_pzp_2_6_c2_flm0.marker = '--'
 
+bgs_y1_pzp_2_6_c3 = BGSGroupCatalog("BGS Y1 C3", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C3.copy())
+bgs_y1_pzp_2_6_c3.marker = '-'
+bgs_y1_pzp_2_6_c3.color = 'darkgreen'
+bgs_y1_pzp_2_6_c3.GF_props['iterations'] = 10
+
 bgs_y1_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_6bin)
 bgs_y1_hybrid_mcmc.marker = '.'
 bgs_y1_hybrid_mcmc.color = 'darkgreen'
@@ -239,7 +245,12 @@ bgs_y3_pzp_2_6.marker = '-'
 bgs_y3_pzp_2_6_c2 = BGSGroupCatalog("BGS Y3 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y3_pzp_2_6_c2.color = 'darkorange'
 bgs_y3_pzp_2_6_c2.marker = '-'
-bgs_y3_pzp_2_6_c2.GF_props['iterations'] = 5
+bgs_y3_pzp_2_6_c2.GF_props['iterations'] = 10
+
+bgs_y3_pzp_2_6_c3 = BGSGroupCatalog("BGS Y3 C3", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C3.copy())
+bgs_y3_pzp_2_6_c3.color = 'darkorange'
+bgs_y3_pzp_2_6_c3.marker = '-'
+bgs_y3_pzp_2_6_c3.GF_props['iterations'] = 10
 
 bgs_y3_fiberonly = BGSGroupCatalog("Observed BGS Y3 <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, data_cut='Y3-Loa', gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y3_fiberonly.marker = '-'

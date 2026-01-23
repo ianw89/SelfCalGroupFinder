@@ -33,6 +33,15 @@ MSTAR_MAX = 1E12
 MHALO_MIN = 1E11
 MHALO_MAX = 1E15
 
+#plt.rcParams['mathtext.fontset'] = 'custom'
+#plt.rcParams['mathtext.rm'] = 'Bitstream Vera Sans'
+#plt.rcParams['mathtext.it'] = 'Bitstream Vera Sans:italic'
+#plt.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
+#plt.pyplot.title(r'ABC123 vs $\mathrm{ABC123}^{123}$')
+plt.rcParams['mathtext.fontset'] = 'stix'
+plt.rcParams['font.family'] = 'STIXGeneral'
+#matplotlib.pyplot.title(r'ABC123 vs $\mathrm{ABC123}^{123}$')
+
 #plt.style.use('default')
 plt.rcParams.update({'font.size': FONT_SIZE_DEFAULT})
 
@@ -148,6 +157,106 @@ def completeness_comparison(*datasets):
     #ax1.legend()
     ax1.set_ylim(0.0,0.6)
     fig.tight_layout()
+
+def lhmr_scatterplot(catalog: GroupCatalog):
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), dpi=DPI)
+    c = catalog.centrals.loc[~z_flag_is_spectro_z(catalog.centrals['Z_ASSIGNED_FLAG'])]
+    
+    # Red galaxies panel
+    means_r = c[c['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    axes[0].step(np.log10(Mhalo_labels), means_r, label=get_dataset_display_name(catalog), color='k', linewidth=1, where='post')
+    
+    # Sample uniformly across halo mass bins
+    sample_r_list = []
+    for mh_bin in c[c['QUIESCENT']]['Mh_bin'].unique():
+        bin_data = c[(c['QUIESCENT']) & (c['Mh_bin'] == mh_bin)]
+        n_sample = min(200, len(bin_data))  # Sample up to 500 per bin
+        if n_sample > 0:
+            sample_r_list.append(bin_data.sample(n=n_sample))
+    sample_r = pd.concat(sample_r_list) if sample_r_list else c[c['QUIESCENT']].sample(n=0)
+    axes[0].scatter(np.log10(sample_r['M_HALO']), np.log10(sample_r['L_GAL']), marker='.', color='red', alpha=0.05, s=7)
+    
+    axes[0].set_xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    axes[0].set_ylabel('log$(L_{cen}~/~[L_\odot / h^2])$')
+    axes[0].set_title("Quiescent LHMR")
+    axes[0].set_xlim(10, 15)
+    axes[0].set_ylim(7, LOG_LGAL_MAX_TIGHT)
+    axes[0].grid(True)
+    
+    # Blue galaxies panel
+    means_b = c[~c['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    axes[1].step(np.log10(Mhalo_labels), means_b, label=get_dataset_display_name(catalog), color='k', linewidth=1, where='post')
+
+    # Sample uniformly across halo mass bins
+    sample_b_list = []
+    for mh_bin in c[~c['QUIESCENT']]['Mh_bin'].unique():
+        bin_data = c[(~c['QUIESCENT']) & (c['Mh_bin'] == mh_bin)]
+        n_sample = min(200, len(bin_data))  # Sample up to 500 per bin
+        if n_sample > 0:
+            sample_b_list.append(bin_data.sample(n=n_sample))
+    sample_b = pd.concat(sample_b_list) if sample_b_list else c[~c['QUIESCENT']].sample(n=0)
+    axes[1].scatter(np.log10(sample_b['M_HALO']), np.log10(sample_b['L_GAL']), marker='.', color='blue', alpha=0.05, s=7)
+    
+    axes[1].set_xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    axes[1].set_ylabel('log$(L_{cen}~/~[L_\odot / h^2])$')
+    axes[1].set_title("Star-Forming LHMR")
+    axes[1].set_xlim(10, 15)
+    axes[1].set_ylim(7, LOG_LGAL_MAX_TIGHT)
+    axes[1].grid(True)
+    
+    plt.tight_layout()
+    plt.draw()
+
+
+def shmr_scatterplot(catalog: GroupCatalog):
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), dpi=DPI)
+    c = catalog.centrals.loc[z_flag_is_not_spectro_z(catalog.centrals['Z_ASSIGNED_FLAG'])]
+    
+    # Red galaxies panel
+    means_r = np.log10(c[c['QUIESCENT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted))
+    axes[0].step(np.log10(Mhalo_labels), means_r, label=get_dataset_display_name(catalog), color='k', linewidth=1, where='post')
+    
+    # Sample uniformly across halo mass bins
+    sample_r_list = []
+    for mh_bin in c[c['QUIESCENT']]['Mh_bin'].unique():
+        bin_data = c[(c['QUIESCENT']) & (c['Mh_bin'] == mh_bin)]
+        n_sample = min(200, len(bin_data))  # Sample up to 200 per bin
+        if n_sample > 0:
+            sample_r_list.append(bin_data.sample(n=n_sample))
+    sample_r = pd.concat(sample_r_list) if sample_r_list else c[c['QUIESCENT']].sample(n=0)
+    axes[0].scatter(np.log10(sample_r['M_HALO']), sample_r['LOGMSTAR'], marker='.', color='red', alpha=0.05, s=7)
+    
+    axes[0].set_xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    axes[0].set_ylabel('log$(M_{\\star}~/~[M_\\odot h^{-2}])$')
+    axes[0].set_title("Quiescent SHMR")
+    axes[0].set_xlim(10, 15)
+    axes[0].set_ylim(7, 12)
+    axes[0].grid(True)
+    
+    # Blue galaxies panel
+    means_b = np.log10(c[~c['QUIESCENT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted))
+    axes[1].step(np.log10(Mhalo_labels), means_b, label=get_dataset_display_name(catalog), color='k', linewidth=1, where='post')
+
+    # Sample uniformly across halo mass bins
+    sample_b_list = []
+    for mh_bin in c[~c['QUIESCENT']]['Mh_bin'].unique():
+        bin_data = c[(~c['QUIESCENT']) & (c['Mh_bin'] == mh_bin)]
+        n_sample = min(200, len(bin_data))  # Sample up to 200 per bin
+        if n_sample > 0:
+            sample_b_list.append(bin_data.sample(n=n_sample))
+    sample_b = pd.concat(sample_b_list) if sample_b_list else c[~c['QUIESCENT']].sample(n=0)
+    axes[1].scatter(np.log10(sample_b['M_HALO']), sample_b['LOGMSTAR'], marker='.', color='blue', alpha=0.05, s=7)
+    
+    axes[1].set_xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    axes[1].set_ylabel('log$(M_{\\star}~/~[M_\\odot h^{-2}])$')
+    axes[1].set_title("Star-Forming SHMR")
+    axes[1].set_xlim(10, 15)
+    axes[1].set_ylim(7, 12)
+    axes[1].grid(True)
+    
+    plt.tight_layout()
+    plt.draw()
+
 
 def LHMR_withscatter(*catalogs):
 
@@ -281,10 +390,11 @@ def safe_log_err_vals(logmean, lin_err):
             return lower, upper
 
 def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
-
-    log_mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
-    log_means_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
-    log_means_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+     # This does NOT seem to matter for LHMR
+    clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
+    log_mean_all = clean.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    log_means_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    log_means_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
     ratio = 10**log_means_r / 10**log_means_b
 
     lhmr_r_mean, lhmr_r_err, lhmr_r_scatter_mean, lhmr_r_scatter_err, lhmr_b_mean, lhmr_b_err, lhmr_b_scatter_mean, lhmr_b_scatter_err, lhmr_all_mean, lhmr_all_err, lhmr_all_scatter_mean, lhmr_all_scatter_err = lhmr_variance_from_saved()
@@ -305,6 +415,9 @@ def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
 
     if show_all:
         plt.errorbar(x_vals, log_mean_all, yerr=[yerr_all_lower, yerr_all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
+    #    plt.plot(x_vals, log_mean_all, '-', color='k', label='All', alpha=0.7)
+    #plt.plot(x_vals, log_means_b, '-', color='b', label='SF Centrals', alpha=0.7)
+    #plt.plot(x_vals, log_means_r, '-', color='r', label='Q Centrals', alpha=0.7)
     plt.errorbar(x_vals, log_means_b, yerr=[yerr_b_lower, yerr_b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
     plt.errorbar(x_vals, log_means_r, yerr=[yerr_r_lower, yerr_r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
 
@@ -338,8 +451,8 @@ def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
         #ax_inset.errorbar(x_vals, inset_log_means_r, yerr=[inset_yerr_r_lower, inset_yerr_r_upper], fmt='.', color='r', capsize=3, alpha=0.7)
         #ax_inset.plot(x_vals2, inset_log_means_b, '-', color='b', alpha=0.7)
         #ax_inset.plot(x_vals2, inset_log_means_r, '-', color='r', alpha=0.7)
-        ax_inset.plot(x_vals, ratio, '-', color='k', label='BGS')
-        ax_inset.plot(x_vals2[:-6], ratio2[:-6], '-', color='purple', label='SDSS')
+        ax_inset.step(x_vals, ratio, '-', color='k', label='BGS', where='post')
+        ax_inset.step(x_vals2[:-6], ratio2[:-6], '-', color='purple', label='SDSS', where='post')
         ax_inset.set_xlim(10,15)
         ax_inset.legend(fontsize=8)
        #ax_inset.set_ylim(0.9, 1.1)
@@ -351,7 +464,7 @@ def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
 
 def SHMR_likereview(f: GroupCatalog):
     
-    mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+    mean_all = f.centrals.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
 
     plt.figure(dpi=DPI)
     x_vals = np.log10(Mhalo_labels)
@@ -367,19 +480,20 @@ def SHMR_likereview(f: GroupCatalog):
     
 
 def SHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
-
-    mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-    means_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-    means_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+    # This does matter for SHMR
+    clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
+    mean_all = clean.groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+    means_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+    means_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
     #shmr_r_mean, shmr_r_err, shmr_r_scatter_mean, shmr_r_scatter_err, shmr_b_mean, shmr_b_err, shmr_b_scatter_mean, shmr_b_scatter_err, shmr_all_mean, shmr_all_err, shmr_all_scatter_mean, shmr_all_scatter_err = shmr_variance_from_saved()
 
     yerr_all_lower, yerr_all_upper = safe_log_err(np.log10(mean_all), f.shmr_bootstrap_err)
     yerr_b_lower, yerr_b_upper = safe_log_err(np.log10(means_b), f.shmr_sf_bootstrap_err)
     yerr_r_lower, yerr_r_upper = safe_log_err(np.log10(means_r), f.shmr_q_bootstrap_err)
 
-    amask = mean_all > 0 & ~np.isnan(mean_all) & ~np.isnan(yerr_all_lower) & ~np.isnan(yerr_all_upper)
-    rmask = means_r > 0 & ~np.isnan(means_r) & ~np.isnan(yerr_r_lower) & ~np.isnan(yerr_r_upper)
-    bmask = means_b > 0 & ~np.isnan(means_b) & ~np.isnan(yerr_b_lower) & ~np.isnan(yerr_b_upper)
+    amask = mean_all > 0 & ~np.isnan(mean_all) 
+    rmask = means_r > 0 & ~np.isnan(means_r)
+    bmask = means_b > 0 & ~np.isnan(means_b)
     ratio = means_r / means_b
 
     plt.figure(dpi=DPI)
@@ -387,9 +501,11 @@ def SHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
     x_vals2 = np.log10(Mhalo_labels2)
 
     if show_all:
-        plt.errorbar(x_vals[amask], np.log10(mean_all[amask]), yerr=[yerr_all_lower[amask], yerr_all_upper[amask]], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
-    plt.errorbar(x_vals[bmask], np.log10(means_b[bmask]), yerr=[yerr_b_lower[bmask], yerr_b_upper[bmask]], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
-    plt.errorbar(x_vals[rmask], np.log10(means_r[rmask]), yerr=[yerr_r_lower[rmask], yerr_r_upper[rmask]], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+        plt.errorbar(x_vals2[amask], np.log10(mean_all[amask]), yerr=[yerr_all_lower[amask], yerr_all_upper[amask]], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
+    #plt.plot(x_vals[bmask], np.log10(means_b[bmask]), '-', color='b', label='SF Centrals', alpha=0.7)
+    #plt.plot(x_vals[rmask], np.log10(means_r[rmask]), '-', color='r', label='Q Centrals', alpha=0.7)
+    plt.errorbar(x_vals2[bmask], np.log10(means_b[bmask]), yerr=[yerr_b_lower[bmask], yerr_b_upper[bmask]], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals2[rmask], np.log10(means_r[rmask]), yerr=[yerr_r_lower[rmask], yerr_r_upper[rmask]], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
     # No shaded systematic errors here as we didn't save it in MCMC chains.
     plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'log$(\langle M_{\star} \rangle / [M_{\odot} h^{-2}])$')
@@ -405,8 +521,8 @@ def SHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
         bimask = inset_means_b > 0 & ~np.isnan(inset_means_b)
         ratio2 = inset_means_r / inset_means_b
 
-        ax_inset.plot(x_vals[rmask & bmask], ratio[rmask & bmask], '-', color='k', label='BGS')
-        ax_inset.plot(x_vals2[rimask & bimask][:-3], ratio2[rimask & bimask][:-3], '-', color='purple', label='SDSS')
+        ax_inset.step(x_vals2[rmask & bmask], ratio[rmask & bmask], '-', color='k', label='BGS', where='post')
+        ax_inset.step(x_vals2[rimask & bimask][:-3], ratio2[rimask & bimask][:-3], '-', color='purple', label='SDSS', where='post')
         ax_inset.set_xlim(10,15)
         ax_inset.legend(fontsize=8)
         ax_inset.set_ylabel('Q/SF', fontsize=10)
@@ -415,11 +531,64 @@ def SHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
 
     plt.tight_layout()
 
-def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
+def LHMR_scatter_nsat(f: GroupCatalog):
+    # Show evolution of scatter with Nsat cuts. No error bars.
+    clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
+    scatter_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+    scatter_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
 
-    scatter_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
-    scatter_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
-    scatter_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), dpi=DPI)
+    x_vals = np.log10(Mhalo_labels)
+    
+    # Red galaxies panel
+    axes[0].plot(x_vals, scatter_r, '-', color='darkred', label='Q Centrals', alpha=1.0, linewidth=2)
+    for nsat_cut in [1, 2, 3, 5]:
+        # progress colors
+        c = plt.cm.Reds(1 - (0.3 + 0.7 * (nsat_cut / 10)))
+        clean_nsat = clean.loc[clean['N_SAT'] >= nsat_cut]
+        scatter_r_nsat = clean_nsat.loc[clean_nsat['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+        plt.sca(axes[0])
+        plt.plot(x_vals, scatter_r_nsat, '-', color=c, alpha=1.0, label=f'Nsat>={nsat_cut}')
+    
+    axes[0].set_xlabel('log$(M_h~/~[M_{\odot} h^{-1}]$)')
+    axes[0].set_ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}}~/~[L_{\odot} h^{-2}])}$')
+    axes[0].set_xlim(10, 15)
+    axes[0].set_ylim(0.0, 0.4)
+    axes[0].legend()
+    axes[0].set_title('Quiescent')
+    
+    ax0_twin = axes[0].twinx()
+    ax0_twin.set_ylim(0, np.abs(log_solar_L_to_abs_mag_r(9.4) - log_solar_L_to_abs_mag_r(9)))
+    ax0_twin.set_ylabel(r'$\sigma_{M_r}$')
+    
+    # Blue galaxies panel
+    axes[1].plot(x_vals, scatter_b, '-', color='darkblue', label='SF Centrals', alpha=1.0, linewidth=2)
+    for nsat_cut in [1, 2, 3, 5]:
+        c = plt.cm.Blues(1 - (0.3 + 0.7 * (nsat_cut / 10)))
+        clean_nsat = clean.loc[clean['N_SAT'] >= nsat_cut]
+        scatter_b_nsat = clean_nsat.loc[~clean_nsat['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+        plt.sca(axes[1])
+        plt.plot(x_vals, scatter_b_nsat, '-', color=c, alpha=1.0, label=f'Nsat>={nsat_cut}')
+    
+    axes[1].set_xlabel('log$(M_h~/~[M_{\odot} h^{-1}]$)')
+    axes[1].set_ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}}~/~[L_{\odot} h^{-2}])}$')
+    axes[1].set_xlim(10, 15)
+    axes[1].set_ylim(0.0, 0.4)
+    axes[1].legend()
+    axes[1].set_title('Star-forming')
+    
+    ax1_twin = axes[1].twinx()
+    ax1_twin.set_ylim(0, np.abs(log_solar_L_to_abs_mag_r(9.4) - log_solar_L_to_abs_mag_r(9)))
+    ax1_twin.set_ylabel(r'$\sigma_{M_r}$')
+    
+    plt.tight_layout()
+
+def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
+    clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
+    #clean = clean.loc[clean['N_SAT'] > 0]
+    scatter_all = clean.groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+    scatter_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
+    scatter_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_lognormal_scatter_vmax_weighted)
     
     lhmr_r_mean, lhmr_r_err, lhmr_r_scatter_mean, lhmr_r_scatter_err, lhmr_b_mean, lhmr_b_err, lhmr_b_scatter_mean, lhmr_b_scatter_err, lhmr_all_mean, lhmr_all_err, lhmr_all_scatter_mean, lhmr_all_scatter_err = lhmr_variance_from_saved()
 
@@ -440,7 +609,9 @@ def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
     if show_all:
         plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
     plt.errorbar(x_vals, scatter_r, yerr=[r_lower, r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+    #plt.plot(x_vals, scatter_b, '-', color='b', label='SF Centrals', alpha=0.7)
     plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
+    #plt.plot(x_vals, scatter_r, '-', color='r', label='Q Centrals', alpha=0.7)
 
     if show_all:
         all_valid = ~np.isnan(scatter_all)
@@ -462,27 +633,32 @@ def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
     plt.tight_layout()
 
 def SHMR_scatter_savederr(f: GroupCatalog, show_all=False):
+    # This does matter on the tails again here.
+    clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
+    scatter_all = clean.groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+    scatter_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+    scatter_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
 
-    scatter_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
-    scatter_r = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
-    scatter_b = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
-
+    print(np.shape(scatter_all), np.shape(f.shmr_scatter_bootstrap_err))
     #shmr_r_mean, shmr_r_err, shmr_r_scatter_mean, shmr_r_scatter_err, shmr_b_mean, shmr_b_err, shmr_b_scatter_mean, shmr_b_scatter_err, shmr_all_mean, shmr_all_err, shmr_all_scatter_mean, shmr_all_scatter_err = shmr_variance_from_saved()
 
-    all_lower = scatter_all - f.shmr_scatter_bootstrap_err[0]
-    all_upper = f.shmr_scatter_bootstrap_err[1] - scatter_all
-    r_lower = scatter_r - f.shmr_q_scatter_bootstrap_err[0]
-    r_upper = f.shmr_q_scatter_bootstrap_err[1] - scatter_r
-    b_lower = scatter_b - f.shmr_sf_scatter_bootstrap_err[0]
-    b_upper = f.shmr_sf_scatter_bootstrap_err[1] - scatter_b
+    #all_lower = scatter_all - f.shmr_scatter_bootstrap_err[0]
+    #all_upper = f.shmr_scatter_bootstrap_err[1] - scatter_all
+    #r_lower = scatter_r - f.shmr_q_scatter_bootstrap_err[0]
+    #r_upper = f.shmr_q_scatter_bootstrap_err[1] - scatter_r
+    #b_lower = scatter_b - f.shmr_sf_scatter_bootstrap_err[0]
+    #b_upper = f.shmr_sf_scatter_bootstrap_err[1] - scatter_b
 
     plt.figure(dpi=DPI)
-    x_vals = np.log10(Mhalo_labels)
+    x_vals = np.log10(Mhalo_labels2)
 
     if show_all:
-        plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
-    plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
-    plt.errorbar(x_vals, scatter_r, yerr=[r_lower, r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+        #plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
+        plt.step(x_vals, scatter_all, '-', color='k', label='All', alpha=0.7, where='post')
+    #plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
+    #plt.errorbar(x_vals, scatter_r, yerr=[r_lower, r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+    plt.step(x_vals, scatter_b, '-', color='b', label='SF Centrals', alpha=0.7, where='post')
+    plt.step(x_vals, scatter_r, '-', color='r', label='Q Centrals', alpha=0.7, where='post')
 
     # No shaded systematic errors here for now as we didn't save it in MCMC chains.
 
@@ -495,19 +671,54 @@ def SHMR_scatter_savederr(f: GroupCatalog, show_all=False):
 
 def SHMR_scatter_litcompare(f: GroupCatalog):
     # TODO stuff to compare to from literature
-    scatter_all = f.centrals.groupby('Mh_bin', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+    scatter_all = f.centrals.groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
 
     all_lower = scatter_all - f.shmr_scatter_bootstrap_err[0]
     all_upper = f.shmr_scatter_bootstrap_err[1] - scatter_all
 
     plt.figure(dpi=DPI)
-    x_vals = np.log10(Mhalo_labels)
+    x_vals = np.log10(Mhalo_labels2)
     plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='This Work', capsize=4, alpha=0.7)
     plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'$\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
     plt.xlim(10,15)
     plt.ylim(0.0, 0.7)
     plt.legend()
+    plt.tight_layout()
+
+
+def SHMR_scatter_lostgalstudy(sets):
+
+    fig, axes = plt.subplots(1, 2, figsize=(10,5))
+    fig.set_dpi(DPI)
+    x_vals = np.log10(Mhalo_labels2)
+    l = lambda x: LogMstar_lognormal_scatter_vmax_weighted(x, cut=99)
+
+    plt.sca(axes[0])
+    for f in sets:
+        clean = f.centrals.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
+        scatter_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(l)
+
+        plt.plot(x_vals, scatter_r, f.marker, color=f.color, label=f.name)
+
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    plt.ylabel(r'Quiescent $\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
+    plt.xlim(10.5,14.5)
+    plt.ylim(0.0, 0.7)
+    plt.legend()
+
+    plt.sca(axes[1])
+    for f in sets:
+        clean = f.centrals.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
+        scatter_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(l)
+
+        plt.plot(x_vals, scatter_b, f.marker, color=f.color, label='SF Centrals')
+
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    plt.ylabel(r'Star-Forming $\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
+    plt.xlim(10.5,14.5)
+    plt.ylim(0.0, 0.7)
+    
     plt.tight_layout()
 
 
@@ -534,7 +745,7 @@ def fsat_with_err_from_saved(gc: GroupCatalog, show_all=False):
     plt.figure(dpi=DPI)
     if show_all:
         plt.errorbar(LogLgal_labels, gc.fsat, yerr=gc.fsat_bootstrap_err, fmt='.', color='k', label='All', markersize=6, capsize=4, alpha=1.0)
-    plt.errorbar(LogLgal_labels[rcut:], gc.fsatr[rcut:], yerr=gc.fsat_q_bootstrap_err[rcut:], fmt='.', color='r', label='Quiescent', markersize=6, capsize=4, alpha=1.0)
+    plt.errorbar(LogLgal_labels[rcut:], gc.fsatr[rcut:], yerr=(gc.fsat_q_bootstrap_err[0][rcut:], gc.fsat_q_bootstrap_err[1][rcut:]), fmt='.', color='r', label='Quiescent', markersize=6, capsize=4, alpha=1.0)
     plt.errorbar(LogLgal_labels, gc.fsatb, yerr=gc.fsat_sf_bootstrap_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=4, alpha=1.0)
 
     if show_all:
@@ -1170,10 +1381,10 @@ def quiescent_classification_dbl_plot(catalog: GroupCatalog, sdss: GroupCatalog)
     sdss_df = sdss_df.loc[sdss_df['IS_SAT'] == False]
     qf_gmr = df.groupby('LGAL_BIN', observed=False).apply(qf_BGS_gmr_vmax_weighted)
     qf_dn4000model = df.groupby('LGAL_BIN', observed=False).apply(qf_Dn4000MODEL_smart_eq_vmax_weighted)
-    plt.step(LogLgal_labels, qf_dn4000model, '-', label='Dn4000(L) Used Here', color='k', lw=3)
+    plt.step(LogLgal_labels, qf_dn4000model, '-', label='Dn4000(L) Used Here', color='k', lw=3, where='post')
     #plt.plot(LogLgal_labels, df.groupby('LGAL_BIN', observed=False).apply(qf_vmax_weighted), '--', label='From Catalog', color='purple', lw=2)
-    plt.step(LogLgal_labels, qf_gmr, '--', label=f'g-r(L) Alternative', color='red', lw=2)
-    plt.step(LogLgal_labels, sdss_df.groupby('LGAL_BIN', observed=False).apply(qf_vmax_weighted), '--', label='Tinker 2021 SDSS', color='green', lw=2)
+    plt.step(LogLgal_labels, qf_gmr, '--', label=f'g-r(L) Alternative', color='red', lw=2, where='post')
+    plt.step(LogLgal_labels, sdss_df.groupby('LGAL_BIN', observed=False).apply(qf_vmax_weighted), '--', label='Tinker 2021 SDSS', color='green', lw=2, where='post')
     plt.xlabel('log($L_{\\rm gal} / (L_\odot h^{-2}))$')
     plt.ylabel("$f_{\\mathrm{Q}}$ ")
     plt.xlim(np.log10(LGAL_MIN), LOG_LGAL_MAX_TIGHT)
