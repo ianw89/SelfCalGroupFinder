@@ -599,6 +599,7 @@ bgs_aux_list : list[GroupCatalog] = [
 ]
 bgs_y1_list : list[GroupCatalog] = [
     bgs_y1_pzp_2_6_c2,
+    bgs_y1_pzp_2_6_c3,
 ]
 bgs_y3_list : list[GroupCatalog] = [
     bgs_y3_pzp_2_6_c2,

@@ -465,7 +465,8 @@ def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
 
 def SHMR_likereview(f: GroupCatalog):
     
-    mean_all = f.centrals.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+    #mean_all = f.centrals.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
+    mean_all = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
 
     plt.figure(dpi=DPI)
     x_vals = np.log10(Mhalo_labels)
@@ -643,23 +644,23 @@ def SHMR_scatter_savederr(f: GroupCatalog, show_all=False):
     print(np.shape(scatter_all), np.shape(f.shmr_scatter_bootstrap_err))
     #shmr_r_mean, shmr_r_err, shmr_r_scatter_mean, shmr_r_scatter_err, shmr_b_mean, shmr_b_err, shmr_b_scatter_mean, shmr_b_scatter_err, shmr_all_mean, shmr_all_err, shmr_all_scatter_mean, shmr_all_scatter_err = shmr_variance_from_saved()
 
-    #all_lower = scatter_all - f.shmr_scatter_bootstrap_err[0]
-    #all_upper = f.shmr_scatter_bootstrap_err[1] - scatter_all
-    #r_lower = scatter_r - f.shmr_q_scatter_bootstrap_err[0]
-    #r_upper = f.shmr_q_scatter_bootstrap_err[1] - scatter_r
-    #b_lower = scatter_b - f.shmr_sf_scatter_bootstrap_err[0]
-    #b_upper = f.shmr_sf_scatter_bootstrap_err[1] - scatter_b
+    all_lower = scatter_all - f.shmr_scatter_bootstrap_err[0]
+    all_upper = f.shmr_scatter_bootstrap_err[1] - scatter_all
+    r_lower = scatter_r - f.shmr_q_scatter_bootstrap_err[0]
+    r_upper = f.shmr_q_scatter_bootstrap_err[1] - scatter_r
+    b_lower = scatter_b - f.shmr_sf_scatter_bootstrap_err[0]
+    b_upper = f.shmr_sf_scatter_bootstrap_err[1] - scatter_b
 
     plt.figure(dpi=DPI)
     x_vals = np.log10(Mhalo_labels2)
 
     if show_all:
-        #plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
-        plt.step(x_vals, scatter_all, '-', color='k', label='All', alpha=0.7, where='post')
-    #plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
-    #plt.errorbar(x_vals, scatter_r, yerr=[r_lower, r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
-    plt.step(x_vals, scatter_b, '-', color='b', label='SF Centrals', alpha=0.7, where='post')
-    plt.step(x_vals, scatter_r, '-', color='r', label='Q Centrals', alpha=0.7, where='post')
+        plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
+        #plt.step(x_vals, scatter_all, '-', color='k', label='All', alpha=0.7, where='post')
+    plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals, scatter_r, yerr=[r_lower, r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+    #plt.step(x_vals, scatter_b, '-', color='b', label='SF Centrals', alpha=0.7, where='post')
+    #plt.step(x_vals, scatter_r, '-', color='r', label='Q Centrals', alpha=0.7, where='post')
 
     # No shaded systematic errors here for now as we didn't save it in MCMC chains.
 
