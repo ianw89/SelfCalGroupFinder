@@ -208,9 +208,10 @@ def lhmr_scatterplot(catalog: GroupCatalog):
     plt.draw()
 
 
-def shmr_scatterplot(catalog: GroupCatalog):
+def shmr_scatterplot(catalog: GroupCatalog, selection):
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), dpi=DPI)
-    c = catalog.centrals.loc[z_flag_is_not_spectro_z(catalog.centrals['Z_ASSIGNED_FLAG'])]
+    c = selection if selection is not None else catalog.centrals
+    #c = catalog.centrals.loc[z_flag_is_not_spectro_z(catalog.centrals['Z_ASSIGNED_FLAG'])]
     
     # Red galaxies panel
     means_r = np.log10(c[c['QUIESCENT']].groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted))

@@ -942,6 +942,12 @@ class dn4000lookup:
         self.tree, self.dn4000_values, self.logmstar_values = pickle.load(open(file, 'rb'))
 
     def query(self, abs_mag_array, gmr_array, k=1):
+        # If not numpy arrays, convert
+        if not isinstance(abs_mag_array, np.ndarray):
+            abs_mag_array = np.array(abs_mag_array)
+        if not isinstance(gmr_array, np.ndarray):
+            gmr_array = np.array(gmr_array)
+            
         query_points = np.vstack((abs_mag_array * dn4000lookup.METRIC_MAG, gmr_array * dn4000lookup.METRIC_GMR)).T  # Scale the query points
         distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points
         #print(np.shape(distances), np.shape(indices))

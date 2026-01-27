@@ -2456,14 +2456,26 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
         update_properties_for_indices(idx_unobserved, app_mag_r, app_mag_g, g_r_apparent, z_eff, abs_mag_R, abs_mag_R_k, abs_mag_R_k_BEST, abs_mag_G, abs_mag_G_k, abs_mag_G_k_BEST, gmr_best, dn4000_model, log_L_gal, quiescent, logmstar)
     
     lookup = dn4000lookup()
-    needs_props = np.flatnonzero(np.isnan(dn4000_model) | np.isnan(logmstar))
-    print(f"{len(needs_props):,} galaxies need Dn4000 and/or LogMstar from lookup table.")
-    dn4000_values, logmstar_values = lookup.query(abs_mag_R_k[needs_props], gmr_best[needs_props])
-    np.put(dn4000_model, needs_props, dn4000_values)
-    np.put(logmstar, needs_props, logmstar_values)
+    needs_props_idx = np.flatnonzero(np.isnan(dn4000_model) | np.isnan(logmstar))
+    needs_props_idx = np.concatenate([needs_props_idx, idx_unobserved])
+    needs_props_idx = np.unique(needs_props_idx)
+    print(f"{len(needs_props_idx):,} galaxies will get Dn4000 and LogMstar from lookup table.")
+    dn4000_values, logmstar_values = lookup.query(abs_mag_R_k[needs_props_idx], gmr_best[needs_props_idx])
+    assert len(dn4000_values) == len(needs_props_idx)
+    assert len(logmstar_values) == len(needs_props_idx)
+    np.put(dn4000_model, needs_props_idx, dn4000_values)
+    np.put(logmstar, needs_props_idx, logmstar_values)
+    assert np.isnan(dn4000_model).sum() == 0
+    assert np.isnan(logmstar).sum() == 0
     # For lost galaxies, when we used the GAMA polynomial k-corr, the g-r method was better than the Dn4000 lookup to determine quiescent: 81% vs 76% correct.
     # Now we are using a nearest neighbor lookup table to get k-corrections for lost galaxies, which is less biased in abs mag R but worse in g-r. So use dn4000 now.
-    np.put(quiescent, needs_props, is_quiescent_BGS_dn4000(log_L_gal[needs_props], dn4000_model[needs_props], gmr_best[needs_props]))
+    np.put(quiescent, needs_props_idx, is_quiescent_BGS_dn4000(log_L_gal[needs_props_idx], dn4000_model[needs_props_idx], gmr_best[needs_props_idx]))
+
+    # Debug printing: let's print off first 20 lookups
+    #faint_blue_needed_props = np.logical_and(log_L_gal[needs_props_idx] < 8.1, ~quiescent[needs_props_idx])
+    #for i in range(min(20, len(needs_props_idx[faint_blue_needed_props]))):
+    #    idx = needs_props_idx[faint_blue_needed_props][i]
+    #    print(f"Lookup {i+1}: TARGETID={target_id[idx]} Z={z_eff[idx]:.3f} LOGLGAL={log_L_gal[idx]:.3f} ABS_MAG_R_K={abs_mag_R_k[idx]:.3f}, G-R={gmr_best[idx]:.3f} => Dn4000={dn4000_model[idx]:.3f}, LogMstar={logmstar[idx]:.3f}")
 
     print(f"Catalog contains {quiescent.sum():,} quiescent and {len(quiescent) - quiescent.sum():,} star-forming galaxies")
 
