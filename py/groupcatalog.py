@@ -125,23 +125,23 @@ GF_PROPS_BGS_COLORS_C2 = {
 }
 
 # The BGS Y1 Final Catalog
-# 15.03044341  3.42680675 20.08414158  8.03495555 21.46680977  6.66865935 -4.24948264 16.31571356 10.14649033 -0.05370222
+# 15.16556194  3.58722321 19.57478728  7.85952838 21.31165874  6.8135736 -3.7157756  16.18024429 10.3152518  -0.56223382
 GF_PROPS_BGS_COLORS_C3 = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
     'fluxlim':3,
     'color':1,
-    'omegaL_sf': 15.03044341,
-    'sigma_sf': 3.42680675,
-    'omegaL_q': 20.08414158,
-    'sigma_q': 8.03495555,
-    'omega0_sf': 21.46680977,
-    'omega0_q': 6.66865935,
-    'beta0q':  -4.24948264,
-    'betaLq': 16.31571356,
-    'beta0sf': 10.14649033,
-    'betaLsf': -0.05370222
+    'omegaL_sf': 15.16556194,
+    'sigma_sf': 3.58722321,
+    'omegaL_q': 19.57478728,
+    'sigma_q': 7.85952838,
+    'omega0_sf': 21.31165874,
+    'omega0_q': 6.8135736,
+    'beta0q':  -3.7157756,
+    'betaLq': 16.18024429,
+    'beta0sf': 10.3152518,
+    'betaLsf': -0.56223382
 }
 
 def set_all_seeds(seed=59418):
@@ -733,9 +733,10 @@ class GroupCatalog:
         lost_blue_smallhalo_centrals = df.loc[(~df['IS_SAT']) & (df['M_HALO'] < 1e11) & (z_flag_is_not_spectro_z(df['Z_ASSIGNED_FLAG']))]
         # assert all luminosities are less than 10^9 and stellar masses less than 10^9.5
         bad_luminosity = lost_blue_smallhalo_centrals['L_GAL'] > 1e9
-        bad_stellarmass = lost_blue_smallhalo_centrals['LOGMSTAR'] > 9.5
         assert np.sum(bad_luminosity) == 0, f"Lost blue centrals in small halos should have L_GAL < 1e9, but {np.sum(bad_luminosity)} do not."
-        assert np.sum(bad_stellarmass) == 0, f"Lost blue centrals in small halos should have LOGMSTAR < 9.5, but {np.sum(bad_stellarmass)} do not."
+        if 'LOGMSTAR' in lost_blue_smallhalo_centrals.columns:
+            bad_stellarmass = lost_blue_smallhalo_centrals['LOGMSTAR'] > 9.5
+            assert np.sum(bad_stellarmass) == 0, f"Lost blue centrals in small halos should have LOGMSTAR < 9.5, but {np.sum(bad_stellarmass)} do not."
 
         #if not skiphod:
         #    assert np.isclose(self.f_sat_q.to_numpy()[6:34], self.fsatr[6:34], atol=1e-4).all()
@@ -1498,6 +1499,7 @@ class TestGroupCatalog(GroupCatalog):
         super().__init__(name)
         self.preprocess_file = TEST_DAT_FILE
         self.GF_props = {
+            'halomassfunc':HMF_T08_BOL_FILE,
             'zmin':0,
             'zmax':1.0,
             'frac_area':4.0/DEGREES_ON_SPHERE,
@@ -1654,7 +1656,7 @@ class BGSGroupCatalog(GroupCatalog):
             self.caldata = caldata_ctor(self.mag_cut, self.GF_props['frac_area'])
 
     @staticmethod
-    def from_MCMC(reader: emcee.backends.HDFBackend, mode: Mode):
+    def from_ZASSIGN_MCMC(reader: emcee.backends.HDFBackend, mode: Mode):
 
         idx = np.argmax(reader.get_log_prob(flat=True))
         p = reader.get_chain(flat=True)[idx]
@@ -1663,7 +1665,7 @@ class BGSGroupCatalog(GroupCatalog):
         
         print(f"Using MCMC parameters: {p}")
 
-        gc = BGSGroupCatalog(f"BGS SV3 MCMC {mode_to_str(mode)}", mode, 19.5, 23.0, sdss_fill=False, num_passes=10, drop_passes=3, data_cut="sv3", gfprops=GF_PROPS_BGS_VANILLA.copy(), extra_params=p)
+        gc = BGSGroupCatalog(f"BGS SV3 MCMC {mode_to_str(mode)}", mode, 19.5, 23.0, sdss_fill=False, num_passes=10, drop_passes=3, data_cut="sv3", gfprops=GF_PROPS_BGS_COLORS_C2.copy(), extra_params=p)
         if mode.value == Mode.PHOTOZ_PLUS_v1.value:
             gc.color = 'g'
         elif mode.value == Mode.PHOTOZ_PLUS_v2.value:
@@ -2624,7 +2626,8 @@ def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_m
     if mode == Mode.PHOTOZ_PLUS_v1.value:
         backfile = BASE_FOLDER + "mcmc13_m4_1_7.h5"
     elif mode == Mode.PHOTOZ_PLUS_v2.value:
-        backfile = BASE_FOLDER + "mcmc13_m4_2_6.h5"
+        #backfile = BASE_FOLDER + "mcmc13_m4_2_6.h5"
+        backfile = BASE_FOLDER + "mcmc13_m4_fake_2_7.h5"
     elif mode == Mode.PHOTOZ_PLUS_v3.value:
         backfile = BASE_FOLDER + "mcmc13_m4_3_1.h5"
     elif mode == Mode.PHOTOZ_PLUS_v4.value:
