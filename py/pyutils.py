@@ -458,7 +458,7 @@ def k_correct_bgs_v2(abs_mag, z_obs, gmr, photsys, band='r'):
 
 def k_correct_fromlookup(abs_mag_r, abs_mag_g, z_obs):
     lookup = kcorrlookup()
-    k_r, k_g = lookup.query(abs_mag_g - abs_mag_r, z_obs)
+    k_r, k_g = lookup.query(abs_mag_g - abs_mag_r, z_obs, abs_mag_r)
     return abs_mag_r - k_r, abs_mag_g - k_g
 
 SOLAR_L_R_BAND = 4.65
@@ -874,21 +874,26 @@ class kcorrlookup:
     This is a lookup table for k-corrections based on absolute magnitudes 
     """
     # tuned to maximize % correct in abs mag R and g-r
-    METRIC_Z = 4.87 
-    METRIC_GMR = 1 
+   # METRIC_Z = 4.87 
+   # METRIC_GMR = 1 
 
     def __init__(self, file = BGS_Y3_KCORR_LOOKUP_FILE):
         if file is None or os.path.isfile(file) is False:
             raise ValueError(f"File {file} does not exist. The k-correction lookup table must be built first; see BGS_study.ipynb.")
-        self.tree, self.kcorr_r_values, self.kcorr_g_values = pickle.load(open(file, 'rb'))
+        stuff = pickle.load(open(file, 'rb'))
+        if len(stuff) == 3:
+            raise ValueError("Trying to load old version of kcorrlookup!")
+        elif len(stuff) == 6:
+            self.tree, self.kcorr_r_values, self.kcorr_g_values, self.metric_z, self.metric_gmr, self.metric_absmag_r = stuff
         print("kcorrlookup loaded")
 
-    def query(self, gmr_array, z_array, k=1):
+    def query(self, gmr_array, z_array, absmag_r, k=1):
         """
         Docstring for query
         
         :param gmr_array: g - r
         :param z_array: Redshifts.
+        :param absmag_r: r-band absolute magnitudes (before k-correction)
         :param k: Number of neighbors to consider.
         """
         # Create mask for valid (non-nan, non-inf) inputs
@@ -903,8 +908,11 @@ class kcorrlookup:
             return kcorr_r_toreturn, kcorr_g_toreturn
         
         # Only query valid points
-        query_points = np.vstack((gmr_array[valid_mask] * kcorrlookup.METRIC_GMR,
-                                  z_array[valid_mask] * kcorrlookup.METRIC_Z)).T
+        query_points = np.vstack((
+            gmr_array[valid_mask] * self.metric_gmr,
+            z_array[valid_mask] * self.metric_z,
+            absmag_r[valid_mask] * self.metric_absmag_r
+            )).T
         distances, indices = self.tree.query(query_points, k=k)
 
         if k == 1:
@@ -933,13 +941,19 @@ class dn4000lookup:
     It uses a KDTree for fast nearest neighbor search.
     """
 
-    METRIC_MAG = 1
-    METRIC_GMR = 5
+    #METRIC_MAG = 1
+    #METRIC_GMR = 5
 
     def __init__(self, file = BGS_Y3_DN4000_LOOKUP_FILE):
         if file is None or os.path.isfile(file) is False:
             raise ValueError(f"File {file} does not exist. The Dn4000 lookup table must be built first; see BGS_study.ipynb.")
-        self.tree, self.dn4000_values, self.logmstar_values = pickle.load(open(file, 'rb'))
+        stuff = pickle.load(open(file, 'rb'))
+        if len(stuff) == 3:
+            raise ValueError("Trying to load old version of dn4000lookup!")
+        elif len(stuff) == 6:
+            self.tree, self.kcorr_r_values, self.kcorr_g_values, self.metric_z, self.metric_gmr, self.metric_absmag_r = stuff
+        print("dn4000lookup loaded")
+        self.tree, self.dn4000_values, self.logmstar_values, self.metric_gmr, self.metric_magr = pickle.load(open(file, 'rb'))
 
     def query(self, abs_mag_array, gmr_array, k=1):
         # If not numpy arrays, convert
@@ -948,7 +962,7 @@ class dn4000lookup:
         if not isinstance(gmr_array, np.ndarray):
             gmr_array = np.array(gmr_array)
             
-        query_points = np.vstack((abs_mag_array * dn4000lookup.METRIC_MAG, gmr_array * dn4000lookup.METRIC_GMR)).T  # Scale the query points
+        query_points = np.vstack((abs_mag_array * self.metric_magr, gmr_array * self.metric_gmr)).T  # Scale the query points
         distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points
         #print(np.shape(distances), np.shape(indices))
 

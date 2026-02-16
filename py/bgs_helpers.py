@@ -80,6 +80,32 @@ def determine_unobserved_from_z(column):
 
     return unobserved
 
+def table_to_df(table, app_mag_cut, z_min, z_max, keep_only_observed, keep_passes):
+    """
+    Convert an astropy table read from an LSS catalog to a pandas dataframe, applying some cuts.
+    """
+    # This reproduces the above.
+    names = [name for name in table.colnames if len(table[name].shape) <= 1] 
+    df = table[names].to_pandas()
+    df = df[np.where(df['PHOTSYS'] == b'N', df['APP_MAG_R'] < app_mag_cut+0.04, df['APP_MAG_R'] < app_mag_cut)]
+    df['UNOBSERVED'] = determine_unobserved_from_z(df['Z'])
+
+    galaxy_observed_filter = df['SPECTYPE'] == b'GALAXY'
+    deltachi2_filter = df['DELTACHI2'] > 40
+    observed_requirements = galaxy_observed_filter & (df['Z'] > z_min) & (df['Z'] < z_max) & deltachi2_filter
+    treat_as_unobserved = np.all([galaxy_observed_filter, np.invert(deltachi2_filter)], axis=0)
+
+    df['UNOBSERVED'] = df['UNOBSERVED'] | treat_as_unobserved
+    keep = np.all([np.logical_or(observed_requirements, df['UNOBSERVED'])], axis=0)
+
+    if keep_only_observed:
+        keep = np.all([keep, df['NTILE_MINE'] >= keep_passes, ~df['UNOBSERVED']], axis=0)
+    else:
+        keep = np.all([keep, df['NTILE_MINE'] >= keep_passes], axis=0)
+
+    df = df[keep]
+    return df
+
 def get_tbl_column(tbl, colname, required=False):
     if colname in tbl.columns:
         if np.ma.is_masked(tbl[colname]):
