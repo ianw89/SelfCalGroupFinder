@@ -458,7 +458,7 @@ def k_correct_bgs_v2(abs_mag, z_obs, gmr, photsys, band='r'):
 
 def k_correct_fromlookup(abs_mag_r, abs_mag_g, z_obs):
     lookup = kcorrlookup()
-    k_r, k_g = lookup.query(abs_mag_g - abs_mag_r, z_obs, abs_mag_r)
+    k_r, k_g = lookup.query(abs_mag_g - abs_mag_r, z_obs, abs_mag_r, k=50)
     return abs_mag_r - k_r, abs_mag_g - k_g
 
 SOLAR_L_R_BAND = 4.65
@@ -920,18 +920,35 @@ class kcorrlookup:
             kcorr_r_toreturn[valid_mask] = self.kcorr_r_values[indices]
             kcorr_g_toreturn[valid_mask] = self.kcorr_g_values[indices]
             return kcorr_r_toreturn, kcorr_g_toreturn
+        
+        # For k > 1
+        # Get k-corrections for all k neighbors
+        # Shape: (n_test, k)
+        neighbor_kcorr_r = self.kcorr_r_values[indices]
+        neighbor_kcorr_g = self.kcorr_g_values[indices]
 
-        # Pick random neighbors for each query point, weighted by distance
-        kcorr_r_valid = []
-        kcorr_g_valid = []
-        for i in range(len(query_points)):
-            wt = (1 / distances[i]) / np.sum(1 / distances[i])
-            idx = np.random.choice(indices[i], p=wt, size=1)[0]
-            kcorr_r_valid.append(self.kcorr_r_values[idx])
-            kcorr_g_valid.append(self.kcorr_g_values[idx])
+        # Calculate mean k-corrections across the k neighbors
+        # Shape: (n_test,)
+        mean_kcorr_r = np.mean(neighbor_kcorr_r, axis=1)
+        mean_kcorr_g = np.mean(neighbor_kcorr_g, axis=1)
+        
+        # Find which neighbor is closest to the mean
+        # Calculate distance from each neighbor's k-corr to the mean
+        # Shape: (n_test, k)
+        dist_to_mean = np.sqrt((neighbor_kcorr_r - mean_kcorr_r[:, np.newaxis])**2 + 
+                            (neighbor_kcorr_g - mean_kcorr_g[:, np.newaxis])**2)
+        
+        # Find index of closest neighbor to mean for each test point
+        # Shape: (n_test,)
+        closest_to_mean_idx = np.argmin(dist_to_mean, axis=1)
 
-        kcorr_r_toreturn[valid_mask] = np.array(kcorr_r_valid)
-        kcorr_g_toreturn[valid_mask] = np.array(kcorr_g_valid)
+        # Get the k-corrections from the neighbor closest to mean
+        # Use advanced indexing: for each test point i, get neighbor_kcorr_r[i, closest_to_mean_idx[i]]
+        pred_kcorr_r = neighbor_kcorr_r[np.arange(len(closest_to_mean_idx)), closest_to_mean_idx]
+        pred_kcorr_g = neighbor_kcorr_g[np.arange(len(closest_to_mean_idx)), closest_to_mean_idx]
+
+        kcorr_r_toreturn[valid_mask] = np.array(pred_kcorr_r)
+        kcorr_g_toreturn[valid_mask] = np.array(pred_kcorr_g)
         
         return kcorr_r_toreturn, kcorr_g_toreturn
 
