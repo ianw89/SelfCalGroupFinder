@@ -84,7 +84,6 @@ def table_to_df(table, app_mag_cut, z_min, z_max, keep_only_observed, keep_passe
     """
     Convert an astropy table read from an LSS catalog to a pandas dataframe, applying some cuts.
     """
-    # This reproduces the above.
     names = [name for name in table.colnames if len(table[name].shape) <= 1] 
     df = table[names].to_pandas()
     df = df[np.where(df['PHOTSYS'] == b'N', df['APP_MAG_R'] < app_mag_cut+0.04, df['APP_MAG_R'] < app_mag_cut)]
@@ -256,6 +255,8 @@ def read_fastspecfit_sv3():
         hdul[1].data['TARGETID'], 
         hdul[1].data['DN4000'], 
         hdul[1].data['DN4000_MODEL'], 
+        hdul[1].data['ABSMAG01_SDSS_Z'], 
+        hdul[1].data['ABSMAG01_IVAR_SDSS_Z'], 
         hdul[1].data['ABSMAG01_SDSS_G'], 
         hdul[1].data['ABSMAG01_IVAR_SDSS_G'], 
         hdul[1].data['ABSMAG01_SDSS_R'], 
@@ -267,7 +268,7 @@ def read_fastspecfit_sv3():
         hdul[1].data['HBETA_EW'],
         hdul[1].data['HBETA_EW_IVAR'],
         ], 
-        names=('Z_FSF', 'TARGETID', 'DN4000','DN4000_MODEL','ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
+        names=('Z_FSF', 'TARGETID', 'DN4000','DN4000_MODEL','ABSMAG01_SDSS_Z','ABSMAG01_IVAR_SDSS_Z','ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
     hdul.close()
     return fastspecfit_table
 
@@ -288,6 +289,8 @@ def read_fastspecfit_y1():
                     hdul[2].data['DN4000_IVAR'], 
                     hdul[2].data['DN4000_MODEL'], 
                     hdul[2].data['DN4000_MODEL_IVAR'], 
+                    hdul[2].data['ABSMAG01_SDSS_Z'], 
+                    hdul[2].data['ABSMAG01_IVAR_SDSS_Z'], 
                     hdul[2].data['ABSMAG01_SDSS_G'], 
                     hdul[2].data['ABSMAG01_IVAR_SDSS_G'], 
                     hdul[2].data['ABSMAG01_SDSS_R'], 
@@ -301,7 +304,7 @@ def read_fastspecfit_y1():
                     hdul[3].data['HBETA_EW'],
                     hdul[3].data['HBETA_EW_IVAR'],
                     ], 
-                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
+                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
                 hdul.close()
                 if h == hp[0]:
                     all_fastspecfit_table = fastspecfit_table
@@ -332,6 +335,8 @@ def read_fastspecfit_y3():
                     hdul[2].data['DN4000_IVAR'], 
                     hdul[2].data['DN4000_MODEL'], 
                     hdul[2].data['DN4000_MODEL_IVAR'], 
+                    hdul[2].data['ABSMAG01_SDSS_Z'], 
+                    hdul[2].data['ABSMAG01_IVAR_SDSS_Z'], 
                     hdul[2].data['ABSMAG01_SDSS_G'], 
                     hdul[2].data['ABSMAG01_IVAR_SDSS_G'], 
                     hdul[2].data['ABSMAG01_SDSS_R'], 
@@ -345,7 +350,7 @@ def read_fastspecfit_y3():
                     hdul[3].data['HBETA_EW'],
                     hdul[3].data['HBETA_EW_IVAR'],
                     ], 
-                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_G', 'ABSMAG01_SDSS_G_IVAR', 'ABSMAG01_SDSS_R', 'ABSMAG01_SDSS_R_IVAR', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
+                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR'))
                 hdul.close()
                 if h == hp[0]:
                     all_fastspecfit_table = fastspecfit_table
@@ -508,7 +513,7 @@ def add_physical_halflight_radius(table):
 def create_merged_file(orig_tbl_fn : str, merged_fn : str, year : str, photoz_wspec=True):
     print(f"CREATING MERGED FILE {merged_fn} for year {year}.", flush=True)
     # 'DCHISQ' not in SV3
-    columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS']
+    columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'FLUX_Z', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS']
     if ON_NERSC:
         import fitsio
         table = Table(fitsio.read(orig_tbl_fn, columns=columns))

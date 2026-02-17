@@ -885,7 +885,7 @@ class kcorrlookup:
             raise ValueError("Trying to load old version of kcorrlookup!")
         elif len(stuff) == 6:
             self.tree, self.kcorr_r_values, self.kcorr_g_values, self.metric_z, self.metric_gmr, self.metric_absmag_r = stuff
-        print("kcorrlookup loaded")
+        print(f"kcorrlookup loaded with metric_z={self.metric_z}, metric_gmr={self.metric_gmr}, metric_absmag_r={self.metric_absmag_r}")
 
     def query(self, gmr_array, z_array, absmag_r, k=1):
         """
@@ -952,7 +952,7 @@ class dn4000lookup:
             raise ValueError("Trying to load old version of dn4000lookup!")
         elif len(stuff) == 6:
             self.tree, self.kcorr_r_values, self.kcorr_g_values, self.metric_z, self.metric_gmr, self.metric_absmag_r = stuff
-        print("dn4000lookup loaded")
+        print(f"dn4000lookup loaded with metric_z={self.metric_z}, metric_gmr={self.metric_gmr}, metric_absmag_r={self.metric_absmag_r}")
         self.tree, self.dn4000_values, self.logmstar_values, self.metric_gmr, self.metric_magr = pickle.load(open(file, 'rb'))
 
     def query(self, abs_mag_array, gmr_array, k=1):
