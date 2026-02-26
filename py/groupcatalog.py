@@ -2479,7 +2479,8 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     assert np.isnan(dn4000_model).sum() == 0
     assert np.isnan(logmstar).sum() == 0
     # For lost galaxies, when we used the GAMA polynomial k-corr, the g-r method was better than the Dn4000 lookup to determine quiescent: 81% vs 76% correct.
-    # Now we are using a nearest neighbor lookup table to get k-corrections for lost galaxies, which is less biased in abs mag R but worse in g-r. So use dn4000 now.
+    # After switching to the knn lookup procedure with k=50, we get 86% of these correct.
+    # All these assume you have the right redshift though, I think.
     np.put(quiescent, needs_props_idx, is_quiescent_BGS_dn4000(log_L_gal[needs_props_idx], dn4000_model[needs_props_idx], gmr_best[needs_props_idx]))
 
     # Debug printing: let's print off first 20 lookups

@@ -3,14 +3,12 @@ Train the Dn4000 lookup table by optimizing metric parameters using MCMC.
 
 This script:
 1. Loads BGS Y1 data with Dn4000 measurements
-2. Uses MCMC (via emcee) to find optimal metric scaling for (abs_mag_r, g-r) space
-3. Builds and saves the final KDTree lookup table with optimal metrics
+2. Uses MCMC (via emcee) to find optimal metric, k value, and inner metric for distances within the k neighbors
+3. After running this use spectroscopic_properties_lookup.ipynb to build and save the final KDTree lookup table with optimal metrics and k value
 """
-
 import numpy as np
 import sys
-from scipy.spatial import KDTree
-import pickle
+from pykdtree.kdtree import KDTree # We use this faster but unserializable KDTree for the MCMC here.
 import emcee
 
 if './SelfCalGroupFinder/py/' not in sys.path:
@@ -25,42 +23,80 @@ def log_likelihood(params, magr_train, gmr_train, dn4000_train, logmstar_train,
     """
     Evaluate how well a given metric parameter performs for Dn4000 lookup accuracy.
     
-    params: [metric_gmr]
+    params: [metric_gmr, metric_k]
     metric_magr is fixed to 1.0
     """
     metric_gmr = params[0]
+    k = int(params[1])
+    inner_metric_dn4000 = params[2]
     
     # Rebuild KDTree with new metrics
     magr_scaled = magr_train  # metric_magr = 1.0
     gmr_scaled = gmr_train * metric_gmr
     
     train_points = np.vstack((magr_scaled, gmr_scaled)).T
+    train_points = np.ascontiguousarray(train_points, dtype=np.float32)
     kdtree_test = KDTree(train_points)
     
     # Query nearest neighbors
     test_points = np.vstack((magr_test, gmr_test * metric_gmr)).T
-    distances, indices = kdtree_test.query(test_points)
+    test_points = np.ascontiguousarray(test_points, dtype=np.float32)
+    distances, indices = kdtree_test.query(test_points, k=k)
     
-    # Get predicted values
-    pred_dn4000 = dn4000_train[indices]
-    pred_logmstar = logmstar_train[indices]
+    # Get predicted values for all k neighbors
+    # Shape: (n_test, k)
+    neighbor_dn4000 = dn4000_train[indices]
+    neighbor_logmstar = logmstar_train[indices]
+    
+    if k > 1:
+        # Calculate mean values across the k neighbors
+        # Shape: (n_test,)
+        mean_dn4000 = np.mean(neighbor_dn4000, axis=1)
+        mean_logmstar = np.mean(neighbor_logmstar, axis=1)
+        
+        # Calculate distance from each neighbor's values to the mean; this is a choice of metric here again
+        # Shape: (n_test, k)
+        dist_to_mean = np.sqrt(inner_metric_dn4000 * (neighbor_dn4000 - mean_dn4000[:, np.newaxis])**2 + 
+                               (neighbor_logmstar - mean_logmstar[:, np.newaxis])**2)
+        
+        # Find index of closest neighbor to mean for each test point
+        # Shape: (n_test,)
+        closest_to_mean_idx = np.argmin(dist_to_mean, axis=1)
+        
+        # Get the values from the neighbor closest to mean
+        # Use advanced indexing
+        pred_dn4000 = neighbor_dn4000[np.arange(len(closest_to_mean_idx)), closest_to_mean_idx]
+        pred_logmstar = neighbor_logmstar[np.arange(len(closest_to_mean_idx)), closest_to_mean_idx]
+    else:
+        # If k=1, just take the single nearest neighbor
+        pred_dn4000 = neighbor_dn4000.flatten()
+        pred_logmstar = neighbor_logmstar.flatten()
     
     # Calculate errors
     dn4000_errors = np.abs(pred_dn4000 - dn4000_test)
     logmstar_errors = np.abs(pred_logmstar - logmstar_test)
     
-    # Log likelihood: negative mean absolute error
-    # Weight Dn4000 more heavily as it's the primary target
-    log_like = -(2.0 * np.mean(dn4000_errors) + 1.0 * np.mean(logmstar_errors))
+    # Log likelihood: root mean square of each
+    # Weight Dn4000 more heavily as it's the primary target and a narrower range
+    log_like = -(2.0 * np.sqrt(np.mean(dn4000_errors**2)) + np.sqrt(np.mean(logmstar_errors**2)))
     
+    # Debug prints
+    print(f"Testing: k={k}, metric_gmr={metric_gmr:.2f}")
+    print(f"  Mean distance: {np.mean(distances):.4f}")
+    print(f"  RMSE Dn4000: {np.sqrt(np.mean(dn4000_errors**2)):.4f}")   
+    print(f"  RMSE logmstar: {np.sqrt(np.mean(logmstar_errors**2)):.4f}")
+    print(f"  Log likelihood: {log_like:.4f}")
+
     return log_like
 
 def log_prior(params):
     """Uniform prior on metric parameter"""
     metric_gmr = params[0]
+    k = params[1]
+    inner_metric_dn4000 = params[2]
     
     # Reasonable bounds for g-r metric
-    if 0.3 < metric_gmr < 50.0:
+    if 0.3 < metric_gmr < 50.0 and 1 <= k <= 75 and 0.1 <= inner_metric_dn4000 <= 20.0:
         return 0.0
     return -np.inf
 
@@ -82,22 +118,22 @@ def main():
     print(f"Loaded {len(df):,} galaxies")
     
     # Filter to galaxies with all required data
-    goodidx = (~np.isnan(df['ABS_MAG_R']) & 
-               ~np.isnan(df['ABS_MAG_G']) & 
+    goodidx = (~np.isnan(df['ABSMAG01_SDSS_R']) & 
+               ~np.isnan(df['ABSMAG01_SDSS_G']) & 
                ~np.isnan(df['DN4000_MODEL']) &
                ~np.isnan(df['LOGMSTAR']))
     
     print(f"Number of galaxies with good data: {np.sum(goodidx):,}")
     
     # Extract data
-    magr = df.loc[goodidx, 'ABS_MAG_R'].to_numpy()
-    magg = df.loc[goodidx, 'ABS_MAG_G'].to_numpy()
+    magr = df.loc[goodidx, 'ABSMAG01_SDSS_R'].to_numpy()
+    magg = df.loc[goodidx, 'ABSMAG01_SDSS_G'].to_numpy()
     gmr = magg - magr
     dn4000 = df.loc[goodidx, 'DN4000_MODEL'].to_numpy()
     logmstar = df.loc[goodidx, 'LOGMSTAR'].to_numpy()
     
     # Split into training and test sets
-    np.random.seed(9853)
+    np.random.seed(83592)
     shuffled_indices = np.random.permutation(len(magr))
     train_size = int(0.8 * len(shuffled_indices))
     train_indices = shuffled_indices[:train_size]
@@ -119,18 +155,18 @@ def main():
     # Set up MCMC
     print("\nSetting up MCMC...")
     n_walkers = 8
-    n_dim = 1
+    n_dim = 3
     
     # Starting positions for walkers
-    pos = np.random.uniform(low=0.5, high=20.0, size=(n_walkers, n_dim))
-    pos[0] = [4.0]
-    pos[1] = [5.0]
-    pos[2] = [6.0]
-    pos[3] = [4.5]
-    pos[4] = [5.5]
+    pos = np.random.uniform(low=[0.5, 1, 0.5], high=[10.0, 50, 10.0], size=(n_walkers, n_dim))
+    pos[0] = [4.0, 30, 3]
+    pos[1] = [5.0, 20, 4]
+    pos[2] = [6.0, 40, 5]
+    pos[3] = [4.5, 15, 2]
+    pos[4] = [5.5, 25, 1]
     
     # Create backend
-    backend_file = "dn4000_lookup_optimization.h5"
+    backend_file = OUTPUT_FOLDER + "dn4000_lookup_optimization.h5"
     backend = emcee.backends.HDFBackend(backend_file)
     backend.reset(n_walkers, n_dim)
     
@@ -142,62 +178,9 @@ def main():
     
     # Run MCMC
     print("Running MCMC...")
-    n_steps = 500
+    n_steps = 300
     sampler.run_mcmc(pos, n_steps, progress=True)
-    
-    # Get results
-    print("\nAnalyzing results...")
-    samples = sampler.get_chain(discard=50, flat=True)
-    log_prob = sampler.get_log_prob(discard=50, flat=True)
-    
-    # Find optimal parameters
-    best_idx = np.argmax(log_prob)
-    optimal_metric_gmr = samples[best_idx, 0]
-    
-    print("\nOptimal parameters:")
-    print(f"  METRIC_GMR: {optimal_metric_gmr:.3f}")
-    print(f"  METRIC_MAGR: 1.00 (fixed)")
-    print(f"  Best log likelihood: {log_prob[best_idx]:.4f}")
-    
-    # Build final lookup table with optimal metrics
-    print(f"\nBuilding final lookup table...")
-    
-    # Use all good galaxies for final table
-    magr_scaled = magr  # metric_magr = 1.0
-    gmr_scaled = gmr * optimal_metric_gmr
-    
-    lookup_points = np.vstack((magr_scaled, gmr_scaled)).T
-    kdtree = KDTree(lookup_points)
-    
-    print(f"Built KDTree with {len(lookup_points):,} galaxies")
-    
-    # Save lookup table
-    lookup_data = (kdtree, dn4000, logmstar, optimal_metric_gmr, 1.0)
-    
-    with open(BGS_Y3_DN4000_LOOKUP_FILE, 'wb') as f:
-        pickle.dump(lookup_data, f)
-    
-    print(f"\nSaved lookup table to {BGS_Y3_DN4000_LOOKUP_FILE}")
-    
-    # Validate on test set
-    print("\nValidating on test set...")
-    test_points = np.vstack((magr_test, gmr_test * optimal_metric_gmr)).T
-    distances, indices = kdtree.query(test_points)
-    
-    pred_dn4000 = dn4000[indices]
-    pred_logmstar = logmstar[indices]
-    
-    dn4000_error = pred_dn4000 - dn4000_test
-    logmstar_error = pred_logmstar - logmstar_test
-    
-    print(f"  Dn4000 MAE: {np.mean(np.abs(dn4000_error)):.4f}")
-    print(f"  Dn4000 RMS: {np.sqrt(np.mean(dn4000_error**2)):.4f}")
-    print(f"  LogMstar MAE: {np.mean(np.abs(logmstar_error)):.4f}")
-    print(f"  LogMstar RMS: {np.sqrt(np.mean(logmstar_error**2)):.4f}")
-    
-    print("\n" + "="*60)
-    print("Training complete!")
-    print("="*60)
 
+    
 if __name__ == "__main__":
     main()

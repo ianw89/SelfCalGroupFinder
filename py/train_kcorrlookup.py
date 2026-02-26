@@ -1,3 +1,11 @@
+"""
+Train the kcorrlookup table by optimizing metric parameters and k value.
+
+This script:
+1. Loads BGS Y1 data with k-correction measurements
+2. Uses MCMC (via emcee) to find optimal metric scaling for (z, g-r, abs_mag_r) space and optimal k value
+3. After running this use spectroscopic_properties_lookup.ipynb to build and save the final KDTree lookup table with optimal metrics and k value
+"""
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -16,12 +24,12 @@ from groupcatalog import BGS_Z_MAX, BGS_Z_MIN
 
 #####################################################
 # Lesson: The metric does not matter almost at all. So long as the numerical range of the property values is roughly comparable,
-# the KDTree lookup finds the same neighbors. 
+# the KDTree lookup finds the same d neighbors where d is # of dimensions. 
 # The k number of neighbors DOES matter. We get rapid gains from k=1 to k=10 or so, and very slow gains to k=100. 
 # It's close enough to converged that I will not botehr looking beyond that.
 # The mean distance is still close in property space at k=100 so it's defintely not TOO big. No turnover in performance yet.
 
-# The feature choice probably matters more than the metric choice.
+# The feature choice is still to be explored, g-z might be useful, maybe SERSIC.
 ##################################################
 
 
@@ -188,7 +196,7 @@ def optimize_metric():
     n_dim = 2
 
     # Set up sampler
-    backend_file = "kcorr_lookup_optimization.h5"
+    backend_file = OUTPUT_FOLDER + "kcorr_lookup_optimization.h5"
     backend = emcee.backends.HDFBackend(backend_file)
 
     # Check if we should continue an existing run

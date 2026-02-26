@@ -19,6 +19,9 @@ from astropy.table import Table
 from emcee.backends import Backend
 from numpy.polynomial.polynomial import Polynomial
 from astropy.cosmology import z_at_value
+#from pykdtree.kdtree import KDTree # Way faster, but not pickleable
+from scipy.spatial.kdtree import KDTree
+
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -458,7 +461,7 @@ def k_correct_bgs_v2(abs_mag, z_obs, gmr, photsys, band='r'):
 
 def k_correct_fromlookup(abs_mag_r, abs_mag_g, z_obs):
     lookup = kcorrlookup()
-    k_r, k_g = lookup.query(abs_mag_g - abs_mag_r, z_obs, abs_mag_r, k=50)
+    k_r, k_g = lookup.query(abs_mag_g - abs_mag_r, z_obs, abs_mag_r)
     return abs_mag_r - k_r, abs_mag_g - k_g
 
 SOLAR_L_R_BAND = 4.65
@@ -634,7 +637,7 @@ def fsat_truth_vmax_weighted(series):
         return np.average(series['IS_SAT_T'], weights=1/series['VMAX'])
     
 def fsat_vmax_weighted(series):
-    if len(series) == 0:
+    if len(series) <= 99:
         return np.nan
     else:
         return np.average(series['IS_SAT'], weights=1/series['VMAX'])
@@ -666,6 +669,15 @@ def LogLgal_vmax_weighted(series):
         return np.nan
     else:
         return np.log10(np.average(series['L_GAL'], weights=1/series['VMAX']))
+
+
+def LogLgal_lognormal_scatter_unweighted(series):
+    if len(series) <= 1:
+        return np.nan
+    else:
+        mu = LogLgal_vmax_weighted(series)
+        values = np.log10(series['L_GAL'])
+        return np.sqrt(np.mean((values - mu)**2))
 
 def LogLgal_lognormal_scatter_vmax_weighted(series):
     if len(series) <= 99:
@@ -884,14 +896,15 @@ class kcorrlookup:
         if len(stuff) == 3:
             raise ValueError("Trying to load old version of kcorrlookup!")
         elif len(stuff) == 6:
-            self.tree, self.kcorr_r_values, self.kcorr_g_values, self.metric_z, self.metric_gmr, self.metric_absmag_r = stuff
+            lookup_points, self.kcorr_r_values, self.kcorr_g_values, self.metric_z, self.metric_gmr, self.metric_absmag_r = stuff
+            self.tree = KDTree(lookup_points)
         print(f"kcorrlookup loaded with metric_z={self.metric_z}, metric_gmr={self.metric_gmr}, metric_absmag_r={self.metric_absmag_r}")
 
-    def query(self, gmr_array, z_array, absmag_r, k=1):
+    def query(self, gmr_array, z_array, absmag_r, k=50):
         """
         Docstring for query
         
-        :param gmr_array: g - r
+        :param gmr_array: apparent g - r
         :param z_array: Redshifts.
         :param absmag_r: r-band absolute magnitudes (before k-correction)
         :param k: Number of neighbors to consider.
@@ -921,24 +934,21 @@ class kcorrlookup:
             kcorr_g_toreturn[valid_mask] = self.kcorr_g_values[indices]
             return kcorr_r_toreturn, kcorr_g_toreturn
         
-        # For k > 1
-        # Get k-corrections for all k neighbors
+        # For k > 1, we will take the mean k-correction of the neighbors and then 
+        # find the neighbor closest to that mean to return a single k-correction value.
         # Shape: (n_test, k)
         neighbor_kcorr_r = self.kcorr_r_values[indices]
         neighbor_kcorr_g = self.kcorr_g_values[indices]
 
-        # Calculate mean k-corrections across the k neighbors
         # Shape: (n_test,)
         mean_kcorr_r = np.mean(neighbor_kcorr_r, axis=1)
         mean_kcorr_g = np.mean(neighbor_kcorr_g, axis=1)
         
-        # Find which neighbor is closest to the mean
         # Calculate distance from each neighbor's k-corr to the mean
         # Shape: (n_test, k)
         dist_to_mean = np.sqrt((neighbor_kcorr_r - mean_kcorr_r[:, np.newaxis])**2 + 
                             (neighbor_kcorr_g - mean_kcorr_g[:, np.newaxis])**2)
         
-        # Find index of closest neighbor to mean for each test point
         # Shape: (n_test,)
         closest_to_mean_idx = np.argmin(dist_to_mean, axis=1)
 
@@ -954,12 +964,9 @@ class kcorrlookup:
 
 class dn4000lookup:
     """ 
-    This is a lookup table for dn4000 values based on absolute magnitude and g-r color.
+    This is a lookup table for dn4000 values based on k correctd absolute magnitude and k corrected g-r color.
     It uses a KDTree for fast nearest neighbor search.
     """
-
-    #METRIC_MAG = 1
-    #METRIC_GMR = 5
 
     def __init__(self, file = BGS_Y3_DN4000_LOOKUP_FILE):
         if file is None or os.path.isfile(file) is False:
@@ -967,38 +974,75 @@ class dn4000lookup:
         stuff = pickle.load(open(file, 'rb'))
         if len(stuff) == 3:
             raise ValueError("Trying to load old version of dn4000lookup!")
-        elif len(stuff) == 6:
-            self.tree, self.kcorr_r_values, self.kcorr_g_values, self.metric_z, self.metric_gmr, self.metric_absmag_r = stuff
-        print(f"dn4000lookup loaded with metric_z={self.metric_z}, metric_gmr={self.metric_gmr}, metric_absmag_r={self.metric_absmag_r}")
-        self.tree, self.dn4000_values, self.logmstar_values, self.metric_gmr, self.metric_magr = pickle.load(open(file, 'rb'))
+        elif len(stuff) == 7:
+            self.tree, self.dn4000_values, self.logmstar_values, self.metric_gmr, self.metric_magr, self.inner_metric_dn4000, self.inner_metric_mstar = stuff
+        print(f"dn4000lookup loaded with metric_gmr={self.metric_gmr}, metric_magr={self.metric_magr}, inner_metric_dn4000={self.inner_metric_dn4000}, inner_metric_mstar={self.inner_metric_mstar}")
 
-    def query(self, abs_mag_array, gmr_array, k=1):
-        # If not numpy arrays, convert
-        if not isinstance(abs_mag_array, np.ndarray):
-            abs_mag_array = np.array(abs_mag_array)
-        if not isinstance(gmr_array, np.ndarray):
-            gmr_array = np.array(gmr_array)
-            
-        query_points = np.vstack((abs_mag_array * self.metric_magr, gmr_array * self.metric_gmr)).T  # Scale the query points
-        distances, indices = self.tree.query(query_points, k=k)  # Query the KDTree for multiple points
-        #print(np.shape(distances), np.shape(indices))
+
+
+    def query(self, abs_mag_array, gmr_array, k=50):
+        """
+        Query the Dn4000 and log(M_star) lookup table.
+        
+        :param abs_mag_array: r-band absolute magnitudes with k corrections
+        :param gmr_array: k corrected g - r color
+        :param k: Number of neighbors to consider.
+        :return: (dn4000_values, logmstar_values) for the input galaxies
+        """
+        # Create mask for valid (non-nan, non-inf) inputs
+        valid_mask = np.isfinite(abs_mag_array) & np.isfinite(gmr_array)
+        
+        # Initialize output arrays with nan
+        dn4000_toreturn = np.full_like(abs_mag_array, np.nan, dtype=float)
+        logmstar_toreturn = np.full_like(abs_mag_array, np.nan, dtype=float)
+        
+        # If no valid inputs, return nan arrays
+        if not np.any(valid_mask):
+            return dn4000_toreturn, logmstar_toreturn
+        
+        # Only query valid points
+        query_points = np.vstack((
+            abs_mag_array[valid_mask] * self.metric_magr,
+            gmr_array[valid_mask] * self.metric_gmr,
+        )).T
+        distances, indices = self.tree.query(query_points, k=k)
 
         if k == 1:
             # If k=1, return single nearest neighbor values
-            dn4000_toreturn = self.dn4000_values[indices]
-            logmstar_toreturn = self.logmstar_values[indices]
+            dn4000_toreturn[valid_mask] = self.dn4000_values[indices]
+            logmstar_toreturn[valid_mask] = self.logmstar_values[indices]
             return dn4000_toreturn, logmstar_toreturn
+        
+        # For k > 1, we will take the mean value of the neighbors and then 
+        # find the neighbor closest to that mean to return single values.
+        # Shape: (n, k)
+        neighbor_dn4000 = self.dn4000_values[indices]
+        neighbor_logmstar = self.logmstar_values[indices]
 
-        # Pick random neighbors for each query point, weighted by distance
-        dn4000_toreturn = []
-        logmstar_toreturn = []
-        for i in range(len(query_points)):
-            wt = (1 / distances[i]) / np.sum(1 / distances[i])
-            idx = np.random.choice(indices[i], p=wt, size=1)[0]
-            dn4000_toreturn.append(self.dn4000_values[idx])
-            logmstar_toreturn.append(self.logmstar_values[idx])
+        # Shape: (n,)
+        mean_dn4000 = np.mean(neighbor_dn4000, axis=1)
+        mean_logmstar = np.mean(neighbor_logmstar, axis=1)
+        
+        # Calculate distance from each neighbor's values to the mean
+        # Normalize by the inner metrics to weight them appropriately
+        # Shape: (n, k)
+        dist_to_mean = np.sqrt(
+            self.inner_metric_dn4000 * (neighbor_dn4000 - mean_dn4000[:, np.newaxis])**2 + 
+            self.inner_metric_mstar * (neighbor_logmstar - mean_logmstar[:, np.newaxis])**2
+        )
+        
+        # Shape: (n,)
+        closest_to_mean_idx = np.argmin(dist_to_mean, axis=1)
 
-        return np.array(dn4000_toreturn), np.array(logmstar_toreturn)
+        # Get the values from the neighbor closest to mean
+        # Use advanced indexing: for each test point i, get neighbor_dn4000[i, closest_to_mean_idx[i]]
+        pred_dn4000 = neighbor_dn4000[np.arange(len(closest_to_mean_idx)), closest_to_mean_idx]
+        pred_logmstar = neighbor_logmstar[np.arange(len(closest_to_mean_idx)), closest_to_mean_idx]
+
+        dn4000_toreturn[valid_mask] = np.array(pred_dn4000)
+        logmstar_toreturn[valid_mask] = np.array(pred_logmstar)
+        
+        return dn4000_toreturn, logmstar_toreturn        
 
 
 

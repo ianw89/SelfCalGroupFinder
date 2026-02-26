@@ -72,7 +72,7 @@ def process_gc(gc: GroupCatalog):
         if result:
             gc.calc_wp_for_mock()
             gc.postprocess()
-            if name == "BGS Y1 C2":
+            if name == "BGS Y1 C2" or name == "BGS Y1 C3":
                 gc.bootstrap_statistics()
                 gc.fit_hod_thresholds_to_model_for_display()
                 #gc.fit_hod_bins_to_model_for_display()
