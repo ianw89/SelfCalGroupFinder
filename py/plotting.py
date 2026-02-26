@@ -585,6 +585,75 @@ def LHMR_scatter_nsat(f: GroupCatalog):
     
     plt.tight_layout()
 
+
+def LHMR_scatter_zcuts(f: GroupCatalog, z_bins=None):
+    """
+    Show evolution of LHMR scatter with redshift cuts.
+    Similar to LHMR_scatter_nsat but uses redshift bins instead of Nsat cuts.
+    
+    Parameters
+    ----------
+    f : GroupCatalog
+        The catalog to analyze
+    z_bins : array-like, optional
+        Redshift bin edges. If None, uses default bins from 0.01 to 0.5
+    """
+    if z_bins is None:
+        z_bins = [0.001, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45]
+    
+    clean = f.centrals
+    scatter_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_lognormal_scatter_unweighted)
+    scatter_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_lognormal_scatter_unweighted)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), dpi=DPI)
+    x_vals = np.log10(Mhalo_labels2)
+    
+    # Red galaxies panel
+    axes[0].plot(x_vals, scatter_r, '--', color='darkred', label='Q Centrals (all)', alpha=1.0, linewidth=2)
+    for i in range(len(z_bins)-1):
+        #z_low = z_bins[i]
+        z_high = z_bins[i+1]
+        c = plt.cm.Reds(1 - (0.3 + 0.7 * (i / (len(z_bins)-1))))
+        clean_zcut = clean.loc[clean['Z'] < z_high]
+        scatter_r_zcut = clean_zcut.loc[clean_zcut['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_lognormal_scatter_unweighted)
+        plt.sca(axes[0])
+        plt.plot(x_vals, scatter_r_zcut, '-', color=c, alpha=1.0, label=f'z < {z_high:.2f}')
+    
+    axes[0].set_xlabel('log$(M_h~/~[M_{\odot} h^{-1}]$)')
+    axes[0].set_ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}}~/~[L_{\odot} h^{-2}])}$')
+    axes[0].set_xlim(10, 15)
+    axes[0].set_ylim(0.0, 0.3)
+    #axes[0].legend()
+    axes[0].set_title('Quiescent')
+    
+    ax0_twin = axes[0].twinx()
+    ax0_twin.set_ylim(0, np.abs(log_solar_L_to_abs_mag_r(9.4) - log_solar_L_to_abs_mag_r(9)))
+    ax0_twin.set_ylabel(r'$\sigma_{M_r}$')
+    
+    # Blue galaxies panel
+    axes[1].plot(x_vals, scatter_b, '--', color='darkblue', label='SF Centrals (all)', alpha=1.0, linewidth=2)
+    for i in range(len(z_bins)-1):
+        #z_low = z_bins[i]
+        z_high = z_bins[i+1]
+        c = plt.cm.Blues(1 - (0.3 + 0.7 * (i / (len(z_bins)-1))))
+        clean_zcut = clean.loc[(clean['Z'] < z_high)]
+        scatter_b_zcut = clean_zcut.loc[~clean_zcut['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_lognormal_scatter_unweighted)
+        plt.sca(axes[1])
+        plt.plot(x_vals, scatter_b_zcut, '-', color=c, alpha=1.0, label=f'z < {z_high:.2f}')
+    
+    axes[1].set_xlabel('log$(M_h~/~[M_{\odot} h^{-1}]$)')
+    axes[1].set_ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}}~/~[L_{\odot} h^{-2}])}$')
+    axes[1].set_xlim(10, 15)
+    axes[1].set_ylim(0.0, 0.3)
+    #axes[1].legend()
+    axes[1].set_title('Star-forming')
+    
+    ax1_twin = axes[1].twinx()
+    ax1_twin.set_ylim(0, np.abs(log_solar_L_to_abs_mag_r(9.4) - log_solar_L_to_abs_mag_r(9)))
+    ax1_twin.set_ylabel(r'$\sigma_{M_r}$')
+    
+    plt.tight_layout()
+
 def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
     clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
     #clean = clean.loc[clean['N_SAT'] > 0]
@@ -741,29 +810,58 @@ def fsat_with_bootstrapped_err(gc: GroupCatalog):
     plt.tight_layout()
 
 def fsat_with_err_from_saved(gc: GroupCatalog, show_all=False):
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), dpi=DPI)
+    
+    # Left panel: fsat vs Luminosity
+    fsat = gc.all_data.groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+    fsatr = gc.all_data[gc.all_data['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+    fsatb = gc.all_data[~gc.all_data['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(fsat_vmax_weighted)
+
     fsat_err, fsatr_err, fsatb_err, fsat_mean, fsatr_mean, fsatb_mean = fsat_variance_from_saved()
-    rcut = 11
-
-    plt.figure(dpi=DPI)
-    if show_all:
-        plt.errorbar(LogLgal_labels, gc.fsat, yerr=gc.fsat_bootstrap_err, fmt='.', color='k', label='All', markersize=6, capsize=4, alpha=1.0)
-    plt.errorbar(LogLgal_labels[rcut:], gc.fsatr[rcut:], yerr=(gc.fsat_q_bootstrap_err[0][rcut:], gc.fsat_q_bootstrap_err[1][rcut:]), fmt='.', color='r', label='Quiescent', markersize=6, capsize=4, alpha=1.0)
-    plt.errorbar(LogLgal_labels, gc.fsatb, yerr=gc.fsat_sf_bootstrap_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=4, alpha=1.0)
+    rcut = 12
+    rshade = 12 # 11
 
     if show_all:
-        plt.fill_between(LogLgal_labels, fsat_err[0], fsat_err[1], color='k', alpha=0.2)
-    plt.fill_between(LogLgal_labels[rcut:], fsatr_err[0][rcut:], fsatr_err[1][rcut:], color='r', alpha=0.2) 
-    plt.fill_between(LogLgal_labels, fsatb_err[0], fsatb_err[1], color='b', alpha=0.2)
+        axes[0].errorbar(LogLgal_labels, fsat, yerr=gc.fsat_bootstrap_err, fmt='.', color='k', label='All', markersize=6, capsize=4, alpha=1.0)
+    axes[0].errorbar(LogLgal_labels, fsatr, yerr=(gc.fsat_q_bootstrap_err[0], gc.fsat_q_bootstrap_err[1]), fmt='.', color='r', label='Quiescent', markersize=6, capsize=4, alpha=1.0)
+    axes[0].errorbar(LogLgal_labels, fsatb, yerr=gc.fsat_sf_bootstrap_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=4, alpha=1.0)
 
-    plt.xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~h^{-2}])$')
-    plt.ylabel('$f_{\mathrm{sat}}$')
-    plt.legend()
-    plt.xlim(7,LOG_LGAL_MAX_TIGHT)
-    plt.ylim(0.0, 1.0)
-    plt.twiny()
-    plt.xticks(np.arange(-23, -9, 2))
-    plt.xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
-    plt.xlabel("$M_r$ - 5log(h)")
+    if show_all:
+        axes[0].fill_between(LogLgal_labels, fsat_err[0], fsat_err[1], color='k', alpha=0.2)
+    axes[0].fill_between(LogLgal_labels[rcut:], fsatr_err[0][rcut:], fsatr_err[1][rcut:], color='r', alpha=0.2) 
+    axes[0].fill_between(LogLgal_labels, fsatb_err[0], fsatb_err[1], color='b', alpha=0.2)
+
+    # Shade left of rshade to indicate unreliable region for quiescent due to low counts
+    #axes[0].axvspan(LogLgal_labels[0], LogLgal_labels[rshade], color='red', alpha=0.1, label='Q unreliable')
+
+    axes[0].set_xlabel('log$(L_{\mathrm{gal}}~/~[L_{\odot}~h^{-2}])$')
+    axes[0].set_ylabel('$f_{\mathrm{sat}}$')
+    axes[0].legend()
+    axes[0].set_xlim(7, LOG_LGAL_MAX_TIGHT)
+    axes[0].set_ylim(0.0, 1.0)
+    
+    ax0_twin = axes[0].twiny()
+    ax0_twin.set_xticks(np.arange(-23, -9, 2))
+    ax0_twin.set_xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
+    ax0_twin.set_xlabel("$M_r$ - 5log(h)")
+
+    # Right panel: fsat vs Stellar Mass
+    fsat_mstar = gc.all_data.groupby('Mstar_bin', observed=False).apply(fsat_vmax_weighted)
+    fsat_mstar_r = gc.all_data[gc.all_data['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(fsat_vmax_weighted)
+    fsat_mstar_b = gc.all_data[~gc.all_data['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(fsat_vmax_weighted)
+    
+    if show_all:
+        axes[1].errorbar(logmstar_labels, fsat_mstar, yerr=gc.fsat_mstar_bootstrap_err, fmt='.', color='k', label='All', markersize=6, capsize=4, alpha=1.0)
+    axes[1].errorbar(logmstar_labels, fsat_mstar_r, yerr=gc.fsat_mstar_q_bootstrap_err, fmt='.', color='r', label='Quiescent', markersize=6, capsize=4, alpha=1.0)
+    axes[1].errorbar(logmstar_labels, fsat_mstar_b, yerr=gc.fsat_mstar_sf_bootstrap_err, fmt='.', color='b', label='Star-forming', markersize=6, capsize=4, alpha=1.0)
+    
+    axes[1].set_xlabel('log$(M_{\\star}~/~[M_{\\odot}~h^{-2}])$')
+    axes[1].set_ylabel('$f_{\mathrm{sat}}$')
+    axes[1].legend()
+    axes[1].set_xlim(7, 12)
+    axes[1].set_ylim(0.0, 1.0)
+    
     plt.tight_layout()
 
 def plots(*catalogs, show_err=None, truth_on=False):
