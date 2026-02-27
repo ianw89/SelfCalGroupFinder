@@ -22,6 +22,7 @@ parser.add_argument("--version", help="catalog version for input",default='3.1')
 parser.add_argument("--survey", help="e.g., Y1, DA2",default='SV3')
 parser.add_argument("--verspec",help="version for redshifts",default='fuji')
 parser.add_argument("--use_map_veto", help="string to include in full file name denoting whether map veto was applied",default='')
+parser.add_argument("--passfilter", help="cut tables to this number of passes based on NTILE_MINE",default='')
 parser.add_argument("--f", help="junk",default='')
 
 args = parser.parse_args()
@@ -55,10 +56,19 @@ def _add2ran(rn):
         to_remove = np.isin(region, sv3_poor_y3overlap)
         l1 = len(tbl)
         tbl = tbl[~to_remove]
-        print(f"Length before/after SV3 region removal: {l1} {len(tbl)}")
+        print(f"Length before/after SV3 region removal: {l1} {len(tbl)}", flush=True)
+    
+    # If passfilter is set, filter to only those passes
+    if args.passfilter != '':
+        passfilter = int(args.passfilter)
+        print(f"Applying passfilter of {passfilter}", flush=True)
+        to_keep = tbl['NTILE_MINE'] >= passfilter
+        l1 = len(tbl)
+        tbl = tbl[to_keep]
+        print(f"Length before/after passfilter {passfilter}: {l1} {len(tbl)}", flush=True)
 
     tbl.write(fname_out, overwrite=True)
-    print(f"Processed {rn}")
+    print(f"Processed {rn}", flush=True)
 
 
 # In[ ]:
