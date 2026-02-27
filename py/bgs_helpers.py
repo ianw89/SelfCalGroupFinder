@@ -268,9 +268,8 @@ def read_fastspecfit_sv3():
         hdul[1].data['HBETA_EW'],
         hdul[1].data['HBETA_EW_IVAR'],
         hdul[1].data['AGE'],
-        hdul[1].data['AGE_IVAR'],
         ], 
-        names=('Z_FSF', 'TARGETID', 'DN4000','DN4000_MODEL','ABSMAG01_SDSS_Z','ABSMAG01_IVAR_SDSS_Z','ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE', 'AGE_IVAR'))
+        names=('Z_FSF', 'TARGETID', 'DN4000','DN4000_MODEL','ABSMAG01_SDSS_Z','ABSMAG01_IVAR_SDSS_Z','ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE'))
     hdul.close()
     return fastspecfit_table
 
@@ -306,9 +305,8 @@ def read_fastspecfit_y1():
                     hdul[3].data['HBETA_EW'],
                     hdul[3].data['HBETA_EW_IVAR'],
                     hdul[2].data['AGE'],
-                    hdul[2].data['AGE_IVAR'],
                     ], 
-                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE', 'AGE_IVAR'))
+                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE'))
                 hdul.close()
                 if h == hp[0]:
                     all_fastspecfit_table = fastspecfit_table
@@ -354,9 +352,8 @@ def read_fastspecfit_y3():
                     hdul[3].data['HBETA_EW'],
                     hdul[3].data['HBETA_EW_IVAR'],
                     hdul[2].data['AGE'],
-                    hdul[2].data['AGE_IVAR'],
                     ], 
-                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE', 'AGE_IVAR'))
+                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE'))
                 hdul.close()
                 if h == hp[0]:
                     all_fastspecfit_table = fastspecfit_table
