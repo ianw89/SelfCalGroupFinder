@@ -22,7 +22,11 @@ NBINS = 10
 PIMAX = 40.0  # TODO tune   
 RBINS = np.logspace(np.log10(RMIN), np.log10(RMAX), NBINS + 1)
 
-
+##############################################################
+# This is an alternative way of using corrfunc to get clustering.
+# I have not been using this as I use NERSC and the DESI stack for clustering usually.
+# Consider this code untested.
+##############################################################
 
 def calculate_wp_from_df(df: pd.DataFrame, randoms, data_weights=None, rand_weights=None):
     """
