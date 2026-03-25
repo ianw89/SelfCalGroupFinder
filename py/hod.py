@@ -70,7 +70,7 @@ def _thresh_log_probability(theta, x, y, yerr, model_func, lower_bounds, upper_b
         return -np.inf
     return lp + _thresh_log_likelihood(theta, x, y, yerr, model_func)
 
-def fit_hod_thresholds_mcmc(log_halo_mass, logn, unweighted_counts, model_func, p0, bounds, min_counts=1, base_err=0.1, nwalkers=10, nsteps=10000, discard=0):
+def fit_hod_thresholds_mcmc(log_halo_mass, logn, unweighted_counts, model_func, p0, bounds, min_counts=10, base_err=0.1, nwalkers=10, nsteps=10000, discard=0):
     """
     Fits a threshold HOD model to data using MCMC with emcee.
     The error is calculated from the unweighted counts.
@@ -116,7 +116,7 @@ def fit_hod_threshold_models(log_halo_mass, logncen, lognsat, unweighted_counts,
     cenmodel = hod_central_threshold_blue_model if color == 'b' else hod_central_threshold_model
     
     # --- Satellites ---
-    satmask = lognsat > -4 # For the fitting, only use these points
+    satmask = lognsat > -3 # For the fitting, only use these points
     p0_sat = [log_halo_mass[satmask][0], log_halo_mass[satmask][8], 1.0]
     if color == 'b':
         p0_sat[2] = 0.8
@@ -223,7 +223,7 @@ def hod_satellite_model(logM, logM_cut, logM_1, alpha):
     base = np.fmax((M - M_cut) / (M_1+1e-6), 1e-6) 
     return np.log10((base)**alpha)
 
-def fit_hod_models(log_halo_mass, logncen, lognsat, use_mcmc=True):
+def fit_hod_models(log_halo_mass, logncen, lognsat, unweighted_counts, use_mcmc=True):
     """
     Fits HOD data to standard models using either curve_fit or MCMC.
     """
@@ -232,12 +232,12 @@ def fit_hod_models(log_halo_mass, logncen, lognsat, use_mcmc=True):
     lognsat = np.clip(lognsat, -6, 5)
     
     # --- Centrals ---
-    cenmask = logncen > -3
+    cenmask = logncen > -4
     p0_cen = [log_halo_mass[cenmask][0], 0.2, log_halo_mass[cenmask][-1], 0.7]
     bounds_cen = ([8, 0.1, 9, 0.1], [17, 3.0, 20, 3.0])
     
     # --- Satellites ---
-    satmask = lognsat > -3
+    satmask = lognsat > -4
     m1_guess = len(log_halo_mass[satmask]) // 2
     p0_sat = [log_halo_mass[satmask][0], log_halo_mass[satmask][m1_guess], 1.0]
     bounds_sat = ([9, 9.5, 0.1], [17, 20, 3.0])
@@ -322,6 +322,8 @@ def fit_hod_mcmc(log_halo_mass, logn, unweighted_counts, model_func, p0, bounds,
     y_err[valid_mask] = 1.0 / (np.sqrt(N[valid_mask]) * np.sqrt(N_halos[valid_mask]) * np.log(10))
     # Add a base error in quadrature to prevent overly small errors
     y_err = np.sqrt(y_err**2 + base_err**2)
+
+    #print(f"yerr: {y_err}")
 
     ndim = len(p0)
     lower_bounds, upper_bounds = bounds

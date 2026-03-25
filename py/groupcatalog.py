@@ -25,7 +25,7 @@ import fitsio
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from pyutils import *
-from redshift_guesser import SimpleRedshiftGuesser, PhotometricRedshiftGuesser
+from redshift_guesser import SimpleRedshiftGuesser, HNNRedshiftGuesser
 from hdf5_to_dat import pre_process_mxxl
 from uchuu_to_dat import pre_process_uchuu
 from bgs_helpers import *
@@ -695,8 +695,9 @@ class GroupCatalog:
             log_r_sat_fraction = self.hod.satellite_q[lbin, :]
             log_b_cen_fraction = self.hod.central_sf[lbin, :]
             log_b_sat_fraction = self.hod.satellite_sf[lbin, :]
-            hod_cen_red_popt, hod_sat_red_popt = fit_hod_models(self.hod.logM_bin_centers, log_r_cen_fraction, log_r_sat_fraction)
-            hod_cen_blue_popt, hod_sat_blue_popt = fit_hod_models(self.hod.logM_bin_centers, log_b_cen_fraction, log_b_sat_fraction)
+            halo_counts = self.hod.unweighted_counts[lbin, :]
+            hod_cen_red_popt, hod_sat_red_popt = fit_hod_models(self.hod.logM_bin_centers, log_r_cen_fraction, log_r_sat_fraction, halo_counts, 'r')
+            hod_cen_blue_popt, hod_sat_blue_popt = fit_hod_models(self.hod.logM_bin_centers, log_b_cen_fraction, log_b_sat_fraction, halo_counts, 'b')
             self.hod_cen_red_popt.append(hod_cen_red_popt)
             self.hod_sat_red_popt.append(hod_sat_red_popt)
             self.hod_cen_blue_popt.append(hod_cen_blue_popt)
@@ -2409,7 +2410,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
             print(f"Assigning missing redshifts complete.")   
 
     if Mode.is_photoz_plus(mode):
-        with PhotometricRedshiftGuesser.from_files(BGS_Y3_LOST_APP_TO_Z_FILE, BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_SMOOTHED_FILE_V2, Mode(mode)) as scorer:
+        with HNNRedshiftGuesser.from_files(BGS_Y3_LOST_APP_TO_Z_FILE, BGS_Y3_LOST_APP_AND_ZPHOT_TO_Z_FILE, NEIGHBOR_ANALYSIS_SV3_BINS_SMOOTHED_FILE_V2, Mode(mode)) as scorer:
             print(f"Assigning missing redshifts... ")   
 
             if wants_MCMC:
@@ -2437,7 +2438,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
                     if data_cut != 'Y3-Loa-SV3Cut' or z_sv3 is None:
                         raise ValueError("MCMC optimization of parameters is only possible with SV3 and dropped passes or Y3-Loa-SV3Cut data supplemented with SV3 redshifts.")
 
-                print("Performing MCMC optimization of PhotometricRedshiftGuesser parameters")
+                print("Performing MCMC optimization of HNNRedshiftGuesser parameters")
                 # Can only use the galaxies that were observed but we're pretending are unobserved 
                 idx =  np.flatnonzero(np.logical_and(~no_truth_z, unobserved))
                 # from the neighbor arrays, need to discard the ones that are not in the idx
@@ -2582,7 +2583,7 @@ def log_prior(params):
             return -np.inf  # log(0)
     return 0.0  # log(1), all good
 
-def log_likelihood(params, scorer: PhotometricRedshiftGuesser, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
+def log_likelihood(params, scorer: HNNRedshiftGuesser, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
     n = math.floor(params[0])
     bb, rb, br, rr = np.reshape(params[1:], (4,3))    
     chosen_z, assignment_type = scorer.choose_redshift(n_z[:n, :], ang_dist[:n, :], z_phot, p_obs, app_mag_r, t_q, n_q[:n, :], (bb, rb, br, rr))
@@ -2595,7 +2596,7 @@ def log_probability(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z
         return -np.inf # throw away this possibility
     return lp + log_likelihood(params, scorer, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth)
 
-def find_optimal_parameters_mcmc(scorer: PhotometricRedshiftGuesser, mode, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
+def find_optimal_parameters_mcmc(scorer: HNNRedshiftGuesser, mode, app_mag_r, p_obs, z_phot, t_q, ang_dist, n_z, n_q, z_truth):
     assert len(app_mag_r) == len(p_obs) == len(z_phot) == len(t_q) == len(ang_dist[0]) == len(n_z[0]) == len(n_q[0]) == len(z_truth)
     
     if mode == Mode.PHOTOZ_PLUS_v4.value:

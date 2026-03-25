@@ -864,6 +864,29 @@ def fsat_with_err_from_saved(gc: GroupCatalog, show_all=False):
     
     plt.tight_layout()
 
+
+def fsat_incompleteness_study(catalogs, truthcat: GroupCatalog):
+    fig,ax1=plt.subplots(figsize=(6,4.5))
+    fig.set_dpi(DPI)
+    plt.errorbar(truthcat.L_gal_labels, truthcat.f_sat, marker='.', linestyle='none', yerr=truthcat.fsat_bootstrap_err, label=get_dataset_display_name(truthcat), color=truthcat.color)
+    for f in catalogs:
+        plt.plot(f.L_gal_labels, f.f_sat, f.marker, label=get_dataset_display_name(f), color=f.color)
+
+    ax1.set_xscale('log')
+    ax1.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$")
+    ax1.set_ylabel("$f_{\\mathrm{sat}}$")
+    # Make legend text smaller
+    ax1.legend(fontsize=10)
+    ax1.set_xlim(6E7,LGAL_MAX_TIGHT)
+    ax1.set_ylim(0.0,0.6)
+    ax2=ax1.twiny()
+    ax2.plot(catalogs[0].Mr_gal_labels, catalogs[0].f_sat, ls="")
+    ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(3E7)), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
+    ax2.set_xlabel("$M_r$ - 5log(h)")
+    fig.tight_layout()
+
+
+
 def plots(*catalogs, show_err=None, truth_on=False):
     catalogs = list(catalogs)
     if show_err is not None and show_err not in catalogs:
@@ -872,39 +895,6 @@ def plots(*catalogs, show_err=None, truth_on=False):
         print("show_err must be a GroupCatalog")
 
     completeness_stats(catalogs)
-
-    """
-
-    # SHMR fractional
-    fig,ax1=plt.subplots()
-    fig.set_dpi(DPI)
-    for f in datasets:
-        mcen_means = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_vmax_weighted)
-        #mcen_scatter = f.centrals.groupby('Mh_bin', observed=False).apply(mstar_std_vmax_weighted)
-        plt.plot(f.labels, mcen_means/f.labels, f.marker, label=get_dataset_display_name(f), color=f.color)
-        #plt.errorbar(f.labels, mcen_means/f.labels, yerr=mcen_scatter/f.labels, label=get_dataset_display_name(f), color=f.color)
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel('$M_h$')
-    plt.ylabel('$M_{\\star}/M_h$')
-    legend(datasets)
-    plt.xlim(1E10,1E15)
-    #plt.ylim(1E6,3E12)
-    ax2 = ax1.twinx()
-    idx = 0
-    for f in datasets:
-        widths = np.zeros(len(f.Mhalo_bins)-1)
-        for i in range(0,len(f.Mhalo_bins)-1):
-            widths[i]=(f.Mhalo_bins[i+1] - f.Mhalo_bins[i]) / len(datasets)
-        
-        # This version 1/vmax weights the counts
-        #ax2.bar(f.L_gal_labels+(widths*idx), f.sats.groupby('LGAL_BIN', observed=False).apply(count_vmax_weighted), width=widths, color=f.color, align='edge', alpha=0.4)
-        ax2.bar(f.labels+(widths*idx), f.all_data.groupby('Mh_bin', observed=False).size(), width=widths, color=f.color, align='edge', alpha=0.4)
-        idx+=1
-    ax2.set_ylabel('$N_{gal}$')
-    ax2.set_yscale('log')
-    plt.draw()
-    """
 
     X_MAX = LGAL_MAX_TIGHT
 
@@ -1684,6 +1674,7 @@ def hodt_satparams_evolution_2(gc: GroupCatalog, colors: list):
         ax.invert_xaxis()
     axes[0].set_xlabel("$M_r$ Threshold")
     axes[0].set_ylabel("$M_{sat} / M_{cut}$")
+    axes[0].set_ylim(0, 140)
     axes[1].set_xlabel("$M_r$ Threshold")
     axes[1].set_ylabel("α")
     for ax in axes:
@@ -2433,6 +2424,8 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     scores_all_lost = []
     scores_n_only = []
     rounded_tophat_scores = []
+    tophat_scores = []
+    wide_tophat_scores = []
     scores_metric1 = []
     scores_metric2 = []
     scores_metric3 = []
@@ -2463,14 +2456,17 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
         assignment_type = s.all_data.loc[idx, 'Z_ASSIGNED_FLAG']
 
         score = powerlaw_score_1(assigned_z, truth_z)
-        #rtophat = rounded_tophat_score(assigned_z, truth_z)
-        rtophat = close_enough(assigned_z, truth_z)
+        rtophat = rounded_tophat_score(assigned_z, truth_z)
+        tophat = close_enough(assigned_z, truth_z)
+        widetophat = close_enough(assigned_z, truth_z, threshold=0.01)
         metric_score1 = photoz_plus_metric_1(assigned_z, truth_z, assignment_type)
         metric_score2 = photoz_plus_metric_2(assigned_z, truth_z, assignment_type)
         metric_score3 = photoz_plus_metric_3(assigned_z, truth_z, assignment_type)
         metric_score4 = photoz_plus_metric_4(assigned_z, truth_z, assignment_type)
         scores_all_lost.append(score.mean())
         rounded_tophat_scores.append(rtophat.mean())
+        tophat_scores.append(tophat.mean())
+        wide_tophat_scores.append(widetophat.mean())
         scores_metric1.append(metric_score1 * -1)
         scores_metric2.append(metric_score2 * -1)
         scores_metric3.append(metric_score3 * -1)
@@ -2506,7 +2502,8 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     #rects2 = ax.bar(x - width/2        , rounded_tophat_scores, width, label='Fraction Correct', color=get_color(2))
     #rects5 = ax.bar(x + width/2, scores_metric4, width, label='MCMC Metric Score', color=get_color(3))
 
-    rects2 = ax.bar(x -width/2       , rounded_tophat_scores, width, label='Fraction Correct (all)', color=get_color(2))
+    rects2 = ax.bar(x -width/2       , tophat_scores, width, label='Fraction with ($\Delta z < 0.005$)', color=get_color(2))
+    rects3 = ax.bar(x +width/2       , wide_tophat_scores, width, label='Fraction with ($\Delta z < 0.01$)', color=get_color(1))
     #rects3 = ax.bar(x + width/2  , scores_n_only, width, label='Fraction Correct (neighbor assigned)', color=get_color(1))
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
@@ -2520,8 +2517,6 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     ax.yaxis.grid(True)  # Add horizontal gridlines
 
     fig.tight_layout()
-
-    plt.show()
 
 
 #####################################
@@ -2562,7 +2557,7 @@ def test_purity_and_completeness(*catalogs: GroupCatalog, truth_catalog: GroupCa
         s.overall_purity_sats = np.sum(assigned_sats.IS_SAT_T.astype(bool)) / len(assigned_sats.index)
         print(f"Purity of sats: {s.overall_purity_sats:.3f}")
 
-        # Of all the sats in the truth catalog, how many were found?
+        # Of all the sats in the truth catalog, how many were found to be sats?
         true_sats = data.loc[data['IS_SAT_T'].astype(bool)]
         true_sats_assigned_correctly = true_sats.loc[true_sats['IS_SAT']]
         s.overall_completeness_sats = len(true_sats_assigned_correctly.index) / len(true_sats.index)

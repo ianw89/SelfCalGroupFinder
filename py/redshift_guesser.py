@@ -126,7 +126,12 @@ class SimpleRedshiftGuesser(RedshiftGuesser):
 
 
 
-class PhotometricRedshiftGuesser(RedshiftGuesser):
+class HNNRedshiftGuesser(RedshiftGuesser):
+    """
+    This class implements the "Hybrid Nearest Neighbor" or "Photo-z Plus" method of guessing redshifts, which uses a combination of photometric redshift 
+    and a score based on neighbor properties. The parameters for how much to weight the photo-z vs the neighbor score can be tuned, and there are different
+    versions of the method that use different parameters and approaches for handling cases where the photo-z is not reliable.
+    """
 
     def __init__(self, debug=False):
         self.debug = debug
@@ -144,7 +149,7 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
     def from_files(cls, app_mag_to_z_file, app_mag_zphot_to_z_file, nna_file, mode: Mode):
         obj = cls()
         obj.mode = mode
-        print(f"Initializing PhotometricRedshiftGuesser for {mode}")
+        print(f"Initializing HNNRedshiftGuesser for {mode}")
         with open(app_mag_to_z_file, 'rb') as f:
             obj.app_mag_bins, obj.map_v1 = pickle.load(f)
         with open(app_mag_zphot_to_z_file, 'rb') as f:
@@ -156,7 +161,7 @@ class PhotometricRedshiftGuesser(RedshiftGuesser):
     def from_data(cls, app_mags, z_phot, z_obs, nna_file, mode: Mode):        
         obj = cls()
         obj.mode = mode
-        print(f"Initializing PhotometricRedshiftGuesser for {mode}")
+        print(f"Initializing HNNRedshiftGuesser for {mode}")
         obj.app_mag_bins, obj.map_v1 = build_app_mag_to_z_map_2(app_mags, z_obs)
         obj.app_mag_bins_v3, obj.zphot_bins_v3, obj.map_v3 = build_app_mag_to_z_map_3(app_mags, z_phot, z_obs)
         obj.nna = NNAnalyzer_cic.from_results_file(nna_file)
