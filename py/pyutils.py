@@ -417,7 +417,24 @@ def distmod(zs):
 def bgs_mag_to_sdsslike_mag(mag, band='r'):
     """
     Converts BGS magnitudes to SDSS-like magnitudes using an emperical relation found from galaxies
-    observed in both surveys. Assumes the BGS mag is already k-corrected to z=0.1.
+    observed in both surveys. Assumes the BGS mag is already k-corrected to z=0.1 using the fastspecfit method.
+    """
+    if band == 'r':
+        # -5.34264252 -0.63867306 -0.01864075
+        # Fit in post_plots, see ## BGS and SDSS Target Overlap Analysis
+        A = -5.34264252
+        B = -0.63867306
+        C = -0.01864075
+        correction = np.where(mag > -17.0, 0.13, Polynomial([A, B, C]).__call__(mag))
+        correction = np.where(mag < -23.75, -0.68, correction)
+        return mag + correction
+    else:
+        raise NotImplementedError(f"Band {band} not implemented")
+
+def bgs_mag_to_sdsslike_mag_OLD(mag, band='r'):
+    """
+    Converts BGS magnitudes to SDSS-like magnitudes using an emperical relation found from galaxies
+    observed in both surveys. Assumes the BGS mag is already k-corrected to z=0.1 WITH THE OLD GAMA K-CORRECTION.
     """
     if band == 'r':
         # [-5.09354483 -0.64446931 -0.01922993]

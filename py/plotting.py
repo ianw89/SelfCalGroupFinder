@@ -6,6 +6,8 @@ import astropy.units as u
 from matplotlib.patches import Circle
 import nnanalysis as nn
 import sys
+from sklearn.metrics import mean_squared_error
+
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
 from pyutils import *
@@ -3385,3 +3387,91 @@ def gfparams_plots(gc: GroupCatalog, chains_flat):
     axes[1].plot(x, bsat(params[8], params[9], x), '-',label='SF', color='k', lw=2)
 
     plt.tight_layout()
+
+
+
+def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=True, showsaved=True):
+    """
+    Make a plot comparing the SDSS and BGS magnitudes for the observed galaxies in BGS.
+    """
+    bgs_to_use = bgs.all_data
+    sdss_obs = sdss.all_data.loc[sdss.all_data['Z_ASSIGNED_FLAG'] == AssignedRedshiftFlag.SDSS_SPEC.value].reset_index()
+    bgs_obs = bgs_to_use.loc[bgs_to_use['Z_ASSIGNED_FLAG'] == AssignedRedshiftFlag.DESI_SPEC.value].reset_index()
+
+    #sdss_obs = sdss_obs.loc[sdss_obs['Z'] > 0.1]
+    #bgs_obs = bgs_obs.loc[bgs_obs['Z'] > 0.1]
+    #sdss_obs = sdss_obs.loc[sdss_obs['Z'] < 0.25]
+    #bgs_obs = bgs_obs.loc[bgs_obs['Z'] < 0.25]
+
+    catalog = coord.SkyCoord(ra=sdss_obs.RA.to_numpy()*u.degree, dec=sdss_obs['DEC'].to_numpy()*u.degree, frame='icrs')
+    to_match = coord.SkyCoord(ra=bgs_obs.RA.to_numpy()*u.degree, dec=bgs_obs['DEC'].to_numpy()*u.degree, frame='icrs')
+
+    idx, d2d, d3d = coord.match_coordinates_sky(to_match, catalog, nthneighbor=1, storekdtree=False)
+    matched = d2d < 1*u.arcsec
+
+    bgs_obs['SDSS_LOGLGAL'] = np.where(matched, sdss_obs['LOGLGAL'].to_numpy()[idx], np.nan)
+    bgs_obs['SDSS_Z'] = np.where(matched, sdss_obs['Z'].to_numpy()[idx], np.nan)
+    bgs_obs = bgs_obs.loc[matched]
+    print(f"Matched {len(bgs_obs)} out of {len(bgs_to_use)}")
+
+    bgs_obs['M_R'] = log_solar_L_to_abs_mag_r(bgs_obs['LOGLGAL'])
+    #Q=1.6
+    #e_corr = Q*(bgs_obs['SDSS_Z'] - 0.1)
+    e_corr = 0.0
+    bgs_obs['SDSS_M_R'] = log_solar_L_to_abs_mag_r(bgs_obs['SDSS_LOGLGAL']) - e_corr
+
+    # difference in abs mag as a function of BGS mag
+    delta_z = bgs_obs['Z'] - bgs_obs['SDSS_Z']
+    zagreed = np.abs(delta_z) < 0.0002
+    bgs_obs_zagreed = bgs_obs.loc[zagreed].reset_index()
+    print(f"Number of galaxies with z agreement: {len(bgs_obs_zagreed)} out of {len(bgs_obs)}")
+
+    # make abs mag bins
+    bins = np.linspace(-23.5, -16.5, 29)
+    # Omit final bin
+    bins = bins[:-1]
+    #bins = np.linspace(-22.5, -19.5, 19)
+    bgs_obs_zagreed['M_R_BIN'] = pd.cut(bgs_obs_zagreed['M_R'], bins=bins, labels=bins[:-1], include_lowest=True)
+    bgs_obs_zagreed['M_R_DIFF'] = bgs_obs_zagreed['M_R'] - bgs_obs_zagreed['SDSS_M_R']
+    bgs_obs_zagreed['M_R_ABS_DIFF'] = np.abs(bgs_obs_zagreed['M_R'] - bgs_obs_zagreed['SDSS_M_R'])
+
+    # Print off counts in each bin
+    counts = bgs_obs_zagreed.groupby('M_R_BIN').size()
+    #print(counts)
+
+    # Within each bin, calculate the median and 2sigma differences
+    binned = bgs_obs_zagreed.groupby('M_R_BIN')['M_R_DIFF'].apply(lambda x: np.percentile(x, [2.5, 50, 97.5]))
+    binned = pd.DataFrame(binned.tolist(), index=binned.index, columns=['2.5', 'median', '97.5'])
+
+    # Extract BGS M_R and the difference (M_R_DIFF) between BGS and SDSS M_R
+    x = binned.index.to_numpy()
+    y = binned['median'].to_numpy()
+
+    # Fit a polynomial function (e.g., degree 2)
+    degree = 2
+    coeffs = Polynomial.fit(x, y, degree).convert().coef
+    print(f"Polynomial coefficients: {coeffs}")
+
+    # Generate fitted values
+    x_fit = np.linspace(x.min() - 1, x.max() + 2, 100)
+
+    y_fit = Polynomial(coeffs)(x_fit)
+    # Calculate the mean squared error
+    mse = mean_squared_error(y, Polynomial(coeffs)(x))
+    print(f"Mean Squared Error: {mse:.4f}")
+
+    # Plot the data and the fitted polynomial
+    plt.figure()
+    plt.errorbar(binned.index, binned['median'], yerr=[binned['median'] - binned['2.5'], binned['97.5'] - binned['median']], fmt='o', capsize=3, label='95% Interval')
+    if showpoly:
+        plt.plot(x_fit, y_fit, color='orange', label=f'Polynomial Fit (degree {degree})')
+    if showsaved:
+        plt.plot(x_fit, bgs_mag_to_sdsslike_mag(x_fit)-x_fit, color='green', label='Saved Result')
+    plt.xlabel('$M_r^{BGS}$')
+    plt.ylabel('$M_r^{SDSS} - M_r^{BGS}$')
+    #plt.title('Polynomial Fit to BGS vs SDSS $M_r$')
+    plt.axhline(0, color='red', linestyle='--')
+    plt.legend()
+    plt.ylim(-1.0, 0.6)
+    plt.xticks(np.arange(-24, -16, 1))
+    plt.grid()

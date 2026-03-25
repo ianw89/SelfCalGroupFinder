@@ -4,6 +4,10 @@ from dataloc import *
 from pyutils import bgs_mag_to_sdsslike_mag
 from astropy.table import Table
 
+# Note this is for the first draft clustering approach.
+# This is unused in the final versions of everything in the paper, including
+# the SDSS comparison.
+
 def export_extra_columns_for_clustering(merged_file, survey, verspec, ver):
     tbl = Table.read(merged_file, format='fits') 
     tbl.keep_columns(['TARGETID', 'QUIESCENT', 'ABSMAG01_SDSS_R'])
@@ -11,9 +15,7 @@ def export_extra_columns_for_clustering(merged_file, survey, verspec, ver):
     frompath = BGS_Y1_FOLDER + "BGS_BRIGHT_extra.dat.fits"
     tbl.write(frompath, format='fits', overwrite=True)
 
-    # WARNING!!!
-    # FOR SDSS COMPARISONS, MODIFY BGS MAGNITUDES TO BE LIKE SDSS ONES USING AN EMPIRICAL RELATION I FOUND
-    # TURN THIS OFF FOR PURE BGS CLUSTERING RESULTS!
+    # One option for SDSS Comparisons is to covert magnitudes. Not using this in DR 1 paper anywhere
     #orig = tbl['ABSMAG_R']
     #tbl['ABSMAG_R'] = bgs_mag_to_sdsslike_mag(orig, band='r')
 
