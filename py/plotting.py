@@ -738,7 +738,7 @@ def SHMR_scatter_savederr(f: GroupCatalog, show_all=False):
     plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'$\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
     plt.xlim(10,15)
-    plt.ylim(0.0, 0.7)
+    plt.ylim(0.0, 0.5)
     plt.legend()
     plt.tight_layout()
 
@@ -746,16 +746,44 @@ def SHMR_scatter_litcompare(f: GroupCatalog):
     # TODO stuff to compare to from literature
     scatter_all = f.centrals.groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
 
+
     all_lower = scatter_all - f.shmr_scatter_bootstrap_err[0]
     all_upper = f.shmr_scatter_bootstrap_err[1] - scatter_all
 
     plt.figure(dpi=DPI)
     x_vals = np.log10(Mhalo_labels2)
     plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='This Work', capsize=4, alpha=0.7)
+
+    # Now for comparison data.
+
+    # Tinker et al 2016 https://iopscience.iop.org/article/10.3847/1538-4357/aa6845/pdf
+    # "Measures" 0.16 dex scatter. Cut it off at Mhalo 11.5.
+    # Make a gray bar around 0.16
+    plt.fill_between(x_vals[12:], 0.16-0.02, 0.16+0.02, color='gray', alpha=0.3, label='Tinker+17')
+    plt.text(11.5, 0.15, 'Tinker+17', color='gray', fontsize=12)
+
+    # Reddick et al 2013 SHAM measurements
+    # x, y, ylow, yhigh
+    #10.29651158900869, 0.20983894651150128, 0.18623717252650185, 0.23306002376914509
+    #10.455426393481629, 0.190043907455397,  0.14988286412063226, 0.2294436299431571
+    #10.802325471792441, 0.19956074477763486, 0.1656808198841636, 0.2334406987141887
+    #11.1395347762671, 0.17995607586752038, 0.15197656542721633, 0.20698388805405926
+    #11.707364246597535, 0.18985358813480185, 0.13979502527198495, 0.23896046726539494
+     # Crap these are scatter in HALO MASS not stellar mass
+    #reddick_x = np.array([12.06, 12.28, 12.77, 13.26, 14.06])
+    #reddick_y = np.array([0.20983894651150128, 0.190043907455397, 0.19956074477763486, 0.17995607586752038, 0.18985358813480185])
+    #reddick_ylow = np.array([0.18623717252650185, 0.14988286412063226, 0.1656808198841636, 0.15197656542721633, 0.13979502527198495])
+    #reddick_yhigh = np.array([0.23306002376914509, 0.2294436299431571, 0.2334406987141887, 0.20698388805405926, 0.23896046726539494])
+    #reddick_yerr_lower = reddick_y - reddick_ylow
+    #reddick_yerr_upper = reddick_yhigh - reddick_y
+    #plt.errorbar(reddick_x, reddick_y, yerr=[reddick_yerr_lower, reddick_yerr_upper], fmt='s', color='purple', capsize=4, alpha=0.7, label='Reddick+13')
+    plt.fill_between(x_vals[12:], 0.20-0.03, 0.20+0.03, color='purple', alpha=0.3, label='Reddick+13')
+    plt.text(11.5, 0.19, 'Reddick+13', color='purple', fontsize=12)
+
     plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'$\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
     plt.xlim(10,15)
-    plt.ylim(0.0, 0.7)
+    plt.ylim(0.0, 0.5)
     plt.legend()
     plt.tight_layout()
 
