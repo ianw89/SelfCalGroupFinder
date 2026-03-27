@@ -420,16 +420,19 @@ def bgs_mag_to_sdsslike_mag(mag, band='r'):
     observed in both surveys. Assumes the BGS mag is already k-corrected to z=0.1 using the fastspecfit method.
     """
     if band == 'r':
-        # -5.34264252 -0.63867306 -0.01864075
+        # -7.6893297  -0.86497407 -0.02406113
         # Fit in post_plots, see ## BGS and SDSS Target Overlap Analysis
-        A = -5.34264252
-        B = -0.63867306
-        C = -0.01864075
-        correction = np.where(mag > -17.0, 0.13, Polynomial([A, B, C]).__call__(mag))
-        correction = np.where(mag < -23.75, -0.68, correction)
+        A = -7.6893297
+        B = -0.86497407
+        C = -0.02406113
+        correction = np.where(mag > -17.3, 0.07, Polynomial([A, B, C]).__call__(mag))
+        correction = np.where(mag < -23.5, -0.65, correction)
         return mag - correction
     else:
         raise NotImplementedError(f"Band {band} not implemented")
+
+def sdss_mag_to_bgslike_mag(mag, band='r'):
+    return mag - (bgs_mag_to_sdsslike_mag(mag, band=band) - mag) # gives mag + correction
 
 def bgs_mag_to_sdsslike_mag_OLD(mag, band='r'):
     """

@@ -1975,11 +1975,10 @@ def proj_clustering_plot(gc: GroupCatalog):
     fig.tight_layout()
 
 def lsat_data_compare_plot(gc: GroupCatalog):
-    data = np.loadtxt(LSAT_OBSERVATIONS_SDSS_FILE, skiprows=0, dtype='float')
-    lsat_compare_plot(data, gc.lsat_r, gc.lsat_b, None, None)
+    lsat_compare_plot(gc.caldata.lsat_observations, gc.lsat_r, gc.lsat_b, None, None)
 
 def lsat_data_compare_werr_plot(gc: GroupCatalog):
-    data = np.loadtxt(LSAT_OBSERVATIONS_SDSS_FILE, skiprows=0, dtype='float')
+    data = gc.caldata.lsat_observations
     lsat_r_mean, lsat_r_std, lsat_b_mean, lsat_b_std = lsat_variance_from_saved()
     lsat_compare_plot(data, gc.lsat_r, gc.lsat_b, lsat_r_std, lsat_b_std)
 
@@ -3455,7 +3454,7 @@ def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
     if showpoly:
         plt.plot(x_fit, y_fit, color='orange', label=f'Polynomial Fit (degree {degree})')
     if showsaved:
-        plt.plot(x_fit, bgs_mag_to_sdsslike_mag(x_fit)-x_fit, color='green', label='Saved Result')
+        plt.plot(x_fit, x_fit - bgs_mag_to_sdsslike_mag(x_fit), color='green', label='Saved Result')
     plt.xlabel('$M_r^{BGS}$')
     plt.ylabel('$M_r^{BGS} - M_r^{SDSS}$')
     #plt.title('Polynomial Fit to BGS vs SDSS $M_r$')

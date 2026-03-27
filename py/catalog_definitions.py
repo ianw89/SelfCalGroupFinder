@@ -225,10 +225,6 @@ bgs_y1_pzp_2_6_c3.marker = '-'
 bgs_y1_pzp_2_6_c3.color = 'darkgreen'
 bgs_y1_pzp_2_6_c3.GF_props['iterations'] = 10
 
-bgs_y1_hybrid_mcmc = BGSGroupCatalog("BGS Y1 Hybrid MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_6bin)
-bgs_y1_hybrid_mcmc.marker = '.'
-bgs_y1_hybrid_mcmc.color = 'darkgreen'
-
 # Prerelease version (v0.4)
 bgs_y1_hybrid8_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
 bgs_y1_hybrid8_mcmc.marker = '.'
