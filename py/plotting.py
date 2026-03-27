@@ -392,43 +392,28 @@ def safe_log_err_vals(logmean, lin_err):
             upper = np.log10(lin_err[1])
             return lower, upper
 
-def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
+def LHMR_compare(f: GroupCatalog, g: GroupCatalog):
      # This does NOT seem to matter for LHMR
     clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
-    log_mean_all = clean.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
-    log_means_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
-    log_means_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
-    ratio = 10**log_means_r / 10**log_means_b
-
-    lhmr_r_mean, lhmr_r_err, lhmr_r_scatter_mean, lhmr_r_scatter_err, lhmr_b_mean, lhmr_b_err, lhmr_b_scatter_mean, lhmr_b_scatter_err, lhmr_all_mean, lhmr_all_err, lhmr_all_scatter_mean, lhmr_all_scatter_err = lhmr_variance_from_saved()
-
-    # Error bars for statistical error (bootstrapped)
-    # And shaded for systematic (saved from MCMC)
-    yerr_all_lower, yerr_all_upper = safe_log_err(log_mean_all, f.lhmr_bootstrap_err)
-    yerr_b_lower, yerr_b_upper = safe_log_err(log_means_b, f.lhmr_sf_bootstrap_err)
-    yerr_r_lower, yerr_r_upper = safe_log_err(log_means_r, f.lhmr_q_bootstrap_err)
-
-    syserr_all_lower, syserr_all_upper = safe_log_err_vals(log_mean_all, lhmr_all_err)
-    syserr_b_lower, syserr_b_upper = safe_log_err_vals(log_means_b, lhmr_b_err)
-    syserr_r_lower, syserr_r_upper = safe_log_err_vals(log_means_r, lhmr_r_err)
+    clean['BGS_MAG'] = log_solar_L_to_abs_mag_r(clean['LOGLGAL'])
+    clean['SDSSLIKE_MAG'] = bgs_mag_to_sdsslike_mag(clean['BGS_MAG'])
+    clean['SDSSLIKE_LGAL'] = np.power(10, abs_mag_r_to_log_solar_L(clean['SDSSLIKE_MAG']))
+    log_means_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_sdsslike_vmax_weighted)
+    log_means_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_sdsslike_vmax_weighted)
+    
+    log_means_r_g = g.centrals[g.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_vmax_weighted)  
+    log_means_b_g = g.centrals[~g.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_vmax_weighted)
 
     plt.figure(dpi=DPI)
-    x_vals = np.log10(Mhalo_labels)
-    x_vals2 = np.log10(Mhalo_labels2)
+    x_vals = np.log10(Mhalo_labels2)
 
-    if show_all:
-        plt.errorbar(x_vals, log_mean_all, yerr=[yerr_all_lower, yerr_all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
-    #    plt.plot(x_vals, log_mean_all, '-', color='k', label='All', alpha=0.7)
-    #plt.plot(x_vals, log_means_b, '-', color='b', label='SF Centrals', alpha=0.7)
-    #plt.plot(x_vals, log_means_r, '-', color='r', label='Q Centrals', alpha=0.7)
-    plt.errorbar(x_vals, log_means_b, yerr=[yerr_b_lower, yerr_b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
-    plt.errorbar(x_vals, log_means_r, yerr=[yerr_r_lower, yerr_r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+    plt.plot(x_vals, log_means_b, '.', color='b', label='SF Centrals', alpha=0.7)
+    plt.plot(x_vals, log_means_r, '.', color='r', label='Q Centrals', alpha=0.7)
 
-    if show_all:
-        plt.fill_between(x_vals, syserr_all_lower, syserr_all_upper, color='k', alpha=0.2)
-    plt.fill_between(x_vals, syserr_r_lower, syserr_r_upper, color='r', alpha=0.2)
-    plt.fill_between(x_vals, syserr_b_lower, syserr_b_upper, color='b', alpha=0.2)
-    
+    plt.plot(x_vals, log_means_b_g, '--', color='cyan', label=get_dataset_display_name(g) + ' SF', alpha=1.0)
+    plt.plot(x_vals, log_means_r_g, '--', color='magenta', label=get_dataset_display_name(g) + ' Q', alpha=1.0)
+
+
     plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'log$(\langle L_{\mathrm{cen}} \rangle / [L_{\odot} h^{-2}])$')
     plt.xlim(10,15)
@@ -438,31 +423,7 @@ def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
     plt.ylim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
     plt.yticks(np.arange(-23, -12, 2))
     plt.ylabel("$M_r$ - 5log(h)")
-
-    if inset is not None:
-        ax_inset = plt.gca().inset_axes([0.45, 0.1, 0.5, 0.5])
-        ax_inset.tick_params(axis='both', which='major', labelsize=10)
-        inset_log_means_r = inset.centrals.loc[inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_vmax_weighted)
-        inset_log_means_b = inset.centrals.loc[~inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_vmax_weighted)
-        ratio2 = 10**inset_log_means_r / 10**inset_log_means_b
-
-        #inset_yerr_all_lower, inset_yerr_all_upper = safe_log_err(inset_log_mean_all, inset.lhmr_bootstrap_err)
-        #inset_yerr_b_lower, inset_yerr_b_upper = safe_log_err(inset_log_means_b, inset.lhmr_sf_bootstrap_err)
-        #inset_yerr_r_lower, inset_yerr_r_upper = safe_log_err(inset_log_means_r, inset.lhmr_q_bootstrap_err)
-        
-        #ax_inset.errorbar(x_vals, inset_log_means_b, yerr=[inset_yerr_b_lower, inset_yerr_b_upper], fmt='.', color='b', capsize=3, alpha=0.7)
-        #ax_inset.errorbar(x_vals, inset_log_means_r, yerr=[inset_yerr_r_lower, inset_yerr_r_upper], fmt='.', color='r', capsize=3, alpha=0.7)
-        #ax_inset.plot(x_vals2, inset_log_means_b, '-', color='b', alpha=0.7)
-        #ax_inset.plot(x_vals2, inset_log_means_r, '-', color='r', alpha=0.7)
-        ax_inset.step(x_vals, ratio, '-', color='k', label='BGS', where='post')
-        ax_inset.step(x_vals2[:-6], ratio2[:-6], '-', color='purple', label='SDSS', where='post')
-        ax_inset.set_xlim(10,15)
-        ax_inset.legend(fontsize=8)
-       #ax_inset.set_ylim(0.9, 1.1)
-        #ax_inset.set_xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
-        ax_inset.set_ylabel('Q/SF', fontsize=10)
-        # Dashed line at 1
-        ax_inset.axhline(1.0, color='gray', linestyle='--', alpha=0.5)
+    return clean 
 
 
 def SHMR_likereview(f: GroupCatalog):
@@ -3496,10 +3457,16 @@ def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
     if showsaved:
         plt.plot(x_fit, bgs_mag_to_sdsslike_mag(x_fit)-x_fit, color='green', label='Saved Result')
     plt.xlabel('$M_r^{BGS}$')
-    plt.ylabel('$M_r^{SDSS} - M_r^{BGS}$')
+    plt.ylabel('$M_r^{BGS} - M_r^{SDSS}$')
     #plt.title('Polynomial Fit to BGS vs SDSS $M_r$')
     plt.axhline(0, color='red', linestyle='--')
     plt.legend()
     plt.ylim(-1.0, 0.6)
     plt.xticks(np.arange(-24, -16, 1))
     plt.grid()
+
+    # Vertical text to say region where BGS is brighter, region where SDSS is brighter
+    plt.text(-23.92, -0.4, 'BGS Brighter', rotation=90, verticalalignment='center', color='k', fontsize=14)
+    plt.text(-23.92, 0.3, 'SDSS Brighter', rotation=90, verticalalignment='center', color='k', fontsize=14)
+
+    return bgs_obs_zagreed

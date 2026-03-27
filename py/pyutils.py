@@ -427,7 +427,7 @@ def bgs_mag_to_sdsslike_mag(mag, band='r'):
         C = -0.01864075
         correction = np.where(mag > -17.0, 0.13, Polynomial([A, B, C]).__call__(mag))
         correction = np.where(mag < -23.75, -0.68, correction)
-        return mag + correction
+        return mag - correction
     else:
         raise NotImplementedError(f"Band {band} not implemented")
 
@@ -686,6 +686,12 @@ def LogLgal_vmax_weighted(series):
         return np.nan
     else:
         return np.log10(np.average(series['L_GAL'], weights=1/series['VMAX']))
+
+def LogLgal_sdsslike_vmax_weighted(series):
+    if len(series) <= 99:
+        return np.nan
+    else:
+        return np.log10(np.average(series['SDSSLIKE_LGAL'], weights=1/series['VMAX']))
 
 
 def LogLgal_lognormal_scatter_unweighted(series):
