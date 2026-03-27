@@ -346,7 +346,7 @@ class GroupCatalog:
             backend=backend
         )
 
-    def run_GF_mcmc(self, niter: int):
+    def run_GF_mcmc(self, niter: int, previous_backend: emcee.backends.HDFBackend = None):
 
         if self.sampler is None:
             print("Warning: run_GF_mcmc() called without sampler set. Call setup_GF_mcmc() first.")
@@ -362,24 +362,31 @@ class GroupCatalog:
             pos, prob, state = self.sampler.run_mcmc(None, niter, progress=True)
         else:
             print("Starting fresh")
-            # Start fresh using IC's centered around known good values
-            if self.sampler.ndim == 10:
-                # Set each walker to a random one of the "GOOD_TEN_PARAMETERS"
-                initial = np.zeros((self.sampler.nwalkers, self.sampler.ndim))
-                for i in range(self.sampler.nwalkers):
-                    initial[i] = GOOD_TEN_PARAMETERS[np.random.randint(0, len(GOOD_TEN_PARAMETERS))]
-            elif self.sampler.ndim == 14:
-                initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
-            
-            # Now randomly spread them out by a Gaussian factor 
-            p0 = initial + 0.5 * np.random.randn(self.sampler.nwalkers, self.sampler.ndim)
-            
-            # Set a walker to each set of saved off parameters
-            for i in range(len(GOOD_TEN_PARAMETERS)):
-                if i < self.sampler.nwalkers:
-                    p0[i] = GOOD_TEN_PARAMETERS[i]
+            if previous_backend is not None:
+                print("Using previous backend for initial positions")
+                # Get the last position from the previous backend and use it as the starting point for all walkers
+                prev = previous_backend.get_chain()[-1]
+                p0 = np.array([prev for i in range(self.sampler.nwalkers)])
+                pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
+            else:
+                # Start fresh using IC's centered around known good values
+                if self.sampler.ndim == 10:
+                    # Set each walker to a random one of the "GOOD_TEN_PARAMETERS"
+                    initial = np.zeros((self.sampler.nwalkers, self.sampler.ndim))
+                    for i in range(self.sampler.nwalkers):
+                        initial[i] = GOOD_TEN_PARAMETERS[np.random.randint(0, len(GOOD_TEN_PARAMETERS))]
+                elif self.sampler.ndim == 14:
+                    initial = np.array([1.312225e+01, 2.425592e+00, 1.291072e+01, 4.857720e+00, 1.745350e+01, 2.670356e+00, -9.231342e-01, 1.028550e+01, 1.301696e+01, -8.029334e+00, 2.689616e+00, 1.102281e+00, 2.231206e+00, 4.823592e-01])
+                
+                # Now randomly spread them out by a Gaussian factor 
+                p0 = initial + 0.5 * np.random.randn(self.sampler.nwalkers, self.sampler.ndim)
+                
+                # Set a walker to each set of saved off parameters
+                for i in range(len(GOOD_TEN_PARAMETERS)):
+                    if i < self.sampler.nwalkers:
+                        p0[i] = GOOD_TEN_PARAMETERS[i]
 
-            pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
+                pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
 
         # Anything else to state before saving off?
         self.dump()      
