@@ -84,7 +84,8 @@ def process_gc(gc: GroupCatalog):
     elif execution_mode == 'mcmc':
         previous_backend = None
         if name == "BGS Y1 Hybrid8 v1 MCMC":
-            previous_backend = f"/mount/sirocco1/imw2293/GROUP_CAT/OUTPUT/BGS_Y1_HYBRID8_V1_MCMC_BACKUP/mcmc_{mcmcnum}/gf_mcmc.h5"
+            backend_file = f"/mount/sirocco1/imw2293/GROUP_CAT/OUTPUT/BGS_Y1_HYBRID8_V1_MCMC_BACKUP/mcmc_{mcmcnum}/gf_mcmc.h5"
+            previous_backend = emcee.backends.HDFBackend(backend_file, read_only=True)
 
         gc.setup_GF_mcmc(mcmc_num=mcmcnum)
         gc.run_GF_mcmc(mcmc_iter, previous_backend=previous_backend)

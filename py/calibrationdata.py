@@ -34,12 +34,12 @@ class CalibrationData:
         self.volumes = np.array([get_volume_at_z(z, frac_area) for z in self.zmaxes])
         self.bincount = len(self.magbins) - 1
 
-        self.lsat_observations = np.loadtxt(os.path.join(self.paramsfolder, LSAT_OBSERVATIONS_FILE), skiprows=0, dtype='float')
-
         self._wp_red_cache = {}
         self._wp_blue_cache = {}
         self._wp_all_cache = {}
 
+    def get_lsat_observations(self):
+        return np.loadtxt(os.path.join(self.paramsfolder, LSAT_OBSERVATIONS_FILE), skiprows=0, dtype='float')
     
     def write_volume_bins_file(self, path: str):
         data = np.column_stack((self.magbins[:-1], self.magbins[1:], self.zmaxes, self.volumes, self.color_separation.astype(int)))
@@ -113,11 +113,13 @@ def transform_sdss_lsat_to_bgs_mags():
         bgs_mag = sdss_mag_to_bgslike_mag(sdss_mag)
         return abs_mag_r_to_log_solar_L(bgs_mag)
 
+    # These are from SDSS photometry.
     lcen = convert_lum(lcen)
-    lsat_r = np.power(10, convert_lum(np.log10(lsat_r)))
-    err_r = np.power(10, convert_lum(np.log10(err_r)))
-    lsat_b = np.power(10, convert_lum(np.log10(lsat_b)))
-    err_b = np.power(10, convert_lum(np.log10(err_b)))
+    # This are on the DESI Legacy survey already.
+    #lsat_r = np.power(10, convert_lum(np.log10(lsat_r)))
+    #err_r = np.power(10, convert_lum(np.log10(err_r)))
+    #lsat_b = np.power(10, convert_lum(np.log10(lsat_b)))
+    #err_b = np.power(10, convert_lum(np.log10(err_b)))
 
     output_data = np.column_stack((lcen, lsat_r, err_r, lsat_b, err_b))
     np.savetxt(outfile, output_data, fmt='%f %e %e %e %e')

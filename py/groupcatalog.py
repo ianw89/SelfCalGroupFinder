@@ -328,12 +328,18 @@ class GroupCatalog:
 
         # Setup emcee backend
         backfile = self.output_folder + "gf_mcmc.h5"
+        loaded = False
         if os.path.isfile(backfile):
             print(f'BACKEND ALREADY EXISTS: {backfile}')
-            backend = emcee.backends.HDFBackend(backfile)
-            nwalkers = backend.get_chain().shape[1]
-            ndim = backend.get_chain().shape[2]
-        else:
+            try:
+                backend = emcee.backends.HDFBackend(backfile)
+                nwalkers = backend.get_chain().shape[1]
+                ndim = backend.get_chain().shape[2]
+                loaded = True
+            except Exception as e:
+                print(f"Error loading backend: {e}")
+
+        if not loaded:
             print(f'CREATING BACKEND: {backfile}')
             backend = emcee.backends.HDFBackend(backfile)
             nwalkers = 20
@@ -363,11 +369,10 @@ class GroupCatalog:
         else:
             print("Starting fresh")
             if previous_backend is not None:
-                print("Using previous backend for initial positions")
-                # Get the last position from the previous backend and use it as the starting point for all walkers
-                prev = previous_backend.get_chain()[-1]
-                p0 = np.array([prev for i in range(self.sampler.nwalkers)])
-                pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
+                print("Using old backend for initial positions")
+                # Get the last position from the old backend and use it as the starting point for all walkers
+                prev_chain = previous_backend.get_chain()
+                p0 = prev_chain[-1, :, :]  # Last step, all walkers, all parameters
             else:
                 # Start fresh using IC's centered around known good values
                 if self.sampler.ndim == 10:
@@ -386,7 +391,7 @@ class GroupCatalog:
                     if i < self.sampler.nwalkers:
                         p0[i] = GOOD_TEN_PARAMETERS[i]
 
-                pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
+            pos, prob, state = self.sampler.run_mcmc(p0, niter, progress=True)
 
         # Anything else to state before saving off?
         self.dump()      
@@ -1251,7 +1256,7 @@ class GroupCatalog:
             print("No sep Clustering χ^2: ", np.array(clustering_chisqr_all))
 
             # LSAT COMPARISON
-            lsat_chisqr = compute_lsat_chisqr(self.caldata.lsat_observations, self.lsat_r, self.lsat_b)
+            lsat_chisqr = compute_lsat_chisqr(self.caldata.get_lsat_observations(), self.lsat_r, self.lsat_b)
             dof += len(lsat_chisqr)
             
             # TODO automate whether this is on or off depending on GF parameters?

@@ -1975,10 +1975,10 @@ def proj_clustering_plot(gc: GroupCatalog):
     fig.tight_layout()
 
 def lsat_data_compare_plot(gc: GroupCatalog):
-    lsat_compare_plot(gc.caldata.lsat_observations, gc.lsat_r, gc.lsat_b, None, None)
+    lsat_compare_plot(gc.caldata.get_lsat_observations(), gc.lsat_r, gc.lsat_b, None, None)
 
 def lsat_data_compare_werr_plot(gc: GroupCatalog):
-    data = gc.caldata.lsat_observations
+    data = gc.caldata.get_lsat_observations()
     lsat_r_mean, lsat_r_std, lsat_b_mean, lsat_b_std = lsat_variance_from_saved()
     lsat_compare_plot(data, gc.lsat_r, gc.lsat_b, lsat_r_std, lsat_b_std)
 
@@ -3469,3 +3469,102 @@ def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
     plt.text(-23.92, 0.3, 'SDSS Brighter', rotation=90, verticalalignment='center', color='k', fontsize=14)
 
     return bgs_obs_zagreed
+
+
+def fq_mstellar_mh_heatmap(gc: GroupCatalog, centrals_only=True):
+    """
+    Create a 2D heatmap showing quiescent fraction as a function of stellar mass and halo mass.
+    
+    Parameters
+    ----------
+    gc : GroupCatalog
+        The group catalog to analyze
+    centrals_only : bool, optional
+        If True, only use central galaxies (default: True)
+    """
+    data = gc.centrals if centrals_only else gc.all_data
+    
+    # Group by both Mstar_bin and Mh_bin and calculate quiescent fraction
+    fq_2d = data.groupby(['Mstar_bin', 'Mh_bin2'], observed=False).apply(qf_vmax_weighted_lowcut).unstack()
+    
+    # Get bin labels
+    mstar_labels = logmstar_labels
+    mh_labels = np.log10(Mhalo_labels2)
+    
+    fig, ax = plt.subplots(figsize=(7, 5), dpi=DPI)
+    
+    # Create the heatmap
+    im = ax.imshow(fq_2d.values, aspect='auto', origin='lower', 
+                   extent=[mh_labels[0], mh_labels[-1], mstar_labels[0], mstar_labels[-1]],
+                   cmap='RdYlBu_r', vmin=0, vmax=1)
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label('$f_Q$', rotation=270, labelpad=20)
+    
+    # Labels
+    ax.set_xlabel('log$(M_h~/~[M_{\odot} h^{-1}]$)')
+    ax.set_ylabel('log$(M_{\\star}~/~[M_{\odot} h^{-2}])$')
+    
+    text = 'Central Galaxies Only' if centrals_only else 'All Galaxies'
+    ax.text(0.7, .1, text, transform=ax.transAxes, ha='center', va='bottom', fontsize=18)
+    
+    
+    # Set reasonable limits
+    ax.set_xlim(9.5, 15.2)
+    ax.set_ylim(6.5, 12.0)
+    
+    plt.tight_layout()
+    plt.show()
+
+
+def fq_lgal_mh_heatmap(gc: GroupCatalog, centrals_only=True):
+    """
+    Create a 2D heatmap showing quiescent fraction as a function of galaxy luminosity and halo mass.
+    
+    Parameters
+    ----------
+    gc : GroupCatalog
+        The group catalog to analyze
+    centrals_only : bool, optional
+        If True, only use central galaxies (default: True)
+    """
+    data = gc.centrals if centrals_only else gc.all_data
+    
+    # Group by both LGAL_BIN and Mh_bin and calculate quiescent fraction
+    fq_2d = data.groupby(['LGAL_BIN', 'Mh_bin2'], observed=False).apply(qf_vmax_weighted_lowcut).unstack()
+    
+    # Get bin labels
+    lgal_labels = np.log10(L_gal_labels)  # Convert to log space
+    mh_labels = np.log10(Mhalo_labels2)
+    
+    fig, ax = plt.subplots(figsize=(7, 5), dpi=DPI)
+    
+    # Create the heatmap
+    im = ax.imshow(fq_2d.values, aspect='auto', origin='lower', 
+                   extent=[mh_labels[0], mh_labels[-1], lgal_labels[0], lgal_labels[-1]],
+                   cmap='RdYlBu_r', vmin=0, vmax=1)
+
+    
+    # Labels
+    ax.set_xlabel('log$(M_h~/~[M_{\odot} h^{-1}]$)')
+    ax.set_ylabel('log$(L_{\\rm gal}~/~[L_{\odot} h^{-2}])$')
+    
+    text = 'Central Galaxies Only' if centrals_only else 'All Galaxies'
+    ax.text(0.7, .1, text, transform=ax.transAxes, ha='center', va='bottom', fontsize=18)
+    
+    # Set reasonable limits
+    ax.set_xlim(9.5, 15.2)
+    ax.set_ylim(7, 12.2)  # Log space limits
+    
+    # Add twin axis for M_r
+    #ax_twin = ax.twinx()
+    #ax_twin.set_ylim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(11.5))
+    #ax_twin.set_ylabel("$M_r$ - 5log(h)")
+
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label('$f_Q$', rotation=270, labelpad=20)
+    
+    plt.tight_layout()
+    plt.show()
