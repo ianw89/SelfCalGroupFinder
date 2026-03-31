@@ -3482,7 +3482,17 @@ def fq_mstellar_mh_heatmap(gc: GroupCatalog, centrals_only=True):
     centrals_only : bool, optional
         If True, only use central galaxies (default: True)
     """
-    data = gc.centrals if centrals_only else gc.all_data
+    data = gc.all_data
+    data = data.loc[~data['IS_SAT']] if centrals_only else data
+    data = data.loc[z_flag_is_spectro_z(data['Z_ASSIGNED_FLAG'])]
+    zcut = None
+    if zcut is not None:
+        data = data.loc[data['Z'] < zcut]
+
+    outliers_removed = False
+    if 'OUTLIER_MLR' in data.columns:
+        data = data.loc[~data['OUTLIER_MLR']]
+        outliers_removed = True
     
     # Group by both Mstar_bin and Mh_bin and calculate quiescent fraction
     fq_2d = data.groupby(['Mstar_bin', 'Mh_bin2'], observed=False).apply(qf_vmax_weighted_lowcut).unstack()
@@ -3498,6 +3508,20 @@ def fq_mstellar_mh_heatmap(gc: GroupCatalog, centrals_only=True):
                    extent=[mh_labels[0], mh_labels[-1], mstar_labels[0], mstar_labels[-1]],
                    cmap='RdYlBu_r', vmin=0, vmax=1)
     
+
+    # Add contours - create meshgrid matching the actual data shape
+    x_edges = np.linspace(mh_labels[0], mh_labels[-1], fq_2d.shape[1] + 1)
+    y_edges = np.linspace(mstar_labels[0], mstar_labels[-1], fq_2d.shape[0] + 1)
+    x_centers = (x_edges[:-1] + x_edges[1:]) / 2
+    y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+    X, Y = np.meshgrid(x_centers, y_centers)
+    
+    contour_levels = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    contours = ax.contour(X, Y, fq_2d.values, levels=contour_levels, 
+                          colors='black', linewidths=1.5, alpha=0.7)
+    #ax.clabel(contours, inline=True, fontsize=10, fmt='%.1f')
+    
+    
     # Add colorbar
     cbar = plt.colorbar(im, ax=ax)
     cbar.set_label('$f_Q$', rotation=270, labelpad=20)
@@ -3508,11 +3532,14 @@ def fq_mstellar_mh_heatmap(gc: GroupCatalog, centrals_only=True):
     
     text = 'Central Galaxies Only' if centrals_only else 'All Galaxies'
     ax.text(0.7, .1, text, transform=ax.transAxes, ha='center', va='bottom', fontsize=18)
-    
-    
+    if zcut is not None:
+        ax.text(0.6, .05, f'z < {zcut}', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)
+    if outliers_removed:
+        ax.text(0.75, .05, 'Outliers Removed', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)
+
     # Set reasonable limits
-    ax.set_xlim(9.5, 15.2)
-    ax.set_ylim(6.5, 12.0)
+    ax.set_xlim(9.0, 15.2)
+    ax.set_ylim(5.5, 12.75)
     
     plt.tight_layout()
     plt.show()
