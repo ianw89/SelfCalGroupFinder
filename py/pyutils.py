@@ -735,10 +735,10 @@ def qf_vmax_weighted(series):
         return np.average(series['QUIESCENT'], weights=1/series['VMAX'])
 
 def qf_vmax_weighted_lowcut(series):
-    if len(series) <= 19:
+    if len(series) <= 49:
         return np.nan
     else:
-        return np.average(series['QUIESCENT'], weights=1/series['VMAX'])
+        return np.average(series['QUIESCENT'])#, weights=1/series['VMAX'])
 
 def qf_Dn4000MODEL_smart_eq_vmax_weighted(series):
     if len(series) <= 99:

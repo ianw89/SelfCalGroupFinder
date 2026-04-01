@@ -392,6 +392,80 @@ def safe_log_err_vals(logmean, lin_err):
             upper = np.log10(lin_err[1])
             return lower, upper
 
+
+def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
+     # This does NOT seem to matter for LHMR
+    clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
+    log_mean_all = clean.groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    log_means_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    log_means_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin', observed=False).apply(LogLgal_vmax_weighted)
+    ratio = 10**log_means_r / 10**log_means_b
+
+    lhmr_r_mean, lhmr_r_err, lhmr_r_scatter_mean, lhmr_r_scatter_err, lhmr_b_mean, lhmr_b_err, lhmr_b_scatter_mean, lhmr_b_scatter_err, lhmr_all_mean, lhmr_all_err, lhmr_all_scatter_mean, lhmr_all_scatter_err = lhmr_variance_from_saved()
+
+    # Error bars for statistical error (bootstrapped)
+    # And shaded for systematic (saved from MCMC)
+    yerr_all_lower, yerr_all_upper = safe_log_err(log_mean_all, f.lhmr_bootstrap_err)
+    yerr_b_lower, yerr_b_upper = safe_log_err(log_means_b, f.lhmr_sf_bootstrap_err)
+    yerr_r_lower, yerr_r_upper = safe_log_err(log_means_r, f.lhmr_q_bootstrap_err)
+
+    syserr_all_lower, syserr_all_upper = safe_log_err_vals(log_mean_all, lhmr_all_err)
+    syserr_b_lower, syserr_b_upper = safe_log_err_vals(log_means_b, lhmr_b_err)
+    syserr_r_lower, syserr_r_upper = safe_log_err_vals(log_means_r, lhmr_r_err)
+
+    plt.figure(dpi=DPI)
+    x_vals = np.log10(Mhalo_labels)
+    x_vals2 = np.log10(Mhalo_labels2)
+
+    if show_all:
+        plt.errorbar(x_vals, log_mean_all, yerr=[yerr_all_lower, yerr_all_upper], fmt='.', color='k', label='All', capsize=4, alpha=0.7)
+    #    plt.plot(x_vals, log_mean_all, '-', color='k', label='All', alpha=0.7)
+    #plt.plot(x_vals, log_means_b, '-', color='b', label='SF Centrals', alpha=0.7)
+    #plt.plot(x_vals, log_means_r, '-', color='r', label='Q Centrals', alpha=0.7)
+    plt.errorbar(x_vals, log_means_b, yerr=[yerr_b_lower, yerr_b_upper], fmt='.', color='b', label='SF Centrals', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals, log_means_r, yerr=[yerr_r_lower, yerr_r_upper], fmt='.', color='r', label='Q Centrals', capsize=4, alpha=0.7)
+
+    if show_all:
+        plt.fill_between(x_vals, syserr_all_lower, syserr_all_upper, color='k', alpha=0.2)
+    plt.fill_between(x_vals, syserr_r_lower, syserr_r_upper, color='r', alpha=0.2)
+    plt.fill_between(x_vals, syserr_b_lower, syserr_b_upper, color='b', alpha=0.2)
+    
+    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    plt.ylabel(r'log$(\langle L_{\mathrm{cen}} \rangle / [L_{\odot} h^{-2}])$')
+    plt.xlim(10,15)
+    plt.ylim(7,LOG_LGAL_MAX_TIGHT)
+    plt.legend()
+    plt.twinx()
+    plt.ylim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
+    plt.yticks(np.arange(-23, -12, 2))
+    plt.ylabel("$M_r$ - 5log(h)")
+
+    if inset is not None:
+        ax_inset = plt.gca().inset_axes([0.45, 0.1, 0.5, 0.5])
+        ax_inset.tick_params(axis='both', which='major', labelsize=10)
+        inset_log_means_r = inset.centrals.loc[inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_vmax_weighted)
+        inset_log_means_b = inset.centrals.loc[~inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(LogLgal_vmax_weighted)
+        ratio2 = 10**inset_log_means_r / 10**inset_log_means_b
+
+        #inset_yerr_all_lower, inset_yerr_all_upper = safe_log_err(inset_log_mean_all, inset.lhmr_bootstrap_err)
+        #inset_yerr_b_lower, inset_yerr_b_upper = safe_log_err(inset_log_means_b, inset.lhmr_sf_bootstrap_err)
+        #inset_yerr_r_lower, inset_yerr_r_upper = safe_log_err(inset_log_means_r, inset.lhmr_q_bootstrap_err)
+        
+        #ax_inset.errorbar(x_vals, inset_log_means_b, yerr=[inset_yerr_b_lower, inset_yerr_b_upper], fmt='.', color='b', capsize=3, alpha=0.7)
+        #ax_inset.errorbar(x_vals, inset_log_means_r, yerr=[inset_yerr_r_lower, inset_yerr_r_upper], fmt='.', color='r', capsize=3, alpha=0.7)
+        #ax_inset.plot(x_vals2, inset_log_means_b, '-', color='b', alpha=0.7)
+        #ax_inset.plot(x_vals2, inset_log_means_r, '-', color='r', alpha=0.7)
+        ax_inset.step(x_vals, ratio, '-', color='k', label='BGS', where='post')
+        ax_inset.step(x_vals2[:-6], ratio2[:-6], '-', color='purple', label='SDSS', where='post')
+        ax_inset.set_xlim(10,15)
+        ax_inset.legend(fontsize=8)
+       #ax_inset.set_ylim(0.9, 1.1)
+        #ax_inset.set_xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+        ax_inset.set_ylabel('Q/SF', fontsize=10)
+        # Dashed line at 1
+        ax_inset.axhline(1.0, color='gray', linestyle='--', alpha=0.5)
+
+
 def LHMR_compare(f: GroupCatalog, g: GroupCatalog):
      # This does NOT seem to matter for LHMR
     clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
@@ -703,49 +777,89 @@ def SHMR_scatter_savederr(f: GroupCatalog, show_all=False):
     plt.legend()
     plt.tight_layout()
 
-def SHMR_scatter_litcompare(f: GroupCatalog):
-    # TODO stuff to compare to from literature
+def SHMR_scatter_litcompare(f: GroupCatalog, sdss: GroupCatalog):
     scatter_all = f.centrals.groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
-
-
     all_lower = scatter_all - f.shmr_scatter_bootstrap_err[0]
     all_upper = f.shmr_scatter_bootstrap_err[1] - scatter_all
 
     plt.figure(dpi=DPI)
     x_vals = np.log10(Mhalo_labels2)
-    plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='This Work', capsize=4, alpha=0.7)
+    plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='This Work', capsize=4, alpha=0.9)
 
     # Now for comparison data.
+    # SDSS Paper II as filled gray region
+    lower = np.array([
+        [11.005456181830228, 0.2849789121288537],
+        [11.167450634836708, 0.32928270817100075],
+        [11.333395958846628, 0.389535875295136],
+        [11.511194649475959, 0.39603375636768723],
+        [11.681091296654772, 0.3682700396744598],
+        [11.854938814837027, 0.3446413484519814],
+        [12.009031073671174, 0.32042194896257137],
+        [12.202634152645171, 0.29088608493447327],
+        [12.329068656515242, 0.26784810197892645],
+        [12.495014281968798, 0.2436287024895164],
+        [12.696519404393312, 0.2170464248642282],
+        [12.830856253157533, 0.20700418151970773],
+        [13.01260596551212, 0.19637132004455948],
+        [13.166698224346268, 0.19518985844254447],
+        [13.356349980151371, 0.18573839096718345],
+        [13.510442238985519, 0.17983121816156378],
+        [13.854186253624771, 0.17510550695795932],
+        [13.696142973065365, 0.17983121816156378],
+        [14.024082900803585, 0.17510550695795932],
+        [14.190028224813505, 0.17983121816156378],
+        [14.344120483647652, 0.17924050989463225],
+        [14.521919174276983, 0.17451475362287577],
+        [14.691815821455796, 0.19755273657842265]
+    ])
+    upper = np.array([
+        [11.001505122424515, 0.32337552409834325],
+        [11.175352791328587, 0.3570464135971902],
+        [11.30968948937099, 0.4556962039578529],
+        [11.499341395897913, 0.4710548329717955],
+        [11.673189064801985, 0.4249789121288537],
+        [11.862841122050725, 0.39071730309603714],
+        [12.005080014265461, 0.3635443172038173],
+        [12.210536158415234, 0.32337552409834325],
+        [12.325117597109529, 0.29561182993919183],
+        [12.491063222563085, 0.2690295523139035],
+        [12.712323755057525, 0.2412658356206761],
+        [12.830856215477079, 0.22649790360662714],
+        [13.016556949556925, 0.21645568279618266],
+        [13.17460023011633, 0.20818567692283674],
+        [13.348447899020401, 0.20345992065108026],
+        [13.506491179579807, 0.19932491771440725],
+        [13.838382129043284, 0.18810128037009965],
+        [13.684289870209136, 0.19578057797651405],
+        [14.016180819672613, 0.18928269690396282],
+        [14.186077466851428, 0.2111392633256466],
+        [14.340169424241939, 0.20700421532082164],
+        [14.521919438040163, 0.1951898697095824],
+        [14.679962718599567, 0.23713076508177533]
+    ])
+    plt.fill_between(lower[:,0], lower[:,1], upper[:,1], color='gray', alpha=0.6, label='Paper II')
 
     # Tinker et al 2016 https://iopscience.iop.org/article/10.3847/1538-4357/aa6845/pdf
-    # "Measures" 0.16 dex scatter. Cut it off at Mhalo 11.5.
-    # Make a gray bar around 0.16
-    plt.fill_between(x_vals[12:], 0.16-0.02, 0.16+0.02, color='gray', alpha=0.3, label='Tinker+17')
-    plt.text(11.5, 0.15, 'Tinker+17', color='gray', fontsize=12)
-
+    # "Measures" 0.18 dex scatter. 
+    plt.fill_between(x_vals[22:], 0.18-0.02, 0.18+0.02, color='purple', alpha=0.4, label='Tinker+17')
     # Reddick et al 2013 SHAM measurements
-    # x, y, ylow, yhigh
-    #10.29651158900869, 0.20983894651150128, 0.18623717252650185, 0.23306002376914509
-    #10.455426393481629, 0.190043907455397,  0.14988286412063226, 0.2294436299431571
-    #10.802325471792441, 0.19956074477763486, 0.1656808198841636, 0.2334406987141887
-    #11.1395347762671, 0.17995607586752038, 0.15197656542721633, 0.20698388805405926
-    #11.707364246597535, 0.18985358813480185, 0.13979502527198495, 0.23896046726539494
-     # Crap these are scatter in HALO MASS not stellar mass
-    #reddick_x = np.array([12.06, 12.28, 12.77, 13.26, 14.06])
-    #reddick_y = np.array([0.20983894651150128, 0.190043907455397, 0.19956074477763486, 0.17995607586752038, 0.18985358813480185])
-    #reddick_ylow = np.array([0.18623717252650185, 0.14988286412063226, 0.1656808198841636, 0.15197656542721633, 0.13979502527198495])
-    #reddick_yhigh = np.array([0.23306002376914509, 0.2294436299431571, 0.2334406987141887, 0.20698388805405926, 0.23896046726539494])
-    #reddick_yerr_lower = reddick_y - reddick_ylow
-    #reddick_yerr_upper = reddick_yhigh - reddick_y
-    #plt.errorbar(reddick_x, reddick_y, yerr=[reddick_yerr_lower, reddick_yerr_upper], fmt='s', color='purple', capsize=4, alpha=0.7, label='Reddick+13')
-    plt.fill_between(x_vals[12:], 0.20-0.03, 0.20+0.03, color='purple', alpha=0.3, label='Reddick+13')
-    plt.text(11.5, 0.19, 'Reddick+13', color='purple', fontsize=12)
+    plt.fill_between(x_vals[20:29], 0.20-0.03, 0.20+0.03, color='blue', alpha=0.3, label='Reddick+13')
+    # To et al 2020 redmapper clusters
+    plt.fill_between(x_vals[25:], 0.19, 0.28, color='orange', alpha=0.4, label='To+20')
+    # Cao et al 2019
+    plt.fill_between(x_vals[13:16], 0.38-0.06, 0.38+0.06, color='cyan', alpha=0.4, label='Cao+19')
+    plt.fill_between(x_vals[15:18], 0.34-0.04, 0.34+0.04, color='green', alpha=0.4, label='Cao+19')
+    # Taylor et al 2020
+    plt.fill_between(x_vals[14:17], 0.22, 0.346, color='red', alpha=0.3, label='Taylor+20')
+    # arrow pointing up, because it's a lower limit
+    plt.annotate('', xy=(12.0, 0.38), xytext=(12.0, 0.28), arrowprops=dict(facecolor='red', shrink=0.05, width=2, headwidth=8, alpha=0.4), annotation_clip=False)
 
     plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'$\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
     plt.xlim(10,15)
     plt.ylim(0.0, 0.5)
-    plt.legend()
+    plt.legend(fontsize=11)
     plt.tight_layout()
 
 
@@ -3427,9 +3541,15 @@ def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
     counts = bgs_obs_zagreed.groupby('M_R_BIN').size()
     #print(counts)
 
-    # Within each bin, calculate the median and 2sigma differences
-    binned = bgs_obs_zagreed.groupby('M_R_BIN')['M_R_DIFF'].apply(lambda x: np.percentile(x, [2.5, 50, 97.5]))
-    binned = pd.DataFrame(binned.tolist(), index=binned.index, columns=['2.5', 'median', '97.5'])
+    # Within each bin, calculate the median and percentiles
+    binned = bgs_obs_zagreed.groupby('M_R_BIN')['M_R_DIFF'].apply(
+        lambda x: np.percentile(x, [2.5, 16, 50, 84, 97.5])
+    )
+    binned = pd.DataFrame(binned.tolist(), index=binned.index, 
+                         columns=['2.5', '16', 'median', '84', '97.5'])
+
+    x = binned.index.to_numpy()
+    y = binned['median'].to_numpy()
 
     # Extract BGS M_R and the difference (M_R_DIFF) between BGS and SDSS M_R
     x = binned.index.to_numpy()
@@ -3450,25 +3570,112 @@ def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
 
     # Plot the data and the fitted polynomial
     plt.figure()
-    plt.errorbar(binned.index, binned['median'], yerr=[binned['median'] - binned['2.5'], binned['97.5'] - binned['median']], fmt='o', capsize=3, label='95% Interval')
+    plt.grid()
+
+    plt.fill_between(binned.index, binned['2.5'], binned['97.5'], alpha=0.2, color='blue', label='95% Interval')
+    plt.fill_between(binned.index, binned['16'], binned['84'], alpha=0.3, color='blue', label='68% Interval')
+    plt.plot(binned.index, binned['median'], 'o', color='darkblue', markersize=4, label='Median')
+
     if showpoly:
         plt.plot(x_fit, y_fit, color='orange', label=f'Polynomial Fit (degree {degree})')
     if showsaved:
-        plt.plot(x_fit, x_fit - bgs_mag_to_sdsslike_mag(x_fit), color='green', label='Saved Result')
+        plt.plot(x_fit, x_fit - bgs_mag_to_sdsslike_mag(x_fit), color='green', label='Fitting Function')
     plt.xlabel('$M_r^{BGS}$')
     plt.ylabel('$M_r^{BGS} - M_r^{SDSS}$')
     #plt.title('Polynomial Fit to BGS vs SDSS $M_r$')
     plt.axhline(0, color='red', linestyle='--')
     plt.legend()
     plt.ylim(-1.0, 0.6)
+    plt.xlim(-24.0, -16.75)
     plt.xticks(np.arange(-24, -16, 1))
-    plt.grid()
 
     # Vertical text to say region where BGS is brighter, region where SDSS is brighter
     plt.text(-23.92, -0.4, 'BGS Brighter', rotation=90, verticalalignment='center', color='k', fontsize=14)
     plt.text(-23.92, 0.3, 'SDSS Brighter', rotation=90, verticalalignment='center', color='k', fontsize=14)
 
     return bgs_obs_zagreed
+
+
+
+
+def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True):
+    """
+    Create a 2D heatmap showing quiescent fraction as a function of stellar mass and halo mass.
+    
+    Parameters
+    ----------
+    gc : GroupCatalog
+        The group catalog to analyze
+    centrals_only : bool, optional
+        If True, only use central galaxies (default: True)
+    """
+    data = gc.all_data.copy()
+    
+    #ms_bins = np.linspace(9, 11.6, 50)
+    ms_bins = np.linspace(-3, -0.5, 50)
+    mh_bins = np.linspace(11.0, 14.1, 60)
+    data['LOG_MSTAR_OVER_MH'] = data['LOGMSTAR'] - np.log10(data['M_HALO'])
+    data['MSTAR_FINEBIN'] = pd.cut(data['LOG_MSTAR_OVER_MH'], bins=ms_bins, labels=ms_bins[:-1], include_lowest=True)
+    data['MH_FINEBIN'] = pd.cut(np.log10(data['M_HALO']), bins=mh_bins, labels=mh_bins[:-1], include_lowest=True)
+
+    data = data.loc[~data['IS_SAT']] if centrals_only else data
+    data = data.loc[z_flag_is_spectro_z(data['Z_ASSIGNED_FLAG'])]
+    zcut = None
+    if zcut is not None:
+        data = data.loc[data['Z'] < zcut]
+
+    outliers_removed = False
+    if 'OUTLIER_MLR' in data.columns:
+        data = data.loc[~data['OUTLIER_MLR']]
+        outliers_removed = True
+
+
+    # Group by both Mstar_bin and Mh_bin and calculate quiescent fraction
+    fq_2d = data.groupby(['MSTAR_FINEBIN', 'MH_FINEBIN'], observed=False).apply(qf_vmax_weighted_lowcut).unstack()
+    
+    # Get bin labels
+    mstar_labels = ms_bins[:-1]
+    mh_labels = mh_bins[:-1]
+    
+    fig, ax = plt.subplots(figsize=(7, 5), dpi=DPI)
+    
+    # Create the heatmap
+    im = ax.imshow(fq_2d.values, aspect='auto', origin='lower', 
+                   extent=[mh_labels[0], mh_labels[-1], mstar_labels[0], mstar_labels[-1]],
+                   cmap='RdYlBu_r', vmin=0, vmax=1)
+    
+
+    # Add contours - create meshgrid matching the actual data shape
+    x_edges = np.linspace(mh_labels[0], mh_labels[-1], fq_2d.shape[1] + 1)
+    y_edges = np.linspace(mstar_labels[0], mstar_labels[-1], fq_2d.shape[0] + 1)
+    x_centers = (x_edges[:-1] + x_edges[1:]) / 2
+    y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+    X, Y = np.meshgrid(x_centers, y_centers)
+    
+    contour_levels = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    contours = ax.contour(X, Y, fq_2d.values, levels=contour_levels, 
+                          colors='black', linewidths=1.5, alpha=0.7)
+    #ax.clabel(contours, inline=True, fontsize=10, fmt='%.1f')
+    
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label('$f_Q$', rotation=270, labelpad=20)
+    
+    # Labels
+    ax.set_xlabel('log$(M_h~/~[M_{\odot} h^{-1}]$)')
+    #ax.set_ylabel('log$(M_{\\star}~/~[M_{\odot} h^{-2}])$')
+    ax.set_ylabel('log$(M_{\\star}~/~M_h)$')
+    
+    text = 'Central Galaxies Only' if centrals_only else 'All Galaxies'
+    #ax.text(0.7, .1, text, transform=ax.transAxes, ha='center', va='bottom', fontsize=18)
+    if zcut is not None:
+        ax.text(0.6, .05, f'z < {zcut}', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)
+    if outliers_removed:
+        ax.text(0.75, .05, 'Outliers Removed', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)
+    
+    plt.tight_layout()
+    plt.show()
 
 
 def fq_mstellar_mh_heatmap(gc: GroupCatalog, centrals_only=True):
@@ -3482,9 +3689,9 @@ def fq_mstellar_mh_heatmap(gc: GroupCatalog, centrals_only=True):
     centrals_only : bool, optional
         If True, only use central galaxies (default: True)
     """
-    data = gc.all_data
+    data = gc.all_data.copy()
     data = data.loc[~data['IS_SAT']] if centrals_only else data
-    data = data.loc[z_flag_is_spectro_z(data['Z_ASSIGNED_FLAG'])]
+    #data = data.loc[z_flag_is_spectro_z(data['Z_ASSIGNED_FLAG'])]
     zcut = None
     if zcut is not None:
         data = data.loc[data['Z'] < zcut]
@@ -3495,7 +3702,7 @@ def fq_mstellar_mh_heatmap(gc: GroupCatalog, centrals_only=True):
         outliers_removed = True
     
     # Group by both Mstar_bin and Mh_bin and calculate quiescent fraction
-    fq_2d = data.groupby(['Mstar_bin', 'Mh_bin2'], observed=False).apply(qf_vmax_weighted_lowcut).unstack()
+    fq_2d = data.groupby(['Mstar_bin', 'Mh_bin'], observed=False).apply(qf_vmax_weighted_lowcut).unstack()
     
     # Get bin labels
     mstar_labels = logmstar_labels
@@ -3557,10 +3764,13 @@ def fq_lgal_mh_heatmap(gc: GroupCatalog, centrals_only=True):
         If True, only use central galaxies (default: True)
     """
     data = gc.centrals if centrals_only else gc.all_data
-    
+    data = data.loc[data['Z'] < 0.2]
+
     # Group by both LGAL_BIN and Mh_bin and calculate quiescent fraction
     fq_2d = data.groupby(['LGAL_BIN', 'Mh_bin2'], observed=False).apply(qf_vmax_weighted_lowcut).unstack()
     
+
+
     # Get bin labels
     lgal_labels = np.log10(L_gal_labels)  # Convert to log space
     mh_labels = np.log10(Mhalo_labels2)
