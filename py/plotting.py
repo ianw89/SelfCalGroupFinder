@@ -1754,7 +1754,7 @@ def hodt_satparams_evolution_2(gc: GroupCatalog, colors: list):
     Plot the evolution of the satellite HOD parameters with luminosity cut.
     """
     maglims = gc.caldata.magbins
-    magcenters = 0.5 * (maglims[1:] + maglims[:-1])
+    #magcenters = 0.5 * (maglims[1:] + maglims[:-1])
 
     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,5), dpi=DPI)
     
@@ -1771,8 +1771,8 @@ def hodt_satparams_evolution_2(gc: GroupCatalog, colors: list):
 
         popt = np.array(popt) # Convert list to numpy array to allow slicing
         # Reverse direction
-        axes[0].plot(magcenters, 10**popt[:,1] / 10**popt[:,0], marker='o', label=label, color=color, alpha=0.7)
-        axes[1].plot(magcenters, popt[:,2], marker='o', label=label, color=color, alpha=0.7)
+        axes[0].plot(maglims[:-1], 10**popt[:,1] / 10**popt[:,0], marker='o', label=label, color=color, alpha=0.7)
+        axes[1].plot(maglims[:-1], popt[:,2], marker='o', label=label, color=color, alpha=0.7)
 
     # x axis is reversed
     for ax in axes:
@@ -3598,7 +3598,7 @@ def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
 
 
 
-def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True):
+def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True, fractional=False):
     """
     Create a 2D heatmap showing quiescent fraction as a function of stellar mass and halo mass.
     
@@ -3611,15 +3611,21 @@ def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True):
     """
     data = gc.all_data.copy()
     
-    #ms_bins = np.linspace(9, 11.6, 50)
-    ms_bins = np.linspace(-3, -0.5, 50)
+    if fractional:
+        ms_bins = np.linspace(-3, -0.5, 50)
+    else:
+        ms_bins = np.linspace(9, 11.6, 50)
     mh_bins = np.linspace(11.0, 14.1, 60)
     data['LOG_MSTAR_OVER_MH'] = data['LOGMSTAR'] - np.log10(data['M_HALO'])
-    data['MSTAR_FINEBIN'] = pd.cut(data['LOG_MSTAR_OVER_MH'], bins=ms_bins, labels=ms_bins[:-1], include_lowest=True)
+    if fractional:
+        data['MSTAR_FINEBIN'] = pd.cut(data['LOG_MSTAR_OVER_MH'], bins=ms_bins, labels=ms_bins[:-1], include_lowest=True)
+    else:
+        data['MSTAR_FINEBIN'] = pd.cut(data['LOGMSTAR'], bins=ms_bins, labels=ms_bins[:-1], include_lowest=True)
     data['MH_FINEBIN'] = pd.cut(np.log10(data['M_HALO']), bins=mh_bins, labels=mh_bins[:-1], include_lowest=True)
 
     data = data.loc[~data['IS_SAT']] if centrals_only else data
     data = data.loc[z_flag_is_spectro_z(data['Z_ASSIGNED_FLAG'])]
+
     zcut = None
     if zcut is not None:
         data = data.loc[data['Z'] < zcut]
@@ -3628,7 +3634,6 @@ def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True):
     if 'OUTLIER_MLR' in data.columns:
         data = data.loc[~data['OUTLIER_MLR']]
         outliers_removed = True
-
 
     # Group by both Mstar_bin and Mh_bin and calculate quiescent fraction
     fq_2d = data.groupby(['MSTAR_FINEBIN', 'MH_FINEBIN'], observed=False).apply(qf_vmax_weighted_lowcut).unstack()
@@ -3664,11 +3669,14 @@ def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True):
     
     # Labels
     ax.set_xlabel('log$(M_h~/~[M_{\odot} h^{-1}]$)')
-    #ax.set_ylabel('log$(M_{\\star}~/~[M_{\odot} h^{-2}])$')
-    ax.set_ylabel('log$(M_{\\star}~/~M_h)$')
+
+    if fractional:
+        ax.set_ylabel('log$(M_{\\star}~/~M_h)$')
+    else:
+        ax.set_ylabel('log$(M_{\\star}~/~[M_{\odot} h^{-2}])$')
     
     text = 'Central Galaxies Only' if centrals_only else 'All Galaxies'
-    #ax.text(0.7, .1, text, transform=ax.transAxes, ha='center', va='bottom', fontsize=18)
+    ax.text(0.7, .1, text, transform=ax.transAxes, ha='center', va='bottom', fontsize=18)
     if zcut is not None:
         ax.text(0.6, .05, f'z < {zcut}', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)
     if outliers_removed:
