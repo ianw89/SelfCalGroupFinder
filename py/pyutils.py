@@ -414,25 +414,61 @@ def distmod(zs):
     ld_cache = LuminosityDistanceCache()
     return 5 * (np.log10(ld_cache.luminosity_distance(zs) * 1E6) - 1)
 
-def bgs_mag_to_sdsslike_mag(mag, band='r'):
+def bgs_mag_to_sdsslike_mag(mag, band='r', quiescent=None):
     """
     Converts BGS magnitudes to SDSS-like magnitudes using an emperical relation found from galaxies
     observed in both surveys. Assumes the BGS mag is already k-corrected to z=0.1 using the fastspecfit method.
     """
     if band == 'r':
-        # -7.6893297  -0.86497407 -0.02406113
-        # Fit in post_plots, see ## BGS and SDSS Target Overlap Analysis
-        A = -7.6893297
-        B = -0.86497407
-        C = -0.02406113
-        correction = np.where(mag > -17.3, 0.07, Polynomial([A, B, C]).__call__(mag))
-        correction = np.where(mag < -23.5, -0.65, correction)
+        if quiescent is None: # combined
+            A = -7.6893297
+            B = -0.86497407
+            C = -0.02406113
+            correction = np.where(mag > -17.3, 0.07, Polynomial([A, B, C]).__call__(mag))
+            correction = np.where(mag < -23.5, -0.65, correction)
+        elif quiescent: 
+            A = -7.33729968
+            B = -0.83270056
+            C = -0.02333421
+            correction = np.where(mag > -17.3, 0.1, Polynomial([A, B, C]).__call__(mag))
+            correction = np.where(mag < -23.5, -0.65, correction)
+        else: # star-forming 
+            A = -7.16193192
+            B = -0.8029468
+            C = -0.02226212
+            correction = np.where(mag > -17.3, 0.07, Polynomial([A, B, C]).__call__(mag))
+            correction = np.where(mag < -23.5, -0.65, correction)
+
         return mag - correction
     else:
         raise NotImplementedError(f"Band {band} not implemented")
 
-def sdss_mag_to_bgslike_mag(mag, band='r'):
-    return mag - (bgs_mag_to_sdsslike_mag(mag, band=band) - mag) # gives mag + correction
+
+def sdss_mag_to_bgslike_mag(mag, band='r', quiescent=None):
+    if band == 'r':
+        if quiescent is None: # combined
+            A = -6.54914288
+            B = -0.73979052
+            C = -0.02069428
+            correction = np.where(mag > -17.3, 0.07, Polynomial([A, B, C]).__call__(mag))
+            correction = np.where(mag < -23.5, -0.65, correction)
+        elif quiescent:
+            A = -4.37179458
+            B = -0.5302441
+            C = -0.01569134
+            correction = np.where(mag > -17.3, 0.1, Polynomial([A, B, C]).__call__(mag))
+            correction = np.where(mag < -23.5, -0.65, correction)
+        else: # star-forming [-9.38760491 -1.02347078 -0.02771708]
+            A = -9.38760491
+            B = -1.02347078
+            C = -0.02771708
+            correction = np.where(mag > -17.3, 0.05, Polynomial([A, B, C]).__call__(mag))
+            correction = np.where(mag < -23.5, -0.65, correction)
+        return mag + correction
+    else:
+        raise NotImplementedError(f"Band {band} not implemented")
+    
+    #return mag - (bgs_mag_to_sdsslike_mag(mag, band=band) - mag) # gives mag + correction
 
 def bgs_mag_to_sdsslike_mag_OLD(mag, band='r'):
     """

@@ -3491,11 +3491,9 @@ def gfparams_plots(gc: GroupCatalog, chains_flat):
     plt.tight_layout()
 
 
-
-def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=True, showsaved=True):
+def bgs_sdss_match_df(bgs: GroupCatalog, sdss: GroupCatalog):
     """
-    Make a plot comparing the SDSS and BGS magnitudes for the observed galaxies in BGS.
-    """
+    Match the observed galaxies in BGS to their counterparts in SDSS, and return a dataframe of the matched galaxies with their BGS and SDSS properties."""
     bgs_to_use = bgs.all_data
     sdss_obs = sdss.all_data.loc[sdss.all_data['Z_ASSIGNED_FLAG'] == AssignedRedshiftFlag.SDSS_SPEC.value].reset_index()
     bgs_obs = bgs_to_use.loc[bgs_to_use['Z_ASSIGNED_FLAG'] == AssignedRedshiftFlag.DESI_SPEC.value].reset_index()
@@ -3528,32 +3526,39 @@ def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
     bgs_obs_zagreed = bgs_obs.loc[zagreed].reset_index()
     print(f"Number of galaxies with z agreement: {len(bgs_obs_zagreed)} out of {len(bgs_obs)}")
 
+    return bgs_obs_zagreed
+
+
+def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=True, showsaved=True, quiescent=None):
+    """
+    Make a plot comparing the SDSS and BGS magnitudes for the observed galaxies in BGS.
+    This version uses BGS M_r on the x-axis and fits a polynomial to predict the difference between BGS and SDSS M_r, as a function of BGS M_r.
+    """
+    bgs_obs_zagreed = bgs_sdss_match_df(bgs, sdss)
+
+    if quiescent is not None:
+        bgs_obs_zagreed = bgs_obs_zagreed.loc[bgs_obs_zagreed['QUIESCENT'] == quiescent]
+
     # make abs mag bins
     bins = np.linspace(-23.5, -16.5, 29)
-    # Omit final bin
     bins = bins[:-1]
-    #bins = np.linspace(-22.5, -19.5, 19)
     bgs_obs_zagreed['M_R_BIN'] = pd.cut(bgs_obs_zagreed['M_R'], bins=bins, labels=bins[:-1], include_lowest=True)
     bgs_obs_zagreed['M_R_DIFF'] = bgs_obs_zagreed['M_R'] - bgs_obs_zagreed['SDSS_M_R']
-    bgs_obs_zagreed['M_R_ABS_DIFF'] = np.abs(bgs_obs_zagreed['M_R'] - bgs_obs_zagreed['SDSS_M_R'])
-
-    # Print off counts in each bin
-    counts = bgs_obs_zagreed.groupby('M_R_BIN').size()
-    #print(counts)
 
     # Within each bin, calculate the median and percentiles
-    binned = bgs_obs_zagreed.groupby('M_R_BIN')['M_R_DIFF'].apply(
-        lambda x: np.percentile(x, [2.5, 16, 50, 84, 97.5])
+    binned = bgs_obs_zagreed.groupby('M_R_BIN', observed=False)['M_R_DIFF'].apply(
+        lambda x: np.percentile(x, [2.5, 16, 50, 84, 97.5])  if len(x) > 50 else [np.nan]*5
     )
     binned = pd.DataFrame(binned.tolist(), index=binned.index, 
                          columns=['2.5', '16', 'median', '84', '97.5'])
 
-    x = binned.index.to_numpy()
-    y = binned['median'].to_numpy()
+    binned = binned.dropna()
 
-    # Extract BGS M_R and the difference (M_R_DIFF) between BGS and SDSS M_R
     x = binned.index.to_numpy()
     y = binned['median'].to_numpy()
+    # Use the scatter (16-84 percentile range) as weights
+    #scatter = (binned['84'] - binned['16']) / 2
+    #weights = 1 / (scatter**2)  # Inverse variance weighting
 
     # Fit a polynomial function (e.g., degree 2)
     degree = 2
@@ -3562,39 +3567,109 @@ def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
 
     # Generate fitted values
     x_fit = np.linspace(x.min() - 1, x.max() + 2, 100)
-
     y_fit = Polynomial(coeffs)(x_fit)
     # Calculate the mean squared error
     mse = mean_squared_error(y, Polynomial(coeffs)(x))
     print(f"Mean Squared Error: {mse:.4f}")
 
-    # Plot the data and the fitted polynomial
     plt.figure()
     plt.grid()
-
     plt.fill_between(binned.index, binned['2.5'], binned['97.5'], alpha=0.2, color='blue', label='95% Interval')
     plt.fill_between(binned.index, binned['16'], binned['84'], alpha=0.3, color='blue', label='68% Interval')
     plt.plot(binned.index, binned['median'], 'o', color='darkblue', markersize=4, label='Median')
-
     if showpoly:
         plt.plot(x_fit, y_fit, color='orange', label=f'Polynomial Fit (degree {degree})')
     if showsaved:
-        plt.plot(x_fit, x_fit - bgs_mag_to_sdsslike_mag(x_fit), color='green', label='Fitting Function')
+        plt.plot(x_fit, x_fit - bgs_mag_to_sdsslike_mag(x_fit, quiescent=quiescent), color='green', label='Fitting Function')
     plt.xlabel('$M_r^{BGS}$')
     plt.ylabel('$M_r^{BGS} - M_r^{SDSS}$')
-    #plt.title('Polynomial Fit to BGS vs SDSS $M_r$')
     plt.axhline(0, color='red', linestyle='--')
     plt.legend()
     plt.ylim(-1.0, 0.6)
     plt.xlim(-24.0, -16.75)
     plt.xticks(np.arange(-24, -16, 1))
-
     # Vertical text to say region where BGS is brighter, region where SDSS is brighter
     plt.text(-23.92, -0.4, 'BGS Brighter', rotation=90, verticalalignment='center', color='k', fontsize=14)
     plt.text(-23.92, 0.3, 'SDSS Brighter', rotation=90, verticalalignment='center', color='k', fontsize=14)
 
+    if quiescent:
+        plt.text(-16.75, 0.5, 'Quiescent', horizontalalignment='right', color='k', fontsize=14)
+    elif quiescent == False:
+        plt.text(-16.75, 0.5, 'Star-Forming', horizontalalignment='right', color='k', fontsize=14)
+
     return bgs_obs_zagreed
 
+
+def sdss_bgs_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=True, showsaved=True, quiescent=None):
+    """
+    Make a plot comparing the SDSS and BGS magnitudes for the observed galaxies in BGS.
+    This version uses SDSS M_r on the x-axis and fits a polynomial to predict BGS M_r.
+    """
+    bgs_obs_zagreed = bgs_sdss_match_df(bgs, sdss)
+
+    if quiescent is not None:
+        bgs_obs_zagreed = bgs_obs_zagreed.loc[bgs_obs_zagreed['QUIESCENT'] == quiescent]
+
+    # make abs mag bins based on SDSS M_r now
+    bins = np.linspace(-23.5, -16.5, 29)
+    bins = bins[:-1]
+    bgs_obs_zagreed['SDSS_M_R_BIN'] = pd.cut(bgs_obs_zagreed['SDSS_M_R'], bins=bins, labels=bins[:-1], include_lowest=True)
+    bgs_obs_zagreed['M_R_DIFF'] = bgs_obs_zagreed['M_R'] - bgs_obs_zagreed['SDSS_M_R']
+
+    # Within each bin, calculate the median and percentiles
+    binned = bgs_obs_zagreed.groupby('SDSS_M_R_BIN', observed=False)['M_R_DIFF'].apply(
+        lambda x: np.percentile(x, [2.5, 16, 50, 84, 97.5]) if len(x) > 10 else [np.nan]*5
+    )
+    binned = pd.DataFrame(binned.tolist(), index=binned.index, 
+                         columns=['2.5', '16', 'median', '84', '97.5'])
+    
+    # Remove bins with no data
+    binned = binned.dropna()
+    
+    x = binned.index.to_numpy()
+    y = binned['median'].to_numpy()
+    # Use the scatter (16-84 percentile range) as weights
+    #scatter = (binned['84'] - binned['16']) / 2
+    #weights = 1 / (scatter**2)  # Inverse variance weighting
+
+    # Fit a polynomial function (e.g., degree 2)
+    degree = 2
+    coeffs = Polynomial.fit(x, y, degree).convert().coef
+    print(f"Polynomial coefficients (SDSS->BGS): {coeffs}")
+
+    # Generate fitted values
+    x_fit = np.linspace(x.min() - 1, x.max() + 2, 100)
+    y_fit = Polynomial(coeffs)(x_fit)
+    
+    # Calculate the mean squared error
+    mse = mean_squared_error(y, Polynomial(coeffs)(x))
+    print(f"Mean Squared Error: {mse:.4f}")
+
+    plt.figure()
+    plt.grid()
+    plt.fill_between(binned.index, binned['2.5'], binned['97.5'], alpha=0.2, color='blue', label='95% Interval')
+    plt.fill_between(binned.index, binned['16'], binned['84'], alpha=0.3, color='blue', label='68% Interval')
+    plt.plot(binned.index, binned['median'], 'o', color='darkblue', markersize=4, label='Median')
+    if showpoly:
+        plt.plot(x_fit, y_fit, color='orange', label=f'Polynomial Fit (degree {degree})')
+    if showsaved:
+        plt.plot(x_fit, sdss_mag_to_bgslike_mag(x_fit, quiescent=quiescent) - x_fit, color='green', label='Fitting Function')
+    plt.xlabel('$M_r^{SDSS}$')
+    plt.ylabel('$M_r^{BGS} - M_r^{SDSS}$')
+    plt.axhline(0, color='red', linestyle='--')
+    plt.legend()
+    plt.ylim(-1.0, 0.6)
+    plt.xlim(-24.0, -16.75)
+    plt.xticks(np.arange(-24, -16, 1))
+    plt.text(-23.92, -0.4, 'BGS Brighter', rotation=90, verticalalignment='center', color='k', fontsize=14)
+    plt.text(-23.92, 0.3, 'SDSS Brighter', rotation=90, verticalalignment='center', color='k', fontsize=14)
+
+    if quiescent:
+        plt.text(-16.75, 0.5, 'Quiescent', horizontalalignment='right', color='k', fontsize=14)
+    elif quiescent == False:
+        plt.text(-16.75, 0.5, 'Star-Forming', horizontalalignment='right', color='k', fontsize=14)
+
+    return bgs_obs_zagreed
 
 
 
