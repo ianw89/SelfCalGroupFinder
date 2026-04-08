@@ -1707,8 +1707,6 @@ class BGSGroupCatalog(GroupCatalog):
         print("Pre-processing...")
         if self.data_cut == "Y1-Iron":
             infile = IAN_BGS_Y1_MERGED_FILE
-        elif self.data_cut == "Y1-Iron-Mini":
-            infile = IAN_BGS_Y1_MERGED_FILE
         elif self.data_cut == "Y3-Kibo":
             raise ValueError("Y3 Kibo no longer supported")
         elif self.data_cut == "Y3-Kibo-SV3Cut":
@@ -1968,8 +1966,6 @@ def get_footprint_deg(data_cut, mode, num_passes_required):
     
     if data_cut == "Y1-Iron":
         return mgr.get_footprint("Y1", 'all', num_passes_required)
-    elif data_cut == "Y1-Iron-Mini":
-        return 141.6
     elif data_cut == "Y3-Kibo" or data_cut == "Y3-Loa":
         return mgr.get_footprint("Y3", 'all', num_passes_required)
     elif data_cut == "sv3":
@@ -2146,14 +2142,6 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     keep &= ~np.isin(target_id, bad_targets)
     catalog_keep &= ~np.isin(target_id, bad_targets)
     print(f"After bad targets cut: {keep.sum():,}")
-
-    # For Y1-Iron-Mini, we want to cut to a smaller region
-    if data_cut == "Y1-Iron-Mini":
-        keep &= ra > 160
-        keep &= ra < 175
-        keep &= dec > -7
-        keep &= dec < 3
-        print(f"After Y1-Mini cut: {keep.sum():,}")
 
     # Special version cut to look like SV3 - choose only the ones inside the SV3 footprint
     if data_cut == "Y3-Kibo-SV3Cut" or data_cut == "Y3-Loa-SV3Cut":

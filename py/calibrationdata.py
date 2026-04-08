@@ -87,10 +87,6 @@ class CalibrationData:
     def BGS_Y1_8bin(magcut: float, frac_area: float):
         return CalibrationData(PARAMS_BGSY1_FOLDER, np.array([-15, -16, -17, -18, -19, -20, -21, -22, -23]), np.array([False, False, True, True, True, True, True, True]), magcut, frac_area)
 
-    @staticmethod
-    def BGS_Y1mini(magcut: float, frac_area: float):
-        return CalibrationData(PARAMS_BGSY1MINI_FOLDER, np.array([-17, -18, -19, -20, -21, -22, -23]), np.array([False, False, True, True, True, False]), magcut, frac_area)
-
     def __str__(self):
         return f"CalibrationData(\nmagbins={self.magbins}\nzmaxes={self.zmaxes}\nvolumes={self.volumes}\nmagcut={self.magcut}\nfrac_area={self.frac_area}\nparamsfolder={self.paramsfolder}\nbinsfile={self.rpbinsfile}\n)"
     
