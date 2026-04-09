@@ -2270,26 +2270,17 @@ def Lfunc_compare(cat1, cat2):
 
 def lostgal_lum_func_paper_compare(*catalogs):
         
-    #x = L_gal_labels # bins if ising cic code
     x_bins = np.logspace(8, 11.2, 12) # bins if using cic code
     x = (x_bins[:-1] + x_bins[1:]) / 2 # bin centers
 
-    obs_counts = np.zeros((len(catalogs), len(x)))
-    lost_truth_counts = np.zeros((len(catalogs), len(x)))
-    lost_assumed_counts = np.zeros((len(catalogs), len(x)))
-    obs_vs_losttruth = np.zeros((len(catalogs), len(x)))
-    assumed_vs_truth = np.zeros((len(catalogs), len(x)))
     assumed_vs_truth_red = np.zeros((len(catalogs), len(x)))
+    assumed_vs_truth_red_err = np.zeros((len(catalogs), len(x)))
     assumed_vs_truth_blue = np.zeros((len(catalogs), len(x)))
-    total_counts = np.zeros((len(catalogs), len(x)))
-    total_r_counts = np.zeros((len(catalogs), len(x)))
-    total_b_counts = np.zeros((len(catalogs), len(x)))
-    boost = []
+    assumed_vs_truth_blue_err = np.zeros((len(catalogs), len(x)))
 
     for i in range(len(catalogs)):
         assert len(catalogs[i].L_gal_labels) == len(L_gal_labels)
         catalog = catalogs[i]
-        #data = catalog.all_data.convert_dtypes()
         data = catalog.all_data
 
         lostrows = z_flag_is_not_spectro_z(data['Z_ASSIGNED_FLAG'].to_numpy())
@@ -2299,45 +2290,49 @@ def lostgal_lum_func_paper_compare(*catalogs):
 
         closeness = np.isclose(obs_galaxies['Z'], obs_galaxies['Z_T'], atol=SIM_Z_THRESH, rtol=0.0)
         assert closeness.sum() / len(closeness) > .98, f"{1 - (closeness.sum() / len(closeness))} of the galaxies have different z and Z_T despite being spectrocopically observed."
-
-        if len(lost_withT_galaxies) == 0:
-            boost.append(1)
-            continue
-        boost.append(len(obs_galaxies) / len(lost_withT_galaxies))
-
-        total_counts[i] = np.histogram(data['L_GAL'].to_numpy(), bins=x_bins)[0]
-        total_r_counts[i] = np.histogram(data.loc[data['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0]
-        total_b_counts[i] = np.histogram(data.loc[~data['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0]
-        obs_counts[i] = np.histogram(obs_galaxies['L_GAL'].to_numpy(), bins=x_bins)[0]
-        lost_truth_counts[i] = np.histogram(lost_withT_galaxies['L_GAL_T'].to_numpy(), bins=x_bins)[0]
-        lost_assumed_counts[i] = np.histogram(lost_withT_galaxies['L_GAL'].to_numpy(), bins=x_bins)[0]
         
-        obs_vs_losttruth[i] = ((lost_truth_counts[i]*boost[i] - obs_counts[i]) / obs_counts[i]) * 100
-        assumed_vs_truth[i] =  ((lost_assumed_counts[i] - lost_truth_counts[i]) / lost_truth_counts[i]) * 100
+        def _iteration(sample_indices):
+            sample = lost_withT_galaxies.iloc[sample_indices]
 
-        obs_red_counts = np.histogram(obs_galaxies.loc[obs_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0]
-        obs_blue_counts = np.histogram(obs_galaxies.loc[~obs_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0]
-        lost_truth_red_counts = np.histogram(lost_withT_galaxies.loc[lost_withT_galaxies['QUIESCENT'], 'L_GAL_T'].to_numpy(), bins=x_bins)[0].astype(np.float64)
-        lost_truth_blue_counts = np.histogram(lost_withT_galaxies.loc[~lost_withT_galaxies['QUIESCENT'], 'L_GAL_T'].to_numpy(), bins=x_bins)[0].astype(np.float64)
-        lost_assumed_red_counts = np.histogram(lost_withT_galaxies.loc[lost_withT_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0].astype(np.float64)
-        lost_assumed_blue_counts = np.histogram(lost_withT_galaxies.loc[~lost_withT_galaxies['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0].astype(np.float64)
+            lost_truth_red_counts = np.histogram(sample.loc[sample['QUIESCENT'], 'L_GAL_T'].to_numpy(), bins=x_bins)[0].astype(np.float64)
+            lost_truth_blue_counts = np.histogram(sample.loc[~sample['QUIESCENT'], 'L_GAL_T'].to_numpy(), bins=x_bins)[0].astype(np.float64)
+            lost_assumed_red_counts = np.histogram(sample.loc[sample['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0].astype(np.float64)
+            lost_assumed_blue_counts = np.histogram(sample.loc[~sample['QUIESCENT'], 'L_GAL'].to_numpy(), bins=x_bins)[0].astype(np.float64)
 
-        # Set to nan if less than 10 galaxies in the bin to avoid noisy statistics
-        lim = 20
-        lost_truth_red_counts[lost_truth_red_counts < lim] = np.nan
-        lost_truth_blue_counts[lost_truth_blue_counts < lim] = np.nan
-        lost_assumed_red_counts[lost_assumed_red_counts < lim] = np.nan
-        lost_assumed_blue_counts[lost_assumed_blue_counts < lim] = np.nan
+            lim = 5
+            lost_truth_red_counts[lost_truth_red_counts < lim] = np.nan
+            lost_truth_blue_counts[lost_truth_blue_counts < lim] = np.nan
+            lost_assumed_red_counts[lost_assumed_red_counts < lim] = np.nan
+            lost_assumed_blue_counts[lost_assumed_blue_counts < lim] = np.nan
 
-        assumed_vs_truth_red[i] =  ((lost_assumed_red_counts - lost_truth_red_counts) / lost_truth_red_counts) * 100
-        assumed_vs_truth_blue[i] =  ((lost_assumed_blue_counts - lost_truth_blue_counts) / lost_truth_blue_counts) * 100
+            red_percent_change =  ((lost_assumed_red_counts - lost_truth_red_counts) / lost_truth_red_counts) * 100
+            blue_percent_change =  ((lost_assumed_blue_counts - lost_truth_blue_counts) / lost_truth_blue_counts) * 100
+            return red_percent_change, blue_percent_change
 
+        # Main result
+        assumed_vs_truth_red[i], assumed_vs_truth_blue[i] = _iteration(np.arange(len(lost_withT_galaxies)))
+
+        # Now bootstrap for error estimation
+        N_ITERATIONS = 500
+        from joblib import Parallel, delayed
+        bootstraps = Parallel(n_jobs=-1)(delayed(_iteration)(np.random.choice(len(lost_withT_galaxies), size=len(lost_withT_galaxies), replace=True)) for _ in range(N_ITERATIONS))
+
+        r_bootstrap, b_bootstrap = zip(*bootstraps)
+        assumed_vs_truth_red_err[i] = np.std(r_bootstrap, axis=0)
+        assumed_vs_truth_blue_err[i] = np.std(b_bootstrap, axis=0)
+
+    # Now if there are nans in the err version, propogate them to the main result
+    assumed_vs_truth_red[np.isnan(assumed_vs_truth_red_err)] = np.nan
+    assumed_vs_truth_blue[np.isnan(assumed_vs_truth_blue_err)] = np.nan
+
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
     percent_lim = 100
 
-    fig, axes = plt.subplots(nrows = 1, ncols=2, figsize=(12, 5))
     for i in range(len(catalogs)):
         axes[0].plot(x , assumed_vs_truth_red[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
-    #axes[0].set_title("Change in Red Lost Galaxy $\Phi_L(L)$")
+        #axes[0].errorbar(x, assumed_vs_truth_red[i], yerr=assumed_vs_truth_red_err[i], label=f"{catalogs[i].name}", color=catalogs[i].color, fmt='-')
+        # shaded error bars
+        axes[0].fill_between(x, assumed_vs_truth_red[i] - assumed_vs_truth_red_err[i], assumed_vs_truth_red[i] + assumed_vs_truth_red_err[i], color=catalogs[i].color, alpha=0.3)
     axes[0].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
     axes[0].set_ylabel("$\Delta \Phi_{L}^{q}(L)$ (%)")
     axes[0].set_xscale('log')
@@ -2352,7 +2347,8 @@ def lostgal_lum_func_paper_compare(*catalogs):
 
     for i in range(len(catalogs)):
         axes[1].plot(x , assumed_vs_truth_blue[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
-    #axes[1].set_title("Change in Blue Lost Galaxy $\Phi_L(L)$")
+        #axes[1].errorbar(x, assumed_vs_truth_blue[i], yerr=assumed_vs_truth_blue_err[i], label=f"{catalogs[i].name}", color=catalogs[i].color, fmt='-')
+        axes[1].fill_between(x, assumed_vs_truth_blue[i] - assumed_vs_truth_blue_err[i], assumed_vs_truth_blue[i] + assumed_vs_truth_blue_err[i], color=catalogs[i].color, alpha=0.3)
     axes[1].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
     axes[1].set_ylabel("$\Delta \Phi_{L}^{sf}(L)$ (%)")
     axes[1].set_xscale('log')
