@@ -5,7 +5,7 @@ USERNAME="imw2293"
 NODES=("c1" "c2" "c3" "c4" "c5" "c6" "c7" "c8" "c9" "c10")  # Add more nodes as needed
 WORK_DIR="/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder"
 PYTHON_CMD="python3 py/scripts/exec.py mcmc 12" # number is node number minus 1
-OUTPUT_FILE="/mount/sirocco1/imw2293/GROUP_CAT/LOGS/y1full8_v1_mcmc.out"
+OUTPUT_FILE="/mount/sirocco1/imw2293/GROUP_CAT/LOGS/y1full8new_v1_mcmc.out"
 
 
 kill_node() {

@@ -222,14 +222,20 @@ bgs_y1_pzp_2_6_c3.color = 'darkgreen'
 bgs_y1_pzp_2_6_c3.GF_props['iterations'] = 10
 
 # Prerelease version (v0.4)
+# Note the calibration data on Lsat side has changed and this will be broken 
 bgs_y1_hybrid8_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
 bgs_y1_hybrid8_mcmc.marker = '.'
 bgs_y1_hybrid8_mcmc.color = 'darkgreen'
 
-# Itering this one until final v1.0 catalog is ready
+# Itering this one. Last time this was run was with the converted mag Lsat data that we have moved on from.
+# Note the calibration data on Lsat side has changed and this will be broken 
 bgs_y1_hybrid8_v1_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 v1 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
 bgs_y1_hybrid8_v1_mcmc.marker = '.'
 bgs_y1_hybrid8_v1_mcmc.color = 'darkgreen'
+
+bgs_y1_v1_mcmc = BGSGroupCatalog("BGS Y1 v1 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
+bgs_y1_v1_mcmc.marker = '.'
+bgs_y1_v1_mcmc.color = 'darkgreen'
 
 bgs_y3_pzp_2_6 = BGSGroupCatalog("BGS Y3 PZP v2.6 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y3_pzp_2_6.color = 'darkorange'

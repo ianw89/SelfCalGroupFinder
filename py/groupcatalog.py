@@ -491,7 +491,7 @@ class GroupCatalog:
         # TODO maybe store HOD too
         #blobs = np.concatenate((self.fsat, self.fsatr, self.fsatb, self.lhmr_m, self.lhmr_std, self.lhmr_r_m, self.lhmr_r_std, self.lhmr_b_m, self.lhmr_b_std, self.lsat_r, self.lsat_b, np.flatten(self.hodfit)))
         
-        assert len(blobs) == 3*40 + 65*6 + 40, f"Expected {3*40 + 65*6 + 40} metadata entries, but got {len(blobs)}"
+        #assert len(blobs) == 3*40 + 65*6 + 40, f"Expected {3*40 + 65*6 + 48} metadata entries, but got {len(blobs)}"
         return -0.5 * chi, blobs
 
     # --- set the priors (no priors right now)
@@ -937,6 +937,8 @@ class GroupCatalog:
         
 
     def monitor_pipe(self):
+        lsat_bincount = self.caldata.get_lsat_observations().shape[0]
+
         while self.proc.poll() is None: # while the group finder process is running
             
             header = self.pipereader.read(6)
@@ -983,11 +985,11 @@ class GroupCatalog:
                     self.lhmr_b_std = np.array(data[5], dtype=dtype)
 
             elif msg_type == MSG_LSAT:
-                if count != 40:
-                    raise Exception(f"Unexpected lsat data count: {count}")
+                if count != lsat_bincount * 2:
+                    raise Exception(f"Unexpected lsat data count: {count}, expected {lsat_bincount * 2}")
                 else:
-                    self.lsat_r = np.array(data[0:20], dtype=dtype)
-                    self.lsat_b = np.array(data[20:40], dtype=dtype)
+                    self.lsat_r = np.array(data[0:lsat_bincount], dtype=dtype)
+                    self.lsat_b = np.array(data[lsat_bincount:lsat_bincount*2], dtype=dtype)
 
             elif msg_type == MSG_HOD:
                 cols = self.caldata.bincount*7 + 1

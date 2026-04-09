@@ -94,6 +94,8 @@ class CalibrationData:
 def transform_sdss_lsat_to_bgs_mags():
     """
     Read in the SDSS LSat observations, convert the luminosities to BGS-like magnitudes, and write out a new file with the transformed data.
+
+    NOTE: we are no longer using this in DR1 group catalog. This is legacy code.
     """
     infile = LSAT_OBSERVATIONS_SDSS_FILE
     outfile = LSAT_OBSERVATIONS_SDSS_TRANSFORMED_FILE

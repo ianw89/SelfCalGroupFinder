@@ -330,9 +330,9 @@ void lsat_model()
   // 88 to 107 for C250
   // 88 to 119 for TNG
   // 88 to 107 for SDSS, see the lsat_sdss_con.dat file that this will be compare to. 
-  // 88 to 107 for BGS Data TODO
-  int i_start = 88;
-  int i_end = 107;
+  // 87 to 110 for BGS Centrals on the original ~2020 Lsat data. 
+  int i_start = 87;
+  int i_end = 110;
   int count = (i_end - i_start + 1); 
   if (MSG_PIPE != NULL)
   {
