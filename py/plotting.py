@@ -1236,6 +1236,56 @@ def compare_wp_rp(d1: BGSGroupCatalog|tuple, d2_t: BGSGroupCatalog|tuple):
         plt.tight_layout()
         plt.show()
 
+def compare_wp_rp_caldata(c1: CalibrationData, c2: CalibrationData):
+    """
+    Compare the wp_rp functions (red, blue) for two CalibrationData objects.
+    """
+    num = min(c1.bincount, c2.bincount)
+    mag_start = max(abs(c1.magbins[0]), abs(c2.magbins[0]))
+    print(num, mag_start)
+
+    # Calculate number of columns for two rows
+    nrows = 2
+    ncols = 3
+
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(2.5 + 3 * ncols, 4 * nrows), dpi=DPI)
+    axes = np.array(axes).reshape(-1)  # flatten for easy indexing
+
+    for idx in range(num):
+        i = mag_start + idx
+        ax = axes[idx]
+
+        wp, wp_err, radius = c1.get_wp_red(i)
+        ax.errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkred', capsize=3, ecolor='k')
+        wp, wp_err, radius = c2.get_wp_red(i)
+        ax.plot(radius, wp, '-', color='red')
+        ax.fill_between(radius, wp-wp_err, wp+wp_err, color='red', alpha=0.2)
+        wp, wp_err, radius = c1.get_wp_blue(i)
+        ax.errorbar(radius, wp, yerr=wp_err, fmt='.', color='darkblue', capsize=3, ecolor='darkblue')
+        wp, wp_err, radius = c2.get_wp_blue(i)
+        ax.plot(radius, wp, '-', color='blue')
+        ax.fill_between(radius, wp-wp_err, wp+wp_err, color='blue', alpha=0.2)
+
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_xlabel('$r_p$ [Mpc $h^{-1}$]')
+        ax.set_xlim(0.1, 10)
+        ax.set_ylabel('$w_p(r_p)$')
+        ax.set_ylim(5, 4000)
+        ax.set_title(f'[{-i}, {-i-1}]')
+
+    # Make the final axes just a legend
+    axes[-1].axis('off')
+    axes[-1].errorbar([], [], yerr=[], fmt='.', capsize=3, color='darkred', ecolor='k', label='BGS Quiescent')
+    axes[-1].plot([], [], '-', color='red', label='SDSS Quiescent')
+    axes[-1].errorbar([], [], yerr=[], fmt='.', capsize=3, color='darkblue', ecolor='k', label='BGS Star-forming')
+    axes[-1].plot([], [], '-', color='blue', label='SDSS Star-forming')
+    axes[-1].legend(loc='center')
+
+
+    fig.tight_layout()
+
+
 
 def plots_color_split_lost_split(f, grpby_col):
     q_gals = f.all_data[f.all_data['QUIESCENT']]
