@@ -1713,31 +1713,31 @@ def hod_thresholds_plot(gc: GroupCatalog, color):
             if color == 'r':
                 ax.plot(logm, hod.hod_central_threshold_model(logm, *gc.hodt_cen_red_popt[idx]), 'k-', label='Q Central Fit', linewidth=3)
                 ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_red_popt[idx]), 'k--', label='Q Satellite Fit', linewidth=3)
-                ax.text(12.1, 2.7, f"$M_{{cut}}$: {gc.hodt_sat_red_popt[idx][0]:.2f}", fontsize=inset_fontsize)
-                ax.text(12.1, 2.35, f"$M_{{sat}}$: {gc.hodt_sat_red_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.7, f"$M_{{\\rm cut}}$: {gc.hodt_sat_red_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.35, f"$M_{{\\rm sat}}$: {gc.hodt_sat_red_popt[idx][1]:.2f}", fontsize=inset_fontsize)
                 ax.text(12.1, 2.0, f"α: {gc.hodt_sat_red_popt[idx][2]:.2f}", fontsize=inset_fontsize)
-                ax.text(10.1, 2.65, f"$M_{{min}}$: {gc.hodt_cen_red_popt[idx][0]:.2f}", fontsize=inset_fontsize)
-                ax.text(10.1, 2.3, f"$σ_{{min}}$: {gc.hodt_cen_red_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.65, f"$M_{{\\rm min}}$: {gc.hodt_cen_red_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.3, f"$σ_{{\\rm min}}$: {gc.hodt_cen_red_popt[idx][1]:.2f}", fontsize=inset_fontsize)
             
             elif color == 'b':
                 ax.plot(logm, hod.hod_central_threshold_blue_model(logm, *gc.hodt_cen_blue_popt[idx]), 'k-', label='SF Central Fit', linewidth=3)
                 ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_blue_popt[idx]), 'k--', label='SF Satellite Fit', linewidth=3)
-                ax.text(12.1, 2.7, f"$M_{{cut}}$: {gc.hodt_sat_blue_popt[idx][0]:.2f}", fontsize=inset_fontsize)
-                ax.text(12.1, 2.35, f"$M_{{sat}}$: {gc.hodt_sat_blue_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.7, f"$M_{{\\rm cut}}$: {gc.hodt_sat_blue_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.35, f"$M_{{\\rm sat}}$: {gc.hodt_sat_blue_popt[idx][1]:.2f}", fontsize=inset_fontsize)
                 ax.text(12.1, 2.0, f"α: {gc.hodt_sat_blue_popt[idx][2]:.2f}", fontsize=inset_fontsize)
-                ax.text(10.1, 2.7, f"$M_{{min}}$: {gc.hodt_cen_blue_popt[idx][0]:.2f}", fontsize=inset_fontsize)
-                ax.text(10.1, 2.35, f"$σ_{{min}}$: {gc.hodt_cen_blue_popt[idx][1]:.2f}", fontsize=inset_fontsize)
-                ax.text(10.1, 2.0, f"$M_{{max}}$: {gc.hodt_cen_blue_popt[idx][2]:.2f}", fontsize=inset_fontsize)
-                ax.text(10.1, 1.65, f"$σ_{{max}}$: {gc.hodt_cen_blue_popt[idx][3]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.7, f"$M_{{\\rm min}}$: {gc.hodt_cen_blue_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.35, f"$σ_{{\\rm min}}$: {gc.hodt_cen_blue_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.0, f"$M_{{\\rm max}}$: {gc.hodt_cen_blue_popt[idx][2]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 1.65, f"$σ_{{\\rm max}}$: {gc.hodt_cen_blue_popt[idx][3]:.2f}", fontsize=inset_fontsize)
 
             elif color == 'k':
                 ax.plot(logm, hod.hod_central_threshold_model(logm, *gc.hodt_cen_all_popt[idx]), 'k-', label='All Central Fit', linewidth=3)
                 ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_all_popt[idx]), 'k--', label='All Satellite Fit', linewidth=3)
-                ax.text(12.1, 2.7, f"$M_{{cut}}$: {gc.hodt_sat_all_popt[idx][0]:.2f}", fontsize=inset_fontsize)
-                ax.text(12.1, 2.35, f"$M_{{sat}}$: {gc.hodt_sat_all_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.7, f"$M_{{\\rm cut}}$: {gc.hodt_sat_all_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(12.1, 2.35, f"$M_{{\\rm sat}}$: {gc.hodt_sat_all_popt[idx][1]:.2f}", fontsize=inset_fontsize)
                 ax.text(12.1, 2.0, f"α: {gc.hodt_sat_all_popt[idx][2]:.2f}", fontsize=inset_fontsize)
-                ax.text(10.1, 2.7, f"$M_{{min}}$: {gc.hodt_cen_all_popt[idx][0]:.2f}", fontsize=inset_fontsize)
-                ax.text(10.1, 2.35, f"$σ_{{min}}$: {gc.hodt_cen_all_popt[idx][1]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.7, f"$M_{{\\rm min}}$: {gc.hodt_cen_all_popt[idx][0]:.2f}", fontsize=inset_fontsize)
+                ax.text(10.1, 2.35, f"$σ_{{\\rm min}}$: {gc.hodt_cen_all_popt[idx][1]:.2f}", fontsize=inset_fontsize)
          
         if idx % ncols == 0:
             ax.set_ylabel("log$\\langle N \\rangle$")
@@ -1895,19 +1895,48 @@ def hod_bins_plot(gc: GroupCatalog, hodtab: hod.HODTabulated, model=False, seper
         ax.grid(True)
         ax2.grid(True)
 
-        if model:
-            ax.plot(log_Mhalo, hod.hod_central_model2(log_Mhalo, *gc.hod_cen_red_popt[lbin]), 'k-', label='Q Cen Model', linewidth=3)
-            ax.plot(log_Mhalo, hod.hod_satellite_model(log_Mhalo, *gc.hod_sat_red_popt[lbin]), 'k--', label='Q Sat Model', linewidth=3)
-            ax2.plot(log_Mhalo, hod.hod_central_model2(log_Mhalo, *gc.hod_cen_blue_popt[lbin]), 'k-', label='SF Cen Model', linewidth=3)
-            ax2.plot(log_Mhalo, hod.hod_satellite_model(log_Mhalo, *gc.hod_sat_blue_popt[lbin]), 'k--', label='SF Sat Model', linewidth=3)
+        x_model = np.linspace(10, 15, 100)
 
-            # Print the parameters onto the plot
-            ax.text(10.2, 1.7, f"α: {gc.hod_sat_red_popt[lbin][2]:.2f}")
-            ax.text(10.2, 1.4, f"$M_\star$: {gc.hod_sat_red_popt[lbin][1]:.2f}")
-            ax.text(10.2, 1.1, f"$M_{{cut}}$: {gc.hod_sat_red_popt[lbin][0]:.2f}")
-            ax2.text(10.2, 1.7, f"α: {gc.hod_sat_blue_popt[lbin][2]:.2f}")
-            ax2.text(10.2, 1.4, f"$M_\star$: {gc.hod_sat_blue_popt[lbin][1]:.2f}")
-            ax2.text(10.2, 1.1, f"$M_{{cut}}$: {gc.hod_sat_blue_popt[lbin][0]:.2f}")
+
+        # One approach to to use the threshold fits. Just let the model be the difference between the two relevant thresholds.
+        # This doesn't seem to work very well.
+        """
+        if model:
+            if lbin+1 < len(gc.hodt_cen_red_popt):
+                red_model = np.log10(10**hod.hod_central_threshold_model(x_model, *gc.hodt_cen_red_popt[lbin]) - 10**hod.hod_central_threshold_model(x_model, *gc.hodt_cen_red_popt[lbin+1]))
+                ax.plot(x_model, red_model, 'k-', label='Q Central Fit', linewidth=3)
+                reds_model = np.log10(10**hod.hod_satellite_threshold_model(x_model, *gc.hodt_sat_red_popt[lbin]) - 10**hod.hod_satellite_threshold_model(x_model, *gc.hodt_sat_red_popt[lbin+1]))
+                ax.plot(x_model, reds_model, 'k--', label='Q Satellite Fit', linewidth=3)
+                blue_model = np.log10(10**hod.hod_central_threshold_blue_model(x_model, *gc.hodt_cen_blue_popt[lbin]) - 10**hod.hod_central_threshold_blue_model(x_model, *gc.hodt_cen_blue_popt[lbin+1]))
+                ax2.plot(x_model, blue_model, 'k-', label='SF Central Fit', linewidth=3)
+                blues_model = np.log10(10**hod.hod_satellite_threshold_model(x_model, *gc.hodt_sat_blue_popt[lbin]) - 10**hod.hod_satellite_threshold_model(x_model, *gc.hodt_sat_blue_popt[lbin+1]))
+                ax2.plot(x_model, blues_model, 'k--', label='SF Satellite Fit', linewidth=3)
+        """
+        
+        if model:
+            ax.plot(x_model, hod.hod_bins_central_model(x_model, *gc.hod_cen_red_popt[lbin]), 'k-', label='Q Cen Model', linewidth=3)
+            ax.plot(x_model, hod.hod_bins_satellite_model(x_model, *gc.hod_sat_red_popt[lbin]), 'k--', label='Q Sat Model', linewidth=3)
+            ax2.plot(x_model, hod.hod_bins_central_model(x_model, *gc.hod_cen_blue_popt[lbin]), 'k-', label='SF Cen Model', linewidth=3)
+            ax2.plot(x_model, hod.hod_bins_satellite_model(x_model, *gc.hod_sat_blue_popt[lbin]), 'k--', label='SF Sat Model', linewidth=3)
+
+            # TODO
+            ax.text(10.1, 1.7, f"$M_{{\\rm min}}$: {gc.hod_cen_red_popt[lbin][0]:.2f}")
+            ax.text(10.1, 1.4, f"$σ_{{\\rm min}}$: {gc.hod_cen_red_popt[lbin][1]:.2f}")
+            ax.text(10.1, 1.1, f"$M_{{\\rm max}}$: {gc.hod_cen_red_popt[lbin][2]:.2f}")
+            ax.text(10.1, 0.8, f"$σ_{{\\rm max}}$: {gc.hod_cen_red_popt[lbin][3]:.2f}")
+            ax.text(12.1, 1.1, f"α: {gc.hod_sat_red_popt[lbin][2]:.2f}")
+            ax.text(12.1, 1.4, f"$M_{{\\rm sat}}$: {gc.hod_sat_red_popt[lbin][1]:.2f}")
+            ax.text(12.1, 1.7, f"$M_{{\\rm cut}}$: {gc.hod_sat_red_popt[lbin][0]:.2f}")
+
+
+            ax2.text(10.1, 1.7, f"$M_{{\\rm min}}$: {gc.hod_cen_blue_popt[lbin][0]:.2f}")
+            ax2.text(10.1, 1.4, f"$σ_{{\\rm min}}$: {gc.hod_cen_blue_popt[lbin][1]:.2f}")
+            ax2.text(10.1, 1.1, f"$M_{{\\rm max}}$: {gc.hod_cen_blue_popt[lbin][2]:.2f}")
+            ax2.text(10.1, 0.8, f"$σ_{{\\rm max}}$: {gc.hod_cen_blue_popt[lbin][3]:.2f}")
+            ax2.text(12.1, 1.1, f"α: {gc.hod_sat_blue_popt[lbin][2]:.2f}")
+            ax2.text(12.1, 1.4, f"$M_{{\\rm sat}}$: {gc.hod_sat_blue_popt[lbin][1]:.2f}")
+            ax2.text(12.1, 1.7, f"$M_{{\\rm cut}}$: {gc.hod_sat_blue_popt[lbin][0]:.2f}")
+        
 
         #if not pretty:
         #    # Overlay nhalo histogram as a filled area on a secondary y-axis
@@ -1977,10 +2006,10 @@ def hod_bins_plot_like_zehavi(gc: GroupCatalog, hodtab: hod.HODTabulated, model=
         ax.grid(True)
 
         if model:
-            ax.plot(log_Mhalo, hod.hod_central_model2(log_Mhalo, *gc.hod_cen_red_popt[lbin]), 'k-', label='Q Cen Model', linewidth=3)
-            ax.plot(log_Mhalo, hod.hod_satellite_model(log_Mhalo, *gc.hod_sat_red_popt[lbin]), 'k--', label='Q Sat Model', linewidth=3)
-            ax2.plot(log_Mhalo, hod.hod_central_model2(log_Mhalo, *gc.hod_cen_blue_popt[lbin]), 'k-', label='SF Cen Model', linewidth=3)
-            ax2.plot(log_Mhalo, hod.hod_satellite_model(log_Mhalo, *gc.hod_sat_blue_popt[lbin]), 'k--', label='SF Sat Model', linewidth=3)
+            ax.plot(log_Mhalo, hod.hod_bins_central_model(log_Mhalo, *gc.hod_cen_red_popt[lbin]), 'k-', label='Q Cen Model', linewidth=3)
+            ax.plot(log_Mhalo, hod.hod_bins_satellite_model(log_Mhalo, *gc.hod_sat_red_popt[lbin]), 'k--', label='Q Sat Model', linewidth=3)
+            ax2.plot(log_Mhalo, hod.hod_bins_central_model(log_Mhalo, *gc.hod_cen_blue_popt[lbin]), 'k-', label='SF Cen Model', linewidth=3)
+            ax2.plot(log_Mhalo, hod.hod_bins_satellite_model(log_Mhalo, *gc.hod_sat_blue_popt[lbin]), 'k--', label='SF Sat Model', linewidth=3)
 
             # Print the parameters onto the plot
             ax.text(10.2, 1.7, f"α: {gc.hod_sat_red_popt[lbin][2]:.2f}")
