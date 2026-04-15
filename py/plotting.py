@@ -2691,8 +2691,8 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     ax.set_xticks(x)
     ax.set_xticklabels(labels, ha='right')
     #ax.legend()
-    ax.set_ylim(0, 0.8)
-    ax.set_yticks(np.arange(0, 0.8, 0.1))
+    ax.set_ylim(0, 0.7)
+    ax.set_yticks(np.arange(0, 0.7, 0.1))
     ax.yaxis.grid(True)  # Add horizontal gridlines
 
     fig.tight_layout()
@@ -2789,7 +2789,7 @@ def test_purity_and_completeness(*catalogs: GroupCatalog, truth_catalog: GroupCa
 
 
 def purity_complete_plots(*sets, ymin=0.0):
-    plt.rcParams.update({'font.size': 14})
+    #plt.rcParams.update({'font.size': 14})
 
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(11, 8))
     #fig.set_dpi(DPI/2)
@@ -2847,9 +2847,7 @@ def purity_complete_plots(*sets, ymin=0.0):
         ax.grid(True)
 
     fig.tight_layout()
-
-    font_restore()
-
+    
     # Make just the satellite purity plot on its own
     #plt.figure(dpi=DPI)
     #for s in sets:
