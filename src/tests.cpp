@@ -25,6 +25,7 @@ bool isclose(double a, double b, double rel_tol = 1e-6, double abs_tol = 1e-12) 
 
 void test_halo_abundance(){
     printf("=== HALO ABUNDANCE TESTS ===\n");
+    HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
 
     // Test known values from halo mass function file
     float masses[] = {3.053856e+08, 1.047616e10, 4.037017e+12, 3.944206e+15};
@@ -265,6 +266,19 @@ void test_psat() {
     float p8 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
     printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p8);
     assert(p8 > 0.5 && "for large bsat you can still be a satellite when close enough");
+
+
+    delta_z = 0.0; // Same redshift, as happens in nearest neighbor assignments
+    arcmin = 0.05; 
+    bsat = 10.0;
+    ang_sep = angular_separation(0.0, 0.0, 0.0, (arcmin/60.0)*(PI/180.0));
+    printf("Test 10: mass=%e, proj_dist=%f', delta_z=%f, bsat=%f\n", gal.mass, arcmin, delta_z, bsat);
+    result = compute_p_proj_g(&gal, ang_sep);
+    result2 = compute_p_z(delta_z * SPEED_OF_LIGHT, gal.sigmav);
+    float p9 = psat( &gal, ang_sep, delta_z * SPEED_OF_LIGHT, bsat);
+    printf("p_proj=%f, p_z=%f, psat=%f\n", result, result2, p9);
+    assert(p9 > 0.9 && "for very small delta_z and small angular separation, should be very likely to be a satellite");
+
 
 
     printf(" *** All psat tests passed.\n\n");
