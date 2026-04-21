@@ -1,3 +1,4 @@
+import gc
 import sys
 import time
 import asyncio
@@ -7,8 +8,7 @@ from multiprocessing import Pool
 
 # EXAMPLE USAGE
 # export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-# nohup python3 py/scripts/exec.py 8 &> variations.out &
-# nohup python3 py/scripts/exec.py 6 7 8 9 &> variations.out &
+# nohup python3 py/scripts/exec.py 8 6 7 9 &> variations.out &
 # nohup python3 py/scripts/exec.py mcmc 13 x5 &> y1full_mcmc5_0.out &
 # nohup python3 py/scripts/exec.py mcmc 14 x7 &> y1full8_mcmc7_1.out &
 # nohup python3 py/scripts/exec.py 0 &> pzp_mcmc.out &
@@ -71,10 +71,10 @@ def process_gc(gc: GroupCatalog):
         if result:
             gc.calc_wp_for_mock()
             gc.postprocess()
-            if name == "BGS Y1 C2" or name == "BGS Y1 C3":
-                gc.bootstrap_statistics()
+            if name == "BGS Y1 C3":
+                gc.bootstrap_statistics(N_ITERATIONS = 3000)
                 gc.fit_hod_thresholds_to_model_for_display()
-                #gc.fit_hod_bins_to_model_for_display()
+                gc.fit_hod_bins_to_model_for_display()
 
         else:
             print(f"Group finder failed for {name}, skipping further processing.")

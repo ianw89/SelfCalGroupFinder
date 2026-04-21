@@ -202,10 +202,6 @@ bgs_y1_pzp_2_6_c2_withrc = BGSGroupCatalog("BGS Y1 C2 Race Cond", Mode.PHOTOZ_PL
 bgs_y1_pzp_2_6_c2_withrc.marker = '--'
 bgs_y1_pzp_2_6_c2_withrc.color = 'purple'
 
-bgs_y1_pzp_2_6_c2_noffc = BGSGroupCatalog("BGS Y1 C2 No Cuts", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', ffc=False, extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
-bgs_y1_pzp_2_6_c2_noffc.marker = '-'
-bgs_y1_pzp_2_6_c2_noffc.color = 'darkred'
-
 bgs_y1_pzp_2_6_c2_flm2 = BGSGroupCatalog("BGS Y1 C2 FLM2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y1_pzp_2_6_c2_flm2.GF_props['fluxlim'] = 2
 bgs_y1_pzp_2_6_c2_flm2.color = 'cyan'
@@ -602,4 +598,5 @@ bgs_y1_list : list[GroupCatalog] = [
 ]
 bgs_y3_list : list[GroupCatalog] = [
     bgs_y3_pzp_2_6_c2,
+    bgs_y3_pzp_2_6_c3,
 ]

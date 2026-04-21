@@ -125,23 +125,24 @@ GF_PROPS_BGS_COLORS_C2 = {
 }
 
 # The BGS Y1 Final Catalog
-# [13.55629663  2.29994362 19.48874878  6.81188553 14.08643136  5.48859963 -3.29832487 13.23381614  9.9598327  -1.93961718]
+#[15.69155145  3.61013415 22.33810571  8.99309845 21.26962064  7.94621312 -4.69212774 16.12224224  9.49003684 -0.67647083]
+
 GF_PROPS_BGS_COLORS_C3 = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
     'fluxlim':3,
     'color':1,
-    'omegaL_sf': 13.55629663,
-    'sigma_sf': 2.29994362,
-    'omegaL_q': 19.48874878,
-    'sigma_q': 6.81188553,
-    'omega0_sf': 14.08643136,
-    'omega0_q': 5.48859963,
-    'beta0q':  -3.29832487,
-    'betaLq': 13.23381614,
-    'beta0sf': 9.9598327,
-    'betaLsf': -1.93961718
+    'omegaL_sf': 15.69155145,
+    'sigma_sf': 3.61013415,
+    'omegaL_q': 22.33810571,
+    'sigma_q': 8.99309845,
+    'omega0_sf': 21.26962064,
+    'omega0_q': 7.94621312,
+    'beta0q':  -4.69212774,
+    'betaLq': 16.12224224,
+    'beta0sf': 9.49003684,
+    'betaLsf': -0.67647083
 }
 
 def set_all_seeds(seed=59418):
@@ -560,31 +561,38 @@ class GroupCatalog:
                     chain_flat = backend.get_chain(flat=True)
                     ndim = backend.get_chain().shape[2]
                     
-                    # Start with a mask that includes all walkers
-                    middle_mask = np.ones(len(chain_flat), dtype=bool)
-                    
                     # For each parameter, find its middle 50% range and update the mask
-                    for i in range(ndim):
-                        param_chain = chain_flat[:, i]
-                        p25 = np.percentile(param_chain, 25)
-                        p75 = np.percentile(param_chain, 75)
-                        middle_mask &= (param_chain >= p25) & (param_chain <= p75)
+                    #for i in range(ndim):
+                    #    param_chain = chain_flat[:, i]
+                    #    p25 = np.percentile(param_chain, 25)
+                    #    p75 = np.percentile(param_chain, 75)
+                    #    middle_mask &= (param_chain >= p25) & (param_chain <= p75)
 
-                    # Filter the log_prob and chain using the combined mask
-                    middle_log_prob = log_prob_flat[middle_mask]
-                    middle_chain = chain_flat[middle_mask]
+                    # Instead of middle 50% we want middle 50% of wcen_logratio and bsat functions
+                    x = np.linspace(7, 11.5, 20)
+                    w_samples, bsat_q_samples, bsat_sf_samples = chains_to_wcen_bsat(chain_flat, x)
 
-                    if middle_chain.shape[0] > 0:
-                        # From the filtered set, find the one with the best log_prob
-                        best_idx_in_middle = np.argmax(middle_log_prob)
-                        values = middle_chain[best_idx_in_middle]
-                        chisqr = -2 * middle_log_prob[best_idx_in_middle]
-                        print(f"Median-range best chi^2 for {folder}: {chisqr:.3f} (from {middle_chain.shape[0]} samples)")
-                    else:
-                        print(f"Could not find any samples in the median parameter range for {folder}, falling back to absolute best.")
-                        best_idx = np.argmax(log_prob_flat)
-                        values = chain_flat[best_idx]
-                        chisqr = -2 * log_prob_flat[best_idx]
+                    # Calculate 16th and 84th percentiles at each x (68% credible interval)
+                    w_lower = np.percentile(w_samples, 16, axis=0)
+                    w_upper = np.percentile(w_samples, 84, axis=0)
+                    bsat_q_lower = np.percentile(bsat_q_samples, 16, axis=0)
+                    bsat_q_upper = np.percentile(bsat_q_samples, 84, axis=0)
+                    bsat_sf_lower = np.percentile(bsat_sf_samples, 16, axis=0)
+                    bsat_sf_upper = np.percentile(bsat_sf_samples, 84, axis=0)
+
+                    # Go in order of log_prob_flat and find the first one that is within the middle 68% credible interval for all three functions at all x
+                    best_idx = None
+                    for i in np.argsort(log_prob_flat)[::-1]: # go from highest to lowest log prob
+                        w_sample, bsat_q_sample, bsat_sf_sample = samples_to_wcen_bsat(chain_flat[i:i+1], x)
+                        if np.all((w_sample >= w_lower) & (w_sample <= w_upper)) and np.all((bsat_q_sample >= bsat_q_lower) & (bsat_q_sample <= bsat_q_upper)) and np.all((bsat_sf_sample >= bsat_sf_lower) & (bsat_sf_sample <= bsat_sf_upper)):
+                            best_idx = i
+                            break
+
+                    values = chain_flat[best_idx]
+                    chisqr = (-2) * log_prob_flat[best_idx]
+                    print(f"Best chi^2 for {folder} (N={backend.get_chain().shape[0]} x {backend.get_chain().shape[1]}): {chisqr:.3f}")
+                    
+
                 else:
                     chains = backend.get_log_prob(flat=False)
                     idx = np.argmax(backend.get_log_prob(flat=True))
