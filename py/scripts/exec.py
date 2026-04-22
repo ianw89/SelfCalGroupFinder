@@ -8,10 +8,9 @@ from multiprocessing import Pool
 
 # EXAMPLE USAGE
 # export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-# nohup python3 py/scripts/exec.py 8 6 7 9 &> variations.out &
-# nohup python3 py/scripts/exec.py mcmc 13 x5 &> y1full_mcmc5_0.out &
-# nohup python3 py/scripts/exec.py mcmc 14 x7 &> y1full8_mcmc7_1.out &
+# nohup python3 py/scripts/exec.py 6 7 8 9 &> variations.out &
 # nohup python3 py/scripts/exec.py 0 &> pzp_mcmc.out &
+# For MCMC of GF params, see deploy_mcmc.sh script
 
 
 execution_mode = 'once' # or 'clustering' or 'mcmc'

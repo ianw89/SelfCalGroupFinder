@@ -268,8 +268,8 @@ bgs_sv3_pz_2_6_10p = BGSGroupCatalog(
 )
 bgs_sv3_pz_2_6_10p.color = 'k'
 
-bgs_sv3_pz_2_6_10p_c1 = BGSGroupCatalog(
-    "Photo-z Plus v2.6 BGS sv3 10pass C1", 
+bgs_sv3_pz_2_6_10p_c3 = BGSGroupCatalog(
+    "Photo-z Plus v2.6 BGS sv3 10pass C3", 
     Mode.PHOTOZ_PLUS_v2, 
     19.5, 
     21.0, 
@@ -277,9 +277,10 @@ bgs_sv3_pz_2_6_10p_c1 = BGSGroupCatalog(
     data_cut='sv3', 
     sdss_fill=True, 
     extra_params=PZP_PARAMS_V26, 
-    gfprops=GF_PROPS_BGS_COLORS_C1.copy()
+    gfprops=GF_PROPS_BGS_COLORS_C3.copy()
 )
-bgs_sv3_pz_2_6_10p_c1.color = 'k'
+bgs_sv3_pz_2_6_10p_c3.GF_props['iterations'] = 10
+bgs_sv3_pz_2_6_10p_c3.color = 'k'
 
 bgs_sv3_pz_2_6_10p_c2 = BGSGroupCatalog(
     "Photo-z Plus v2.6 BGS sv3 10pass C2", 
@@ -387,6 +388,20 @@ bgs_y3_like_sv3_pz_2_6_c1 = BGSGroupCatalog(
 )
 bgs_y3_like_sv3_pz_2_6_c1.color = 'slateblue'
 
+bgs_y3_like_sv3_pz_2_6_c3 = BGSGroupCatalog(
+    "Photo-z Plus v2.6 BGS Y3 like-sv3 C3", 
+    Mode.PHOTOZ_PLUS_v2, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    extra_params=PZP_PARAMS_V26, 
+    gfprops=GF_PROPS_BGS_COLORS_C3.copy()
+)
+bgs_y3_like_sv3_pz_2_6_c3.GF_props['iterations'] = 10
+bgs_y3_like_sv3_pz_2_6_c3.color = 'slateblue'
+
 bgs_y3_like_sv3_pz_2_6_c2 = BGSGroupCatalog(
     "Photo-z Plus v2.6 BGS Y3 like-sv3 C2", 
     Mode.PHOTOZ_PLUS_v2, 
@@ -427,6 +442,19 @@ bgs_y3_like_sv3_fiberonly = BGSGroupCatalog(
 )
 bgs_y3_like_sv3_fiberonly.color = 'orange'
 
+bgs_y3_like_sv3_fiberonly_c3 = BGSGroupCatalog(
+    "Observed BGS Y3 like-sv3 C3", 
+    Mode.FIBER_ASSIGNED_ONLY, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    gfprops=GF_PROPS_BGS_COLORS_C3.copy()
+)
+bgs_y3_like_sv3_fiberonly_c3.color = 'orange'
+bgs_y3_like_sv3_fiberonly_c3.GF_props['iterations'] = 10
+
 bgs_y3_like_sv3_fiberonly_c2 = BGSGroupCatalog(
     "Observed BGS Y3 like-sv3 C2", 
     Mode.FIBER_ASSIGNED_ONLY, 
@@ -452,6 +480,20 @@ bgs_y3_like_sv3_pz_2_0 = BGSGroupCatalog(
 )
 bgs_y3_like_sv3_pz_2_0.color = 'red'
 
+bgs_y3_like_sv3_pz_2_0_c3 = BGSGroupCatalog(
+    "Photo-z Plus v2.0 BGS Y3 like-sv3 C3", 
+    Mode.PHOTOZ_PLUS_v2, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    extra_params=(1, [0.0, 0.0, 3.0]), 
+    gfprops=GF_PROPS_BGS_COLORS_C3.copy()
+)
+bgs_y3_like_sv3_pz_2_0_c3.color = 'red'
+bgs_y3_like_sv3_pz_2_0_c3.GF_props['iterations'] = 10
+
 bgs_y3_like_sv3_pz_2_0_c2 = BGSGroupCatalog(
     "Photo-z Plus v2.0 BGS Y3 like-sv3 C2", 
     Mode.PHOTOZ_PLUS_v2, 
@@ -476,6 +518,19 @@ bgs_y3_like_sv3_nn = BGSGroupCatalog(
     gfprops=GF_PROPS_BGS_VANILLA.copy()
 )
 bgs_y3_like_sv3_nn.color = 'green'
+
+bgs_y3_like_sv3_nn_c3 = BGSGroupCatalog(
+    "Nearest Neighbor BGS Y3 like-sv3 C3", 
+    Mode.NEAREST_NEIGHBOR, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    gfprops=GF_PROPS_BGS_COLORS_C3.copy()
+)
+bgs_y3_like_sv3_nn_c3.color = 'green'
+bgs_y3_like_sv3_nn_c3.GF_props['iterations'] = 10
 
 bgs_y3_like_sv3_nn_c2 = BGSGroupCatalog(
     "Nearest Neighbor BGS Y3 like-sv3 C2", 
@@ -573,16 +628,11 @@ mxxl_list : list[GroupCatalog] = [
 bgs_sv3_list : list[GroupCatalog] = [
     bgs_sv3_nn_10p,
     bgs_sv3_fiberonly_10p,
-    bgs_sv3_pz_2_6_10p, 
-    bgs_sv3_pz_2_6_10p_c2,
-    bgs_y3_like_sv3_pz_2_6,
-    bgs_y3_like_sv3_pz_2_6_c2,
-    bgs_y3_like_sv3_fiberonly,
-    bgs_y3_like_sv3_fiberonly_c2,
-    bgs_y3_like_sv3_pz_2_0,
-    bgs_y3_like_sv3_pz_2_0_c2,
-    bgs_y3_like_sv3_nn,
-    bgs_y3_like_sv3_nn_c2,
+    bgs_sv3_pz_2_6_10p_c3,
+    bgs_y3_like_sv3_pz_2_6_c3,
+    bgs_y3_like_sv3_fiberonly_c3,
+    bgs_y3_like_sv3_pz_2_0_c3,
+    bgs_y3_like_sv3_nn_c3,
 ]
 bgs_aux_list : list[GroupCatalog] = [
     bgs_y1_fiberonly_1pass,
@@ -593,10 +643,8 @@ bgs_aux_list : list[GroupCatalog] = [
     bgs_y1_pzp_2_6_c2_vmaxold,
 ]
 bgs_y1_list : list[GroupCatalog] = [
-    bgs_y1_pzp_2_6_c2,
     bgs_y1_pzp_2_6_c3,
 ]
 bgs_y3_list : list[GroupCatalog] = [
-    bgs_y3_pzp_2_6_c2,
     bgs_y3_pzp_2_6_c3,
 ]

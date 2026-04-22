@@ -2441,7 +2441,7 @@ def lostgal_lum_func_paper_compare(*catalogs):
     axes[0].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
     axes[0].set_ylabel("$\Delta \Phi_{L}^{q}(L)$ (%)")
     axes[0].set_xscale('log')
-    axes[0].set_xlim(1e8, LGAL_MAX_TIGHT)
+    axes[0].set_xlim(1e9, LGAL_MAX_TIGHT)
     axes[0].set_ylim(-percent_lim, percent_lim)
     axes[0].axhline(0, color='black', lw=1)
     axes[0].text(0.65, 0.05, "Quiescent", transform=axes[0].transAxes)
