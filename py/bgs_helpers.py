@@ -159,7 +159,7 @@ def add_mag_columns(table):
 
     app_mag_r = get_app_mag(table['FLUX_R'])
     app_mag_g = get_app_mag(table['FLUX_G'])
-    g_r = app_mag_g - app_mag_r
+    app_mag_z= get_app_mag(table['FLUX_Z'])
 
     z_obs = get_tbl_column(table, 'Z', required=True).astype("<f8")
     no_spectra = determine_unobserved_from_z(z_obs)# | np.isnan(table['ABSMAG01_SDSS_R']) | np.isnan(table['ABSMAG01_SDSS_G'])
@@ -174,6 +174,7 @@ def add_mag_columns(table):
     # nans for lost galaxies will propagate through the calculations as desired
     abs_mag_R = app_mag_to_abs_mag(app_mag_r, z_obs)
     abs_mag_G = app_mag_to_abs_mag(app_mag_g, z_obs)
+    abs_mag_Z = app_mag_to_abs_mag(app_mag_z, z_obs)
     abs_mag_R_k, abs_mag_G_k = k_correct_fromlookup(abs_mag_R, abs_mag_G, z_obs)
     # Old polynomial way
     #abs_mag_R_k = k_correct_gama(abs_mag_R, z_obs, g_r, band='r')
@@ -187,6 +188,7 @@ def add_mag_columns(table):
     quiescent = is_quiescent_BGS_dn4000(log_L_gal, dn4000, G_R_BEST)
     table.add_column(app_mag_r, name='APP_MAG_R') 
     table.add_column(app_mag_g, name='APP_MAG_G') 
+    table.add_column(app_mag_z, name='APP_MAG_Z') 
     table.add_column(abs_mag_R, name='ABS_MAG_R') 
     table.add_column(abs_mag_R_k, name='ABS_MAG_R_K')
     table.add_column(abs_mag_G, name='ABS_MAG_G')
@@ -268,8 +270,10 @@ def read_fastspecfit_sv3():
         hdul[1].data['HBETA_EW'],
         hdul[1].data['HBETA_EW_IVAR'],
         hdul[1].data['AGE'],
+        hdul[1].data['VDISP'],
+        hdul[1].data['VDISP_IVAR'],
         ], 
-        names=('Z_FSF', 'TARGETID', 'DN4000','DN4000_MODEL','ABSMAG01_SDSS_Z','ABSMAG01_IVAR_SDSS_Z','ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE'))
+        names=('Z_FSF', 'TARGETID', 'DN4000','DN4000_MODEL','ABSMAG01_SDSS_Z','ABSMAG01_IVAR_SDSS_Z','ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'LOGMSTAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE', 'VDISP', 'VDISP_IVAR'))
     hdul.close()
     return fastspecfit_table
 
@@ -305,8 +309,10 @@ def read_fastspecfit_y1():
                     hdul[3].data['HBETA_EW'],
                     hdul[3].data['HBETA_EW_IVAR'],
                     hdul[2].data['AGE'],
+                    hdul[2].data['VDISP'],
+                    hdul[2].data['VDISP_IVAR'],
                     ], 
-                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE'))
+                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE', 'VDISP', 'VDISP_IVAR'))
                 hdul.close()
                 if h == hp[0]:
                     all_fastspecfit_table = fastspecfit_table
@@ -352,8 +358,12 @@ def read_fastspecfit_y3():
                     hdul[3].data['HBETA_EW'],
                     hdul[3].data['HBETA_EW_IVAR'],
                     hdul[2].data['AGE'],
+                    hdul[2].data['VDISP'],
+                    hdul[2].data['VDISP_IVAR'],
+                    hdul[2].data['ZZSUN'],
+                    hdul[2].data['ZZSUN_IVAR'],
                     ], 
-                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE'))
+                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE', 'VDISP', 'VDISP_IVAR'))
                 hdul.close()
                 if h == hp[0]:
                     all_fastspecfit_table = fastspecfit_table
@@ -422,6 +432,10 @@ def add_fastspecfit_columns(main_table, version:str):
         fastspecfit_table = read_fastspecfit_y1()
     elif version == '3':
         fastspecfit_table = read_fastspecfit_y3()
+
+    if fastspecfit_table is None:
+        raise RuntimeError(f"read_fastspecfit for version '{version}' returned None. Check that the source files exist.")
+
     final_table = join(main_table, fastspecfit_table, join_type='left', keys="TARGETID")
     final_table = final_table.filled(np.nan) # convert masked to nan
 
@@ -513,18 +527,18 @@ def add_physical_halflight_radius(table):
     return table
 
 
-def create_merged_file(orig_tbl_fn : str, merged_fn : str, year : str, photoz_wspec=True):
+def create_merged_file(lsscat_fn : str, merged_fn : str, year : str, photoz_wspec=True):
     print(f"CREATING MERGED FILE {merged_fn} for year {year}.", flush=True)
     # 'DCHISQ' not in SV3
     columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'FLUX_Z', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS']
     if ON_NERSC:
         import fitsio
-        table = Table(fitsio.read(orig_tbl_fn, columns=columns))
+        table = Table(fitsio.read(lsscat_fn, columns=columns))
     else:
-        table = Table.read(orig_tbl_fn, format='fits')
+        table = Table.read(lsscat_fn, format='fits')
         table.keep_columns(columns)
 
-    print(f"Read {len(table)} galaxies from {orig_tbl_fn}", flush=True)
+    print(f"Read {len(table)} galaxies from {lsscat_fn}", flush=True)
     table.rename_column('Z_not4clus', 'Z')
 
     # Fill masked values with NaN everywhere and remove stars

@@ -21,7 +21,7 @@ from numpy.polynomial.polynomial import Polynomial
 from astropy.cosmology import z_at_value
 #from pykdtree.kdtree import KDTree # Way faster, but not pickleable
 from scipy.spatial.kdtree import KDTree
-
+from joblib import Parallel, delayed
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -774,7 +774,7 @@ def qf_vmax_weighted_lowcut(series):
     if len(series) <= 49:
         return np.nan
     else:
-        return np.average(series['QUIESCENT'])#, weights=1/series['VMAX'])
+        return np.average(series['QUIESCENT'], weights=1/series['VMAX'])
 
 def qf_Dn4000MODEL_smart_eq_vmax_weighted(series):
     if len(series) <= 99:
@@ -1785,48 +1785,46 @@ def lsat_variance_from_saved():
         print(f"WARNING: {LSAT_VALUES_FROM_LOGS} does not exist. Cannot load variance. Call extract_variance_from_log(path) to create it.")
         return None
 
-def save_from_backend(backend: Backend|list, overwrite=False):
-    """
-    Extracts f_sat, LHMR, and L_sat values from an emcee backend and stores them.
-    """
-    backends = backend if isinstance(backend, list) else [backend]
-    blobs = None
+def bsat(p0, p1, L):
+    return np.maximum(p0 + p1 * (L - 9.5), 0.5)
+def cweight(w0, wl, s, L):
+    return - (w0 / 2) * (1 + special.erf((L - wl) / s))
+def wcen_logratio(q_w, sf_w):
+    return np.log10(q_w / sf_w)
 
-    for b in backends:
-        if not b.has_blobs():
-            print("WARNING: Backend does not have blobs. Cannot extract f_sat and LHMR.")
-            return
 
-        if blobs is None:
-            blobs = b.get_blobs()
-        else:
-            blobs = np.concatenate((blobs, b.get_blobs()), axis=0)
+def samples_to_wcen_bsat(samples, x):
+    def process_sample(sample_params):
+        w = wcen_logratio(
+            cweight(sample_params[4], sample_params[0], sample_params[1], x),
+            cweight(sample_params[5], sample_params[2], sample_params[3], x)
+        )
+        bsat_q = bsat(sample_params[6], sample_params[7], x)
+        bsat_sf = bsat(sample_params[8], sample_params[9], x)
+        return w, bsat_q, bsat_sf
     
-    # See the C Group Finder pipe writing code for the blob structure.
-    # Flatten walkers
-    fsat = blobs[:,:,0:40].reshape(-1, 40)  # Shape: (nwalkers*nsteps, 40)
-    fsatr = blobs[:,:,40:80].reshape(-1, 40)  
-    fsatb = blobs[:,:,80:120].reshape(-1, 40)  
-    lhmr_m = blobs[:,:,120:185].reshape(-1, 65)  # Shape: (nwalkers*nsteps, 65)
-    lhmr_scatter = blobs[:, :, 185:250].reshape(-1, 65)
-    lhmr_r_m = blobs[:, :, 250:315].reshape(-1, 65)
-    lhmr_r_scatter = blobs[:, :, 315:380].reshape(-1, 65)
-    lhmr_b_m = blobs[:, :, 380:445].reshape(-1, 65)
-    lhmr_b_scatter = blobs[:, :, 445:510].reshape(-1, 65)
-    lsat_r = blobs[:, :, 510:530].reshape(-1, 20)
-    lsat_b = blobs[:, :, 530:550].reshape(-1, 20)
+    # Parallelize the computation for all samples
+    results = Parallel(n_jobs=-1)(delayed(process_sample)(sample) for sample in samples)
+    w_samples, bsat_q_samples, bsat_sf_samples = zip(*results)
 
-    def save_array_if_needed(filename, data, overwrite):
-        if os.path.exists(filename):
-            if overwrite:
-                print(f"WARNING: {filename} already exists. Moving previous version to backup.")
-                os.rename(filename, filename + ".bak")
-                np.save(filename, data)
-            else:
-                print(f"WARNING: {filename} already exists. Will not overwrite.")
-        else:
-            np.save(filename, data)
+    w_samples = np.array(w_samples)
+    bsat_q_samples = np.array(bsat_q_samples)
+    bsat_sf_samples = np.array(bsat_sf_samples)
+    w_samples = w_samples[~np.isnan(w_samples).any(axis=1)]
+    bsat_q_samples = bsat_q_samples[~np.isnan(bsat_q_samples).any(axis=1)]
+    bsat_sf_samples = bsat_sf_samples[~np.isnan(bsat_sf_samples).any(axis=1)]
 
-    save_array_if_needed(FSAT_VALUES_FROM_LOGS, (fsat, fsatr, fsatb), overwrite)
-    save_array_if_needed(LHMR_VALUES_FROM_LOGS, (lhmr_r_m, lhmr_r_scatter, lhmr_b_m, lhmr_b_scatter, lhmr_m, lhmr_scatter), overwrite)
-    save_array_if_needed(LSAT_VALUES_FROM_LOGS, (lsat_r, lsat_b), overwrite)
+    return w_samples, bsat_q_samples, bsat_sf_samples
+
+def chains_to_wcen_bsat(chains_flat, x):
+    # ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
+    SAMPLES = 1000
+
+    # Sample posterior and evaluate functions
+    n_samples = min(SAMPLES, len(chains_flat))  # Use subset for efficiency
+    sample_indices = np.random.choice(len(chains_flat), n_samples, replace=False)
+    
+    the_samples = chains_flat[sample_indices]
+
+    # Store function evaluations at each x point
+    return samples_to_wcen_bsat(the_samples, x)

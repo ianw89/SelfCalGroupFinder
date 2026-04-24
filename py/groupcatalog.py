@@ -125,23 +125,24 @@ GF_PROPS_BGS_COLORS_C2 = {
 }
 
 # The BGS Y1 Final Catalog
-# 15.16556194  3.58722321 19.57478728  7.85952838 21.31165874  6.8135736 -3.7157756  16.18024429 10.3152518  -0.56223382
+#[15.69155145  3.61013415 22.33810571  8.99309845 21.26962064  7.94621312 -4.69212774 16.12224224  9.49003684 -0.67647083]
+
 GF_PROPS_BGS_COLORS_C3 = {
     'zmin':0, 
     'zmax':0,
     'frac_area':0, # should be filled in
     'fluxlim':3,
     'color':1,
-    'omegaL_sf': 15.16556194,
-    'sigma_sf': 3.58722321,
-    'omegaL_q': 19.57478728,
-    'sigma_q': 7.85952838,
-    'omega0_sf': 21.31165874,
-    'omega0_q': 6.8135736,
-    'beta0q':  -3.7157756,
-    'betaLq': 16.18024429,
-    'beta0sf': 10.3152518,
-    'betaLsf': -0.56223382
+    'omegaL_sf': 15.69155145,
+    'sigma_sf': 3.61013415,
+    'omegaL_q': 22.33810571,
+    'sigma_q': 8.99309845,
+    'omega0_sf': 21.26962064,
+    'omega0_q': 7.94621312,
+    'beta0q':  -4.69212774,
+    'betaLq': 16.12224224,
+    'beta0sf': 9.49003684,
+    'betaLsf': -0.67647083
 }
 
 def set_all_seeds(seed=59418):
@@ -491,7 +492,7 @@ class GroupCatalog:
         # TODO maybe store HOD too
         #blobs = np.concatenate((self.fsat, self.fsatr, self.fsatb, self.lhmr_m, self.lhmr_std, self.lhmr_r_m, self.lhmr_r_std, self.lhmr_b_m, self.lhmr_b_std, self.lsat_r, self.lsat_b, np.flatten(self.hodfit)))
         
-        assert len(blobs) == 3*40 + 65*6 + 40, f"Expected {3*40 + 65*6 + 40} metadata entries, but got {len(blobs)}"
+        #assert len(blobs) == 3*40 + 65*6 + 40, f"Expected {3*40 + 65*6 + 48} metadata entries, but got {len(blobs)}"
         return -0.5 * chi, blobs
 
     # --- set the priors (no priors right now)
@@ -560,31 +561,38 @@ class GroupCatalog:
                     chain_flat = backend.get_chain(flat=True)
                     ndim = backend.get_chain().shape[2]
                     
-                    # Start with a mask that includes all walkers
-                    middle_mask = np.ones(len(chain_flat), dtype=bool)
-                    
                     # For each parameter, find its middle 50% range and update the mask
-                    for i in range(ndim):
-                        param_chain = chain_flat[:, i]
-                        p25 = np.percentile(param_chain, 25)
-                        p75 = np.percentile(param_chain, 75)
-                        middle_mask &= (param_chain >= p25) & (param_chain <= p75)
+                    #for i in range(ndim):
+                    #    param_chain = chain_flat[:, i]
+                    #    p25 = np.percentile(param_chain, 25)
+                    #    p75 = np.percentile(param_chain, 75)
+                    #    middle_mask &= (param_chain >= p25) & (param_chain <= p75)
 
-                    # Filter the log_prob and chain using the combined mask
-                    middle_log_prob = log_prob_flat[middle_mask]
-                    middle_chain = chain_flat[middle_mask]
+                    # Instead of middle 50% we want middle 50% of wcen_logratio and bsat functions
+                    x = np.linspace(7, 11.5, 20)
+                    w_samples, bsat_q_samples, bsat_sf_samples = chains_to_wcen_bsat(chain_flat, x)
 
-                    if middle_chain.shape[0] > 0:
-                        # From the filtered set, find the one with the best log_prob
-                        best_idx_in_middle = np.argmax(middle_log_prob)
-                        values = middle_chain[best_idx_in_middle]
-                        chisqr = -2 * middle_log_prob[best_idx_in_middle]
-                        print(f"Median-range best chi^2 for {folder}: {chisqr:.3f} (from {middle_chain.shape[0]} samples)")
-                    else:
-                        print(f"Could not find any samples in the median parameter range for {folder}, falling back to absolute best.")
-                        best_idx = np.argmax(log_prob_flat)
-                        values = chain_flat[best_idx]
-                        chisqr = -2 * log_prob_flat[best_idx]
+                    # Calculate 16th and 84th percentiles at each x (68% credible interval)
+                    w_lower = np.percentile(w_samples, 16, axis=0)
+                    w_upper = np.percentile(w_samples, 84, axis=0)
+                    bsat_q_lower = np.percentile(bsat_q_samples, 16, axis=0)
+                    bsat_q_upper = np.percentile(bsat_q_samples, 84, axis=0)
+                    bsat_sf_lower = np.percentile(bsat_sf_samples, 16, axis=0)
+                    bsat_sf_upper = np.percentile(bsat_sf_samples, 84, axis=0)
+
+                    # Go in order of log_prob_flat and find the first one that is within the middle 68% credible interval for all three functions at all x
+                    best_idx = None
+                    for i in np.argsort(log_prob_flat)[::-1]: # go from highest to lowest log prob
+                        w_sample, bsat_q_sample, bsat_sf_sample = samples_to_wcen_bsat(chain_flat[i:i+1], x)
+                        if np.all((w_sample >= w_lower) & (w_sample <= w_upper)) and np.all((bsat_q_sample >= bsat_q_lower) & (bsat_q_sample <= bsat_q_upper)) and np.all((bsat_sf_sample >= bsat_sf_lower) & (bsat_sf_sample <= bsat_sf_upper)):
+                            best_idx = i
+                            break
+
+                    values = chain_flat[best_idx]
+                    chisqr = (-2) * log_prob_flat[best_idx]
+                    print(f"Best chi^2 for {folder} (N={backend.get_chain().shape[0]} x {backend.get_chain().shape[1]}): {chisqr:.3f}")
+                    
+
                 else:
                     chains = backend.get_log_prob(flat=False)
                     idx = np.argmax(backend.get_log_prob(flat=True))
@@ -937,6 +945,8 @@ class GroupCatalog:
         
 
     def monitor_pipe(self):
+        lsat_bincount = self.caldata.get_lsat_observations().shape[0]
+
         while self.proc.poll() is None: # while the group finder process is running
             
             header = self.pipereader.read(6)
@@ -983,11 +993,11 @@ class GroupCatalog:
                     self.lhmr_b_std = np.array(data[5], dtype=dtype)
 
             elif msg_type == MSG_LSAT:
-                if count != 40:
-                    raise Exception(f"Unexpected lsat data count: {count}")
+                if count != lsat_bincount * 2:
+                    raise Exception(f"Unexpected lsat data count: {count}, expected {lsat_bincount * 2}")
                 else:
-                    self.lsat_r = np.array(data[0:20], dtype=dtype)
-                    self.lsat_b = np.array(data[20:40], dtype=dtype)
+                    self.lsat_r = np.array(data[0:lsat_bincount], dtype=dtype)
+                    self.lsat_b = np.array(data[lsat_bincount:lsat_bincount*2], dtype=dtype)
 
             elif msg_type == MSG_HOD:
                 cols = self.caldata.bincount*7 + 1
@@ -1707,8 +1717,6 @@ class BGSGroupCatalog(GroupCatalog):
         print("Pre-processing...")
         if self.data_cut == "Y1-Iron":
             infile = IAN_BGS_Y1_MERGED_FILE
-        elif self.data_cut == "Y1-Iron-Mini":
-            infile = IAN_BGS_Y1_MERGED_FILE
         elif self.data_cut == "Y3-Kibo":
             raise ValueError("Y3 Kibo no longer supported")
         elif self.data_cut == "Y3-Kibo-SV3Cut":
@@ -1968,8 +1976,6 @@ def get_footprint_deg(data_cut, mode, num_passes_required):
     
     if data_cut == "Y1-Iron":
         return mgr.get_footprint("Y1", 'all', num_passes_required)
-    elif data_cut == "Y1-Iron-Mini":
-        return 141.6
     elif data_cut == "Y3-Kibo" or data_cut == "Y3-Loa":
         return mgr.get_footprint("Y3", 'all', num_passes_required)
     elif data_cut == "sv3":
@@ -2146,14 +2152,6 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     keep &= ~np.isin(target_id, bad_targets)
     catalog_keep &= ~np.isin(target_id, bad_targets)
     print(f"After bad targets cut: {keep.sum():,}")
-
-    # For Y1-Iron-Mini, we want to cut to a smaller region
-    if data_cut == "Y1-Iron-Mini":
-        keep &= ra > 160
-        keep &= ra < 175
-        keep &= dec > -7
-        keep &= dec < 3
-        print(f"After Y1-Mini cut: {keep.sum():,}")
 
     # Special version cut to look like SV3 - choose only the ones inside the SV3 footprint
     if data_cut == "Y3-Kibo-SV3Cut" or data_cut == "Y3-Loa-SV3Cut":

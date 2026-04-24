@@ -176,10 +176,6 @@ bgs_nn.marker = '-'
 bgs_nn_sdsslike = BGSGroupCatalog("Nearest Neighbor BGS Y1 SDSS-like", Mode.NEAREST_NEIGHBOR, 17.7, 17.7, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_nn_sdsslike.marker = '-'
 
-bgs_y1mini_pzp_2_6_c1 = BGSGroupCatalog("BGS Y1 Mini PZP v2.6 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron-Mini', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1mini)
-bgs_y1mini_pzp_2_6_c1.marker = '--'
-bgs_y1mini_pzp_2_6_c1.color = 'darkgreen'
-
 bgs_y1_pzp_2_6 = BGSGroupCatalog("BGS Y1 PZP v2.6 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y1_pzp_2_6.marker = '-'
 bgs_y1_pzp_2_6.color = 'darkgreen'
@@ -206,10 +202,6 @@ bgs_y1_pzp_2_6_c2_withrc = BGSGroupCatalog("BGS Y1 C2 Race Cond", Mode.PHOTOZ_PL
 bgs_y1_pzp_2_6_c2_withrc.marker = '--'
 bgs_y1_pzp_2_6_c2_withrc.color = 'purple'
 
-bgs_y1_pzp_2_6_c2_noffc = BGSGroupCatalog("BGS Y1 C2 No Cuts", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', ffc=False, extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
-bgs_y1_pzp_2_6_c2_noffc.marker = '-'
-bgs_y1_pzp_2_6_c2_noffc.color = 'darkred'
-
 bgs_y1_pzp_2_6_c2_flm2 = BGSGroupCatalog("BGS Y1 C2 FLM2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y1_pzp_2_6_c2_flm2.GF_props['fluxlim'] = 2
 bgs_y1_pzp_2_6_c2_flm2.color = 'cyan'
@@ -226,14 +218,20 @@ bgs_y1_pzp_2_6_c3.color = 'darkgreen'
 bgs_y1_pzp_2_6_c3.GF_props['iterations'] = 10
 
 # Prerelease version (v0.4)
+# Note the calibration data on Lsat side has changed and this will be broken 
 bgs_y1_hybrid8_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
 bgs_y1_hybrid8_mcmc.marker = '.'
 bgs_y1_hybrid8_mcmc.color = 'darkgreen'
 
-# Itering this one until final v1.0 catalog is ready
+# Itering this one. Last time this was run was with the converted mag Lsat data that we have moved on from.
+# Note the calibration data on Lsat side has changed and this will be broken 
 bgs_y1_hybrid8_v1_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 v1 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
 bgs_y1_hybrid8_v1_mcmc.marker = '.'
 bgs_y1_hybrid8_v1_mcmc.color = 'darkgreen'
+
+bgs_y1_v1_mcmc = BGSGroupCatalog("BGS Y1 v1 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
+bgs_y1_v1_mcmc.marker = '.'
+bgs_y1_v1_mcmc.color = 'darkgreen'
 
 bgs_y3_pzp_2_6 = BGSGroupCatalog("BGS Y3 PZP v2.6 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y3_pzp_2_6.color = 'darkorange'
@@ -270,8 +268,8 @@ bgs_sv3_pz_2_6_10p = BGSGroupCatalog(
 )
 bgs_sv3_pz_2_6_10p.color = 'k'
 
-bgs_sv3_pz_2_6_10p_c1 = BGSGroupCatalog(
-    "Photo-z Plus v2.6 BGS sv3 10pass C1", 
+bgs_sv3_pz_2_6_10p_c3 = BGSGroupCatalog(
+    "Photo-z Plus v2.6 BGS sv3 10pass C3", 
     Mode.PHOTOZ_PLUS_v2, 
     19.5, 
     21.0, 
@@ -279,9 +277,10 @@ bgs_sv3_pz_2_6_10p_c1 = BGSGroupCatalog(
     data_cut='sv3', 
     sdss_fill=True, 
     extra_params=PZP_PARAMS_V26, 
-    gfprops=GF_PROPS_BGS_COLORS_C1.copy()
+    gfprops=GF_PROPS_BGS_COLORS_C3.copy()
 )
-bgs_sv3_pz_2_6_10p_c1.color = 'k'
+bgs_sv3_pz_2_6_10p_c3.GF_props['iterations'] = 10
+bgs_sv3_pz_2_6_10p_c3.color = 'k'
 
 bgs_sv3_pz_2_6_10p_c2 = BGSGroupCatalog(
     "Photo-z Plus v2.6 BGS sv3 10pass C2", 
@@ -389,6 +388,20 @@ bgs_y3_like_sv3_pz_2_6_c1 = BGSGroupCatalog(
 )
 bgs_y3_like_sv3_pz_2_6_c1.color = 'slateblue'
 
+bgs_y3_like_sv3_pz_2_6_c3 = BGSGroupCatalog(
+    "Photo-z Plus v2.6 BGS Y3 like-sv3 C3", 
+    Mode.PHOTOZ_PLUS_v2, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    extra_params=PZP_PARAMS_V26, 
+    gfprops=GF_PROPS_BGS_COLORS_C3.copy()
+)
+bgs_y3_like_sv3_pz_2_6_c3.GF_props['iterations'] = 10
+bgs_y3_like_sv3_pz_2_6_c3.color = 'slateblue'
+
 bgs_y3_like_sv3_pz_2_6_c2 = BGSGroupCatalog(
     "Photo-z Plus v2.6 BGS Y3 like-sv3 C2", 
     Mode.PHOTOZ_PLUS_v2, 
@@ -429,6 +442,19 @@ bgs_y3_like_sv3_fiberonly = BGSGroupCatalog(
 )
 bgs_y3_like_sv3_fiberonly.color = 'orange'
 
+bgs_y3_like_sv3_fiberonly_c3 = BGSGroupCatalog(
+    "Observed BGS Y3 like-sv3 C3", 
+    Mode.FIBER_ASSIGNED_ONLY, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    gfprops=GF_PROPS_BGS_COLORS_C3.copy()
+)
+bgs_y3_like_sv3_fiberonly_c3.color = 'orange'
+bgs_y3_like_sv3_fiberonly_c3.GF_props['iterations'] = 10
+
 bgs_y3_like_sv3_fiberonly_c2 = BGSGroupCatalog(
     "Observed BGS Y3 like-sv3 C2", 
     Mode.FIBER_ASSIGNED_ONLY, 
@@ -454,6 +480,20 @@ bgs_y3_like_sv3_pz_2_0 = BGSGroupCatalog(
 )
 bgs_y3_like_sv3_pz_2_0.color = 'red'
 
+bgs_y3_like_sv3_pz_2_0_c3 = BGSGroupCatalog(
+    "Photo-z Plus v2.0 BGS Y3 like-sv3 C3", 
+    Mode.PHOTOZ_PLUS_v2, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    extra_params=(1, [0.0, 0.0, 3.0]), 
+    gfprops=GF_PROPS_BGS_COLORS_C3.copy()
+)
+bgs_y3_like_sv3_pz_2_0_c3.color = 'red'
+bgs_y3_like_sv3_pz_2_0_c3.GF_props['iterations'] = 10
+
 bgs_y3_like_sv3_pz_2_0_c2 = BGSGroupCatalog(
     "Photo-z Plus v2.0 BGS Y3 like-sv3 C2", 
     Mode.PHOTOZ_PLUS_v2, 
@@ -478,6 +518,19 @@ bgs_y3_like_sv3_nn = BGSGroupCatalog(
     gfprops=GF_PROPS_BGS_VANILLA.copy()
 )
 bgs_y3_like_sv3_nn.color = 'green'
+
+bgs_y3_like_sv3_nn_c3 = BGSGroupCatalog(
+    "Nearest Neighbor BGS Y3 like-sv3 C3", 
+    Mode.NEAREST_NEIGHBOR, 
+    19.5, 
+    21.0, 
+    num_passes=1, 
+    data_cut='Y3-Loa-SV3Cut', 
+    sdss_fill=False, 
+    gfprops=GF_PROPS_BGS_COLORS_C3.copy()
+)
+bgs_y3_like_sv3_nn_c3.color = 'green'
+bgs_y3_like_sv3_nn_c3.GF_props['iterations'] = 10
 
 bgs_y3_like_sv3_nn_c2 = BGSGroupCatalog(
     "Nearest Neighbor BGS Y3 like-sv3 C2", 
@@ -575,16 +628,11 @@ mxxl_list : list[GroupCatalog] = [
 bgs_sv3_list : list[GroupCatalog] = [
     bgs_sv3_nn_10p,
     bgs_sv3_fiberonly_10p,
-    bgs_sv3_pz_2_6_10p, 
-    bgs_sv3_pz_2_6_10p_c2,
-    bgs_y3_like_sv3_pz_2_6,
-    bgs_y3_like_sv3_pz_2_6_c2,
-    bgs_y3_like_sv3_fiberonly,
-    bgs_y3_like_sv3_fiberonly_c2,
-    bgs_y3_like_sv3_pz_2_0,
-    bgs_y3_like_sv3_pz_2_0_c2,
-    bgs_y3_like_sv3_nn,
-    bgs_y3_like_sv3_nn_c2,
+    bgs_sv3_pz_2_6_10p_c3,
+    bgs_y3_like_sv3_pz_2_6_c3,
+    bgs_y3_like_sv3_fiberonly_c3,
+    bgs_y3_like_sv3_pz_2_0_c3,
+    bgs_y3_like_sv3_nn_c3,
 ]
 bgs_aux_list : list[GroupCatalog] = [
     bgs_y1_fiberonly_1pass,
@@ -595,9 +643,8 @@ bgs_aux_list : list[GroupCatalog] = [
     bgs_y1_pzp_2_6_c2_vmaxold,
 ]
 bgs_y1_list : list[GroupCatalog] = [
-    bgs_y1_pzp_2_6_c2,
     bgs_y1_pzp_2_6_c3,
 ]
 bgs_y3_list : list[GroupCatalog] = [
-    bgs_y3_pzp_2_6_c2,
+    bgs_y3_pzp_2_6_c3,
 ]

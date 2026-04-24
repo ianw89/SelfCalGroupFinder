@@ -209,13 +209,12 @@ class HODTabulated:
 #    """ Standard HOD model for central galaxies. """
 #    return np.log10(0.5 * (1 + erf((logM - logM_min) / sigma_logM)))
 
-def hod_central_model2(logM, logM_min, sigma_logM1, logM_max, sigma_logM2):
-    """ Standard HOD model for central galaxies. """
-    result = (0.5 * (1 + erf((logM - logM_min) / sigma_logM1)) - 0.5 * (1 + erf((logM - logM_max) / sigma_logM2)))
-    result = np.clip(result, 1e-6, None)  # Avoid log of zero or negative
-    return np.log10(result)
+def hod_bins_central_model(logM, logM_min, sigma_logM1, logM_max, sigma_logM2):
+    """ HOD model for central galaxies with a turn-off erf as well. """
+    val = 0.5 * (1 + erf((logM - logM_min) / sigma_logM1)) * (1 - erf((logM - logM_max) / sigma_logM2))
+    return np.log10(np.clip(val, 1e-6, None))
 
-def hod_satellite_model(logM, logM_cut, logM_1, alpha):
+def hod_bins_satellite_model(logM, logM_cut, logM_1, alpha):
     """ Standard HOD model for satellite galaxies. """
     M = 10**logM
     M_cut = 10**logM_cut
@@ -244,13 +243,13 @@ def fit_hod_models(log_halo_mass, logncen, lognsat, unweighted_counts, use_mcmc=
 
     if use_mcmc:
         print("--- Fitting Centrals with MCMC ---")
-        popt_cen = fit_hod_mcmc(log_halo_mass[cenmask], logncen[cenmask], unweighted_counts[cenmask], hod_central_model2, p0_cen, bounds_cen)
+        popt_cen = fit_hod_mcmc(log_halo_mass[cenmask], logncen[cenmask], unweighted_counts[cenmask], hod_bins_central_model, p0_cen, bounds_cen)
         print("\n--- Fitting Satellites with MCMC ---")
-        popt_sat = fit_hod_mcmc(log_halo_mass[satmask], lognsat[satmask], unweighted_counts[satmask], hod_satellite_model, p0_sat, bounds_sat)
+        popt_sat = fit_hod_mcmc(log_halo_mass[satmask], lognsat[satmask], unweighted_counts[satmask], hod_bins_satellite_model, p0_sat, bounds_sat)
     else:
         print("--- Fitting with curve_fit ---")
-        popt_cen, _ = curve_fit(hod_central_model2, log_halo_mass[cenmask], logncen[cenmask], p0=p0_cen, bounds=bounds_cen)
-        popt_sat, _ = curve_fit(hod_satellite_model, log_halo_mass[satmask], lognsat[satmask], p0=p0_sat, bounds=bounds_sat)
+        popt_cen, _ = curve_fit(hod_bins_central_model, log_halo_mass[cenmask], logncen[cenmask], p0=p0_cen, bounds=bounds_cen)
+        popt_sat, _ = curve_fit(hod_bins_satellite_model, log_halo_mass[satmask], lognsat[satmask], p0=p0_sat, bounds=bounds_sat)
 
     return popt_cen, popt_sat
 

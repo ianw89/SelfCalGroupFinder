@@ -1,3 +1,4 @@
+import gc
 import sys
 import time
 import asyncio
@@ -7,12 +8,9 @@ from multiprocessing import Pool
 
 # EXAMPLE USAGE
 # export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-# nohup python3 py/scripts/exec.py 8 &> variations.out &
 # nohup python3 py/scripts/exec.py 6 7 8 9 &> variations.out &
-# nohup python3 py/scripts/exec.py mcmc 12 x0 &> y1mini_mcmc0_2.out &
-# nohup python3 py/scripts/exec.py mcmc 13 x5 &> y1full_mcmc5_0.out &
-# nohup python3 py/scripts/exec.py mcmc 14 x7 &> y1full8_mcmc7_1.out &
 # nohup python3 py/scripts/exec.py 0 &> pzp_mcmc.out &
+# For MCMC of GF params, see deploy_mcmc.sh script
 
 
 execution_mode = 'once' # or 'clustering' or 'mcmc'
@@ -60,7 +58,7 @@ callable_list = [
     cat.bgs_y3_list, #9
     [cat.bgs_y3_like_sv3_hybrid_mcmc_new], #10
     [cat.bgs_sv3_10p_mcmc], #11 sloan one
-    [cat.bgs_y1_hybrid8_v1_mcmc], # 12
+    [cat.bgs_y1_v1_mcmc], # 12
 ]
 
 def process_gc(gc: GroupCatalog):
@@ -72,10 +70,10 @@ def process_gc(gc: GroupCatalog):
         if result:
             gc.calc_wp_for_mock()
             gc.postprocess()
-            if name == "BGS Y1 C2" or name == "BGS Y1 C3":
-                gc.bootstrap_statistics()
+            if name == "BGS Y1 C3":
+                gc.bootstrap_statistics(N_ITERATIONS = 3000)
                 gc.fit_hod_thresholds_to_model_for_display()
-                #gc.fit_hod_bins_to_model_for_display()
+                gc.fit_hod_bins_to_model_for_display()
 
         else:
             print(f"Group finder failed for {name}, skipping further processing.")
