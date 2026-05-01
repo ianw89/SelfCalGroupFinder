@@ -789,10 +789,10 @@ def qf_Dn4000_smart_eq_vmax_weighted(series):
         return np.average(is_quiescent_BGS_dn4000(series['LOGLGAL'], series['DN4000'], series.G_R), weights=1/series['VMAX'])
 
 def qf_BGS_gmr_vmax_weighted(series):
-    if len(series) <= 99:
+    if len(series) <= 49:
         return np.nan
     else:
-        return np.average(is_quiescent_BGS_gmr(series['LOGLGAL'], series.G_R), weights=1/series['VMAX'])
+        return np.average(is_quiescent_BGS_gmr(series['LOGLGAL'], series['G_R']), weights=1/series['VMAX'])
     
 def nsat_vmax_weighted(series):
     if len(series) == 0:

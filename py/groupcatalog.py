@@ -698,7 +698,6 @@ class GroupCatalog:
             self.hodt_cen_all_popt.append(cen_all_popt)
             self.hodt_sat_all_popt.append(sat_all_popt)
 
-
     def fit_hod_bins_to_model_for_display(self):
         if self.hod is None:
             raise Exception("HOD data not available")
@@ -1381,6 +1380,12 @@ class GroupCatalog:
         self.all_data.loc[rows_to_nan, 'Z_T'] = NO_TRUTH_Z
         print(f"{np.sum(rows_to_nan)} galaxies to have no truth redshift.")
         self.has_truth = True
+
+        # Print off the % of lost galaxies that have true redshifts, as a sanity check
+        lost = z_flag_is_not_spectro_z(self.all_data['Z_ASSIGNED_FLAG'])
+        lost_count = self.all_data[lost].shape[0]
+        lost_no_truth_count = np.sum(lost & rows_to_nan)
+        print(f"{lost_count - lost_no_truth_count} ({(lost_count - lost_no_truth_count) / lost_count * 100:.2f}%) lost galaxies have true redshifts.")
 
         # If we failed to match on target_id for most galaxies, let's instead use match_coordinate_sky
         #if np.sum(rows_to_nan) > 0.5 * len(self.all_data):
