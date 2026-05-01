@@ -778,6 +778,11 @@ def SHMR_scatter_savederr(f: GroupCatalog, show_all=False):
     b_lower = scatter_b - f.shmr_sf_scatter_bootstrap_err[0]
     b_upper = f.shmr_sf_scatter_bootstrap_err[1] - scatter_b
 
+    # If upper or lower is nan, nan out the main data point as well.
+    scatter_all[np.isnan(all_lower) | np.isnan(all_upper)] = np.nan
+    scatter_r[np.isnan(r_lower) | np.isnan(r_upper)] = np.nan
+    scatter_b[np.isnan(b_lower) | np.isnan(b_upper)] = np.nan
+
     plt.figure(dpi=DPI)
     x_vals = np.log10(Mhalo_labels2)
 
@@ -804,7 +809,7 @@ def SHMR_scatter_litcompare(f: GroupCatalog, sdss: GroupCatalog):
 
     plt.figure(dpi=DPI)
     x_vals = np.log10(Mhalo_labels2)
-    plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], fmt='.', color='k', label='This Work', capsize=4, alpha=0.9)
+    plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], label='This Work', fmt='o', markerfacecolor='gray', markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
 
     # Now for comparison data.
     # SDSS Paper II as filled gray region
@@ -858,22 +863,22 @@ def SHMR_scatter_litcompare(f: GroupCatalog, sdss: GroupCatalog):
         [14.521919438040163, 0.1951898697095824],
         [14.679962718599567, 0.23713076508177533]
     ])
-    plt.fill_between(lower[:,0], lower[:,1], upper[:,1], color='gray', alpha=0.6, label='Paper II')
+    plt.fill_between(lower[:,0], lower[:,1], upper[:,1], color='gray', alpha=0.7, label='Paper II')
 
     # Tinker et al 2016 https://iopscience.iop.org/article/10.3847/1538-4357/aa6845/pdf
     # "Measures" 0.18 dex scatter. 
-    plt.fill_between(x_vals[22:], 0.18-0.02, 0.18+0.02, color='purple', alpha=0.4, label='Tinker+17')
+    plt.fill_between(x_vals[22:], 0.18-0.02, 0.18+0.02, color='purple', alpha=0.5, label='Tinker+17')
     # Reddick et al 2013 SHAM measurements
     plt.fill_between(x_vals[20:29], 0.20-0.03, 0.20+0.03, color='blue', alpha=SHADED_ERR_ALPHA, label='Reddick+13')
     # To et al 2020 redmapper clusters
-    plt.fill_between(x_vals[25:], 0.19, 0.28, color='orange', alpha=0.4, label='To+20')
+    plt.fill_between(x_vals[25:], 0.19, 0.28, color='orange', alpha=0.5, label='To+20')
     # Cao et al 2019
-    plt.fill_between(x_vals[13:16], 0.38-0.06, 0.38+0.06, color='cyan', alpha=0.4, label='Cao+19')
-    plt.fill_between(x_vals[15:18], 0.34-0.04, 0.34+0.04, color='green', alpha=0.4, label='Cao+19')
+    plt.fill_between(x_vals[13:16], 0.38-0.06, 0.38+0.06, color='cyan', alpha=0.5, label='Cao+19')
+    plt.fill_between(x_vals[15:18], 0.34-0.04, 0.34+0.04, color='green', alpha=0.5, label='Cao+19')
     # Taylor et al 2020
     plt.fill_between(x_vals[14:17], 0.22, 0.346, color='red', alpha=SHADED_ERR_ALPHA, label='Taylor+20')
     # arrow pointing up, because it's a lower limit
-    plt.annotate('', xy=(12.0, 0.38), xytext=(12.0, 0.28), arrowprops=dict(facecolor='red', shrink=0.05, width=2, headwidth=8, alpha=0.4), annotation_clip=False)
+    plt.annotate('', xy=(12.0, 0.38), xytext=(12.0, 0.28), arrowprops=dict(facecolor='red', shrink=0.05, width=2, headwidth=8, alpha=0.5), annotation_clip=False)
 
     plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'$\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
@@ -990,7 +995,7 @@ def fsat_with_err_from_saved(gc: GroupCatalog, show_all=False):
     plt.tight_layout()
 
 
-def fsat_incompleteness_study(catalogs, truthcat: GroupCatalog):
+def fsat_incompleteness_study_all(catalogs, truthcat: GroupCatalog):
     fig,ax1=plt.subplots(figsize=(6,4.5))
     fig.set_dpi(DPI)
    # axes.errorbar(obs_lcen, np.log10(obs_ratio), yerr=obs_ratio_err_log, fmt='o', markerfacecolor='white', markeredgecolor='k', markeredgewidth=2, markersize=6, capsize=3, elinewidth=2, ecolor='k', label='Data')
@@ -1010,6 +1015,69 @@ def fsat_incompleteness_study(catalogs, truthcat: GroupCatalog):
     ax2.plot(catalogs[0].Mr_gal_labels, catalogs[0].f_sat, ls="")
     ax2.set_xlim(log_solar_L_to_abs_mag_r(np.log10(3E7)), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
     ax2.set_xlabel("$M_r$ - 5log(h)")
+    fig.tight_layout()
+
+def fsat_incompleteness_study(catalogs, truthcat: GroupCatalog):
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4.5))
+    fig.set_dpi(DPI)
+
+    panels = [
+        (axes[0], truthcat.f_sat_q, truthcat.fsat_q_bootstrap_err, 'f_sat_q', 1.0, 6E8, 'Quiescent'),
+        (axes[1], truthcat.f_sat_sf, truthcat.fsat_sf_bootstrap_err, 'f_sat_sf', 0.5, 6E7, 'Star-forming')
+    ]
+
+    for ax, truth_vals, truth_err, attr_name, ymax, xmin, title in panels:
+        truth_vals_plot = np.asarray(truth_vals, dtype=float).copy()
+        truth_err_plot = np.asarray(truth_err, dtype=float)
+
+        if truth_err_plot.ndim == 2:
+            invalid = np.any(np.isnan(truth_err_plot), axis=0)
+        else:
+            invalid = np.isnan(truth_err_plot)
+
+        truth_vals_plot[invalid] = np.nan
+
+        ax.errorbar(
+            truthcat.L_gal_labels,
+            truth_vals_plot,
+            yerr=truth_err_plot,
+            label=get_dataset_display_name(truthcat),
+            fmt='o',
+            markerfacecolor='white',
+            markeredgecolor=truthcat.color,
+            markeredgewidth=1.5,
+            markersize=4,
+            capsize=4,
+            elinewidth=2,
+            ecolor=truthcat.color,
+        )
+
+        for f in catalogs:
+            ax.plot(
+                f.L_gal_labels[~invalid],
+                getattr(f, attr_name)[~invalid],
+                f.marker,
+                label=get_dataset_display_name(f),
+                color=f.color,
+                linewidth=2,
+            )
+
+        ax.set_xscale('log')
+        ax.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2}]$")
+        ax.set_ylabel("$f_{\\mathrm{sat}}$")
+        ax.set_xlim(xmin, LGAL_MAX_TIGHT)
+        ax.set_ylim(0.0, ymax)
+        ax.text(0.05, 0.08, f"{title}", transform=ax.transAxes, fontsize=16)
+
+        ax_top = ax.twiny()
+        ax_top.plot(catalogs[0].Mr_gal_labels, getattr(catalogs[0], attr_name), ls="")
+        ax_top.set_xlim(
+            log_solar_L_to_abs_mag_r(np.log10(xmin)),
+            log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)),
+        )
+        ax_top.set_xlabel("$M_r$ - 5log(h)")
+
+    axes[0].legend(fontsize=12)
     fig.tight_layout()
 
 
@@ -1616,7 +1684,7 @@ def compare_L_funcs(one: pd.DataFrame, two: pd.DataFrame):
     L_func_plot([one, two], [one_counts, two_counts])
 
 
-def quiescent_classification_dbl_plot(catalog: GroupCatalog, sdss: GroupCatalog):
+def quiescent_classification_dbl_plot(catalog: GroupCatalog, sdss: GroupCatalog, spec_only=True, cen_only=False):
 
     # See BGS_study Quiescent vs Star-Forming Analysis section
     mean_logLgal_per_bin = [8.04, 8.63, 8.97, 9.27, 9.57, 9.80, 10.00, 10.20, 10.46, 10.82]
@@ -1627,12 +1695,11 @@ def quiescent_classification_dbl_plot(catalog: GroupCatalog, sdss: GroupCatalog)
     plt.plot(mean_logLgal_per_bin, thresholds, 'o', label='Binned Thresholds Chosen', markersize=8, color='blue')
     x = np.linspace(6.5, 11.5, 1000)
     plt.plot(x, get_Dn4000_crit(x), label='Fitted Threshold Used Here', color='k', lw=3)
-    plt.plot(x, get_SDSS_Dcrit(x), '--', label='Tinker 2021 SDSS Threshold', color='green', lw=2)
+    plt.plot(x, get_SDSS_Dcrit(abs_mag_r_to_log_solar_L(bgs_mag_to_sdsslike_mag(log_solar_L_to_abs_mag_r(x)))), '-', label='Tinker 2021 SDSS Threshold', color='green', lw=2)
     plt.xlabel('log($L_{\\rm gal} / (L_\odot h^{-2}))$')
     plt.ylabel('$D_n4000$ Threshold')
     plt.xlim(np.log10(LGAL_MIN), LOG_LGAL_MAX_TIGHT)
-    #plt.text(6.4, 1.675, f"Uses DN4000_MODEL from fastspecfit")
-    #plt.text(6.4, 1.65, f"$g-r$ < 0.65 always Star-Forming")
+    #
     plt.legend()
     plt.twiny()
     plt.xlim(log_solar_L_to_abs_mag_r(6.5), log_solar_L_to_abs_mag_r(11.5))
@@ -1641,17 +1708,26 @@ def quiescent_classification_dbl_plot(catalog: GroupCatalog, sdss: GroupCatalog)
     
     plt.sca(axes[1])
     df = catalog.all_data
-    #df = df.loc[z_flag_is_spectro_z(df['Z_ASSIGNED_FLAG'])]
-    #df = df.loc[df['IS_SAT'] == False]
+    if spec_only:
+        df = df.loc[z_flag_is_spectro_z(df['Z_ASSIGNED_FLAG'])]
+    if cen_only:
+        df = df.loc[df['IS_SAT'] == False]
 
     sdss_df = sdss.all_data
-    sdss_df = sdss_df.loc[sdss_df['IS_SAT'] == False]
+    sdss_df['LGAL_BGSLIKE'] = abs_mag_r_to_solar_L(sdss_mag_to_bgslike_mag(log_solar_L_to_abs_mag_r(np.log10(sdss_df['L_GAL']))))
+    sdss_df['LGAL_BIN_BGSLIKE'] =  pd.cut(x = sdss_df['LGAL_BGSLIKE'], bins = sdss.L_gal_bins, labels = sdss.L_gal_labels, include_lowest = True)
+    if spec_only:
+        sdss_df = sdss_df.loc[z_flag_is_spectro_z(sdss_df['Z_ASSIGNED_FLAG'])]
+    if cen_only:
+        sdss_df = sdss_df.loc[sdss_df['IS_SAT'] == False]
+
     qf_gmr = df.groupby('LGAL_BIN', observed=False).apply(qf_BGS_gmr_vmax_weighted)
     qf_dn4000model = df.groupby('LGAL_BIN', observed=False).apply(qf_Dn4000MODEL_smart_eq_vmax_weighted)
     plt.step(LogLgal_labels, qf_dn4000model, '-', label='Dn4000(L) Used Here', color='k', lw=3, where='post')
-    #plt.plot(LogLgal_labels, df.groupby('LGAL_BIN', observed=False).apply(qf_vmax_weighted), '--', label='From Catalog', color='purple', lw=2)
-    plt.step(LogLgal_labels, qf_gmr, '-', label=f'g-r(L) Alternative', color='red', lw=2, where='post')
-    plt.step(LogLgal_labels, sdss_df.groupby('LGAL_BIN', observed=False).apply(qf_vmax_weighted), '--', label='Tinker 2021 SDSS', color='green', lw=2, where='post')
+    # It matches qf_Dn4000MODEL_smart_eq_vmax_weighted
+    #plt.step(LogLgal_labels, df.groupby('LGAL_BIN', observed=False).apply(qf_vmax_weighted), '--', label='From Catalog', color='purple', lw=2, where='post')
+    #plt.step(LogLgal_labels, qf_gmr, '-', label=f'g-r(L) Alternative', color='red', lw=2, where='post')
+    plt.step(LogLgal_labels, sdss_df.groupby('LGAL_BIN_BGSLIKE', observed=False).apply(qf_vmax_weighted), '-', label='Tinker 2021 SDSS', color='green', lw=2, where='post')
     plt.xlabel('log($L_{\\rm gal} / (L_\odot h^{-2}))$')
     plt.ylabel("$f_{\\mathrm{Q}}$ ")
     plt.xlim(np.log10(LGAL_MIN), LOG_LGAL_MAX_TIGHT)
@@ -1733,7 +1809,9 @@ def hod_thresholds_plot(gc: GroupCatalog, color):
 
         if hasattr(gc, 'hodt_cen_red_popt') and gc.hodt_cen_red_popt is not None:
             if color == 'r':
-                ax.plot(logm, hod.hod_central_threshold_model(logm, *gc.hodt_cen_red_popt[idx]), 'k-', label='Q Central Fit', linewidth=3)
+                model_cens = hod.hod_central_threshold_model(logm, *gc.hodt_cen_red_popt[idx])
+                model_cens[np.isnan(gc.hod_thresholds.central_q[idx, :])] = np.nan
+                ax.plot(logm, model_cens, 'k-', label='Q Central Fit', linewidth=3)
                 ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_red_popt[idx]), 'k--', label='Q Satellite Fit', linewidth=3)
                 ax.text(12.1, 2.7, f"$M_{{\\rm cut}}$: {gc.hodt_sat_red_popt[idx][0]:.2f}", fontsize=inset_fontsize)
                 ax.text(12.1, 2.35, f"$M_{{\\rm sat}}$: {gc.hodt_sat_red_popt[idx][1]:.2f}", fontsize=inset_fontsize)
@@ -1742,7 +1820,9 @@ def hod_thresholds_plot(gc: GroupCatalog, color):
                 ax.text(10.1, 2.3, f"$σ_{{\\rm min}}$: {gc.hodt_cen_red_popt[idx][1]:.2f}", fontsize=inset_fontsize)
             
             elif color == 'b':
-                ax.plot(logm, hod.hod_central_threshold_blue_model(logm, *gc.hodt_cen_blue_popt[idx]), 'k-', label='SF Central Fit', linewidth=3)
+                model_cens = hod.hod_central_threshold_blue_model(logm, *gc.hodt_cen_blue_popt[idx])
+                model_cens[np.isnan(gc.hod_thresholds.central_sf[idx, :])] = np.nan
+                ax.plot(logm, model_cens, 'k-', label='SF Central Fit', linewidth=3)
                 ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_blue_popt[idx]), 'k--', label='SF Satellite Fit', linewidth=3)
                 ax.text(12.1, 2.7, f"$M_{{\\rm cut}}$: {gc.hodt_sat_blue_popt[idx][0]:.2f}", fontsize=inset_fontsize)
                 ax.text(12.1, 2.35, f"$M_{{\\rm sat}}$: {gc.hodt_sat_blue_popt[idx][1]:.2f}", fontsize=inset_fontsize)
@@ -1753,7 +1833,9 @@ def hod_thresholds_plot(gc: GroupCatalog, color):
                 ax.text(10.1, 1.65, f"$σ_{{\\rm max}}$: {gc.hodt_cen_blue_popt[idx][3]:.2f}", fontsize=inset_fontsize)
 
             elif color == 'k':
-                ax.plot(logm, hod.hod_central_threshold_model(logm, *gc.hodt_cen_all_popt[idx]), 'k-', label='All Central Fit', linewidth=3)
+                model_cens = hod.hod_central_threshold_model(logm, *gc.hodt_cen_all_popt[idx])
+                model_cens[np.isnan(gc.hod_thresholds.central_all[idx, :])] = np.nan
+                ax.plot(logm, model_cens, 'k-', label='All Central Fit', linewidth=3)
                 ax.plot(logm, hod.hod_satellite_threshold_model(logm, *gc.hodt_sat_all_popt[idx]), 'k--', label='All Satellite Fit', linewidth=3)
                 ax.text(12.1, 2.7, f"$M_{{\\rm cut}}$: {gc.hodt_sat_all_popt[idx][0]:.2f}", fontsize=inset_fontsize)
                 ax.text(12.1, 2.35, f"$M_{{\\rm sat}}$: {gc.hodt_sat_all_popt[idx][1]:.2f}", fontsize=inset_fontsize)
@@ -1769,7 +1851,7 @@ def hod_thresholds_plot(gc: GroupCatalog, color):
         ax.set_xlim(10,15)
         ax.set_ylim(-3, 3)
         ax.grid(True)
-        ax.set_title(f"$M_r < {magcut:.1f}$")
+        ax.set_title(f"$M_r^{{0.1}} < {magcut:.1f}$")
         #ax.legend()
 
     # Hide unused axes if any
@@ -1828,7 +1910,7 @@ def hodt_satparams_evolution_2(gc: GroupCatalog, colors: list):
     maglims = gc.caldata.magbins
     #magcenters = 0.5 * (maglims[1:] + maglims[:-1])
 
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,5), dpi=DPI)
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), dpi=DPI)
     
     for color in colors:
         if color == 'k':
@@ -1849,14 +1931,14 @@ def hodt_satparams_evolution_2(gc: GroupCatalog, colors: list):
     # x axis is reversed
     for ax in axes:
         ax.invert_xaxis()
-    axes[0].set_xlabel("$M_r$ Threshold")
+    axes[0].set_xlabel("$M_r^{0.1}$ Threshold")
     axes[0].set_ylabel("$M_{sat} / M_{cut}$")
-    axes[0].set_ylim(0, 140)
-    axes[1].set_xlabel("$M_r$ Threshold")
+    axes[0].set_ylim(0, 110)
+    axes[1].set_xlabel("$M_r^{0.1}$ Threshold")
     axes[1].set_ylabel("α")
     for ax in axes:
         ax.grid(True)
-        ax.legend()
+    axes[0].legend()
     
     plt.tight_layout()
 
@@ -3764,7 +3846,7 @@ def sdss_bgs_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
 
 
 
-def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True, fractional=False):
+def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True, fractional=False, qfunc=qf_vmax_weighted_lowcut):
     """
     Create a 2D heatmap showing quiescent fraction as a function of stellar mass and halo mass.
     
@@ -3776,12 +3858,20 @@ def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True, fraction
         If True, only use central galaxies (default: True)
     """
     data = gc.all_data.copy()
+    #data = data.loc[data['N_SAT'] > 0]
     
     if fractional:
         ms_bins = np.linspace(-3, -0.5, 50)
     else:
-        ms_bins = np.linspace(9, 11.6, 50)
-    mh_bins = np.linspace(11.0, 14.1, 60)
+        if centrals_only == False:
+            ms_bins = np.linspace(7.0, 11.1, 40)
+        else:
+            ms_bins = np.linspace(9, 11.6, 50)
+    
+    if centrals_only == False:
+        mh_bins = np.linspace(10.5, 15.1, 20)
+    else:
+        mh_bins = np.linspace(11.0, 14.1, 60)
     data['LOG_MSTAR_OVER_MH'] = data['LOGMSTAR'] - np.log10(data['M_HALO'])
     if fractional:
         data['MSTAR_FINEBIN'] = pd.cut(data['LOG_MSTAR_OVER_MH'], bins=ms_bins, labels=ms_bins[:-1], include_lowest=True)
@@ -3789,8 +3879,12 @@ def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True, fraction
         data['MSTAR_FINEBIN'] = pd.cut(data['LOGMSTAR'], bins=ms_bins, labels=ms_bins[:-1], include_lowest=True)
     data['MH_FINEBIN'] = pd.cut(np.log10(data['M_HALO']), bins=mh_bins, labels=mh_bins[:-1], include_lowest=True)
 
-    # Centrals Only
-    data = data.loc[~data['IS_SAT']] if centrals_only else data
+    if centrals_only == None:
+        pass
+    elif centrals_only:
+        data = data.loc[~data['IS_SAT']] 
+    else:
+        data = data.loc[data['IS_SAT']] # Sats only
     #data = data.loc[z_flag_is_spectro_z(data['Z_ASSIGNED_FLAG'])] # Lost galaxies don't seem to be an issue
 
     zcut = None
@@ -3803,7 +3897,7 @@ def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True, fraction
     #    outliers_removed = True
 
     # Group by both Mstar_bin and Mh_bin and calculate quiescent fraction
-    fq_2d = data.groupby(['MSTAR_FINEBIN', 'MH_FINEBIN'], observed=False).apply(qf_vmax_weighted_lowcut).unstack()
+    fq_2d = data.groupby(['MSTAR_FINEBIN', 'MH_FINEBIN'], observed=False).apply(qfunc).unstack()
     
     # Get bin labels
     mstar_labels = ms_bins[:-1]
@@ -3841,7 +3935,12 @@ def fq_mstellar_mh_heatmap_zoomed(gc: GroupCatalog, centrals_only=True, fraction
     else:
         ax.set_ylabel('log$(M_{\\star}~/~[M_{\odot} h^{-2}])$')
     
-    text = 'Central Galaxies Only' if centrals_only else 'All Galaxies'
+    if centrals_only == None:
+        text = "All Galaxies"
+    elif centrals_only:
+        text = "Central Galaxies Only"
+    else:
+        text = "Satellite Galaxies Only"
     ax.text(0.7, .1, text, transform=ax.transAxes, ha='center', va='bottom', fontsize=18)
     if zcut is not None:
         ax.text(0.6, .05, f'z < {zcut}', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)

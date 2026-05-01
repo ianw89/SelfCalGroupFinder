@@ -37,7 +37,7 @@ def hod_central_threshold_model(logM, logM_min, sigma_logM):
 
 def hod_central_threshold_blue_model(logM, logM_min, sigma1_logM, logM_max, sigma2_logM):
     """ HOD model for central galaxies in a cumulative (threshold) sample, with a turn-off erf as well. """
-    val = 0.5 * (1 + erf((logM - logM_min) / sigma1_logM)) * (1 - erf((logM - logM_max) / sigma2_logM))
+    val = 0.25 * (1 + erf((logM - logM_min) / sigma1_logM)) * (1 - erf((logM - logM_max) / sigma2_logM))
     return np.log10(np.clip(val, 1e-6, None))
 
 def hod_satellite_threshold_model(logM, logM_cut, logM_1, alpha):
@@ -110,8 +110,8 @@ def fit_hod_threshold_models(log_halo_mass, logncen, lognsat, unweighted_counts,
     
     # --- Centrals ---
     cenmask = logncen > -4 # For the fitting, only use these points
-    p0_cen = [log_halo_mass[cenmask][0], 0.3, log_halo_mass[cenmask][5], 2.5] if color == 'b' else [log_halo_mass[cenmask][0], 0.3]
-    bounds_cen = ([8, 0.01, 8, 0.01], [16, 3.0, 16, 10.0]) if color == 'b' else ([8, 0.01], [16, 3.0])
+    p0_cen = [log_halo_mass[cenmask][0], 0.1, log_halo_mass[cenmask][5], 1.0] if color == 'b' else [log_halo_mass[cenmask][0], 0.3]
+    bounds_cen = ([8, 0.01, 8, 0.01], [14, 0.5, 16, 10.0]) if color == 'b' else ([8, 0.01], [16, 3.0])
     print(f"Initial guess for centrals: {p0_cen}, bounds: {bounds_cen}")
     cenmodel = hod_central_threshold_blue_model if color == 'b' else hod_central_threshold_model
     
