@@ -363,7 +363,7 @@ def read_fastspecfit_y3():
                     hdul[2].data['ZZSUN'],
                     hdul[2].data['ZZSUN_IVAR'],
                     ], 
-                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE', 'VDISP', 'VDISP_IVAR'))
+                    names=('Z_FSF', 'TARGETID', 'DN4000', 'DN4000_IVAR', 'DN4000_MODEL', 'DN4000_MODEL_IVAR', 'ABSMAG01_SDSS_Z', 'ABSMAG01_IVAR_SDSS_Z', 'ABSMAG01_SDSS_G', 'ABSMAG01_IVAR_SDSS_G', 'ABSMAG01_SDSS_R', 'ABSMAG01_IVAR_SDSS_R', 'SFR', 'SFR_IVAR', 'LOGMSTAR', 'LOGMSTAR_IVAR', 'HALPHA_EW', 'HALPHA_EW_IVAR', 'HBETA_EW', 'HBETA_EW_IVAR', 'AGE', 'VDISP', 'VDISP_IVAR', 'ZZSUN', 'ZZSUN_IVAR'))
                 hdul.close()
                 if h == hp[0]:
                     all_fastspecfit_table = fastspecfit_table
