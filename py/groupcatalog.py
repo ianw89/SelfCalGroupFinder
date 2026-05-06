@@ -823,16 +823,21 @@ class GroupCatalog:
                 'VMAX': u.Mpc**3,
                 'M_HALO': u.solMass,
                 'L_TOT': u.solLum,
-                'LOGMSTAR': u.solMass
+                'LOGMSTAR': u.solMass,
+                'APP_MAG_R': u.mag,
+                'ABS_MAG_R': u.mag,
+                'G_R': u.mag
             } # Others are dimensionless
             )
         
         table.write(fitsname, overwrite=True)
 
-        # Add a name to the table, to confrom to DESI VAC standards
-        hdul = fits.open(fitsname, memmap=True)
+        # Add a name to the table and use checksums, to conform to DESI VAC standards
+        hdul = fits.open(fitsname, mode='update')
         hdul[1].name = "GALAXIES"
+        hdul[1].add_checksum()
         hdul.writeto(fitsname, overwrite=True)
+        hdul.close()
 
         return fitsname
 
