@@ -4036,7 +4036,7 @@ def fq_lgal_mh_heatmap(gc: GroupCatalog, centrals_only=True):
         If True, only use central galaxies (default: True)
     """
     data = gc.centrals if centrals_only else gc.all_data
-    data = data.loc[data['Z'] < 0.2]
+    #data = data.loc[data['Z'] < 0.2]
 
     # Group by both LGAL_BIN and Mh_bin and calculate quiescent fraction
     fq_2d = data.groupby(['LGAL_BIN', 'Mh_bin2'], observed=False).apply(qf_vmax_weighted_lowcut).unstack()
@@ -4077,3 +4077,92 @@ def fq_lgal_mh_heatmap(gc: GroupCatalog, centrals_only=True):
     
     plt.tight_layout()
     plt.show()
+
+    
+
+def fq_mstellar_lgal_heatmap_zoomed(gc: GroupCatalog, centrals_only=True, qfunc=qf_vmax_weighted_lowcut):
+    """
+    Create a 2D heatmap showing quiescent fraction as a function of stellar mass and galaxy luminosity.
+    
+    Parameters
+    ----------
+    gc : GroupCatalog
+        The group catalog to analyze
+    centrals_only : bool, optional
+        If True, only use central galaxies (default: True)
+    """
+    data = gc.all_data.copy()
+    #data = data.loc[data['N_SAT'] > 0]
+    
+    ms_bins = np.linspace(8.0, 12.0, 70)
+    lum_bins = np.linspace(8.0, 11.3, 70)
+
+    data['MSTAR_FINEBIN'] = pd.cut(data['LOGMSTAR'], bins=ms_bins, labels=ms_bins[:-1], include_lowest=True)
+    data['LOGLGAL_FINEBIN'] = pd.cut(data['LOGLGAL'], bins=lum_bins, labels=lum_bins[:-1], include_lowest=True)
+
+    if centrals_only == None:
+        pass
+    elif centrals_only:
+        data = data.loc[~data['IS_SAT']] 
+    else:
+        data = data.loc[data['IS_SAT']] # Sats only
+    #data = data.loc[z_flag_is_spectro_z(data['Z_ASSIGNED_FLAG'])] # Lost galaxies don't seem to be an issue
+
+    zcut = None
+    if zcut is not None:
+        data = data.loc[data['Z'] < zcut]
+
+    outliers_removed = False
+    #if 'OUTLIER_MLR' in data.columns:
+    #    data = data.loc[~data['OUTLIER_MLR']]
+    #    outliers_removed = True
+
+    fq_2d = data.groupby(['MSTAR_FINEBIN', 'LOGLGAL_FINEBIN'], observed=False).apply(qfunc).unstack()
+    
+    # Get bin labels
+    mstar_labels = ms_bins[:-1]
+    lum_labels = lum_bins[:-1]
+    
+    fig, ax = plt.subplots(figsize=(7, 5), dpi=DPI)
+    
+    # Create the heatmap
+    im = ax.imshow(fq_2d.values, aspect='auto', origin='lower', 
+                   extent=[lum_labels[0], lum_labels[-1], mstar_labels[0], mstar_labels[-1]],
+                   cmap='RdYlBu_r', vmin=0, vmax=1)
+    
+
+    # Add contours - create meshgrid matching the actual data shape
+    x_edges = np.linspace(lum_labels[0], lum_labels[-1], fq_2d.shape[1] + 1)
+    y_edges = np.linspace(mstar_labels[0], mstar_labels[-1], fq_2d.shape[0] + 1)
+    x_centers = (x_edges[:-1] + x_edges[1:]) / 2
+    y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+    X, Y = np.meshgrid(x_centers, y_centers)
+    
+    contour_levels = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    contours = ax.contour(X, Y, fq_2d.values, levels=contour_levels, 
+                          colors='black', linewidths=1.5, alpha=0.7)
+    #ax.clabel(contours, inline=True, fontsize=10, fmt='%.1f')
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label('$f_Q$', rotation=270, labelpad=20)
+    
+    # Labels
+    ax.set_xlabel('log$(L_{\\rm gal}~/~[L_{\odot} h^{-2}])$)')
+    ax.set_ylabel('log$(M_{\\star}~/~[M_{\odot} h^{-2}])$')
+    
+    if centrals_only == None:
+        text = "All Galaxies"
+    elif centrals_only:
+        text = "Central Galaxies Only"
+    else:
+        text = "Satellite Galaxies Only"
+    ax.text(0.7, .1, text, transform=ax.transAxes, ha='center', va='bottom', fontsize=18)
+    if zcut is not None:
+        ax.text(0.6, .05, f'z < {zcut}', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)
+    if outliers_removed:
+        ax.text(0.75, .05, 'Outliers Removed', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)
+
+    ax.text(0.75, .05, 'g-r classification', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)
+    
+    plt.tight_layout()
