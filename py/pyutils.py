@@ -935,10 +935,12 @@ def build_app_mag_to_z_map_4(app_mag, z_phot, z_obs):
 
 
 def get_sga_ellipse_positions():
-    if not os.path.exists(SGA_FILE):
-        raise ValueError(f"File {SGA_FILE} does not exist. Cannot load SGA ellipse positions.")
     if not os.path.isfile(SGA_MINI_FILE):
         # Make the quick mini version with only the columns we need
+
+        if not os.path.exists(SGA_FILE):
+            raise ValueError(f"File {SGA_FILE} does not exist. Cannot load SGA ellipse positions.")
+
         sga_full = Table.read(SGA_FILE, format='fits')
         ra = np.array(sga_full['RA'])
         dec = np.array(sga_full['DEC'])

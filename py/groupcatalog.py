@@ -1173,15 +1173,34 @@ class GroupCatalog:
 
                 # The mock file is written by the group finder as mock_{col}_M{m}.dat
                 outf = f"wp_mock_{color}_M{m}.dat"
-                cmd = f"{corrfunc_path}/wp {boxsize} mock_{color}_M{m}.dat a {self.caldata.rpbinsfile} {pimax} {nthreads} > wp_mock_{color}_M{m}.dat 2> wp_stderr.txt"
-                result = sp.run(cmd, cwd=self.output_folder, shell=True, check=True)
-                if result.returncode != 0:
-                    print(f"Error running command: {cmd}")
-                self.wp_mock[(color, m)] = np.loadtxt(f'{self.output_folder}{outf}', skiprows=0, dtype='float')
+
+                if os.path.exists(f"{corrfunc_path}/wp"):
+
+                    cmd = f"{corrfunc_path}/wp {boxsize} mock_{color}_M{m}.dat a {self.caldata.rpbinsfile} {pimax} {nthreads} > wp_mock_{color}_M{m}.dat 2> wp_stderr.txt"
+                    result = sp.run(cmd, cwd=self.output_folder, shell=True, check=True)
+                    if result.returncode != 0:
+                        print(f"Error running command: {cmd}")
+                    self.wp_mock[(color, m)] = np.loadtxt(f'{self.output_folder}{outf}', skiprows=0, dtype='float')
+
+                else :
+                    # TODO UNTESTED
+                    # This is much slower than above, probably from reading in mocks. Is there a better way
+                    print(f"WARNING UNTESTED: using corrfunc python library")
+                    from Corrfunc.theory import wp
+                    data = np.loadtxt(f'{self.output_folder}mock_{color}_M{m}.dat', dtype='float')
+                    x = data[:, 0]
+                    y = data[:, 1]
+                    z = data[:, 2]
+                    # Corrfunc's wp function expects separate arrays for x, y, z, and weights
+                    results = wp(boxsize, pimax, nthreads, self.caldata.rpbinsfile, x, y, z)
+                    # This comes in as a 1d array of np.void, so we need to convert it to a 2d array of floats. 
+                    self.wp_mock[(color, m)] = np.array([np.array([r[0], r[1], r[2], r[4], r[3], r[5]]) for r in results])
+                    # Yes that column swap is intentional for compatibility with the executable format from the corrfunc exe on howdy
+
 
                 # Now delete the mock file to save space
-                os.remove(f"{self.output_folder}mock_{color}_M{m}.dat")
-                os.remove(f"{self.output_folder}wp_mock_{color}_M{m}.dat")
+                #os.remove(f"{self.output_folder}mock_{color}_M{m}.dat")
+                #os.remove(f"{self.output_folder}wp_mock_{color}_M{m}.dat")
 
         t2 = time.time()
 
