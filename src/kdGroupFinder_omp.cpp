@@ -9,6 +9,7 @@
 #include "timing.hpp"
 #include "libs/nanoflann.hpp"
 #include "groups.hpp"
+#include "sham.hpp"
 #include "fit_clustering_omp.hpp"
 #include "nrutil.h"
 using namespace nanoflann;

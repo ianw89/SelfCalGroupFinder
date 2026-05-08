@@ -581,6 +581,121 @@ void test_tabulate_hod_2() {
     printf(" *** All tabulate_hod total_vmax tests passed.\n\n");
   }
 
+
+
+
+
+void test_density2host_halo_values() {
+    printf("=== DENSITY2HOST_HALO VALUE TESTS ===\n");
+    HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
+
+    // Roundtrip: pick a mass, compute n(>M), verify we get the mass back
+    float test_masses[] = {1e10, 1e11, 1e12, 1e13, 1e14, 1e15};
+    for (float M : test_masses) {
+        // n(>M) = integral of HMF from M to HALO_MAX
+        float n_gt_M = qromo(halo_abundance2, log(M), log(HALO_MAX), midpnt);
+        float recovered_mass = density2host_halo(n_gt_M);
+        float rel_err = fabs(recovered_mass - M) / M;
+        printf("Input mass: %e, n(>M): %e, recovered: %e, rel_err: %e\n", M, n_gt_M, recovered_mass, rel_err);
+        TEST_CASE(rel_err < 1e-3, rel_err, "density2host_halo roundtrip: recovered mass should match input mass");
+    }
+
+    printf(" *** density2host_halo value tests passed.\n\n");
+}
+
+void test_density2host_halo_monotonic() {
+    printf("=== DENSITY2HOST_HALO MONOTONICITY TEST ===\n");
+    HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
+
+    // In the AM code, you call density2host_halo in your decided order running total of the galaxy density to get the host halo mass, 
+    // starting from the lowest density (most massive halos) to the highest density (least massive halos).
+    float prev_mass = 1e99;
+    float densities[] = {1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1};
+    for (float d : densities) {
+        float m = density2host_halo(d);
+        TEST_CASE(m < prev_mass, d, "Higher galaxy density maps to lower halo mass");
+        TEST_CASE(m >= HALO_MIN && m <= HALO_MAX, m, "Mass within HMF bounds");
+        prev_mass = m;
+    }
+
+    printf(" *** density2host_halo monotonicity tests passed.\n\n");
+}
+
+void test_halo_total_density() {
+    printf("=== HALO_TOTAL_DENSITY TESTS ===\n");
+    HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
+
+    float n_total = halo_total_density();
+    printf("n_total = %f [h^3/Mpc^3]\n", n_total);
+
+    // Must be positive and physically reasonable (~0.01 to 1.0 h^3/Mpc^3)
+    // Note: the exact value depends on the HMF file and integration limits, so we just check it's in a reasonable range.
+    TEST_CASE(n_total > 0, n_total, "n_total must be positive");
+    TEST_CASE(n_total > 1e-4 && n_total < 100.0, n_total, "n_total must be in a physically reasonable range");
+
+    // n(>M) for M = HALO_MIN must equal n_total
+    float n_at_min = qromo(halo_abundance2, log(HALO_MIN), log(HALO_MAX), midpnt);
+    TEST_CASE(isclose(n_total, n_at_min, 1e-4), n_total, "halo_total_density must equal n(>HALO_MIN)");
+
+    // n(>M) for M >> HALO_MIN must be < n_total
+    float n_at_1e14 = qromo(halo_abundance2, log(1e14), log(HALO_MAX), midpnt);
+    TEST_CASE(n_at_1e14 < n_total, n_at_1e14, "Cumulative density must decrease with increasing mass");
+
+    printf(" *** halo_total_density tests passed.\n\n");
+}
+
+void test_fraction2host_halo_consistency() {
+    printf("=== FRACTION2HOST_HALO CONSISTENCY TESTS ===\n");
+    HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
+
+    float n_total = halo_total_density();
+
+    // fraction2host_halo(f) must give the same result as density2host_halo(f * n_total)
+    float fractions[] = {0.001, 0.01, 0.1, 0.5, 0.9};
+    for (float f : fractions) {
+        float mass_from_fraction = fraction2host_halo(f);
+        float mass_from_density  = density2host_halo(f * n_total);
+        float rel_err = fabs(mass_from_fraction - mass_from_density) / mass_from_density;
+        printf("f=%e: fraction2host=%e, density2host=%e, rel_err=%e\n", f, mass_from_fraction, mass_from_density, rel_err);
+        TEST_CASE(rel_err < 1e-4, rel_err, "fraction2host_halo and density2host_halo must agree");
+    }
+
+    // Edge cases: fraction near 0 → large mass, fraction near 1 → small mass
+    float m_lo = fraction2host_halo(1e-5);
+    float m_hi = fraction2host_halo(0.99);
+    printf("f=1e-5 -> mass=%e, f=0.99 -> mass=%e\n", m_lo, m_hi);
+    TEST_CASE(m_lo > m_hi, m_lo, "Smaller fraction (rarer galaxy) must get larger halo");
+    TEST_CASE(m_lo <= HALO_MAX, m_lo, "Low-fraction mass must be within HMF upper bound");
+    TEST_CASE(m_hi >= HALO_MIN, m_hi, "High-fraction mass must be within HMF lower bound");
+
+    printf(" *** fraction2host_halo consistency tests passed.\n\n");
+}
+
+void test_sham_scale_invariance() {
+    printf("=== SHAM SCALE INVARIANCE TEST ===\n");
+    HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
+
+    // If all galaxy densities are scaled by a constant factor AND n_total is scaled
+    // by the same factor, fraction2host_halo must return the same mass.
+    // This is the key property that makes the normalized interface unit-safe.
+    float base_density = 1e-4;
+    float base_mass = density2host_halo(base_density);
+
+    float n_total = halo_total_density();
+    float base_fraction = base_density / n_total;
+    float fraction_mass = fraction2host_halo(base_fraction);
+
+    float rel_err = fabs(base_mass - fraction_mass) / base_mass;
+    printf("base_mass=%e, fraction_mass=%e, rel_err=%e\n", base_mass, fraction_mass, rel_err);
+    TEST_CASE(rel_err < 1e-4, rel_err, "Fraction-based matching must agree with density-based matching");
+
+    printf(" *** SHAM scale invariance test passed.\n\n");
+}
+
+
+
+
+
 int main(int argc, char **argv) {
 
     test_halo_abundance();
@@ -592,6 +707,12 @@ int main(int argc, char **argv) {
     test_float_vs_double_math();
     test_tabulate_hod();
     test_tabulate_hod_2();
+
+    test_density2host_halo_values();
+    test_density2host_halo_monotonic();
+    test_halo_total_density();
+    //test_fraction2host_halo_consistency();
+    //test_sham_scale_invariance();
 
     printf(" *** ALL TESTS PASSED ***\n");
 }

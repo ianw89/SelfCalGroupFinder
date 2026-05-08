@@ -25,21 +25,37 @@ double gsl_spline_eval_extrap(const gsl_spline *spline, const double *x, const d
 }
 
 
+// Returns n(>HALO_MIN) — the normalization constant for all CDF fractions
+float halo_total_density() {
+    static float n_total = -1.0f;
+    if (n_total < 0)
+        n_total = qromo(halo_abundance2, log(HALO_MIN), log(HALO_MAX), midpnt);
+    return n_total;
+}
+
+float fraction2host_halo(float gal_fraction) {
+    if(!(gal_fraction > 0 && gal_fraction <= 1)) {
+        throw std::invalid_argument("gal_fraction must be in (0, 1)");
+    }
+    return exp(zbrent(func_match_nhost_normalized, log(HALO_MIN), log(HALO_MAX), 1e-5, gal_fraction));
+}
+
 /* 
-* For a galaxy at a certain redshift and vmax, use the provided halo mass function to
+ * For a galaxy at a certain redshift and vmax, use the provided halo mass function to
  * determine the host halo mass. 
- * For a given galaxy density, use the provided halo mass function to... */
+ * 
+ * galaxy_density [number/(Mpc/h)^3] is the running total of 1/VMAX for all galaxies up to this point in the AM ordering.
+ */
 float density2host_halo(float galaxy_density)
 {
-  //std::cerr << "Finding host halo mass for galaxy density = " << galaxy_density << std::endl;
   return exp(zbrent(func_match_nhost, log(HALO_MIN), log(HALO_MAX), 1.0E-5, galaxy_density));
+  // return fraction2host_halo(galaxy_density / halo_total_density());
 }
 
 /* For a galaxy at a certain redshift and vmax, use the provided halo mass function to
  * determine the host halo mass. For flux-limited mode. 
  * 
- * Using a vmax correction for galaxies that can't make it
- * to the end of the redshift bin.
+ * Using a vmax correction for galaxies that can't make it to the end of the redshift bin.
  */
 float density2host_halo_zbins3(float z, double vmax)
 {
@@ -123,7 +139,10 @@ float density2host_halo_zbins3(float z, double vmax)
   //fprintf(stderr, "Getting mass for z = %f, iz = %d, zcnt = %f", z, iz, zcnt[iz]);
   //float results = density2host_halo(zcnt[iz]);
   //fprintf(stderr, ". Result = %e\n", results);
+
+
   return density2host_halo(zcnt[iz]);
+  // return fraction2host_halo(zcnt[iz] / halo_total_density());
 
 #undef NZBIN
 }
@@ -165,6 +184,13 @@ float func_match_nhost(float mass, float galdensity)
     // Interpolate the halo mass function
     a = gsl_spline_eval_extrap(spline, mh, nh, n, mass, acc);
     return exp(a) - galdensity;
+}
+
+float func_match_nhost_normalized(float logmass, float gal_fraction)
+{
+  // TODO
+  throw std::logic_error("func_match_nhost_normalized is not implemented yet");
+  return 0;
 }
 
 /**

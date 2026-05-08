@@ -143,8 +143,6 @@ void update_galaxy_halo_props(struct galaxy *galaxy);
 
 void groupfind();
 float distance_redshift(float z);
-float density2host_halo_zbins3(float z, double vmax);
-float density2host_halo(float galaxy_density);
 int search(int n, float *x, float val);
 void test_centering(struct kdtree *kd);
 int group_center(int icen0, struct kdtree *kd);
