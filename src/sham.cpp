@@ -141,12 +141,69 @@ float density2host_halo_zbins3(float z, double vmax)
   //fprintf(stderr, ". Result = %e\n", results);
 
 
-  return density2host_halo(zcnt[iz]);
-  // return fraction2host_halo(zcnt[iz] / halo_total_density());
+  //return density2host_halo(zcnt[iz]);
+  return fraction2host_halo(zcnt[iz] / halo_total_density());
 
 #undef NZBIN
 }
 
+
+// Singleton holding the spline for cumulative halo number density n(>M).
+// Built once on first use from the current HALO_MASS_FUNC_FILE.
+// Call reset() if the HMF file changes between calls (e.g. in tests).
+struct CumulativeHMFSpline {
+    static constexpr int N = 100;
+    double mh[N];
+    double nh[N];
+    gsl_interp_accel *acc = nullptr;
+    gsl_spline *spline = nullptr;
+
+    static CumulativeHMFSpline& get() {
+        static CumulativeHMFSpline inst;
+        return inst;
+    }
+
+    // Returns log( n(>exp(logmass)) ) via spline interpolation.
+    double eval(double logmass) {
+        if (!spline) build();
+        return gsl_spline_eval_extrap(spline, mh, nh, N, logmass, acc);
+    }
+
+    // Free the spline so it is rebuilt on the next eval() call.
+    void reset() {
+        if (spline) { gsl_spline_free(spline); spline = nullptr; }
+        if (acc)    { gsl_interp_accel_free(acc); acc = nullptr; }
+    }
+
+private:
+    CumulativeHMFSpline() = default;
+
+    void build() {
+        double mlo = HALO_MIN, mhi = HALO_MAX;
+        double dlogm = log(mhi / mlo) / N;
+        for (int i = 0; i < N; ++i) {
+            mh[i] = exp((i + 0.5) * dlogm) * mlo;
+            double n1 = qromo(halo_abundance2, log(mh[i]), log(HALO_MAX), midpnt);
+            nh[i] = log(n1);
+            mh[i] = log(mh[i]);
+        }
+        acc = gsl_interp_accel_alloc();
+        spline = gsl_spline_alloc(gsl_interp_cspline, N);
+        gsl_spline_init(spline, mh, nh, N);
+    }
+};
+
+void reset_cumulative_hmf_spline() {
+    CumulativeHMFSpline::get().reset();
+}
+
+float func_match_nhost(float mass, float galdensity)
+{
+   double a = CumulativeHMFSpline::get().eval(mass);
+    return exp(a) - galdensity;
+}
+
+/*
 float func_match_nhost(float mass, float galdensity)
 {
     static int flag = 1, n = 100;
@@ -185,12 +242,12 @@ float func_match_nhost(float mass, float galdensity)
     a = gsl_spline_eval_extrap(spline, mh, nh, n, mass, acc);
     return exp(a) - galdensity;
 }
+*/
 
 float func_match_nhost_normalized(float logmass, float gal_fraction)
 {
-  // TODO
-  throw std::logic_error("func_match_nhost_normalized is not implemented yet");
-  return 0;
+    double a = CumulativeHMFSpline::get().eval(logmass);
+    return (float)(exp(a) / halo_total_density()) - gal_fraction;
 }
 
 /**

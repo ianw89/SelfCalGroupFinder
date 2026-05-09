@@ -582,9 +582,6 @@ void test_tabulate_hod_2() {
   }
 
 
-
-
-
 void test_density2host_halo_values() {
     printf("=== DENSITY2HOST_HALO VALUE TESTS ===\n");
     HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
@@ -596,8 +593,8 @@ void test_density2host_halo_values() {
         float n_gt_M = qromo(halo_abundance2, log(M), log(HALO_MAX), midpnt);
         float recovered_mass = density2host_halo(n_gt_M);
         float rel_err = fabs(recovered_mass - M) / M;
-        printf("Input mass: %e, n(>M): %e, recovered: %e, rel_err: %e\n", M, n_gt_M, recovered_mass, rel_err);
-        TEST_CASE(rel_err < 1e-3, rel_err, "density2host_halo roundtrip: recovered mass should match input mass");
+        //printf("Input mass: %e, n(>M): %e, recovered: %e, rel_err: %e\n", M, n_gt_M, recovered_mass, rel_err);
+        TEST_CASE(rel_err < 1e-3, M, "density2host_halo should roundtrip");
     }
 
     printf(" *** density2host_halo value tests passed.\n\n");
@@ -650,14 +647,27 @@ void test_fraction2host_halo_consistency() {
 
     float n_total = halo_total_density();
 
+    // READ THIS !!!
+    // TODO something is wrong with this.
+    // The [0, 1] range corresponds to the CDF of the provided HMF, over whatever range of halo mases was provided (1e8 to 1e16).
+    // If you put the galaxies rank into a CDF so they are also [0,1], 
+    // then we will be matching galaxies to halos all the way down to 1e8 which doesn't make sense.
+    // The matching was done on physical number densities for a reason. 
+
+    // I think we need to keep it as matching on physical number densities.
+    // When I go to galaxy PCA and new ways of ordering the galaxies, I should still just keep using 1/VMAX as the gal_density sent to this. No issues with that.
+    // When the HMF is replaced by a function that is halo PCA1 or whatever, I should still keep the second column as a physical number density as before as well.
+    // So no changes to this aspect of it.
+    // READ THIS !!!
+
     // fraction2host_halo(f) must give the same result as density2host_halo(f * n_total)
-    float fractions[] = {0.001, 0.01, 0.1, 0.5, 0.9};
+    float fractions[] = {1e-8, 1e-6, 1e-4, 1e-2, 0.1, 0.5, 0.9, 0.91};
     for (float f : fractions) {
         float mass_from_fraction = fraction2host_halo(f);
         float mass_from_density  = density2host_halo(f * n_total);
         float rel_err = fabs(mass_from_fraction - mass_from_density) / mass_from_density;
-        printf("f=%e: fraction2host=%e, density2host=%e, rel_err=%e\n", f, mass_from_fraction, mass_from_density, rel_err);
-        TEST_CASE(rel_err < 1e-4, rel_err, "fraction2host_halo and density2host_halo must agree");
+        printf("f=%.1e: fraction2host=%e, density2host=%e, rel_err=%e\n", f, mass_from_fraction, mass_from_density, rel_err);
+        TEST_CASE(rel_err < 1e-4, f, "fraction2host_halo and density2host_halo must agree");
     }
 
     // Edge cases: fraction near 0 → large mass, fraction near 1 → small mass
@@ -711,8 +721,8 @@ int main(int argc, char **argv) {
     test_density2host_halo_values();
     test_density2host_halo_monotonic();
     test_halo_total_density();
-    //test_fraction2host_halo_consistency();
-    //test_sham_scale_invariance();
+    test_fraction2host_halo_consistency();
+    test_sham_scale_invariance();
 
     printf(" *** ALL TESTS PASSED ***\n");
 }
