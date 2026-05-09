@@ -50,6 +50,16 @@ LSAT_OBSERVATIONS_SDSS_TRANSFORMED_FILE = PARAMS_BGSY1_FOLDER + 'Lsat_SDSS_DnGMM
 LSAT_RAW_2020_OBSERVATIONS_FILE = LSAT_FOLDER + 'LsatCat_2020.csv'
 MOCK_FILE_FOR_POPMOCK = DATA_FOLDER + 'POPMOCK/' + 'hosthalo_z0.0_M1e10_Lsat.dat'
 
+HALO_PCA1_DENSITY_FUNC_FILE = PARAMS_BGSY3_FOLDER + "halo_pca1_density_func.dat"
+HALO_PCA2_DENSITY_FUNC_FILE = PARAMS_BGSY3_FOLDER + "halo_pca2_density_func.dat"
+HALO_PCA3_DENSITY_FUNC_FILE = PARAMS_BGSY3_FOLDER + "halo_pca3_density_func.dat"
+HALO_PCA4_DENSITY_FUNC_FILE = PARAMS_BGSY3_FOLDER + "halo_pca4_density_func.dat"
+
+# Contains the pca model and the scaler
+HALO_PCA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "halo_pca_model.pkl" # built by pca_halo.ipynb notebook
+GAL_PCA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "gal_pca_model.pkl" # built by pca_halo.ipynb notebook
+
+# None of these got used in the end.
 QUIESCENT_MODEL = PARAMS_BGSY1_FOLDER + "kmeans_quiescent_model.pkl" # made from Y1
 QUIESCENT_MODEL_V1 = PARAMS_BGSY1_FOLDER + "kmeans_quiescent_model-v1.pkl" # made from Y1, but older analysis
 QUIESCENT_MODEL_V2 = PARAMS_BGSY1_FOLDER + "kmeans_quiescent_model-v2.pkl" # made from SV3 

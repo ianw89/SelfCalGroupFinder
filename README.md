@@ -18,7 +18,7 @@ For usage of the groupfinder, build it and then just run it from the commandline
 
 The code can run for for flux limited samples (a survey) or volume-limited samples (usually a simulation) but only the flux-limited mode has been used recently and so the volume-limited version may be broken / have bugs. Please test if using for that purpose. I expect to revisit the volume-limited version in summer or fall of 2026.
 
-The code needs a tabulated halo mass function. There are two checked into this repository, look for "hmf_t008_bolshoi.dat" and "hmf_t08_p18.dat" under the py/parameters folder. They both use the Tinker et al (2008) halo mass function, but slightly different cosmologies (Bolshoi Planck cosmology  vs Planck 2018), which barely affects things anyway. For format of that file is just two columns, the first is halo mass [Msol / h] and the second is the number density dn/dlogM [number / (Mpc/h)^3].
+The code needs a tabulated halo mass function. There are two checked into this repository, look for "hmf_t008_bolshoi.dat" and "hmf_t08_p18.dat" under the py/parameters folder. They both use the Tinker et al (2008) halo mass function, but slightly different cosmologies (Bolshoi Planck cosmology  vs Planck 2018), which barely affects things anyway. For format of that file is just two columns, the first is halo mass [Msol / h] and the second is the number density dn/dM [number / (Mpc/h)^3].
 
 The C++ code can also builds mock using the implied galaxy-halo connection it found by running the group finder. I use this to calibrate group finding parameters in an MCMC loop. You can use it with the --popmock option though a mock file must be provided. See my usage pattern in the python code.
 

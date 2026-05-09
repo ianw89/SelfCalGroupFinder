@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import math
 import pandas as pd
 import sys
+import joblib
 from scipy.special import erf
 import os
 from sklearn.mixture import GaussianMixture
@@ -445,6 +446,8 @@ def bgs_mag_to_sdsslike_mag(mag, band='r', quiescent=None):
 
 
 def sdss_mag_to_bgslike_mag(mag, band='r', quiescent=None):
+    if isinstance(mag, list):
+        mag = np.array(mag)
     if band == 'r':
         if quiescent is None: # combined
             A = -6.54914288
@@ -1828,3 +1831,30 @@ def chains_to_wcen_bsat(chains_flat, x):
 
     # Store function evaluations at each x point
     return samples_to_wcen_bsat(the_samples, x)
+
+
+
+
+
+###################################
+# PCA Utils
+###################################
+
+def halo_pca_to_original(pca_values):
+    """
+    Convert halo PCA coordinates back to original (unscaled) feature values.
+    
+    Parameters
+    ----------
+    pca_values : array-like, shape (n_samples, 4) or (4,)
+        PCA component values (PCA1–PCA4)
+    
+    Returns
+    -------
+    pd.DataFrame with columns matching feature_cols
+    """
+    pca_values = np.atleast_2d(pca_values)
+    pca_model, scaler, feature_cols = joblib.load(HALO_PCA_MODEL_FILE)
+    scaled = pca_model.inverse_transform(pca_values)
+    original = scaler.inverse_transform(scaled)
+    return pd.DataFrame(original, columns=feature_cols)
