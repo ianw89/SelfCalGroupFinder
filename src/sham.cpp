@@ -24,20 +24,12 @@ double gsl_spline_eval_extrap(const gsl_spline *spline, const double *x, const d
     }
 }
 
-
 // Returns n(>HALO_MIN) — the normalization constant for all CDF fractions
 float halo_total_density() {
     static float n_total = -1.0f;
     if (n_total < 0)
         n_total = qromo(halo_abundance2, log(HALO_MIN), log(HALO_MAX), midpnt);
     return n_total;
-}
-
-float fraction2host_halo(float gal_fraction) {
-    if(!(gal_fraction > 0 && gal_fraction <= 1)) {
-        throw std::invalid_argument("gal_fraction must be in (0, 1)");
-    }
-    return exp(zbrent(func_match_nhost_normalized, log(HALO_MIN), log(HALO_MAX), 1e-5, gal_fraction));
 }
 
 /* 
@@ -49,7 +41,6 @@ float fraction2host_halo(float gal_fraction) {
 float density2host_halo(float galaxy_density)
 {
   return exp(zbrent(func_match_nhost, log(HALO_MIN), log(HALO_MAX), 1.0E-5, galaxy_density));
-  // return fraction2host_halo(galaxy_density / halo_total_density());
 }
 
 /* For a galaxy at a certain redshift and vmax, use the provided halo mass function to
@@ -139,10 +130,7 @@ float density2host_halo_zbins3(float z, double vmax)
   //fprintf(stderr, "Getting mass for z = %f, iz = %d, zcnt = %f", z, iz, zcnt[iz]);
   //float results = density2host_halo(zcnt[iz]);
   //fprintf(stderr, ". Result = %e\n", results);
-
-
-  //return density2host_halo(zcnt[iz]);
-  return fraction2host_halo(zcnt[iz] / halo_total_density());
+  return density2host_halo(zcnt[iz]);
 
 #undef NZBIN
 }
@@ -243,12 +231,6 @@ float func_match_nhost(float mass, float galdensity)
     return exp(a) - galdensity;
 }
 */
-
-float func_match_nhost_normalized(float logmass, float gal_fraction)
-{
-    double a = CumulativeHMFSpline::get().eval(logmass);
-    return (float)(exp(a) / halo_total_density()) - gal_fraction;
-}
 
 /**
  * Given the natural log of a halo mass m, return the mass * abundance from the halo mass function.
