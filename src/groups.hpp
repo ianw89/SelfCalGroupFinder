@@ -60,8 +60,6 @@ struct galaxy {
     bprob;
   double vmax;
   int igrp;
-  int listid; // only used in fof group finder...
-  int next;
   int grp_rank; // Rank of the group it's in when finding satellites (lower number means higher priority)
   
   // halo properties  
@@ -144,11 +142,8 @@ void update_galaxy_halo_props(struct galaxy *galaxy);
 void groupfind();
 float distance_redshift(float z);
 int search(int n, float *x, float val);
-void test_centering(struct kdtree *kd);
-int group_center(int icen0, struct kdtree *kd);
 float angular_separation(float a1, float d1, float a2, float d2);
 float angular_separation_old(float a1, float d1, float a2, float d2);
-void test_fof(struct kdtree *kd);
 float compute_p_z(float dz, float sigmav);
 float compute_p_proj(float mass, float dr, float rad, float ang_rad);
 float compute_p_proj_g(struct galaxy *gal, float dr);

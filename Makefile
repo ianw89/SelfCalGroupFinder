@@ -45,8 +45,7 @@ _TESTS_OBJ = tests.o
 TESTS_OBJ = $(patsubst %,$(ODIR)/%,$(_TESTS_OBJ))
 
 _OBJ = kdGroupFinder_omp.o qromo.o midpnt.o polint.o sham.o spline.o splint.o \
-	zbrent.o sort2.o kdtree.o fit_clustering_omp.o \
-	group_center.o fof.o utils.o nrutil.o
+	zbrent.o sort2.o fit_clustering_omp.o utils.o nrutil.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 OBJ_SERIAL = $(patsubst %,$(ODIR_SERIAL)/%,$(_OBJ))
 

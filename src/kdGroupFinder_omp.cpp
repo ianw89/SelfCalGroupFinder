@@ -33,7 +33,6 @@ typedef KDTreeSingleIndexAdaptor<
 > GalaxyKDTree;
 
 /* Local functions */
-//void find_satellites(int icen, struct kdtree *kd);
 void recalc_galprops();
 void find_satellites(int icen, GalaxyKDTree *tree);
 double fluxlim_correction(double z);
@@ -255,12 +254,6 @@ void groupfind()
     LOG_INFO("Done building KD-tree. %d\n", ngrp);
   }
 
-  // test the FOF group finder
-  // test_fof(kd);
-
-  // now let's go to the center finder
-  // test_centering(kd);
-
   // Start the group-finding iterations
   t_alliter_s = get_wtime();
   for (niter = 1; niter <= MAX_ITER; ++niter)
@@ -302,7 +295,6 @@ void groupfind()
         GAL[i].igrp = i;
         xtmp[ngrp] = std::make_pair(lgrp_to_matching_rank(i), i);
         ngrp++;
-        GAL[i].listid = ngrp;
       }
     }
 
@@ -326,7 +318,6 @@ void groupfind()
         GAL[k].igrp = k;
         xtmp[ngrp] = std::make_pair(lgrp_to_matching_rank(k), k);
         ngrp++;
-        GAL[k].listid = ngrp;
         // No need to mark as visited here, loop is ending
       }
     }
@@ -349,7 +340,6 @@ void groupfind()
         GAL[k].lgrp = GAL[k].lum;
         xtmp[ngrp] = std::make_pair(lgrp_to_matching_rank(k), k);
         ngrp++;  
-        GAL[k].listid = ngrp;
       }
     }
     #ifndef OPTIMIZE
@@ -358,40 +348,6 @@ void groupfind()
     }
     #endif
   }
-
-    // Find new group centers if option enabled (its NOT)
-    // Jeremy says this never worked anyway.
-    // TODO: This might be broken, it's not been tested since the fork
-    /*
-    if (RECENTERING && niter != MAX_ITER)
-    {
-      for (j = 0; j < ngrp; ++j)
-      {
-        i = xtmp[j].second;
-        if (GAL[i].mass > 5e12 && GAL[i].psat <= 0.5)
-        {
-          icen_new = group_center(i, kd);
-          if (icen_new == -1)
-          {
-            printf("ZERO %d %e %.3f\n", GAL[i].nsat, GAL[i].mass, GAL[i].psat);
-            exit(0);
-          }
-          if (icen_new != i)
-          {
-            // transfer the halo values
-            LOG_VERBOSE("REC %d %d %d %d\n",niter, i, icen_new, j);
-            xtmp[j].second = icen_new; // why not xtemp.first?
-            GAL[i].psat = 1;
-            GAL[i].igrp = icen_new; // need to swap all of them, fyi...
-            GAL[icen_new].psat = 0;
-            GAL[icen_new].lgrp = GAL[i].lgrp;
-            GAL[icen_new].nsat = GAL[i].nsat;
-            GAL[i].nsat = 0;
-          }
-        }
-      }
-    }
-    */
 
     // sort groups by their total group luminosity / stellar mass for next time
     std::sort(xtmp.begin(), xtmp.begin() + ngrp);

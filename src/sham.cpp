@@ -24,14 +24,6 @@ double gsl_spline_eval_extrap(const gsl_spline *spline, const double *x, const d
     }
 }
 
-// Returns n(>HALO_MIN) — the normalization constant for all CDF fractions
-float halo_total_density() {
-    static float n_total = -1.0f;
-    if (n_total < 0)
-        n_total = qromo(halo_abundance2, log(HALO_MIN), log(HALO_MAX), midpnt);
-    return n_total;
-}
-
 /* 
  * For a galaxy at a certain redshift and vmax, use the provided halo mass function to
  * determine the host halo mass. 
@@ -139,15 +131,15 @@ float density2host_halo_zbins3(float z, double vmax)
 // Singleton holding the spline for cumulative halo number density n(>M).
 // Built once on first use from the current HALO_MASS_FUNC_FILE.
 // Call reset() if the HMF file changes between calls (e.g. in tests).
-struct CumulativeHMFSpline {
+struct HMFSpline {
     static constexpr int N = 100;
     double mh[N];
     double nh[N];
     gsl_interp_accel *acc = nullptr;
     gsl_spline *spline = nullptr;
 
-    static CumulativeHMFSpline& get() {
-        static CumulativeHMFSpline inst;
+    static HMFSpline& get() {
+        static HMFSpline inst;
         return inst;
     }
 
@@ -164,7 +156,7 @@ struct CumulativeHMFSpline {
     }
 
 private:
-    CumulativeHMFSpline() = default;
+    HMFSpline() = default;
 
     void build() {
         double mlo = HALO_MIN, mhi = HALO_MAX;
@@ -181,56 +173,11 @@ private:
     }
 };
 
-void reset_cumulative_hmf_spline() {
-    CumulativeHMFSpline::get().reset();
-}
-
 float func_match_nhost(float mass, float galdensity)
 {
-   double a = CumulativeHMFSpline::get().eval(mass);
+    double a = HMFSpline::get().eval(mass);
     return exp(a) - galdensity;
 }
-
-/*
-float func_match_nhost(float mass, float galdensity)
-{
-    static int flag = 1, n = 100;
-    static double *mh, *nh;
-    static gsl_interp_accel *acc = nullptr;
-    static gsl_spline *spline = nullptr;
-    int i;
-    double a, mlo, mhi, dlogm, n1;
-
-    // First time setup, will read in a halo mass function file
-    if (flag)
-    {
-        flag = 0;
-        mh = (double*)malloc(n * sizeof(double));
-        nh = (double*)malloc(n * sizeof(double));
-
-        mlo = HALO_MIN;
-        mhi = HALO_MAX;
-        dlogm = log(mhi / mlo) / n;
-
-        for (i = 0; i < n; ++i)
-        {
-            mh[i] = exp((i + 0.5) * dlogm) * mlo;
-            n1 = qromo(halo_abundance2, log(mh[i]), log(HALO_MAX), midpnt);
-            nh[i] = log(n1);
-            mh[i] = log(mh[i]);
-            //std::cerr << "mh[" << i << "] = " << mh[i] << ", nh[" << i << "] = " << nh[i] << std::endl;
-        }
-
-        acc = gsl_interp_accel_alloc();
-        spline = gsl_spline_alloc(gsl_interp_cspline, n);
-        gsl_spline_init(spline, mh, nh, n);
-    }
-
-    // Interpolate the halo mass function
-    a = gsl_spline_eval_extrap(spline, mh, nh, n, mass, acc);
-    return exp(a) - galdensity;
-}
-*/
 
 /**
  * Given the natural log of a halo mass m, return the mass * abundance from the halo mass function.
