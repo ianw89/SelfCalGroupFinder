@@ -268,15 +268,21 @@ def compare_wp_thresholds_to_sdss(loaded_results, weight_type):
                 rp, wp = estimator.get_corr(return_sep=True, mode='wp')
                 wp_err = None
 
-            label = f"$M_r$ < -{thresh} (z<{params['zmax']})"
             if marker == '.':
-                ax.errorbar(rp, wp, yerr=wp_err, label=label, fmt=marker, markersize=5,capsize=5, alpha=0.8, color=c)
+                print(params['mag_thresh'] )
+                if params['mag_thresh'] == "19.52":
+                    wp = wp * 0.398  # 0.4 dex shift down
+                if params['mag_thresh'] == "20.64":
+                    wp = wp * 0.630 # 0.2 dex shift down
+                ax.errorbar(rp, wp, yerr=wp_err, fmt='o', markerfacecolor=c, markeredgecolor='k', markersize=4, capsize=5, ecolor='k', color=c)
 
 
     # SDSS Data
     from dataloc import PARAMS_SDSS_FOLDER
-    zehavi_bins = np.logspace(np.log10(0.13), np.log10(33), 13)
-
+    #zehavi_bins = np.logspace(np.log10(0.13), np.log10(33), 13)
+    zehavi_bins = [0.17, 0.27, 0.42, 0.67, 1.1, 1.7, 2.7, 4.2, 6.7, 10.6, 16.9, 26.8, 42.3]
+    
+    """
     for m in sdss_magbins:
         savedir = PARAMS_SDSS_FOLDER + f'sdss-thresh-{m:.1f}.csv'
         if not os.path.exists(savedir):
@@ -287,11 +293,55 @@ def compare_wp_thresholds_to_sdss(loaded_results, weight_type):
         print(np.shape(data))
         if np.shape(data)[0] == 11:
             x = x[1:]  # Skip first point for the faintest bin since it's not in the SDSS data I ripped
-        plt.plot(x, data[:,1], 'x', label=f'SDSS $M_r<-{m}$', color=colors2.pop(0))
+        plt.plot(x, data[:,1], '-', label=f'SDSS $M_r<-{m}$', color=colors2.pop(0), lw=2)
+    """
+
+
+
+    """
+    0.17 2615  (491)  1028  (68)   586.2 (19.5) 455.7 (11.3) 366.1 (9.3) 307.0 (9.2) 322.5 (17.0) 313.3 (25.9) 294.3 (34.7)
+    0.27 1189  (202)  731.7 (34.0) 402.9 (11.7) 296.9 (6.9)  264.3 (7.6) 228.5 (8.3) 231.1 (15.3) 230.2 (24.9) 221.5 (32.1)
+    0.42 728.0 (96.3) 392.6 (17.1) 258.7 (6.7)  197.0 (5.1)  184.0 (6.6) 159.3 (7.2) 162.4 (12.8) 165.4 (21.1) 161.4 (27.6)
+    0.67 491.4 (55.3) 228.6 (10.9) 163.2 (4.7)  134.1 (4.1)  128.6 (5.5) 110.4 (5.6) 114.6 (10.3) 118.3 (17.5) 114.7 (22.0)
+    1.1 272.8  (23.2) 144.6 (6.4)  105.5 (3.0)  89.4  (3.3)  84.7  (4.3) 72.9 (4.2) 75.5 (7.7) 79.7 (13.2) 75.5 (16.5)
+    1.7 154.4  (14.5) 94.3  (3.7)  68.9  (2.2)  61.1  (2.6)  59.4  (3.6) 49.8 (3.4) 50.6 (6.0) 53.8 (10.5) 48.6 (11.5)
+    2.7 111.5  (10.4) 70.5  (2.7)  50.2  (2.1)  44.0  (2.3)  42.9  (3.3) 34.6 (2.9) 35.0 (4.7) 37.4 (7.8) 32.4 (7.7)
+    4.2 94.5   (5.6)  48.6  (2.3)  35.5  (1.8)  31.2  (2.0)  30.9  (3.1) 24.6 (2.5) 24.2 (3.6) 25.9 (5.8) 19.7 (4.4)
+    6.7 56.8   (3.8)  33.1  (1.8)  24.5  (1.6)  21.3  (1.8)  21.9  (2.7) 16.7 (2.4) 15.3 (2.9) 17.4 (4.5) 10.8 (2.8)
+    10.6 35.1  (3.2)  20.9  (1.5)  15.3  (1.3)  13.7  (1.5)  14.6  (2.1) 10.7 (1.9) 9.20 (1.78) 10.6 (2.6) 6.35 (1.93)
+    16.9 22.0  (2.2)  11.6  (1.2)  8.54  (0.94) 7.65  (1.07) 8.24  (1.32) 5.73 (1.28) 4.11 (1.29) 5.31 (1.42) 3.62 (1.34)
+    26.8 11.4  (1.6)  6.04  (0.95) 4.11  (0.71) 4.09  (0.88) 4.88  (1.06) 2.82 (1.13) 1.81 (1.39) 3.56 (1.76) 2.14 (1.23)
+    42.3 5.89  (1.21) 3.28  (0.64) 2.73  (0.54) 3.21  (0.70) 3.58  (0.85) 1.39 (0.91) 0.72 (1.24) 0.96 (1.02) 0.56 (1.26)
+    """
+    lw = 1
+    zehavi_195 = np.array([307.0, 228.5, 159.3, 110.4, 72.9, 49.8, 34.6, 24.6, 16.7, 10.7, 5.73, 2.82, 1.39]) * 0.398
+    zehavi_195_err = [9.2, 8.3, 7.2, 5.6, 4.2, 3.4, 2.9, 2.5, 2.4, 1.9, 1.28, 1.13, 0.91]
+    plt.fill_between(zehavi_bins, np.array(zehavi_195) - np.array(zehavi_195_err), np.array(zehavi_195) + np.array(zehavi_195_err), color=colors2[0], alpha=0.2)
+    plt.plot(zehavi_bins, zehavi_195, '-', color=colors2.pop(0), lw=lw)  
+    zehavi_20 = [366.1, 264.3, 184.0, 128.6, 84.7, 59.4, 42.9, 30.9, 21.9, 14.6, 8.24, 4.88, 3.58]
+    zehavi_20_err = [9.3, 7.6, 6.6, 5.5, 4.3, 3.6, 3.3, 3.1, 2.7, 2.1, 1.32, 1.06, 0.85]
+    #plt.plot(zehavi_bins, zehavi_20, '-', color=colors2.pop(0), lw=lw)
+    zehavi_205 = np.array([455.7, 296.9, 197.0, 134.1, 89.4, 61.1, 44.0, 31.2, 21.3, 13.7, 7.65, 4.09, 3.21]) * 0.630
+    zehavi_205_err = [11.3, 6.9, 5.1, 4.1, 3.3, 2.6, 2.3, 2.0, 1.8, 1.5, 1.07, 0.88, 0.70]
+    plt.fill_between(zehavi_bins, np.array(zehavi_205) - np.array(zehavi_205_err), np.array(zehavi_205) + np.array(zehavi_205_err), color=colors2[0], alpha=0.2)
+    plt.plot(zehavi_bins, zehavi_205, '-', color=colors2.pop(0), lw=lw)
+    zehavi_21 = [586.2, 402.9, 258.7, 163.2, 105.5, 68.9, 50.2, 35.5, 24.5, 15.3, 8.54, 4.11, 2.73]
+    zehavi_21_err = [19.5, 11.7, 6.7, 4.7, 3.0, 2.2, 2.1, 1.8, 1.6, 1.3, 0.94, 0.71, 0.54]
+    plt.fill_between(zehavi_bins, np.array(zehavi_21) - np.array(zehavi_21_err), np.array(zehavi_21) + np.array(zehavi_21_err), color=colors2[0], alpha=0.2)
+    plt.plot(zehavi_bins, zehavi_21, '-', color=colors2.pop(0), lw=lw)
+    zehavi_215 = [1028, 731.7, 392.6, 228.6, 144.6, 94.3, 70.5, 48.6, 33.1, 20.9, 11.6, 6.04, 3.28]
+    zehavi_215_err = [68, 34.0, 17.1, 10.9, 6.4, 3.7, 2.7, 2.3, 1.8, 1.5, 1.2, 0.95, 0.64]
+    plt.fill_between(zehavi_bins, np.array(zehavi_215) - np.array(zehavi_215_err), np.array(zehavi_215) + np.array(zehavi_215_err), color=colors2[0], alpha=0.2)
+    plt.plot(zehavi_bins, zehavi_215, '-', color=colors2.pop(0), lw=lw)
+    zehavi_22 = [2615, 1189, 728, 491, 272, 154, 111, 94.5, 56.8, 35.1, 22.0, 11.4, 5.89]
+    zehavi_22_err = [491, 202, 96.3, 55.3, 23.2, 14.5, 10.4, 5.6, 3.8, 3.2, 2.2, 1.6, 1.21] 
+    plt.fill_between(zehavi_bins, np.array(zehavi_22) - np.array(zehavi_22_err), np.array(zehavi_22) + np.array(zehavi_22_err), color=colors2[0], alpha=0.2)
+    plt.plot(zehavi_bins, zehavi_22, '-', color=colors2.pop(0), lw=lw)
 
     ax.set_xscale('log')
     ax.set_yscale('log')
-    ax.set_xlim(0.1, 35)
+    ax.set_xlim(0.1, 30)
+    #ax.set_ylim(0.1, 3000)
     ax.set_xlabel(r'$r_p$ [Mpc/h]')
     ax.set_ylabel(r'$w_p(r_p)$')
 
@@ -302,12 +352,15 @@ def compare_wp_thresholds_to_sdss(loaded_results, weight_type):
     # Legend 2: symbols = BGS vs SDSS
     symbol_handles = [
         #Line2D([0], [0], marker='v', color='gray', lw=0, label='BGS 17.6 fluxlim'),
-        Line2D([0], [0], marker='.', color='gray', lw=0, label='BGS 19.5 fluxlim'),
-        Line2D([0], [0], marker='x', color='gray', lw=0, label='SDSS Zehavi+11'),
+        Line2D([0], [0], marker='o', color='gray', lw=0, label='BGS 19.5 fluxlim'),
+        Line2D([0], [0], color='gray', lw=2, label='SDSS Zehavi+11'),
     ]
-    leg1 = ax.legend(handles=color_handles, fontsize=11, loc='lower left')
+    leg1 = ax.legend(handles=color_handles, fontsize=10, loc='lower left')
     ax.add_artist(leg1)  # keep first legend when adding second
     ax.legend(handles=symbol_handles, fontsize=11, loc='upper right')
+
+    # Add text above the 1st legend saying BGS and SDSS
+    plt.text(0.22, 0.42, 'BGS (SDSS)', transform=ax.transAxes, fontsize=10, verticalalignment='top', horizontalalignment='left')
 
     plt.tight_layout()
 
