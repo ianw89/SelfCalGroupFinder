@@ -37,7 +37,15 @@ void test_halo_abundance(){
         assert(fabs(abundance - expected_abundances[i]) / expected_abundances[i] < 0.0001 && "Halo abundance deviates more than 0.01% from expected");
     }
     
-    // TODO Test easy interpolations
+    // Test some interpolated values - should be close to linear interp result if spline behaved well
+    float i_masses[] = {1.1547365E10, 1.7147465E15};
+    float expected_i_abundances[] = {1.7667845e-11, 7.35152e-23}; // Example expected value from linear interpolation
+    n_tests = sizeof(i_masses) / sizeof(i_masses[0]);
+    for (int i = 0; i < n_tests; ++i) {
+        float abundance = halo_abundance(i_masses[i]);
+        printf("Mass: %e, Abundance: %e, Expected (linear interp): %e\n", i_masses[i], abundance, expected_i_abundances[i]);
+        assert(fabs(abundance - expected_i_abundances[i]) / expected_i_abundances[i] < 0.1 && "Interpolated halo abundance deviates more than 10% from expected linear interpolation");
+    }
 
     printf(" *** Halo abundance tests passed.\n\n");
 }
@@ -284,7 +292,6 @@ void test_psat() {
     printf(" *** All psat tests passed.\n\n");
 }
 
-
 void test_func_match_nhost_baseline() {
     printf("=== FUNC_MATCH_NHOST BASELINE TESTS ===\n");
     float loggalden = 1e-5; // not sure at all if this is a reasonable value but it doesn't matter
@@ -440,7 +447,6 @@ void test_tabulate_hod() {
     printf(" *** All tabulate_hod original tests passed.\n\n");
   }
 
-  
 void test_tabulate_hod_2() {
     printf("=== TABULATE HOD TOTAL_VMAX TESTS ===\n");
     // Setup 3 non-color seperated magnitude wide bins
@@ -581,7 +587,6 @@ void test_tabulate_hod_2() {
     printf(" *** All tabulate_hod total_vmax tests passed.\n\n");
   }
 
-
 void test_density2host_halo_values() {
     printf("=== DENSITY2HOST_HALO VALUE TESTS ===\n");
     HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
@@ -590,7 +595,7 @@ void test_density2host_halo_values() {
     float test_masses[] = {1e10, 1e11, 1e12, 1e13, 1e14, 1e15};
     for (float M : test_masses) {
         // n(>M) = integral of HMF from M to HALO_MAX
-        float n_gt_M = qromo(halo_abundance2, log(M), log(HALO_MAX), midpnt);
+        float n_gt_M = qromo(halo_abundance_log, log(M), log(HALO_MAX), midpnt);
         float recovered_mass = density2host_halo(n_gt_M);
         float rel_err = fabs(recovered_mass - M) / M;
         //printf("Input mass: %e, n(>M): %e, recovered: %e, rel_err: %e\n", M, n_gt_M, recovered_mass, rel_err);
@@ -618,19 +623,25 @@ void test_density2host_halo_monotonic() {
     printf(" *** density2host_halo monotonicity tests passed.\n\n");
 }
 
-    // READ THIS !!!
-    // TODO something is wrong with this.
-    // The [0, 1] range corresponds to the CDF of the provided HMF, over whatever range of halo mases was provided (1e8 to 1e16).
-    // If you put the galaxies rank into a CDF so they are also [0,1], 
-    // then we will be matching galaxies to halos all the way down to 1e8 which doesn't make sense.
-    // The matching was done on physical number densities for a reason. 
-
-    // I think we need to keep it as matching on physical number densities.
-    // When I go to galaxy PCA and new ways of ordering the galaxies, I should still just keep using 1/VMAX as the gal_density sent to this. No issues with that.
-    // When the HMF is replaced by a function that is halo PCA1 or whatever, I should still keep the second column as a physical number density as before as well.
-    // So no changes to this aspect of it.
-    // READ THIS !!!
-
+void test_HaloPCADensityFuncs_model() {
+    // Load the HaloPCADensityFuncs and sample some values to see if it's loaded right.
+    printf("=== HALOPCA DENSITY FUNCS TESTS ===\n");
+    HaloPCAModel& t = HaloPCAModel::get();
+    // LOGMHALO, c, Spin, Halfmass_scale
+    double halo1[] = {14.094681, 4.141850, 0.03922, 0.4420};
+    double halo1_pca[] = {0.0, 0.0, 0.0, 0.0}; 
+    double halo1_pca_expected[] = {3.181701, 6.572928, 1.333168, -1.347537}; // From Python implementation with same PCA components and scaler
+    t.forward_transform(halo1, halo1_pca);
+    for (int i = 0; i < 4; ++i) {
+        TEST_CASE(isclose(halo1_pca[i], halo1_pca_expected[i]), halo1_pca[i], "Halo PCA value should match expected");
+    }
+    // Now check roundtrip
+    double halo1_recovered[] = {0.0, 0.0, 0.0, 0.0};
+    t.inverse_transform(halo1_pca, halo1_recovered);
+    for (int i = 0; i < 4; ++i) {
+        TEST_CASE(isclose(halo1_recovered[i], halo1[i]), halo1_recovered[i], "Halo PCA roundtrip should match original");
+    }
+}
 
 int main(int argc, char **argv) {
 
@@ -645,6 +656,7 @@ int main(int argc, char **argv) {
     test_tabulate_hod_2();
     test_density2host_halo_values();
     test_density2host_halo_monotonic();
+    test_HaloPCADensityFuncs_model();
 
     printf(" *** ALL TESTS PASSED ***\n");
 }

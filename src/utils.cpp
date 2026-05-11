@@ -6,7 +6,7 @@
 #include "groups.hpp"
 
 /*
- * Update the galaxy's derived halo properties using the mass, which must
+ * Update the galaxy's derived halo properties from its' assigned mass, which must
  * already be set. Requries redshit and rco to be set as well.
 */
 void update_galaxy_halo_props(struct galaxy *galaxy)

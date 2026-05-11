@@ -1840,21 +1840,46 @@ def chains_to_wcen_bsat(chains_flat, x):
 # PCA Utils
 ###################################
 
+HALO_PCA_FEATURES_COLS = ['LOGMHALO', 'c', 'Spin', 'Halfmass_Scale']
+
 def halo_pca_to_original(pca_values):
     """
     Convert halo PCA coordinates back to original (unscaled) feature values.
-    
-    Parameters
-    ----------
-    pca_values : array-like, shape (n_samples, 4) or (4,)
-        PCA component values (PCA1–PCA4)
-    
-    Returns
-    -------
-    pd.DataFrame with columns matching feature_cols
     """
-    pca_values = np.atleast_2d(pca_values)
+    if isinstance(pca_values, pd.DataFrame):
+        vals = pca_values[[f'PCA{i+1}' for i in range(pca_values.shape[1])]].values
+    else:
+        vals = np.atleast_2d(pca_values)
+
     pca_model, scaler, feature_cols = joblib.load(HALO_PCA_MODEL_FILE)
-    scaled = pca_model.inverse_transform(pca_values)
+    scaled = pca_model.inverse_transform(vals)
     original = scaler.inverse_transform(scaled)
-    return pd.DataFrame(original, columns=feature_cols)
+
+    if isinstance(pca_values, pd.DataFrame):
+        # Add new columns for original values
+        for i, col in enumerate(feature_cols):
+            pca_values[col] = original[:, i]
+        return pca_values
+
+    return original
+
+def halo_original_to_pca(original_values):
+    """
+    Convert original (unscaled) feature values to halo PCA coordinates.
+    """
+    if isinstance(original_values, pd.DataFrame):
+        vals = original_values[HALO_PCA_FEATURES_COLS].values
+    else: 
+        vals = np.atleast_2d(original_values)
+
+    pca_model, scaler, feature_cols = joblib.load(HALO_PCA_MODEL_FILE)
+    scaled = scaler.transform(vals)
+    pca_values = pca_model.transform(scaled)
+
+    if isinstance(original_values, pd.DataFrame):
+        # Add new columns for PCA values
+        for i in range(pca_values.shape[1]):
+            original_values[f'PCA{i+1}'] = pca_values[:, i]
+        return original_values
+    
+    return pca_values

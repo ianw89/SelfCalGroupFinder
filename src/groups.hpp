@@ -62,16 +62,23 @@ struct galaxy {
   int igrp;
   int grp_rank; // Rank of the group it's in when finding satellites (lower number means higher priority)
   
-  // halo properties  
-  float mass,
-    theta,
-    rad,
-    sigmav,
-    lgrp; // tracks total luminosity or stellar mass of group
+  // halo/group properties  
+  float mass;
+  float theta;
+  float rad;
+  float sigmav;
+  float lgrp; // tracks total luminosity or stellar mass of group
+  float c; // concentration, but currently not used in the psat formula, which makes a assumption based entirely on halo mass instead.
+  float age; // half-mass scale factor of the universe, an age marker. [0,1]
+  float spin; // halo spin parameter
+  float halo_pca1;
+  float halo_pca2;
+  float halo_pca3;
+  float halo_pca4;
   int nsat;
 };
 
-/* Structure for the halos in the simulations */
+/* Structure for the halos in the simulations, for mock building. Not for galaxy abundance matching. */
 struct halo {
   float x,y,z,vx,vy,vz,mass,lsat;
 };
@@ -102,11 +109,15 @@ extern double MINREDSHIFT;
 extern double GALAXY_DENSITY;
 extern int SILENT;
 extern int VERBOSE;
-extern int RECENTERING;
 extern HodWeightType HOD_WEIGHT_TYPE;
 extern int POPULATE_MOCK;
 extern const char *INPUTFILE;
 extern const char *HALO_MASS_FUNC_FILE;
+extern const char *HALO_PCA1_DENSITY_FUNC_FILE;
+extern const char *HALO_PCA2_DENSITY_FUNC_FILE;
+extern const char *HALO_PCA3_DENSITY_FUNC_FILE;
+extern const char *HALO_PCA4_DENSITY_FUNC_FILE;
+extern const char *HALO_PCA_MODEL_TEXT_FILE;
 extern const char *MOCK_FILE;
 extern const char *VOLUME_BINS_FILE;
 extern FILE *MSG_PIPE;

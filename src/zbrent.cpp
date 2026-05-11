@@ -5,6 +5,8 @@
 #define ITMAX 100
 #define EPS 3.0e-8
 
+// This is a modified version of the zbrent root-finding algorithm from Numerical Recipes, 
+// which allows passing an extra parameter (galaxy_density) to the function whose root we're trying to find.
 // When abundance matching we use this.
 // There, x1 means min halo mass and is 10^7, x2 means max halo mass and is 10^16, tol is 10^-5
 float zbrent(float (*func)(float, float), float x1, float x2, float tol, float galaxy_density)
