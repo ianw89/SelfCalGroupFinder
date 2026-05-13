@@ -60,6 +60,7 @@ static struct argp_option options[] = {
   {"colors",       'c', 0,                                    0,  "Read in and use galaxy colors", 1},
   {"iterations",   'i', "N",                                  0,  "Number of iterations for group finding", 1},
   {"earlyexit",    'e', 0,                                    0,  "Allow early exit from group finding for various scenarios", 1},
+  {"latent",       'l', 0,                                    0,  "Assign halo properties in PCA latent space instead of just halo mass", 2},
   {"wcen",         'w', "MASS,SIGMA,MASSR,SIGMAR,NORM,NORMR", 0,  "Six parameters for weighting the centrals", 2},
   {"bsat",         'b', "RED,XRED,BLUE,XBLUE",                0,  "Four parameters for the satellite probability", 2},
   {"chi1",         'x', "WEIGHT_B,WEIGHT_R,SLOPE_B,SLOPE_R",  0,  "Four parameters per-galaxy extra property weighting", 2},
@@ -130,6 +131,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       break;
     case 'e':
       ALLOW_EARLY_EXIT = 1;
+      break;
+    case 'l':
+      LATENT = 1;
       break;
     case 'w':
       USE_WCEN = 1;
@@ -269,6 +273,10 @@ int main(int argc, char **argv)
   {
     LOG_ERROR("Interactive mode (-k) requires a pipe ID (-P).\n");
     exit(EPERM);
+  }
+  if (LATENT && HALO_MASS_FUNC_FILE != nullptr) 
+  {
+    LOG_WARN("LATENT mode will not use the halo mass function file, but one was provided. It will be ignored.\n");
   }
 
   bool run = true;

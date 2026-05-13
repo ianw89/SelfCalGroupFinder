@@ -33,6 +33,7 @@ typedef KDTreeSingleIndexAdaptor<
 > GalaxyKDTree;
 
 /* Local functions */
+void assign_halo(galaxy *gal, double galdensity);
 void recalc_galprops();
 void find_satellites(int icen, GalaxyKDTree *tree);
 double fluxlim_correction(double z);
@@ -80,6 +81,7 @@ double GALAXY_DENSITY;
 int INTERACTIVE = 0; // default is off
 int FLUXLIM = 0; // default is volume-limited
 double FLUXLIM_MAG = 0.0; 
+int LATENT = 0; // default (0) is assign halo mass using halo mass function. If 1, assign halo properties in PCA latent space instead of just halo mass
 int FLUXLIM_CORRECTION_MODEL = 0; // default is no correction, 1 for SDSS tuned, 2 for old BGS tuned, 3 for correct BGS tuned
 int COLOR = 0; // default is ignore color information (sometimes treating all as blue)
 int STELLAR_MASS = 0; // defaulit is luminosities
@@ -91,6 +93,7 @@ HodWeightType HOD_WEIGHT_TYPE = HodWeightType::TOTAL_VMAX; // default is now new
 int MAX_ITER = 5; // default is 5 iterations, but can set anything desired in the command line arguments
 int ALLOW_EARLY_EXIT = 0; // default is to not allow early exit, but this is used in MCMC to speedups. See command line args.
 FILE *MSG_PIPE = NULL; // default is no message pipe
+AbundanceMatchingManager *matcher = nullptr; // global abundance matching manager instance, initialized in main()
 
 void groupfind()
 {
@@ -198,6 +201,8 @@ void groupfind()
 
     xtmp.resize(NGAL);
 
+    matcher = new HaloMassAMManager();
+
   } // end of first call code
   else {
     LOG_INFO("Reusing existing GAL array. Recalculating properties.\n", NGAL);
@@ -222,28 +227,19 @@ void groupfind()
   //for (int i = 0; i < NGAL; ++i)
   //  std::cerr << "xtmp[" << i << "] = (" << xtmp[i].first << ", " << xtmp[i].second << ")\n";
 
-  // do the inverse-abundance matching
-  density2host_halo(0.01); // TODO delete?
   galden = 0;
 
   // reset the sham counters
   if (FLUXLIM)
-    density2host_halo_zbins3(-1, 0);
+    matcher->density2host_halo_zbins3(-1, 0);
 
+  // Do the inverse-abundance matching
   for (int i1 = 0; i1 < NGAL; ++i1)
   {
     int i = xtmp[i1].second;
     GAL[i].grp_rank = i1;
-    // Set the galaxy's halo mass
-    if (FLUXLIM)
-      GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
-    else
-    {
-      galden += 1 / GAL[i].vmax;
-      GAL[i].mass = density2host_halo(galden);
-    }
-    // Set other properties derived from that
-    update_galaxy_halo_props(&GAL[i]);
+    galden += 1 / GAL[i].vmax;
+    assign_halo(&GAL[i], galden);
     GAL[i].psat = 0;
   }
   ngrp = NGAL;
@@ -363,17 +359,13 @@ void groupfind()
     nsat_tot = galden = 0;
     // reset the sham counters
     if (FLUXLIM)
-      density2host_halo_zbins3(-1, 0);
+      matcher->density2host_halo_zbins3(-1, 0);
     for (int j = 0; j < ngrp; ++j)
     {
       int i = xtmp[j].second; // Sorted index
       GAL[i].grp_rank = j;
       galden += 1 / GAL[i].vmax;
-      if (FLUXLIM)
-        GAL[i].mass = density2host_halo_zbins3(GAL[i].redshift, GAL[i].vmax);
-      else
-        GAL[i].mass = density2host_halo(galden); // BUG is this right, we haven't fully counted up galden yet?
-      update_galaxy_halo_props(&GAL[i]);
+      assign_halo(&GAL[i], galden);
       nsat_tot += GAL[i].nsat;
     }
 
@@ -442,6 +434,27 @@ void groupfind()
   free(fsat_arr);
 }
 
+/**
+ * Assign a halo to a galaxy. 
+ */
+void assign_halo(galaxy *gal, double galdensity) {
+
+  if (LATENT){
+    // TODO
+    
+  }
+  else {
+    if (FLUXLIM) {
+      gal->mass = matcher->density2host_halo_zbins3(gal->redshift, gal->vmax);
+    }
+    else {
+      gal->mass = matcher->match(galdensity);
+    }
+  }
+
+  // Set other properties derived from that
+  update_galaxy_halo_props(gal);
+}
 
 /**
  * Recalculate galaxy properties when the parameters have changed (interactive mode).

@@ -13,11 +13,48 @@
 #define HALO_MAX 1.0E+16
 #define HALO_MIN 1.0E+8
 
-float density2host_halo_zbins3(float z, double vmax);
-float density2host_halo(float galaxy_density);
+// Interface for methods like density2host_halo
+
 float func_match_nhost(float mass, float galaxy_density);
 float halo_abundance_log(float logM);
 float halo_abundance(float m);
+
+#define NZBIN 200
+class AbundanceMatchingManager {
+    public:
+
+    /**
+     * Match a galaxy density to a halo density to acquire a halo property.
+     * 
+     * Units must be consistent and are usually [1 / (Mpc/h)^3].
+     */
+    virtual float match(float galaxy_density) = 0;
+
+    /** 
+     * Matching for flux-limited mode - tracks the density seperately for overlapping redshift bins.
+     * 
+     * Using a vmax correction for galaxies that can't make it to the end of the redshift bin.
+     */
+    float density2host_halo_zbins3(float z, double vmax);
+
+    private:
+      int flag = 1, negcnt[NZBIN];
+      double zcnt[NZBIN];
+      float volume[NZBIN], zlo[NZBIN], zhi[NZBIN], vhi[NZBIN], vlo[NZBIN];
+};
+
+class HaloMassAMManager : public AbundanceMatchingManager {
+    public:
+    HaloMassAMManager();
+
+    /* 
+    * For a galaxy at a certain redshift and vmax, use the provided halo mass function to
+    * determine the host halo mass. 
+    * 
+    * galaxy_density [number/(Mpc/h)^3] is the running total of 1/VMAX for all galaxies up to this point in the AM ordering.
+    */
+    float match(float galaxy_density) override;
+};
 
 
 // Singleton holding the PCA model matrices for halo property transforms.
@@ -89,3 +126,7 @@ private:
         loaded = true;
     }
 };
+
+
+// Global abundance matching manager instance
+extern AbundanceMatchingManager *matcher;

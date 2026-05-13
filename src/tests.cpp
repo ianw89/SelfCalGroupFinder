@@ -587,40 +587,42 @@ void test_tabulate_hod_2() {
     printf(" *** All tabulate_hod total_vmax tests passed.\n\n");
   }
 
-void test_density2host_halo_values() {
-    printf("=== DENSITY2HOST_HALO VALUE TESTS ===\n");
+void test_HaloMassAMManager_match_halo_values() {
+    printf("=== HaloMassAMManager.match VALUE TESTS ===\n");
     HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
 
     // Roundtrip: pick a mass, compute n(>M), verify we get the mass back
+    HaloMassAMManager mgr = HaloMassAMManager();
     float test_masses[] = {1e10, 1e11, 1e12, 1e13, 1e14, 1e15};
     for (float M : test_masses) {
         // n(>M) = integral of HMF from M to HALO_MAX
         float n_gt_M = qromo(halo_abundance_log, log(M), log(HALO_MAX), midpnt);
-        float recovered_mass = density2host_halo(n_gt_M);
+        float recovered_mass = mgr.match(n_gt_M);
         float rel_err = fabs(recovered_mass - M) / M;
         //printf("Input mass: %e, n(>M): %e, recovered: %e, rel_err: %e\n", M, n_gt_M, recovered_mass, rel_err);
-        TEST_CASE(rel_err < 1e-3, M, "density2host_halo should roundtrip");
+        TEST_CASE(rel_err < 1e-3, M, "HaloMassAMManager should roundtrip");
     }
 
-    printf(" *** density2host_halo value tests passed.\n\n");
+    printf(" *** HaloMassAMManager.match value tests passed.\n\n");
 }
 
-void test_density2host_halo_monotonic() {
-    printf("=== DENSITY2HOST_HALO MONOTONICITY TEST ===\n");
+void test_HaloMassAMManager_match_halo_monotonic() {
+    printf("=== HaloMassAMManager MONOTONICITY TEST ===\n");
     HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
 
     // In the AM code, you call density2host_halo in your decided order running total of the galaxy density to get the host halo mass, 
     // starting from the lowest density (most massive halos) to the highest density (least massive halos).
+    HaloMassAMManager mgr = HaloMassAMManager();
     float prev_mass = 1e99;
     float densities[] = {1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1};
     for (float d : densities) {
-        float m = density2host_halo(d);
+        float m = mgr.match(d);
         TEST_CASE(m < prev_mass, d, "Higher galaxy density maps to lower halo mass");
         TEST_CASE(m >= HALO_MIN && m <= HALO_MAX, m, "Mass within HMF bounds");
         prev_mass = m;
     }
 
-    printf(" *** density2host_halo monotonicity tests passed.\n\n");
+    printf(" *** HaloMassAMManager.match monotonicity tests passed.\n\n");
 }
 
 void test_HaloPCADensityFuncs_model() {
@@ -654,8 +656,8 @@ int main(int argc, char **argv) {
     test_float_vs_double_math();
     test_tabulate_hod();
     test_tabulate_hod_2();
-    test_density2host_halo_values();
-    test_density2host_halo_monotonic();
+    test_HaloMassAMManager_match_halo_values();
+    test_HaloMassAMManager_match_halo_monotonic();
     test_HaloPCADensityFuncs_model();
 
     printf(" *** ALL TESTS PASSED ***\n");

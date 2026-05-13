@@ -9,7 +9,7 @@
  * Update the galaxy's derived halo properties from its' assigned mass, which must
  * already be set. Requries redshit and rco to be set as well.
 */
-void update_galaxy_halo_props(struct galaxy *galaxy)
+void update_galaxy_halo_props(galaxy *galaxy)
 {
   galaxy->rad = pow(3 * galaxy->mass / (4. * PI * DELTA_HALO * RHO_CRIT * OMEGA_M), THIRD);
   galaxy->theta = galaxy->rad / galaxy->rco;
@@ -80,7 +80,7 @@ float angular_separation(float a1, float d1, float a2, float d2)
   return atan2(numerator, denominator);
 }
 
-float psat(struct galaxy *central, float dr, float dz, float bprob)
+float psat(galaxy *central, float dr, float dz, float bprob)
 {
   float prob_ang, prob_rad, result;
   prob_ang = compute_p_proj_g(central, dr);

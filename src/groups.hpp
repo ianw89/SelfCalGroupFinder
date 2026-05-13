@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdio>
-#include "fit_clustering_omp.hpp" // <-- Add this include
+#include "fit_clustering_omp.hpp" 
 
 // Definitions
 #define OMEGA_M 0.315192  // In past, 0.25 was used.
@@ -96,6 +96,7 @@ extern int INTERACTIVE;
 extern int FLUXLIM;
 extern double FLUXLIM_MAG;
 extern int FLUXLIM_CORRECTION_MODEL;
+extern int LATENT;
 extern int COLOR;
 extern int MAX_ITER;
 extern int ALLOW_EARLY_EXIT;
