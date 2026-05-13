@@ -231,7 +231,7 @@ void groupfind()
 
   // reset the sham counters
   if (FLUXLIM)
-    matcher->density2host_halo_zbins3(-1, 0);
+    matcher->reset();
 
   // Do the inverse-abundance matching
   for (int i1 = 0; i1 < NGAL; ++i1)
@@ -359,7 +359,7 @@ void groupfind()
     nsat_tot = galden = 0;
     // reset the sham counters
     if (FLUXLIM)
-      matcher->density2host_halo_zbins3(-1, 0);
+      matcher->reset();
     for (int j = 0; j < ngrp; ++j)
     {
       int i = xtmp[j].second; // Sorted index
@@ -445,7 +445,7 @@ void assign_halo(galaxy *gal, double galdensity) {
   }
   else {
     if (FLUXLIM) {
-      gal->mass = matcher->density2host_halo_zbins3(gal->redshift, gal->vmax);
+      gal->mass = matcher->match_in_zbins(gal->redshift, gal->vmax);
     }
     else {
       gal->mass = matcher->match(galdensity);

@@ -5,6 +5,7 @@
 #include <math.h>
 #include <gsl/gsl_spline.h>
 #include <gsl/gsl_errno.h>
+#include <assert.h>
 #include "nrutil.h"
 #include "groups.hpp"
 #include "sham.hpp"
@@ -137,15 +138,13 @@ float halo_abundance(float m) {
 }
 
 
-float AbundanceMatchingManager::density2host_halo_zbins3(float z, double vmax) {
+float AbundanceMatchingManager::match_in_zbins(float z, double vmax) {
   int i, iz;
   double rlo, rhi, dz, dzmin, vv;
 
   // if first call, get the volume in each dz bin
-  if (flag)
-  {
-    for (i = 0; i < NZBIN; ++i)
-    {
+  if (needs_setup) {
+    for (i = 0; i < NZBIN; ++i) {
       zlo[i] = i * 1. / NZBIN;
       zhi[i] = zlo[i] + 0.05;
       if (i == 0)
@@ -160,15 +159,12 @@ float AbundanceMatchingManager::density2host_halo_zbins3(float z, double vmax) {
       //fprintf(stderr,"  r_lo-r_hi: %f - %f",rlo,rhi);
       //fprintf(stderr,"  volume= %e\n",volume[i]);
     }
-    flag = 0;
+    needs_setup = false;
   }
-  // if negative redshift, reset the counters;
-  if (z < 0)
-  {
-    // fprintf(stderr,"Resetting sham counts\n");
-    for (i = 0; i < NZBIN; ++i)
-      zcnt[i] = negcnt[i] = 0;
-    return 0;
+
+  if (z < 0 || isnan(z) || !isfinite(z)) {
+    LOG_ERROR("ERROR: invalid redshift %f\n", z);
+    assert(false);
   }
 
   if (z > 100)
@@ -179,13 +175,11 @@ float AbundanceMatchingManager::density2host_halo_zbins3(float z, double vmax) {
     return 0;
   }
 
-  // what bins does this galaxy belong to?
+  // Determine what bins this galaxy belong to
   // TODO this can definitely be optimized to not have a loop NZBIN times for each galaxy.
   dzmin = 1;
-  for (i = 0; i < NZBIN; ++i)
-  {
-    if (z >= zlo[i] && z < zhi[i])
-    {
+  for (i = 0; i < NZBIN; ++i) {
+    if (z >= zlo[i] && z < zhi[i]) {
       //fprintf(stderr, "Matched z = %f to bin %d\n", z, i);
       if (vmax > vhi[i])
         vv = volume[i];
@@ -197,13 +191,10 @@ float AbundanceMatchingManager::density2host_halo_zbins3(float z, double vmax) {
       zcnt[i] += 1 / vv;
 
       if (vv < 0.0)
-      {
         LOG_ERROR("vmax = %e.  %e %e %e %e %e %e\n", vmax, vlo[i], vhi[i], zlo[i], zhi[i], z, zcnt[i]);
-      }
     }
     dz = fabs(z - (zhi[i] + zlo[i]) / 2);
-    if (dz < dzmin)
-    {
+    if (dz < dzmin) {
       dzmin = dz;
       iz = i;
     }
@@ -211,10 +202,14 @@ float AbundanceMatchingManager::density2host_halo_zbins3(float z, double vmax) {
   // fprintf(stdout,"%f %d %e %e %f %f %f\n",z,iz,zcnt[iz],vmax,zlo[iz],zhi[iz],dzmin);
   // fflush(stdout);
   //fprintf(stderr, "Getting mass for z = %f, iz = %d, zcnt = %f", z, iz, zcnt[iz]);
-  //float results = density2host_halo(zcnt[iz]);
+  //float results = match(zcnt[iz]);
   //fprintf(stderr, ". Result = %e\n", results);
-  //return density2host_halo(zcnt[iz]);
   return match(zcnt[iz]);
+}
+
+void AbundanceMatchingManager::reset() {
+    for (int i = 0; i < NZBIN; ++i)
+      zcnt[i] = negcnt[i] = 0;
 }
   
 

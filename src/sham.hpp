@@ -35,10 +35,16 @@ class AbundanceMatchingManager {
      * 
      * Using a vmax correction for galaxies that can't make it to the end of the redshift bin.
      */
-    float density2host_halo_zbins3(float z, double vmax);
+    float match_in_zbins(float z, double vmax);
+
+    /**
+     * Reset SHAM counters for the z-bins. Not needed in volume-limited mode.
+     */
+    void reset();
 
     private:
-      int flag = 1, negcnt[NZBIN];
+      bool needs_setup = true;
+      int negcnt[NZBIN];
       double zcnt[NZBIN];
       float volume[NZBIN], zlo[NZBIN], zhi[NZBIN], vhi[NZBIN], vlo[NZBIN];
 };

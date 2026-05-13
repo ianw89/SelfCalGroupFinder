@@ -911,7 +911,6 @@ void lsat_model_scatter()
 
   // output this to a pre-specified file
   // (plus we knoe the limits of the data)
-  // TODO this OVERWRITES the lsat_groups.out file the other method makes!
   fp = fopen("lsat_groups2.out", "w");
   for (i = 88; i <= 106; ++i) // i=88 means 10^8.8 solar masses
     fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
@@ -1139,7 +1138,6 @@ void populate_simulation_omp(int imag, SampleType type)
 
     // For a really bad set of parameters, we can get a huge number of satellites for some halos.
     // Cap it so we don't print off a 10 Terabyte file! Any MCMC or whatever will move on hopefully.
-    // TODO early abort program instead
     if (nsat_rand > MAX_SATELLITES) {
       if (!warned) {
         LOG_WARN("popsim> WARNING: giving %d sats for halo %d\n", nsat_rand, i);
