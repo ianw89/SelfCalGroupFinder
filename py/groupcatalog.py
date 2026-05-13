@@ -997,11 +997,8 @@ class GroupCatalog:
                     self.lhmr_b_std = np.array(data[5], dtype=dtype)
 
             elif msg_type == MSG_LSAT:
-                if count != lsat_bincount * 2:
-                    raise Exception(f"Unexpected lsat data count: {count}, expected {lsat_bincount * 2}")
-                else:
-                    self.lsat_r = np.array(data[0:lsat_bincount], dtype=dtype)
-                    self.lsat_b = np.array(data[lsat_bincount:lsat_bincount*2], dtype=dtype)
+                self.lsat_r = np.array(data[0:lsat_bincount], dtype=dtype)
+                self.lsat_b = np.array(data[lsat_bincount:lsat_bincount*2], dtype=dtype)
 
             elif msg_type == MSG_HOD:
                 cols = self.caldata.bincount*7 + 1
@@ -2729,7 +2726,7 @@ def z_flag_is_not_spectro_z(arr):
 ##############################
 def compute_lsat_chisqr(observed, model_lsat_r, model_lsat_b):
 
-    #obs_lcen = data[:,0] # log10 already
+    obs_lcen = observed[:,0] # log10 already
     obs_lsat_r = observed[:,1] # fr
     obs_err_r = observed[:,2] # er
     obs_lsat_b = observed[:,3] # fb
@@ -2738,6 +2735,17 @@ def compute_lsat_chisqr(observed, model_lsat_r, model_lsat_b):
     obs_ratio = obs_lsat_r/obs_lsat_b
     # Dividing two quantities with errors, so we need to propagate the errors
     obs_ratio_err = obs_ratio * ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
+
+    # model is always 8.7 to 11.0. Cut to match observed.
+    if len(obs_lcen) != len(model_lsat_r):
+        print("WARNING: Length of observed Lcen does not match what group finder sent. Cutting model to what the old SDSS Lsat range was.")
+        model_mask = np.repeat(True, len(model_lsat_r))
+        model_mask[0] = False
+        model_mask[-1] = False
+        model_mask[-2] = False
+        model_mask[-3] = False
+        model_lsat_r = model_lsat_r[model_mask]
+        model_lsat_b = model_lsat_b[model_mask]
 
     # Get Lsat for r/b centrals from the group finder's output
     model_ratio = model_lsat_r/model_lsat_b
