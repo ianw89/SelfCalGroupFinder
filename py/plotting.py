@@ -2251,10 +2251,18 @@ def proj_clustering_plot(gc: GroupCatalog):
 
             wp, wp_err, radius = caldata.get_wp_blue(i)
             ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markeredgewidth=1.4, markeredgecolor='midnightblue', markerfacecolor='blue', capsize=5, elinewidth=1.5, ecolor='midnightblue')
+            
+            if idx >= 6:
+                a = SHADED_ERR_ALPHA - 0.15
+            else:
+                a = SHADED_ERR_ALPHA
 
             wp_mock, wp_mock_err = gc.get_mock_wp(i, 'blue', wp_err)
             ax.plot(radius, wp_mock, '-', color='b', alpha=1.0)
-            ax.fill_between(radius, wp_mock - wp_mock_err, wp_mock + wp_mock_err, color='b', alpha=SHADED_ERR_ALPHA)
+            ax.fill_between(radius, np.clip(wp_mock - wp_mock_err, 0.1, None), wp_mock + wp_mock_err, color='b', alpha=a)
+            if idx == 7:
+                print("upper ", wp_mock + wp_mock_err)
+                print("lower ", wp_mock - wp_mock_err)
 
             # Put text of the chisqr value in plot
             ax.text(0.6, 0.9, f"$\chi^2_q$: {clust_r[i+mag_start]:.1f}", transform=ax.transAxes)
@@ -2265,7 +2273,7 @@ def proj_clustering_plot(gc: GroupCatalog):
             ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markeredgewidth=1.5, markeredgecolor='k', markerfacecolor='gray', capsize=5, elinewidth=1.5, ecolor='k')
             wp_mock, wp_mock_err = gc.get_mock_wp(i, 'all', wp_err)
             ax.plot(radius, wp_mock, '-', color='purple', alpha=1.0)
-            ax.fill_between(radius, wp_mock - wp_mock_err, wp_mock + wp_mock_err, color='purple', alpha=SHADED_ERR_ALPHA)
+            ax.fill_between(radius, np.clip(wp_mock - wp_mock_err, 0.1, None), wp_mock + wp_mock_err, color='purple', alpha=SHADED_ERR_ALPHA)
 
             # Put text of the chisqr value in plot
             ax.text(0.6, 0.9, f"$\chi^2$: {clust_nosep[i+mag_start]:.1f}", transform=ax.transAxes)

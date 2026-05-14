@@ -1116,8 +1116,6 @@ class GroupCatalog:
             self.outstream.close()
             self.outstream = None
 
-
-            # TODO Group Finder does not consistently return >0 for errors.
             if self.proc.returncode != 0:
                 print(f"ERROR: Group Finder failed with return code {self.proc.returncode}.")
                 self.proc = None
@@ -1219,7 +1217,7 @@ class GroupCatalog:
 
         dof = 0
 
-        with np.printoptions(precision=0, suppress=True, linewidth=300):
+        with np.printoptions(precision=1, suppress=True, linewidth=300):
             chi = 0
             clustering_chisqr_r = []
             clustering_chisqr_b = []
@@ -1303,6 +1301,8 @@ class GroupCatalog:
             chivec = (y-m)**2/(e**2+em**2)
             chi = chi + np.sum(chivec)
             """
+
+            dof -= 10 # for the 10 parameters we are fitting, to get reduced chi squared
 
             chi = np.sum(lsat_chisqr) + np.sum(clustering_chisqr_r) + np.sum(clustering_chisqr_b) + np.sum(clustering_chisqr_all)
 
@@ -2753,6 +2753,9 @@ def compute_lsat_chisqr(observed, model_lsat_r, model_lsat_b):
     model_ratio = model_lsat_r/model_lsat_b
 
     # Chi squared
+    # No model error included here, just observational error.
+    # This is OK as the clustering error is smaller and giving a little bump to Lsat importance
+    # is probably good for us right now anyway.
     lsat_chisqr = (obs_ratio - model_ratio)**2 / obs_ratio_err**2 
     print("LSat χ^2: ", lsat_chisqr)
     return lsat_chisqr
