@@ -24,8 +24,7 @@
  *               an integer parameter, and return a float.
  * @return The result of the numerical integration.
  */
-float qromo(float (*func)(float), float a, float b,
-	float (*choose)(float(*)(float), float, float, int))
+float qromo(float (*func)(float), float a, float b, float (*choose)(float(*)(float), float, float, int))
 {
 	int j;
 	float ss,dss,h[JMAXP+1],s[JMAXP+1];

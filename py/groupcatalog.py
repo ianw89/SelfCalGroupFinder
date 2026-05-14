@@ -1076,6 +1076,8 @@ class GroupCatalog:
             args.append(f"--popmock={MOCK_FILE_FOR_POPMOCK},volume_bins.dat")
         if verbose:
             args.append("-v")
+        if 'latent' in self.GF_props and self.GF_props['latent']:
+            args.append("--latent")
         if 'hodw' in self.GF_props:
             args.append(f"--hodw={self.GF_props['hodw']}")
         if interactive:

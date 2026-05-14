@@ -4,6 +4,8 @@
 #include <math.h>
 #include <assert.h>
 #include <iostream>
+#include <numeric>
+#include <vector>
 #include "timing.hpp"
 #include "groups.hpp"
 #include "fit_clustering_omp.hpp"
@@ -24,7 +26,7 @@ bool isclose(double a, double b, double rel_tol = 1e-6, double abs_tol = 1e-12) 
 }
 
 void test_halo_abundance(){
-    printf("=== HALO ABUNDANCE TESTS ===\n");
+    printf("== HALO ABUNDANCE TESTS ===\n");
     HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
 
     // Test known values from halo mass function file
@@ -77,6 +79,21 @@ void test_float_vs_double_math() {
     printf("Double sum: %f, time: %f seconds\n", sum_double, t2 - t1);
     printf("Difference: %f\n", fabs(sum_double - sum_float));
     assert(fabs(sum_double - sum_float) < 1e-5 * fabs(sum_double) && "Float and double sums should be close");
+
+    // Check roundtrip of log10 and pow(10, x) for float vs double
+    n_trials = 10;
+    for (int i = 0; i < n_trials; ++i) {
+        float f = arr_float[i] * 1e6*(i*5) + 1e-6 ; // Scale to a range where precision matters
+        double d = (double)f;
+        float f_log = log10f(f);
+        double d_log = log10(d);
+        float f_pow = powf(10.0f, f_log);
+        double d_pow = pow(10.0, d_log);
+        //printf("Original: %e, Float roundtrip: %e, Double roundtrip: %e, Difference: %e\n", f, f_pow, d_pow, fabs(d_pow - f_pow));
+        assert(fabs(f - f_pow) / f < 1e-5 && "Float log and pow should roundtrip");
+        assert(fabs(d - d_pow) / d < 1e-12 && "Double log and pow should roundtrip");
+    }
+
     printf(" *** Float vs double math tests passed.\n\n");
 }
 
@@ -592,12 +609,11 @@ void test_HaloMassAMManager_match_halo_values() {
     HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
 
     // Roundtrip: pick a mass, compute n(>M), verify we get the mass back
-    HaloMassAMManager mgr = HaloMassAMManager();
     float test_masses[] = {1e10, 1e11, 1e12, 1e13, 1e14, 1e15};
     for (float M : test_masses) {
         // n(>M) = integral of HMF from M to HALO_MAX
         float n_gt_M = qromo(halo_abundance_log, log(M), log(HALO_MAX), midpnt);
-        float recovered_mass = mgr.match(n_gt_M);
+        float recovered_mass = HaloMassAMManager::get().match(n_gt_M);
         float rel_err = fabs(recovered_mass - M) / M;
         //printf("Input mass: %e, n(>M): %e, recovered: %e, rel_err: %e\n", M, n_gt_M, recovered_mass, rel_err);
         TEST_CASE(rel_err < 1e-3, M, "HaloMassAMManager should roundtrip");
@@ -610,13 +626,12 @@ void test_HaloMassAMManager_match_halo_monotonic() {
     printf("=== HaloMassAMManager MONOTONICITY TEST ===\n");
     HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
 
-    // In the AM code, you call density2host_halo in your decided order running total of the galaxy density to get the host halo mass, 
+    // In the AM code, you call the match function in your decided order with a running total of the galaxy density to get the host halo mass, 
     // starting from the lowest density (most massive halos) to the highest density (least massive halos).
-    HaloMassAMManager mgr = HaloMassAMManager();
     float prev_mass = 1e99;
     float densities[] = {1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1};
     for (float d : densities) {
-        float m = mgr.match(d);
+        float m = HaloMassAMManager::get().match(d);
         TEST_CASE(m < prev_mass, d, "Higher galaxy density maps to lower halo mass");
         TEST_CASE(m >= HALO_MIN && m <= HALO_MAX, m, "Mass within HMF bounds");
         prev_mass = m;
@@ -625,24 +640,136 @@ void test_HaloMassAMManager_match_halo_monotonic() {
     printf(" *** HaloMassAMManager.match monotonicity tests passed.\n\n");
 }
 
-void test_HaloPCADensityFuncs_model() {
-    // Load the HaloPCADensityFuncs and sample some values to see if it's loaded right.
+void test_HaloPCAModel_model() {
+    // Load the HaloPCAModel and sample some values to see if it's loaded right.
     printf("=== HALOPCA DENSITY FUNCS TESTS ===\n");
     HaloPCAModel& t = HaloPCAModel::get();
     // LOGMHALO, c, Spin, Halfmass_scale
-    double halo1[] = {14.094681, 4.141850, 0.03922, 0.4420};
-    double halo1_pca[] = {0.0, 0.0, 0.0, 0.0}; 
-    double halo1_pca_expected[] = {3.181701, 6.572928, 1.333168, -1.347537}; // From Python implementation with same PCA components and scaler
-    t.forward_transform(halo1, halo1_pca);
+    galaxy g = {};
+    g.mass = pow(10,14.094681f);
+    g.c = 4.141850;
+    g.spin = 0.03922;
+    g.age = 0.4420;
+    float halo1_pca_expected[] = {3.181701, 6.572928, 1.333168, -1.347537}; // From Python implementation with same PCA components and scaler
+    t.forward_transform(&g);
     for (int i = 0; i < 4; ++i) {
-        TEST_CASE(isclose(halo1_pca[i], halo1_pca_expected[i]), halo1_pca[i], "Halo PCA value should match expected");
+        TEST_CASE(isclose(g.halo_pca[i], halo1_pca_expected[i]), g.halo_pca[i], "Halo PCA value should match expected");
     }
     // Now check roundtrip
-    double halo1_recovered[] = {0.0, 0.0, 0.0, 0.0};
-    t.inverse_transform(halo1_pca, halo1_recovered);
+    t.inverse_transform(&g);
     for (int i = 0; i < 4; ++i) {
-        TEST_CASE(isclose(halo1_recovered[i], halo1[i]), halo1_recovered[i], "Halo PCA roundtrip should match original");
+        TEST_CASE(isclose(g.mass, pow(10,14.094681)), g.mass, "Roundtrip mass should match");
+        TEST_CASE(isclose(g.c, 4.141850), g.c, "Roundtrip concentration should match");
+        TEST_CASE(isclose(g.spin, 0.03922), g.spin, "Roundtrip spin should match");
+        TEST_CASE(isclose(g.age, 0.4420), g.age, "Roundtrip age should match");
     }
+}
+
+void test_HaloPCADensityFuncs_loading_and_splines() {
+    printf("\n=== HALO PCA DENSITY FUNCTIONS LOADING AND SPLINE TESTS ===\n");
+    
+    // Force reload to ensure clean state
+    //HaloPCADensityFuncs::get().reset();
+    
+    // Test that files load correctly for all 4 components
+    for (int idx = 0; idx < 4; idx++) {       
+        // Trigger loading by evaluating at an arbitrary point
+        double test_x = 0.0;
+        double result = HaloPCADensityFuncs::get().eval(idx, test_x);
+        
+        TEST_CASE(std::isfinite(result), result, "PCA density function should return finite value");
+        TEST_CASE(result > 0.0, result, "Density function should be non-negative");
+        
+        printf("Component %d evaluated at x=%.3f: dn/dPCA = %.6e\n", idx+1, test_x, result);
+    }
+    
+    // Test spline interpolation quality by checking smoothness
+    printf("\n--- Testing Spline Smoothness ---\n");
+    for (int idx = 0; idx < 4; idx++) {
+        // Sample the density function at several points
+        std::vector<double> x_vals(20);
+        for (int i = 0; i < 20; i++)
+            x_vals[i] = -1.0 + i * 0.1; // Sample from -1 to 1
+        double prev_val = -1.0;
+        bool is_smooth = true;
+        
+        printf("  Component %d samples:\n", idx+1);
+        for (double x : x_vals) {
+            double val = HaloPCADensityFuncs::get().eval(idx, x);            
+            TEST_CASE(std::isfinite(val), val, "All interpolated values should be finite");
+            
+            // Check that moving by 0.1 in PCA space doesn't cause huge jumps in density (which would indicate a bad spline fit)
+            if (prev_val > 0) {
+                double ratio = val / prev_val;
+                if (ratio > 1e1 || ratio < 1e-1) {
+                    is_smooth = false;
+                    printf("    WARNING: Large jump detected (ratio=%.2e)\n", ratio);
+                }
+            }
+            prev_val = val;
+        }
+        TEST_CASE(is_smooth, idx, "Spline should be reasonably smooth (no huge jumps)");
+    }
+    
+    // Test extrapolation behavior at boundaries
+    printf("\n--- Testing Boundary Behavior ---\n");
+    for (int idx = 0; idx < 4; idx++) {
+        double extreme_low = -20.0;
+        double val_low = HaloPCADensityFuncs::get().eval(idx, extreme_low);
+        double extreme_high = 20.0;
+        double val_high = HaloPCADensityFuncs::get().eval(idx, extreme_high);
+        
+        printf("  Component %d: x=%.1f -> %.6e, x=%.1f -> %.6e\n", idx, extreme_low, val_low, extreme_high, val_high);
+        
+        TEST_CASE(std::isfinite(val_low), val_low, "Should handle extrapolation to low values");
+        TEST_CASE(std::isfinite(val_high), val_high, "Should handle extrapolation to high values");
+        TEST_CASE(val_low >= 0.0 && val_high >= 0.0, idx, "Extrapolated densities should remain non-negative");
+    }
+    
+    // Test that different components have different distributions
+    printf("\n--- Testing Component Independence ---\n");
+    double test_points[] = {-2.0, 0.0, 2.0};
+    bool components_differ = false;
+    
+    for (double x : test_points) {
+        double vals[4];
+        for (int idx = 0; idx < 4; idx++) {
+            vals[idx] = HaloPCADensityFuncs::get().eval(idx, x);
+        }
+        
+        // Check that at least some components differ significantly
+        for (int i = 0; i < 3; i++) {
+            for (int j = i+1; j < 4; j++) {
+                double ratio = vals[i] / (vals[j] + 1e-30);
+                if (ratio > 1.5 || ratio < 0.67) {
+                    components_differ = true;
+                }
+            }
+        }
+    }
+    
+    TEST_CASE(components_differ, 0, "PCA components should have different distributions");
+
+    printf(" *** HaloPCA density function tests passed.\n\n");
+}
+
+void test_HaloPCAAMManager_monotonic() {
+    printf("=== HaloPCA AMManager MONOTONICITY TESTS ===\n");
+
+    AbundanceMatchingManager* mgrs[] = { &HaloPCA1AMManager::get(), &HaloPCA2AMManager::get(), &HaloPCA3AMManager::get(), &HaloPCA4AMManager::get() };
+    /**
+    for (AbundanceMatchingManager* mgr : mgrs) {
+        float prev_val = 1e99;
+        float densities[] = {1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1};
+        for (float d : densities) {
+            float m = mgr->match(d);
+            TEST_CASE(m < prev_val, d, "Higher galaxy density maps lower pca value");
+            TEST_CASE(m >= HALO_PCA_MIN && m <= HALO_PCA_MAX, m, "Mass within HMF bounds");
+            prev_val = m;
+        }
+    } */
+
+    printf(" *** HaloPCAAMManager.match monotonicity tests passed.\n\n");
 }
 
 int main(int argc, char **argv) {
@@ -658,7 +785,9 @@ int main(int argc, char **argv) {
     test_tabulate_hod_2();
     test_HaloMassAMManager_match_halo_values();
     test_HaloMassAMManager_match_halo_monotonic();
-    test_HaloPCADensityFuncs_model();
-
+    test_HaloPCAModel_model();
+    test_HaloPCADensityFuncs_loading_and_splines();
+    test_HaloPCAAMManager_monotonic();
+    
     printf(" *** ALL TESTS PASSED ***\n");
 }

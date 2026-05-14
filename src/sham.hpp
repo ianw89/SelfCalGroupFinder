@@ -1,7 +1,11 @@
 #pragma once
 
+#include <gsl/gsl_spline.h>
+#include <gsl/gsl_errno.h>
 #include <fstream>
 #include <sstream>
+#include "groups.hpp"
+
 // Min/Max for abundance matching.
 // The AM goes from the most massive halos to the least using the number density in the halo mass function file.
 // The exact choice of upper bound doesn't matter much as long as its above the biggest halos in the HMF.
@@ -13,11 +17,41 @@
 #define HALO_MAX 1.0E+16
 #define HALO_MIN 1.0E+8
 
+#define HALO_PCA_MIN -20.0
+#define HALO_PCA_MAX 20.0
+
 // Interface for methods like density2host_halo
 
-float func_match_nhost(float mass, float galaxy_density);
+float func_match_nhost(float logmass, float galaxy_density);
 float halo_abundance_log(float logM);
 float halo_abundance(float m);
+void set_halo_props_from_pca_props(galaxy *galaxy);
+
+
+// *******************************************************************
+// STANDARD HALO MASS ABUNDANCE MATCHING
+// *******************************************************************
+
+
+class HMFCumulative {
+    public:
+    static HMFCumulative& get() {
+        static HMFCumulative inst;
+        return inst;
+    }    
+    double eval(double logmass);
+    void reset();
+
+    private:
+    static constexpr int N = 100;
+    double mh[N];
+    double nh[N];
+    gsl_interp_accel *acc = nullptr;
+    gsl_spline *spline = nullptr;
+
+    HMFCumulative();
+    void build();
+};
 
 #define NZBIN 200
 class AbundanceMatchingManager {
@@ -51,7 +85,11 @@ class AbundanceMatchingManager {
 
 class HaloMassAMManager : public AbundanceMatchingManager {
     public:
-    HaloMassAMManager();
+
+    static HaloMassAMManager& get() {
+        static HaloMassAMManager inst;
+        return inst;
+    }
 
     /* 
     * For a galaxy at a certain redshift and vmax, use the provided halo mass function to
@@ -60,79 +98,167 @@ class HaloMassAMManager : public AbundanceMatchingManager {
     * galaxy_density [number/(Mpc/h)^3] is the running total of 1/VMAX for all galaxies up to this point in the AM ordering.
     */
     float match(float galaxy_density) override;
+
+    private:
+    bool loaded = false;
+    HaloMassAMManager() {
+        HMFCumulative::get(); // trigger loading of the halo mass function spline
+    }
+
 };
+
+
+
+
+
+// *******************************************************************
+// HALO PCA ABUNDANCE MATCHING
+// *******************************************************************
 
 
 // Singleton holding the PCA model matrices for halo property transforms.
 // Reads HALO_PCA_MODEL_TEXT_FILE (written by pca_halo.ipynb).
 // Features order: LOGMHALO, c, Spin, Halfmass_Scale
-struct HaloPCAModel {
+
+
+// Singleton holding splines for the 4 halo PCA component density functions.
+// Each spline is a fit to the a PCA coordinate density (Mpc^-3 h^3) as read from input files.
+// This is the equivalent of HaloMassFunction. 
+class HaloPCADensityFuncs {
+public:
+    static constexpr int NCOMP = 4;
+
+    static HaloPCADensityFuncs& get() {
+        static HaloPCADensityFuncs inst;
+        return inst;
+    }
+
+    /**
+     * Returns the probability density at PCA coordinate x for PCA component index (0-3).
+     * Both val and the returned density are in linear space (not log).
+     * Clamped to >= 0 since the cubic spline can dip below zero in sparse regions.
+     */
+    double eval(int idx, double val);
+
+private:
+    int n[NCOMP] = {0, 0, 0, 0};
+    double *px[NCOMP] = {nullptr, nullptr, nullptr, nullptr};
+    double *py[NCOMP] = {nullptr, nullptr, nullptr, nullptr};
+    gsl_interp_accel *acc[NCOMP] = {nullptr, nullptr, nullptr, nullptr};
+    gsl_spline *spline[NCOMP] = {nullptr, nullptr, nullptr, nullptr};
+    
+    HaloPCADensityFuncs();
+    void build(int idx);
+};
+
+
+class HaloPCAModel {
+public:
     static constexpr int NFEAT = 4;
-    double scaler_mean[NFEAT];
-    double scaler_scale[NFEAT];
-    double pca_mean[NFEAT];
-    double W[NFEAT][NFEAT]; // W[component][feature]
 
     static HaloPCAModel& get() {
         static HaloPCAModel inst;
         return inst;
     }
 
-    // Inverse transform: PCA coords -> original feature space.
-    // pca[NFEAT] in, x[NFEAT] out.
-    // x[0]=LOGMHALO, x[1]=c, x[2]=Spin, x[3]=Halfmass_Scale
-    void inverse_transform(const double pca[NFEAT], double x[NFEAT]) {
-        if (!loaded) load();
-        double xs[NFEAT] = {0};
-        for (int j = 0; j < NFEAT; j++)
-            for (int i = 0; i < NFEAT; i++)
-                xs[j] += W[i][j] * pca[i];
-        for (int j = 0; j < NFEAT; j++)
-            x[j] = (xs[j] + pca_mean[j]) * scaler_scale[j] + scaler_mean[j];
-    }
+    // Inverse transform: PCA coords -> original feature space
+    void inverse_transform(galaxy *galaxy);
 
-    // Forward transform: original feature space -> PCA coords.
-    void forward_transform(const double x[NFEAT], double pca[NFEAT]) {
-        if (!loaded) load();
-        double xs[NFEAT];
-        for (int j = 0; j < NFEAT; j++)
-            xs[j] = (x[j] - scaler_mean[j]) / scaler_scale[j] - pca_mean[j];
-        for (int i = 0; i < NFEAT; i++) {
-            pca[i] = 0;
-            for (int j = 0; j < NFEAT; j++)
-                pca[i] += W[i][j] * xs[j];
-        }
-    }
+    // Forward transform: original feature space -> PCA coords
+    void forward_transform(galaxy *galaxy);
 
     void reset() { loaded = false; }
 
 private:
+    double scaler_mean[NFEAT];
+    double scaler_scale[NFEAT];
+    double pca_mean[NFEAT];
+    double W[NFEAT][NFEAT]; // W[component][feature]
     bool loaded = false;
+
     HaloPCAModel() = default;
 
-    void load() {
-        std::ifstream fp(HALO_PCA_MODEL_TEXT_FILE);
-        if (!fp) { fprintf(stderr, "Could not open %s\n", HALO_PCA_MODEL_TEXT_FILE); exit(1); }
-        std::string line;
-        int block = 0;
-        while (std::getline(fp, line)) {
-            if (line.empty() || line[0] == '#') continue;
-            std::istringstream ss(line);
-            switch (block) {
-                case 0: ss >> scaler_mean[0] >> scaler_mean[1] >> scaler_mean[2] >> scaler_mean[3]; break;
-                case 1: ss >> scaler_scale[0] >> scaler_scale[1] >> scaler_scale[2] >> scaler_scale[3]; break;
-                case 2: ss >> pca_mean[0] >> pca_mean[1] >> pca_mean[2] >> pca_mean[3]; break;
-                case 3: ss >> W[0][0] >> W[0][1] >> W[0][2] >> W[0][3]; break;
-                case 4: ss >> W[1][0] >> W[1][1] >> W[1][2] >> W[1][3]; break;
-                case 5: ss >> W[2][0] >> W[2][1] >> W[2][2] >> W[2][3]; break;
-                case 6: ss >> W[3][0] >> W[3][1] >> W[3][2] >> W[3][3]; break;
-            }
-            block++;
-        }
-        loaded = true;
-    }
+    void load();
+};
+
+class HaloPCAFuncCumulative {
+    public:
+    static HaloPCAFuncCumulative& get() {
+        static HaloPCAFuncCumulative inst;
+        return inst;
+    }    
+    double eval(double logmass, int comp);
+    void reset(int comp);
+
+    private:
+    static constexpr int N = 200;
+    double mh[N_HPCA_COMP][N]; // PCA coordinate values for each component (log mass, concentration, spin, age)
+    double nh[N_HPCA_COMP][N]; // log cumulative number density for each PCA component
+    gsl_interp_accel* acc[N_HPCA_COMP] = {nullptr, nullptr, nullptr, nullptr};
+    gsl_spline* spline[N_HPCA_COMP] = {nullptr, nullptr, nullptr, nullptr};
+
+    HaloPCAFuncCumulative();
+    void build(int comp);
 };
 
 
-// Global abundance matching manager instance
-extern AbundanceMatchingManager *matcher;
+class HaloPCA1AMManager : public AbundanceMatchingManager {
+    public:
+    static HaloPCA1AMManager& get() {
+        static HaloPCA1AMManager inst;
+        return inst;
+    }
+    float match(float galaxy_density) override;
+
+    private:
+    HaloPCA1AMManager() {
+        HaloPCAModel::get(); // load transformation matrices
+        HaloPCAFuncCumulative::get(); // trigger loading of the PCA splines
+    }
+};
+
+class HaloPCA2AMManager : public AbundanceMatchingManager {
+    public:
+    static HaloPCA2AMManager& get() {
+        static HaloPCA2AMManager inst;
+        return inst;
+    }
+
+    float match(float galaxy_density) override;
+
+    private:
+    HaloPCA2AMManager() {
+        HaloPCAModel::get(); // trigger loading of the PCA splines
+    }
+};
+
+class HaloPCA3AMManager : public AbundanceMatchingManager {
+    public:
+    static HaloPCA3AMManager& get() {
+        static HaloPCA3AMManager inst;
+        return inst;
+    }
+
+    float match(float galaxy_density) override;
+
+    private:
+    HaloPCA3AMManager() {
+        HaloPCAModel::get(); // trigger loading of the PCA splines
+    }
+};
+
+class HaloPCA4AMManager : public AbundanceMatchingManager {
+    public:
+    static HaloPCA4AMManager& get() {
+        static HaloPCA4AMManager inst;
+        return inst;
+    }
+
+    float match(float galaxy_density) override;
+
+    private:
+    HaloPCA4AMManager() {
+        HaloPCAModel::get(); // trigger loading of the PCA splines
+    }
+};
+

@@ -43,6 +43,8 @@
 #define MIN_BSAT 0.5
 #define MAX_BSAT 100.0
 
+#define N_HPCA_COMP 4
+
 /* Structure definition for galaxies. */
 struct galaxy {
   float x,y,z;
@@ -71,10 +73,7 @@ struct galaxy {
   float c; // concentration, but currently not used in the psat formula, which makes a assumption based entirely on halo mass instead.
   float age; // half-mass scale factor of the universe, an age marker. [0,1]
   float spin; // halo spin parameter
-  float halo_pca1;
-  float halo_pca2;
-  float halo_pca3;
-  float halo_pca4;
+  float halo_pca[N_HPCA_COMP]; // PCA coordinates of halo (log10(mass), concentration, spin, age)
   int nsat;
 };
 
