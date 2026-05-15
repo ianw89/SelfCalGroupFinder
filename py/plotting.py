@@ -1915,27 +1915,42 @@ def hodt_satparams_evolution_2(gc: GroupCatalog, colors: list):
     for color in colors:
         if color == 'k':
             popt = gc.hodt_sat_all_popt
+            poptc = gc.hodt_cen_all_popt
             label = 'All'
         elif color == 'r':
             popt = gc.hodt_sat_red_popt
+            poptc = gc.hodt_cen_red_popt
             label = 'Quiescent'
         elif color == 'b':
             popt = gc.hodt_sat_blue_popt
+            poptc = gc.hodt_cen_blue_popt
             label = 'Star-forming'
 
         popt = np.array(popt) 
-        axes[0].plot(maglims[:-1], 10**popt[:,1] / 10**popt[:,0], 'o', markersize=9, markerfacecolor=color, markeredgecolor='k', markeredgewidth=1.8, label=label, color=color, alpha=1.0)
+        poptc = np.array(poptc)
+        axes[0].plot(maglims[:-1], 10**popt[:,1] / 10**poptc[:,0], 'o', markersize=9, markerfacecolor=color, markeredgecolor='k', markeredgewidth=1.8, label=label, color=color, alpha=1.0)
         axes[1].plot(maglims[:-1], popt[:,2], 'o', markersize=9, markerfacecolor=color, markeredgecolor='k', markeredgewidth=1.8, label=label, color=color, alpha=1.0)
 
     # Plot Zehavi 2011 Results
-    z_Mr = [-18.0, -18.5, -19.0, -19.5, -20.0, -20.5, -21.0, -21.5, -22.0]
-    #z_Mr_trans = sdss_mag_to_bgslike_mag(z_Mr)
-    z_logM1 = [12.42, 12.50, 12.63, 12.75, 12.98, 13.43, 13.76, 14.20, 14.80]
-    z_logM0 = [9.81, 8.99, 9.77, 12.23, 12.35, 11.62, 12.71, 13.35, 13.72]
-    z_alpha = [1.04, 1.02, 1.02, 0.99, 1.00, 1.15, 1.15, 1.09, 1.35]
-    z_alpha_err = [0.04, 0.03, 0.02, 0.04, 0.05, 0.03, 0.06, 0.17, 0.49]
+    z_Mr = np.array([-18.0, -18.5, -19.0, -19.5, -20.0, -20.5, -21.0, -21.5, -22.0])
+    #z_Mr = sdss_mag_to_bgslike_mag(z_Mr)
+    z_logM1 = np.array([12.42, 12.50, 12.63, 12.75, 12.98, 13.43, 13.76, 14.20, 14.80])
+    z_logM1_err = np.array([0.05, 0.04, 0.04, 0.07, 0.07, 0.04, 0.05, 0.07, 0.08])
+    z_logM0 = np.array([9.81, 8.99, 9.77, 12.23, 12.35, 11.62, 12.71, 13.35, 13.72])
+    z_logMmin = np.array([11.18, 11.33, 11.45, 11.57, 11.83, 12.14, 12.78, 13.38, 14.06])
+    z_logMmin_err = np.array([0.04, 0.07, 0.04, 0.04, 0.03, 0.03, 0.1, 0.07, 0.06])
+    z_alpha = np.array([1.04, 1.02, 1.02, 0.99, 1.00, 1.15, 1.15, 1.09, 1.35])
+    z_alpha_err = np.array([0.04, 0.03, 0.02, 0.04, 0.05, 0.03, 0.06, 0.17, 0.49])
 
-    axes[0].plot(z_Mr, 10**np.array(z_logM1) / 10**np.array(z_logM0), '-', color='purple', label='Zehavi+2011')
+    x = 10**z_logM1
+    y = 10**z_logMmin
+    x_err = 10**(z_logM1 + z_logM1_err) - x 
+    y_err = 10**(z_logMmin + z_logMmin_err) - y
+    ratio = x / y
+    ratio_err = ratio * np.sqrt( (x_err / x)**2 + (y_err / y)**2 )
+
+    axes[0].plot(z_Mr, ratio, '-', color='purple', label='Zehavi+2011')
+    axes[0].fill_between(z_Mr, ratio - ratio_err, ratio + ratio_err, color='purple', alpha=0.3)
     axes[1].plot(z_Mr, z_alpha, '-', color='purple', label='Zehavi+2011 (All)')
     axes[1].fill_between(z_Mr, np.array(z_alpha)-np.array(z_alpha_err), np.array(z_alpha)+np.array(z_alpha_err), color='purple', alpha=0.3)
 
@@ -1943,8 +1958,8 @@ def hodt_satparams_evolution_2(gc: GroupCatalog, colors: list):
     for ax in axes:
         ax.invert_xaxis()
     axes[0].set_xlabel("$M_r^{0.1}$ Threshold")
-    axes[0].set_ylabel("$M_{sat} / M_{cut}$")
-    axes[0].set_ylim(0, 110)
+    axes[0].set_ylabel("$\log (M_{\\rm sat} / M_{\\rm min})$")
+    axes[0].set_yscale('log')
     axes[1].set_xlabel("$M_r^{0.1}$ Threshold")
     axes[1].set_ylabel("α")
     for ax in axes:
@@ -2511,9 +2526,11 @@ def lostgal_lum_func_paper_compare(*catalogs):
             lost_assumed_red_counts[lost_assumed_red_counts < lim] = np.nan
             lost_assumed_blue_counts[lost_assumed_blue_counts < lim] = np.nan
 
-            red_percent_change =  ((lost_assumed_red_counts - lost_truth_red_counts) / lost_truth_red_counts) * 100
-            blue_percent_change =  ((lost_assumed_blue_counts - lost_truth_blue_counts) / lost_truth_blue_counts) * 100
-            return red_percent_change, blue_percent_change
+            red_ratio = np.divide(lost_assumed_red_counts, lost_truth_red_counts, out=np.full_like(lost_assumed_red_counts, np.nan), where=lost_truth_red_counts!=0)
+            blue_ratio = np.divide(lost_assumed_blue_counts, lost_truth_blue_counts, out=np.full_like(lost_assumed_blue_counts, np.nan), where=lost_truth_blue_counts!=0)
+            #red_percent_change =  ((lost_assumed_red_counts - lost_truth_red_counts) / lost_truth_red_counts) * 100
+            #blue_percent_change =  ((lost_assumed_blue_counts - lost_truth_blue_counts) / lost_truth_blue_counts) * 100
+            return red_ratio, blue_ratio
 
         # Main result
         assumed_vs_truth_red[i], assumed_vs_truth_blue[i] = _iteration(np.arange(len(lost_withT_galaxies)))
@@ -2540,32 +2557,32 @@ def lostgal_lum_func_paper_compare(*catalogs):
         # shaded error bars
         axes[0].fill_between(x, assumed_vs_truth_red[i] - assumed_vs_truth_red_err[i], assumed_vs_truth_red[i] + assumed_vs_truth_red_err[i], color=catalogs[i].color, alpha=SHADED_ERR_ALPHA)
     axes[0].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
-    axes[0].set_ylabel("$\Delta \Phi_{L}^{q}(L)$ (%)")
+    axes[0].set_ylabel("$\log (\Phi_L^{q}(L) / \Phi^{q}(L))$")
     axes[0].set_xscale('log')
+    axes[0].set_yscale('log')
     axes[0].set_xlim(1e9, LGAL_MAX_TIGHT)
-    axes[0].set_ylim(-percent_lim, percent_lim)
-    axes[0].axhline(0, color='black', lw=1)
-    axes[0].text(0.65, 0.05, "Quiescent", transform=axes[0].transAxes)
+    axes[0].axhline(1, color='black', lw=1)
+    axes[0].text(0.5, 0.9, "Quiescent", transform=axes[0].transAxes)
     ax2 = axes[0].twiny()
     ax2.set_xscale('linear')
     ax2.set_xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
-    ax2.set_xlabel('$M_r - 5log(h)$')
+    ax2.set_xlabel('$M_r^{0.1} - 5\\log(h)$')
 
     for i in range(len(catalogs)):
         axes[1].plot(x , assumed_vs_truth_blue[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
         #axes[1].errorbar(x, assumed_vs_truth_blue[i], yerr=assumed_vs_truth_blue_err[i], label=f"{catalogs[i].name}", color=catalogs[i].color, fmt='-')
         axes[1].fill_between(x, assumed_vs_truth_blue[i] - assumed_vs_truth_blue_err[i], assumed_vs_truth_blue[i] + assumed_vs_truth_blue_err[i], color=catalogs[i].color, alpha=SHADED_ERR_ALPHA)
     axes[1].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
-    axes[1].set_ylabel("$\Delta \Phi_{L}^{sf}(L)$ (%)")
+    axes[1].set_ylabel("$\log (\Phi_L^{sf}(L) / \Phi^{sf}(L))$")
     axes[1].set_xscale('log')
+    axes[1].set_yscale('log')
     axes[1].set_xlim(1e8, LGAL_MAX_TIGHT)
-    axes[1].set_ylim(-percent_lim, percent_lim)
-    axes[1].axhline(0, color='black', lw=1)
-    axes[1].text(0.6, 0.05, "Star-forming", transform=axes[1].transAxes)
+    axes[1].axhline(1, color='black', lw=1)
+    axes[1].text(0.5, 0.9, "Star-forming", transform=axes[1].transAxes)
     ax3 = axes[1].twiny()
     ax3.set_xscale('linear')
     ax3.set_xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
-    ax3.set_xlabel('$M_r - 5log(h)$')
+    ax3.set_xlabel('$M_r^{0.1} - 5\\log(h)$')
 
     axes[1].legend()
     fig.tight_layout()
