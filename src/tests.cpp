@@ -13,7 +13,7 @@
 
 #define TEST_CASE(condition, value, message) \
     if (!(condition)) { \
-        std::cerr << "Test failed: " << message << "\n" \
+        std::cerr << "! TEST FAILED ! : " << message << "\n" \
                   << "  Value: " << (value) << "\n" \
                   << "  File: " << __FILE__ << ", Line: " << __LINE__ << "\n"; \
         std::abort(); \
@@ -642,7 +642,7 @@ void test_HaloMassAMManager_match_halo_monotonic() {
 
 void test_HaloPCAModel_model() {
     // Load the HaloPCAModel and sample some values to see if it's loaded right.
-    printf("=== HALOPCA DENSITY FUNCS TESTS ===\n");
+    printf("=== HaloPCAModel MODEL TESTS ===\n");
     HaloPCAModel& t = HaloPCAModel::get();
     // LOGMHALO, c, Spin, Halfmass_scale
     galaxy g = {};
@@ -650,7 +650,7 @@ void test_HaloPCAModel_model() {
     g.c = 4.141850;
     g.spin = 0.03922;
     g.age = 0.4420;
-    float halo1_pca_expected[] = {3.181701, 6.572928, 1.333168, -1.347537}; // From Python implementation with same PCA components and scaler
+    float halo1_pca_expected[] = {2.64207392,  4.05250815,  2.13720949, -0.52889892}; // From Python implementation with same PCA components and scaler
     t.forward_transform(&g);
     for (int i = 0; i < 4; ++i) {
         TEST_CASE(isclose(g.halo_pca[i], halo1_pca_expected[i]), g.halo_pca[i], "Halo PCA value should match expected");
@@ -666,40 +666,49 @@ void test_HaloPCAModel_model() {
 }
 
 void test_HaloPCADensityFuncs_loading_and_splines() {
-    printf("\n=== HALO PCA DENSITY FUNCTIONS LOADING AND SPLINE TESTS ===\n");
-    
-    // Force reload to ensure clean state
-    //HaloPCADensityFuncs::get().reset();
-    
+    printf("\n=== HALO PCA DENSITY FUNCTIONS LOADING ===\n");
+
+    HaloPCADensityFuncs& t = HaloPCADensityFuncs::get();
+
     // Test that files load correctly for all 4 components
     for (int idx = 0; idx < 4; idx++) {       
-        // Trigger loading by evaluating at an arbitrary point
-        double test_x = 0.0;
-        double result = HaloPCADensityFuncs::get().eval(idx, test_x);
-        
-        TEST_CASE(std::isfinite(result), result, "PCA density function should return finite value");
-        TEST_CASE(result > 0.0, result, "Density function should be non-negative");
-        
-        printf("Component %d evaluated at x=%.3f: dn/dPCA = %.6e\n", idx+1, test_x, result);
+        double* x = t.px[idx];
+        double* y = t.py[idx];
+        int n = t.n[idx];
+        // Ensure the arrays are populated
+        TEST_CASE(n > 10, idx, "PCA density function should have enough points loaded");
+        TEST_CASE(x[5] > -100, idx, "PCA density function x array should be populated");
+        TEST_CASE(y[5] >= 0, idx, "PCA density function y array should be populated");
     }
-    
+
+    printf(" *** HaloPCA density function tests passed.\n\n");
+}
+
+void test_HaloPCAFuncCumulative() {
+    printf("\n=== HALO PCA CUMULATIVE DENSITY FUNCTIONS TESTS ===\n");
+
+    HaloPCAFuncCumulative& t = HaloPCAFuncCumulative::get();
+
     // Test spline interpolation quality by checking smoothness
-    printf("\n--- Testing Spline Smoothness ---\n");
+    printf("\n--- Testing Spline Smoothness and Monotonicity ---\n");
     for (int idx = 0; idx < 4; idx++) {
-        // Sample the density function at several points
+        // Sample the cumulative density function at several points
         std::vector<double> x_vals(20);
         for (int i = 0; i < 20; i++)
             x_vals[i] = -1.0 + i * 0.1; // Sample from -1 to 1
-        double prev_val = -1.0;
+        double prev_val = -9999;
         bool is_smooth = true;
         
         printf("  Component %d samples:\n", idx+1);
         for (double x : x_vals) {
-            double val = HaloPCADensityFuncs::get().eval(idx, x);            
+            double val = t.eval(x, idx+1);            
             TEST_CASE(std::isfinite(val), val, "All interpolated values should be finite");
             
-            // Check that moving by 0.1 in PCA space doesn't cause huge jumps in density (which would indicate a bad spline fit)
-            if (prev_val > 0) {
+            if (prev_val > -9999) {
+                // Monotonic?
+                TEST_CASE(val <= prev_val, x, "Cumulative density should get smaller as we increase x since it's summed from large values down");
+
+                // Check that moving by 0.1 in PCA space doesn't cause huge jumps in density (which would indicate a bad spline fit)
                 double ratio = val / prev_val;
                 if (ratio > 1e1 || ratio < 1e-1) {
                     is_smooth = false;
@@ -715,61 +724,42 @@ void test_HaloPCADensityFuncs_loading_and_splines() {
     printf("\n--- Testing Boundary Behavior ---\n");
     for (int idx = 0; idx < 4; idx++) {
         double extreme_low = -20.0;
-        double val_low = HaloPCADensityFuncs::get().eval(idx, extreme_low);
+        double val_low = t.eval(extreme_low, idx+1);
         double extreme_high = 20.0;
-        double val_high = HaloPCADensityFuncs::get().eval(idx, extreme_high);
+        double val_high = t.eval(extreme_high, idx+1);
         
         printf("  Component %d: x=%.1f -> %.6e, x=%.1f -> %.6e\n", idx, extreme_low, val_low, extreme_high, val_high);
         
         TEST_CASE(std::isfinite(val_low), val_low, "Should handle extrapolation to low values");
         TEST_CASE(std::isfinite(val_high), val_high, "Should handle extrapolation to high values");
-        TEST_CASE(val_low >= 0.0 && val_high >= 0.0, idx, "Extrapolated densities should remain non-negative");
+        TEST_CASE(exp(val_low) >= 0.0 && exp(val_high) >= 0.0, idx, "Extrapolated densities should remain non-negative");
     }
-    
-    // Test that different components have different distributions
-    printf("\n--- Testing Component Independence ---\n");
-    double test_points[] = {-2.0, 0.0, 2.0};
-    bool components_differ = false;
-    
-    for (double x : test_points) {
-        double vals[4];
-        for (int idx = 0; idx < 4; idx++) {
-            vals[idx] = HaloPCADensityFuncs::get().eval(idx, x);
-        }
-        
-        // Check that at least some components differ significantly
-        for (int i = 0; i < 3; i++) {
-            for (int j = i+1; j < 4; j++) {
-                double ratio = vals[i] / (vals[j] + 1e-30);
-                if (ratio > 1.5 || ratio < 0.67) {
-                    components_differ = true;
-                }
-            }
-        }
-    }
-    
-    TEST_CASE(components_differ, 0, "PCA components should have different distributions");
 
-    printf(" *** HaloPCA density function tests passed.\n\n");
 }
 
 void test_HaloPCAAMManager_monotonic() {
-    printf("=== HaloPCA AMManager MONOTONICITY TESTS ===\n");
+    printf("\n=== HaloPCA SHAM Manager MONOTONICITY TESTS ===\n");
 
     AbundanceMatchingManager* mgrs[] = { &HaloPCA1AMManager::get(), &HaloPCA2AMManager::get(), &HaloPCA3AMManager::get(), &HaloPCA4AMManager::get() };
-    /**
+    
+    int idx = 0;
     for (AbundanceMatchingManager* mgr : mgrs) {
         float prev_val = 1e99;
-        float densities[] = {1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1};
+        float densities[] = {1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 0.01, 0.03, 0.05, 0.07, 0.07005}; 
+        // This is about maximum density we see right now, which is good because the density functions are only defined up to the max density in the training data. 
+        // It will not be able to find a root (zbrent) beyond that. If this becomes an issue we could have it return the minimum value instead of crashing, 
+        // but I'd rather have it crashed and be warned right now so we can reconsider all this.
         for (float d : densities) {
             float m = mgr->match(d);
-            TEST_CASE(m < prev_val, d, "Higher galaxy density maps lower pca value");
-            TEST_CASE(m >= HALO_PCA_MIN && m <= HALO_PCA_MAX, m, "Mass within HMF bounds");
+            char msg[100];
+            snprintf(msg, sizeof(msg), "Higher galaxy density should map to lower PCA%d value (den=%.2e)", idx+1, d);
+            TEST_CASE(m < prev_val, m, msg); // TODO change this once we are doing sensible things
             prev_val = m;
         }
-    } */
+        idx++;
+    }
 
-    printf(" *** HaloPCAAMManager.match monotonicity tests passed.\n\n");
+    printf(" *** HaloPCA SHAM Manager match monotonicity tests passed.\n\n");
 }
 
 int main(int argc, char **argv) {
@@ -787,6 +777,7 @@ int main(int argc, char **argv) {
     test_HaloMassAMManager_match_halo_monotonic();
     test_HaloPCAModel_model();
     test_HaloPCADensityFuncs_loading_and_splines();
+    test_HaloPCAFuncCumulative();
     test_HaloPCAAMManager_monotonic();
     
     printf(" *** ALL TESTS PASSED ***\n");

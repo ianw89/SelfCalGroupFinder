@@ -33,12 +33,6 @@ double HMFCumulative::eval(double logmass) {
     return gsl_spline_eval_extrap(spline, mh, nh, N, logmass, acc);
 }
 
-// Free the spline so it is rebuilt on the next eval() call.
-void HMFCumulative::reset() {
-    if (spline) { gsl_spline_free(spline); spline = nullptr; }
-    if (acc)    { gsl_interp_accel_free(acc); acc = nullptr; }
-}
-
 void HMFCumulative::build() {
     double mlo = HALO_MIN, mhi = HALO_MAX;
     double dlogm = log(mhi / mlo) / N;
@@ -207,25 +201,17 @@ void AbundanceMatchingManager::reset() {
 }
   
 float HaloMassAMManager::match(float galaxy_density) {
+    // Let's track the largest galaxy density we've seen so far and print it later
+    if (galaxy_density > max_density_seen) {
+        max_density_seen = galaxy_density;
+    }
     return exp(zbrent(func_match_nhost, log(HALO_MIN), log(HALO_MAX), 1.0E-5, galaxy_density));
 }
-
-
-
 
 
 HaloPCADensityFuncs::HaloPCADensityFuncs() {
     for (int i = 0; i < NCOMP; ++i)
         build(i);
-}
-
-double HaloPCADensityFuncs::eval(int idx, double val) {
-    if (idx < 0 || idx >= NCOMP) {
-        LOG_ERROR("Invalid PCA component index %d\n", idx);
-        assert(false);
-    }
-    double v = gsl_spline_eval_extrap(spline[idx], px[idx], py[idx], n[idx], val, acc[idx]);
-    return (v < 0.0) ? 0.0 : v;
 }
 
 void HaloPCADensityFuncs::build(int idx) {
@@ -236,25 +222,13 @@ void HaloPCADensityFuncs::build(int idx) {
         HALO_PCA4_DENSITY_FUNC_FILE
     };
     FILE *fp = openfile(files[idx]);
-    int cnt = filesize(fp);
-    px[idx] = (double*)malloc(cnt * sizeof(double));
-    py[idx] = (double*)malloc(cnt * sizeof(double));
-    n[idx] = cnt;
-    for (int i = 0; i < cnt; i++)
+    n[idx] = filesize(fp);
+    px[idx] = (double*)malloc(n[idx] * sizeof(double));
+    py[idx] = (double*)malloc(n[idx] * sizeof(double));
+    for (int i = 0; i < n[idx]; i++)
         fscanf(fp, "%lf %lf", &px[idx][i], &py[idx][i]);
     fclose(fp);
-    acc[idx] = gsl_interp_accel_alloc();
-    spline[idx] = gsl_spline_alloc(gsl_interp_cspline, cnt);
-    if (!spline[idx] || !acc[idx]) {
-        LOG_ERROR("Failed to allocate GSL spline or accelerator for PCA component %d\n", idx + 1);
-        exit(1);
-    }
-    int status = gsl_spline_init(spline[idx], px[idx], py[idx], cnt);
-    if (status) {
-        LOG_ERROR("Failed to initialize GSL spline for PCA component %d: %s\n", idx + 1, gsl_strerror(status));
-        exit(1);
-    }
-    //std::cout << "Loaded PCA density function for component " << (idx + 1) << " with " << cnt << " points." << std::endl;
+    //std::cerr << "Loaded PCA density function for component " << (idx + 1) << " with " << n[idx] << " points." << std::endl;
 }
 
 HaloPCAFuncCumulative::HaloPCAFuncCumulative() {
@@ -262,75 +236,79 @@ HaloPCAFuncCumulative::HaloPCAFuncCumulative() {
         build(i);
 }
 
-// Returns log( n(>pca_val) ) via spline interpolation.
+// Returns n(>pca_val) via spline interpolation.
 double HaloPCAFuncCumulative::eval(double pca_val, int comp) {
     int idx = comp - 1;
-    return gsl_spline_eval_extrap(spline[idx], mh[idx], nh[idx], N, pca_val, acc[idx]);
+    #ifndef OPTIMIZE
+    if (idx < 0 || idx >= N_HPCA_COMP) {
+        LOG_ERROR("Invalid PCA component %d in HaloPCAFuncCumulative::eval\n", comp);
+        exit(1);
+    } 
+    #endif
+    // Spline works on log CDF, so exponentiate the result to get n(>pca_val)
+    return exp(gsl_spline_eval_extrap(spline[idx], mh[idx].data(), cumulativeDensity[idx].data(), mh[idx].size(), pca_val, acc[idx]));
 }
 
-// Free the spline so it is rebuilt on the next eval() call.
-void HaloPCAFuncCumulative::reset(int comp) {
-    int idx = comp - 1;
-    if (spline[idx]) { gsl_spline_free(spline[idx]); spline[idx] = nullptr; }
-    if (acc[idx])    { gsl_interp_accel_free(acc[idx]); acc[idx] = nullptr; }
-}
 
 void HaloPCAFuncCumulative::build(int idx) {
-    //double dlogm = log(HALO_PCA_MAX / HALO_PCA_MIN) / N;
-    double dm = (HALO_PCA_MAX - HALO_PCA_MIN) / N;
 
-    static int comp_hack = 1; // so I can use qromo. Once I switch to GSL integrator can likely do cleaner thing here
-    comp_hack = idx;
-    auto integrand = [](float x) -> float {
-      return HaloPCADensityFuncs::get().eval(comp_hack, x);
-    };
+    // Get the raw tabulated density data 
+    HaloPCADensityFuncs& pdf = HaloPCADensityFuncs::get();
+    int cnt = pdf.n[idx];
+    const double *x   = pdf.px[idx];  // PCA coordinate bin centers
+    const double *rho = pdf.py[idx];  // density at each bin center
 
-    for (int i = 0; i < N; ++i) {
-        //mh[idx][i] = exp((i + 0.5) * dlogm) * mlo;
-        mh[idx][i] = HALO_PCA_MIN + (i + 0.5) * dm;
-        //double n1 = qromo(integrand, log(mh[idx][i]), log(HALO_PCA_MAX), midpnt);
-        double n1 = qromo(integrand, mh[idx][i], HALO_PCA_MAX, midpnt);
-        nh[idx][i] = (n1 > 0) ? log(n1) : -80.0; // clamp to avoid 0 in logspace
-        //mh[idx][i] = log(mh[idx][i]);
+    // Cumulative n(> x[i]) via right-to-left trapezoid sum
+    // Using bin centers so the trapezoid width is (x[i+1] - x[i])
+    mh[idx].resize(cnt);
+    cumulativeDensity[idx].resize(cnt);
+
+    double sum = 0.0;
+    mh[idx][cnt - 1] = x[cnt - 1];
+    cumulativeDensity[idx][cnt - 1] = -80.0; // assume n(> last point) = 0
+    for (int i = cnt - 2; i >= 0; i--) {
+        double dx = x[i + 1] - x[i];  // uneven bins ok
+        sum += 0.5 * (rho[i] + rho[i + 1]) * dx; // trapezoid area
+        mh[idx][i] = x[i];
+        cumulativeDensity[idx][i] = (sum > 0.0) ? log(sum) : -80.0; // a min value in log space
     }
-    
-    acc[idx] = gsl_interp_accel_alloc();
-    spline[idx] = gsl_spline_alloc(gsl_interp_cspline, N); 
+
+    // Fit spline to the cumulative density function
+    acc[idx]    = gsl_interp_accel_alloc();
+    spline[idx] = gsl_spline_alloc(gsl_interp_cspline, cnt);
     if (!spline[idx] || !acc[idx]) {
-        LOG_ERROR("Failed to allocate GSL spline or accelerator for PCA component %d\n", idx + 1);
+        LOG_ERROR("Failed to allocate GSL spline for PCA cumulative %d\n", idx + 1);
         exit(1);
     }
-    int status = gsl_spline_init(spline[idx], mh[idx], nh[idx], N);
+    int status = gsl_spline_init(spline[idx], mh[idx].data(), cumulativeDensity[idx].data(), cnt);
     if (status) {
-        LOG_ERROR("Failed to initialize GSL spline for PCA component %d: %s\n", idx + 1, gsl_strerror(status));
+        LOG_ERROR("GSL spline init failed for PCA cumulative %d: %s\n", idx + 1, gsl_strerror(status));
         exit(1);
     }
+
+    //std::cerr << "Built cumulative density spline for PCA component " << (idx + 1) << " with " << cnt << " points." << std::endl;
 }
 
 float func_match_nhost_pca1(float pca_val, float galdensity) {
-    std::cout << "Matching galaxy density " << galdensity << " to PCA component 1 value..." << std::endl;
-    double a = HaloPCAFuncCumulative::get().eval(pca_val, 1);
-    return exp(a) - galdensity;
+    //std::cerr << "Matching galaxy density " << galdensity << " to PCA component 1 value..." << std::endl;
+    return HaloPCAFuncCumulative::get().eval(pca_val, 1) - galdensity;
 }
 
 float func_match_nhost_pca2(float pca_val, float galdensity) {
-    double a = HaloPCAFuncCumulative::get().eval(pca_val, 2);
-    return exp(a) - galdensity;
+    return HaloPCAFuncCumulative::get().eval(pca_val, 2) - galdensity;
 }
 
 float func_match_nhost_pca3(float pca_val, float galdensity) {
-    double a = HaloPCAFuncCumulative::get().eval(pca_val, 3);
-    return exp(a) - galdensity;
+    return HaloPCAFuncCumulative::get().eval(pca_val, 3) - galdensity;
 }
 
 float func_match_nhost_pca4(float pca_val, float galdensity) {
-    double a = HaloPCAFuncCumulative::get().eval(pca_val, 4);
-    return exp(a) - galdensity;
+    return HaloPCAFuncCumulative::get().eval(pca_val, 4) - galdensity;
 }
 
 
 float HaloPCA1AMManager::match(float galaxy_density) {
-    std::cout << "Matching galaxy density " << galaxy_density << " to PCA component 1 value..." << std::endl;
+    //std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 1 value..." << std::endl;
     return zbrent(func_match_nhost_pca1, HALO_PCA_MIN, HALO_PCA_MAX, 1.0E-5, galaxy_density);
 }
 float HaloPCA2AMManager::match(float galaxy_density) {

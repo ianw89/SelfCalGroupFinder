@@ -4,6 +4,7 @@
 #include <gsl/gsl_errno.h>
 #include <fstream>
 #include <sstream>
+#include <vector>
 #include "groups.hpp"
 
 // Min/Max for abundance matching.
@@ -17,8 +18,8 @@
 #define HALO_MAX 1.0E+16
 #define HALO_MIN 1.0E+8
 
-#define HALO_PCA_MIN -20.0
-#define HALO_PCA_MAX 20.0
+#define HALO_PCA_MIN -25.0
+#define HALO_PCA_MAX 25.0
 
 // Interface for methods like density2host_halo
 
@@ -40,7 +41,6 @@ class HMFCumulative {
         return inst;
     }    
     double eval(double logmass);
-    void reset();
 
     private:
     static constexpr int N = 100;
@@ -85,6 +85,7 @@ class AbundanceMatchingManager {
 
 class HaloMassAMManager : public AbundanceMatchingManager {
     public:
+    double max_density_seen = 0.0;
 
     static HaloMassAMManager& get() {
         static HaloMassAMManager inst;
@@ -100,6 +101,7 @@ class HaloMassAMManager : public AbundanceMatchingManager {
     float match(float galaxy_density) override;
 
     private:
+    
     bool loaded = false;
     HaloMassAMManager() {
         HMFCumulative::get(); // trigger loading of the halo mass function spline
@@ -116,13 +118,8 @@ class HaloMassAMManager : public AbundanceMatchingManager {
 // *******************************************************************
 
 
-// Singleton holding the PCA model matrices for halo property transforms.
-// Reads HALO_PCA_MODEL_TEXT_FILE (written by pca_halo.ipynb).
-// Features order: LOGMHALO, c, Spin, Halfmass_Scale
-
-
-// Singleton holding splines for the 4 halo PCA component density functions.
-// Each spline is a fit to the a PCA coordinate density (Mpc^-3 h^3) as read from input files.
+// Singleton holding tabulated density functions for the 4 halo PCA components.
+// The PCA coordinate density is assumed to be in (Mpc^-3 h^3) as read from input files.
 // This is the equivalent of HaloMassFunction. 
 class HaloPCADensityFuncs {
 public:
@@ -133,25 +130,21 @@ public:
         return inst;
     }
 
-    /**
-     * Returns the probability density at PCA coordinate x for PCA component index (0-3).
-     * Both val and the returned density are in linear space (not log).
-     * Clamped to >= 0 since the cubic spline can dip below zero in sparse regions.
-     */
-    double eval(int idx, double val);
-
-private:
     int n[NCOMP] = {0, 0, 0, 0};
     double *px[NCOMP] = {nullptr, nullptr, nullptr, nullptr};
     double *py[NCOMP] = {nullptr, nullptr, nullptr, nullptr};
-    gsl_interp_accel *acc[NCOMP] = {nullptr, nullptr, nullptr, nullptr};
-    gsl_spline *spline[NCOMP] = {nullptr, nullptr, nullptr, nullptr};
-    
+
+private:
     HaloPCADensityFuncs();
+    /**
+     * Read in the tabulated density function.
+     */
     void build(int idx);
 };
 
-
+// Singleton holding the PCA model matrices for halo property transforms.
+// Reads HALO_PCA_MODEL_TEXT_FILE (written by pca_halo.ipynb).
+// Features order: LOGMHALO, c, Spin, Halfmass_Scale
 class HaloPCAModel {
 public:
     static constexpr int NFEAT = 4;
@@ -187,13 +180,12 @@ class HaloPCAFuncCumulative {
         static HaloPCAFuncCumulative inst;
         return inst;
     }    
-    double eval(double logmass, int comp);
-    void reset(int comp);
+    double eval(double pca_val, int comp);
 
     private:
     static constexpr int N = 200;
-    double mh[N_HPCA_COMP][N]; // PCA coordinate values for each component (log mass, concentration, spin, age)
-    double nh[N_HPCA_COMP][N]; // log cumulative number density for each PCA component
+    std::vector<double> mh[N_HPCA_COMP]; // PCA coordinate values for each component (log mass, concentration, spin, age)
+    std::vector<double> cumulativeDensity[N_HPCA_COMP]; // log cumulative number density for each
     gsl_interp_accel* acc[N_HPCA_COMP] = {nullptr, nullptr, nullptr, nullptr};
     gsl_spline* spline[N_HPCA_COMP] = {nullptr, nullptr, nullptr, nullptr};
 
