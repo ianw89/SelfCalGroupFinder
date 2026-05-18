@@ -2557,7 +2557,7 @@ def lostgal_lum_func_paper_compare(*catalogs):
         # shaded error bars
         axes[0].fill_between(x, assumed_vs_truth_red[i] - assumed_vs_truth_red_err[i], assumed_vs_truth_red[i] + assumed_vs_truth_red_err[i], color=catalogs[i].color, alpha=SHADED_ERR_ALPHA)
     axes[0].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
-    axes[0].set_ylabel("$\log (\Phi_L^{q}(L) / \Phi^{q}(L))$")
+    axes[0].set_ylabel("$\log (\Phi_L^{q}(L) / \Phi_{L,\\rm true}^{q}(L))$")
     axes[0].set_xscale('log')
     axes[0].set_yscale('log')
     axes[0].set_xlim(1e9, LGAL_MAX_TIGHT)
@@ -2573,7 +2573,7 @@ def lostgal_lum_func_paper_compare(*catalogs):
         #axes[1].errorbar(x, assumed_vs_truth_blue[i], yerr=assumed_vs_truth_blue_err[i], label=f"{catalogs[i].name}", color=catalogs[i].color, fmt='-')
         axes[1].fill_between(x, assumed_vs_truth_blue[i] - assumed_vs_truth_blue_err[i], assumed_vs_truth_blue[i] + assumed_vs_truth_blue_err[i], color=catalogs[i].color, alpha=SHADED_ERR_ALPHA)
     axes[1].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
-    axes[1].set_ylabel("$\log (\Phi_L^{sf}(L) / \Phi^{sf}(L))$")
+    axes[1].set_ylabel("$\log (\Phi_L^{sf}(L) / \Phi_{L,\\rm true}^{sf}(L))$")
     axes[1].set_xscale('log')
     axes[1].set_yscale('log')
     axes[1].set_xlim(1e8, LGAL_MAX_TIGHT)
