@@ -125,7 +125,7 @@ BGS_Y1_COMBINED_PHOTOMETRIC_CATALOG = BGS_Y1_FOLDER + "targetphot-iron-combined.
 IAN_BGS_Y1_MERGED_FILE = BGS_Y1_FOLDER + "ian_BGS_merged.fits"
 
 # BGS Y3 DATA FILES
-###################
+###################  # TODO switch to loa 2.1
 BGS_Y3_ANY_FULL_FILE = '/global/cfs/cdirs/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v1.1/BGS_ANY_full.dat.fits' if ON_NERSC else BGS_Y3_FOLDER_LOA + "BGS_ANY_full.dat.fits"
 BGS_Y3_RAND_FILE = '/global/cfs/cdirs/desi/survey/catalogs/DA2/LSS/loa-v1/LSScats/v1.1/BGS_BRIGHT_X_full.ran.fits' if ON_NERSC else BGS_Y3_FOLDER_LOA + "BGS_BRIGHT_X_full.ran.fits"
 BGS_Y3_TILES_FILE = '/global/cfs/cdirs/desi/spectro/redux/loa/tiles-loa.csv' if ON_NERSC else BGS_Y3_FOLDER_LOA + "tiles-loa.csv"
