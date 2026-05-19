@@ -997,11 +997,8 @@ class GroupCatalog:
                     self.lhmr_b_std = np.array(data[5], dtype=dtype)
 
             elif msg_type == MSG_LSAT:
-                if count != lsat_bincount * 2:
-                    raise Exception(f"Unexpected lsat data count: {count}, expected {lsat_bincount * 2}")
-                else:
-                    self.lsat_r = np.array(data[0:lsat_bincount], dtype=dtype)
-                    self.lsat_b = np.array(data[lsat_bincount:lsat_bincount*2], dtype=dtype)
+                self.lsat_r = np.array(data[0:lsat_bincount], dtype=dtype)
+                self.lsat_b = np.array(data[lsat_bincount:lsat_bincount*2], dtype=dtype)
 
             elif msg_type == MSG_HOD:
                 cols = self.caldata.bincount*7 + 1
@@ -1079,6 +1076,8 @@ class GroupCatalog:
             args.append(f"--popmock={MOCK_FILE_FOR_POPMOCK},volume_bins.dat")
         if verbose:
             args.append("-v")
+        if 'latent' in self.GF_props and self.GF_props['latent']:
+            args.append("--latent")
         if 'hodw' in self.GF_props:
             args.append(f"--hodw={self.GF_props['hodw']}")
         if interactive:
@@ -1117,8 +1116,6 @@ class GroupCatalog:
             self.outstream.close()
             self.outstream = None
 
-
-            # TODO Group Finder does not consistently return >0 for errors.
             if self.proc.returncode != 0:
                 print(f"ERROR: Group Finder failed with return code {self.proc.returncode}.")
                 self.proc = None
@@ -1239,7 +1236,7 @@ class GroupCatalog:
 
         dof = 0
 
-        with np.printoptions(precision=0, suppress=True, linewidth=300):
+        with np.printoptions(precision=1, suppress=True, linewidth=300):
             chi = 0
             clustering_chisqr_r = []
             clustering_chisqr_b = []
@@ -1323,6 +1320,8 @@ class GroupCatalog:
             chivec = (y-m)**2/(e**2+em**2)
             chi = chi + np.sum(chivec)
             """
+
+            dof -= 10 # for the 10 parameters we are fitting, to get reduced chi squared
 
             chi = np.sum(lsat_chisqr) + np.sum(clustering_chisqr_r) + np.sum(clustering_chisqr_b) + np.sum(clustering_chisqr_all)
 
@@ -2748,7 +2747,7 @@ def z_flag_is_not_spectro_z(arr):
 ##############################
 def compute_lsat_chisqr(observed, model_lsat_r, model_lsat_b):
 
-    #obs_lcen = data[:,0] # log10 already
+    obs_lcen = observed[:,0] # log10 already
     obs_lsat_r = observed[:,1] # fr
     obs_err_r = observed[:,2] # er
     obs_lsat_b = observed[:,3] # fb
@@ -2758,10 +2757,24 @@ def compute_lsat_chisqr(observed, model_lsat_r, model_lsat_b):
     # Dividing two quantities with errors, so we need to propagate the errors
     obs_ratio_err = obs_ratio * ((obs_err_r/obs_lsat_r)**2 + (obs_err_b/obs_lsat_b)**2)**.5
 
+    # model is always 8.7 to 11.0. Cut to match observed.
+    if len(obs_lcen) != len(model_lsat_r):
+        print("WARNING: Length of observed Lcen does not match what group finder sent. Cutting model to what the old SDSS Lsat range was.")
+        model_mask = np.repeat(True, len(model_lsat_r))
+        model_mask[0] = False
+        model_mask[-1] = False
+        model_mask[-2] = False
+        model_mask[-3] = False
+        model_lsat_r = model_lsat_r[model_mask]
+        model_lsat_b = model_lsat_b[model_mask]
+
     # Get Lsat for r/b centrals from the group finder's output
     model_ratio = model_lsat_r/model_lsat_b
 
     # Chi squared
+    # No model error included here, just observational error.
+    # This is OK as the clustering error is smaller and giving a little bump to Lsat importance
+    # is probably good for us right now anyway.
     lsat_chisqr = (obs_ratio - model_ratio)**2 / obs_ratio_err**2 
     print("LSat χ^2: ", lsat_chisqr)
     return lsat_chisqr

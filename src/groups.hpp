@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdio>
-#include "fit_clustering_omp.hpp" // <-- Add this include
+#include "fit_clustering_omp.hpp" 
 
 // Definitions
 #define OMEGA_M 0.315192  // In past, 0.25 was used.
@@ -43,6 +43,8 @@
 #define MIN_BSAT 0.5
 #define MAX_BSAT 100.0
 
+#define N_HPCA_COMP 4
+
 /* Structure definition for galaxies. */
 struct galaxy {
   float x,y,z;
@@ -60,20 +62,22 @@ struct galaxy {
     bprob;
   double vmax;
   int igrp;
-  int listid; // only used in fof group finder...
-  int next;
   int grp_rank; // Rank of the group it's in when finding satellites (lower number means higher priority)
   
-  // halo properties  
-  float mass,
-    theta,
-    rad,
-    sigmav,
-    lgrp; // tracks total luminosity or stellar mass of group
+  // halo/group properties  
+  float mass;
+  float theta;
+  float rad;
+  float sigmav;
+  float lgrp; // tracks total luminosity or stellar mass of group
+  float c; // concentration, but currently not used in the psat formula, which makes a assumption based entirely on halo mass instead.
+  float age; // half-mass scale factor of the universe, an age marker. [0,1]
+  float spin; // halo spin parameter
+  float halo_pca[N_HPCA_COMP]; // PCA coordinates of halo (log10(mass), concentration, spin, age)
   int nsat;
 };
 
-/* Structure for the halos in the simulations */
+/* Structure for the halos in the simulations, for mock building. Not for galaxy abundance matching. */
 struct halo {
   float x,y,z,vx,vy,vz,mass,lsat;
 };
@@ -91,6 +95,7 @@ extern int INTERACTIVE;
 extern int FLUXLIM;
 extern double FLUXLIM_MAG;
 extern int FLUXLIM_CORRECTION_MODEL;
+extern int LATENT;
 extern int COLOR;
 extern int MAX_ITER;
 extern int ALLOW_EARLY_EXIT;
@@ -104,11 +109,15 @@ extern double MINREDSHIFT;
 extern double GALAXY_DENSITY;
 extern int SILENT;
 extern int VERBOSE;
-extern int RECENTERING;
 extern HodWeightType HOD_WEIGHT_TYPE;
 extern int POPULATE_MOCK;
 extern const char *INPUTFILE;
 extern const char *HALO_MASS_FUNC_FILE;
+extern const char *HALO_PCA1_DENSITY_FUNC_FILE;
+extern const char *HALO_PCA2_DENSITY_FUNC_FILE;
+extern const char *HALO_PCA3_DENSITY_FUNC_FILE;
+extern const char *HALO_PCA4_DENSITY_FUNC_FILE;
+extern const char *HALO_PCA_MODEL_TEXT_FILE;
 extern const char *MOCK_FILE;
 extern const char *VOLUME_BINS_FILE;
 extern FILE *MSG_PIPE;
@@ -143,14 +152,9 @@ void update_galaxy_halo_props(struct galaxy *galaxy);
 
 void groupfind();
 float distance_redshift(float z);
-float density2host_halo_zbins3(float z, double vmax);
-float density2host_halo(float galaxy_density);
 int search(int n, float *x, float val);
-void test_centering(struct kdtree *kd);
-int group_center(int icen0, struct kdtree *kd);
 float angular_separation(float a1, float d1, float a2, float d2);
 float angular_separation_old(float a1, float d1, float a2, float d2);
-void test_fof(struct kdtree *kd);
 float compute_p_z(float dz, float sigmav);
 float compute_p_proj(float mass, float dr, float rad, float ang_rad);
 float compute_p_proj_g(struct galaxy *gal, float dr);

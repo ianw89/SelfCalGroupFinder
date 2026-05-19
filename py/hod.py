@@ -211,7 +211,7 @@ class HODTabulated:
 
 def hod_bins_central_model(logM, logM_min, sigma_logM1, logM_max, sigma_logM2):
     """ HOD model for central galaxies with a turn-off erf as well. """
-    val = 0.5 * (1 + erf((logM - logM_min) / sigma_logM1)) * (1 - erf((logM - logM_max) / sigma_logM2))
+    val = 0.25 * (1 + erf((logM - logM_min) / sigma_logM1)) * (1 - erf((logM - logM_max) / sigma_logM2))
     return np.log10(np.clip(val, 1e-6, None))
 
 def hod_bins_satellite_model(logM, logM_cut, logM_1, alpha):
@@ -239,13 +239,13 @@ def fit_hod_models(log_halo_mass, logncen, lognsat, unweighted_counts, use_mcmc=
     satmask = lognsat > -4
     m1_guess = len(log_halo_mass[satmask]) // 2
     p0_sat = [log_halo_mass[satmask][0], log_halo_mass[satmask][m1_guess], 1.0]
-    bounds_sat = ([9, 9.5, 0.1], [17, 20, 3.0])
+    bounds_sat = ([9.5, 9.5, 0.1], [17, 20, 3.0])
 
     if use_mcmc:
         print("--- Fitting Centrals with MCMC ---")
-        popt_cen = fit_hod_mcmc(log_halo_mass[cenmask], logncen[cenmask], unweighted_counts[cenmask], hod_bins_central_model, p0_cen, bounds_cen)
+        popt_cen = fit_hod_mcmc(log_halo_mass[cenmask], logncen[cenmask], unweighted_counts[cenmask], hod_bins_central_model, p0_cen, bounds_cen, base_err=0.005)
         print("\n--- Fitting Satellites with MCMC ---")
-        popt_sat = fit_hod_mcmc(log_halo_mass[satmask], lognsat[satmask], unweighted_counts[satmask], hod_bins_satellite_model, p0_sat, bounds_sat)
+        popt_sat = fit_hod_mcmc(log_halo_mass[satmask], lognsat[satmask], unweighted_counts[satmask], hod_bins_satellite_model, p0_sat, bounds_sat, base_err=0.1)
     else:
         print("--- Fitting with curve_fit ---")
         popt_cen, _ = curve_fit(hod_bins_central_model, log_halo_mass[cenmask], logncen[cenmask], p0=p0_cen, bounds=bounds_cen)
@@ -275,7 +275,7 @@ def _bin_log_probability(theta, x, y, yerr, model_func, lower_bounds, upper_boun
     return lp + _bin_log_likelihood(theta, x, y, yerr, model_func)
 
 
-def fit_hod_mcmc(log_halo_mass, logn, unweighted_counts, model_func, p0, bounds, min_counts=1, base_err=0.1, nwalkers=12, nsteps=10000, discard=100):
+def fit_hod_mcmc(log_halo_mass, logn, unweighted_counts, model_func, p0, bounds, min_counts=5, base_err=0.02, nwalkers=16, nsteps=10000, discard=100):
     """
     Fits a model to data using MCMC with emcee.
     The error is calculated from the unweighted counts.

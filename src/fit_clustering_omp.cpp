@@ -332,7 +332,7 @@ void lsat_model()
   // 88 to 107 for SDSS, see the lsat_sdss_con.dat file that this will be compare to. 
   // 87 to 110 for BGS Centrals on the original ~2020 Lsat data. 
   int i_start = 87;
-  int i_end = 110;
+  int i_end = 110; // inclusive
   int count = (i_end - i_start + 1); 
   if (MSG_PIPE != NULL)
   {
@@ -911,7 +911,6 @@ void lsat_model_scatter()
 
   // output this to a pre-specified file
   // (plus we knoe the limits of the data)
-  // TODO this OVERWRITES the lsat_groups.out file the other method makes!
   fp = fopen("lsat_groups2.out", "w");
   for (i = 88; i <= 106; ++i) // i=88 means 10^8.8 solar masses
     fprintf(fp, "%e %e %e\n", i / 10.0, log10(lsatr[i] / nhr[i]), log10(lsatb[i] / nhb[i]));
@@ -1139,7 +1138,6 @@ void populate_simulation_omp(int imag, SampleType type)
 
     // For a really bad set of parameters, we can get a huge number of satellites for some halos.
     // Cap it so we don't print off a 10 Terabyte file! Any MCMC or whatever will move on hopefully.
-    // TODO early abort program instead
     if (nsat_rand > MAX_SATELLITES) {
       if (!warned) {
         LOG_WARN("popsim> WARNING: giving %d sats for halo %d\n", nsat_rand, i);

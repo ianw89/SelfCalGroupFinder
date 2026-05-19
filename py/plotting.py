@@ -440,7 +440,7 @@ def LHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
     #    plt.plot(x_vals, log_mean_all, '-', color='k', label='All', alpha=0.7)
     #plt.plot(x_vals, log_means_b, '-', color='b', label='SF Centrals', alpha=0.7)
     #plt.plot(x_vals, log_means_r, '-', color='r', label='Q Centrals', alpha=0.7)
-    plt.errorbar(x_vals, log_means_b, yerr=[yerr_b_lower, yerr_b_upper], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=4, markeredgecolor='k', markeredgewidth=1.25, elinewidth=2, capsize=5, ecolor='k')
+    plt.errorbar(x_vals, log_means_b, yerr=[yerr_b_lower, yerr_b_upper], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=4, markeredgecolor='midnightblue', markeredgewidth=1.25, elinewidth=2, capsize=5, ecolor='midnightblue')
     plt.errorbar(x_vals, log_means_r, yerr=[yerr_r_lower, yerr_r_upper], label='Q Centrals', fmt='o', markerfacecolor='red', markersize=4, markeredgecolor='k', markeredgewidth=1.25, elinewidth=2, capsize=5, ecolor='k')
 
     if show_all:
@@ -560,7 +560,7 @@ def SHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None):
         plt.errorbar(x_vals2[amask], np.log10(mean_all[amask]), yerr=[yerr_all_lower[amask], yerr_all_upper[amask]], label='All', fmt='o', markerfacecolor='k', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
     #plt.plot(x_vals[bmask], np.log10(means_b[bmask]), '-', color='b', label='SF Centrals', alpha=0.7)
     #plt.plot(x_vals[rmask], np.log10(means_r[rmask]), '-', color='r', label='Q Centrals', alpha=0.7)
-    plt.errorbar(x_vals2[bmask], np.log10(means_b[bmask]), yerr=[yerr_b_lower[bmask], yerr_b_upper[bmask]], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
+    plt.errorbar(x_vals2[bmask], np.log10(means_b[bmask]), yerr=[yerr_b_lower[bmask], yerr_b_upper[bmask]], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=5, markeredgecolor='midnightblue', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='midnightblue')
     plt.errorbar(x_vals2[rmask], np.log10(means_r[rmask]), yerr=[yerr_r_lower[rmask], yerr_r_upper[rmask]], label='Q Centrals', fmt='o', markerfacecolor='red', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')    
     # No shaded systematic errors here as we didn't save it in MCMC chains.
     plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
@@ -739,7 +739,7 @@ def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
 
     if show_all:
         plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], label='All', fmt='o', markerfacecolor='k', markersize=4, markeredgecolor='k', markeredgewidth=1.25, elinewidth=2, capsize=5, ecolor='k')
-    plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=4, markeredgecolor='k', markeredgewidth=1.25, elinewidth=2, capsize=5, ecolor='k')
+    plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=4, markeredgecolor='midnightblue', markeredgewidth=1.25, elinewidth=2, capsize=5, ecolor='midnightblue')
     plt.errorbar(x_vals, scatter_r, yerr=[r_lower, r_upper], label='Q Centrals', fmt='o', markerfacecolor='red', markersize=4, markeredgecolor='k', markeredgewidth=1.25, elinewidth=2, capsize=5, ecolor='k')
 
     if show_all:
@@ -790,7 +790,7 @@ def SHMR_scatter_savederr(f: GroupCatalog, show_all=False):
 
     if show_all:
         plt.errorbar(x_vals, scatter_all, yerr=[all_lower, all_upper], label='All', fmt='o', markerfacecolor='k', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
-    plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
+    plt.errorbar(x_vals, scatter_b, yerr=[b_lower, b_upper], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=5, markeredgecolor='midnightblue', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='midnightblue')
     plt.errorbar(x_vals, scatter_r, yerr=[r_lower, r_upper], label='Q Centrals', fmt='o', markerfacecolor='red', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
 
     # No shaded systematic errors here for now as we didn't save it in MCMC chains.
@@ -955,7 +955,7 @@ def fsat_with_err_from_saved(gc: GroupCatalog, show_all=False):
     if show_all:
         axes[0].errorbar(LogLgal_labels, fsat, yerr=gc.fsat_bootstrap_err, fmt='.', label='All', markerfacecolor='k', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
     axes[0].errorbar(LogLgal_labels, fsatr, yerr=(gc.fsat_q_bootstrap_err[0], gc.fsat_q_bootstrap_err[1]), label='Q Centrals', fmt='o', markerfacecolor='red', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
-    axes[0].errorbar(LogLgal_labels, fsatb, yerr=gc.fsat_sf_bootstrap_err, label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
+    axes[0].errorbar(LogLgal_labels, fsatb, yerr=gc.fsat_sf_bootstrap_err, label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=5, markeredgecolor='midnightblue', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='midnightblue')
 
     if show_all:
         axes[0].fill_between(LogLgal_labels, fsat_err[0], fsat_err[1], color='k', alpha=SHADED_ERR_ALPHA)
@@ -984,7 +984,7 @@ def fsat_with_err_from_saved(gc: GroupCatalog, show_all=False):
     if show_all:
         axes[1].errorbar(logmstar_labels, fsat_mstar, yerr=gc.fsat_mstar_bootstrap_err, label='All', fmt='o', markerfacecolor='k', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
     axes[1].errorbar(logmstar_labels, fsat_mstar_r, yerr=gc.fsat_mstar_q_bootstrap_err, label='Quiescent', fmt='o', markerfacecolor='r', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
-    axes[1].errorbar(logmstar_labels, fsat_mstar_b, yerr=gc.fsat_mstar_sf_bootstrap_err, label='Star-forming', fmt='o', markerfacecolor='b', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
+    axes[1].errorbar(logmstar_labels, fsat_mstar_b, yerr=gc.fsat_mstar_sf_bootstrap_err, label='Star-forming', fmt='o', markerfacecolor='b', markersize=5, markeredgecolor='midnightblue', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='midnightblue')
     
     axes[1].set_xlabel('log$(M_{\\star}~/~[M_{\\odot}~h^{-2}])$')
     axes[1].set_ylabel('$f_{\mathrm{sat}}$')
@@ -1009,7 +1009,7 @@ def fsat_incompleteness_study_all(catalogs, truthcat: GroupCatalog):
     ax1.set_ylabel("$f_{\\mathrm{sat}}$")
     # Make legend text smaller
     ax1.legend(fontsize=10)
-    ax1.set_xlim(6E7,LGAL_MAX_TIGHT)
+    ax1.set_xlim(6E7,1.2E11)
     ax1.set_ylim(0.0,0.6)
     ax2=ax1.twiny()
     ax2.plot(catalogs[0].Mr_gal_labels, catalogs[0].f_sat, ls="")
@@ -1022,7 +1022,7 @@ def fsat_incompleteness_study(catalogs, truthcat: GroupCatalog):
     fig.set_dpi(DPI)
 
     panels = [
-        (axes[0], truthcat.f_sat_q, truthcat.fsat_q_bootstrap_err, 'f_sat_q', 1.0, 6E8, 'Quiescent'),
+        (axes[0], truthcat.f_sat_q, truthcat.fsat_q_bootstrap_err, 'f_sat_q', 1.0, 5E8, 'Quiescent'),
         (axes[1], truthcat.f_sat_sf, truthcat.fsat_sf_bootstrap_err, 'f_sat_sf', 0.5, 6E7, 'Star-forming')
     ]
 
@@ -1065,7 +1065,7 @@ def fsat_incompleteness_study(catalogs, truthcat: GroupCatalog):
         ax.set_xscale('log')
         ax.set_xlabel("$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2}]$")
         ax.set_ylabel("$f_{\\mathrm{sat}}$")
-        ax.set_xlim(xmin, LGAL_MAX_TIGHT)
+        ax.set_xlim(xmin, 1.2E11)
         ax.set_ylim(0.0, ymax)
         ax.text(0.05, 0.08, f"{title}", transform=ax.transAxes, fontsize=16)
 
@@ -1346,12 +1346,12 @@ def compare_wp_rp_caldata(c1: CalibrationData, c2: CalibrationData):
         ax = axes[idx]
 
         wp, wp_err, radius = c1.get_wp_red(i)
-        ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markerfacecolor='darkred', markeredgecolor='k', elinewidth=2, capsize=5, ecolor='k')
+        ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markerfacecolor='red', markeredgecolor='k', elinewidth=2, capsize=5, ecolor='k')
         wp, wp_err, radius = c2.get_wp_red(i)
         ax.plot(radius, wp, '-', color='red')
         ax.fill_between(radius, wp-wp_err, wp+wp_err, color='red', alpha=0.2)
         wp, wp_err, radius = c1.get_wp_blue(i)
-        ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markerfacecolor='darkblue', markeredgecolor='k', elinewidth=2, capsize=5, ecolor='k')
+        ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markerfacecolor='blue', markeredgecolor='midnightblue', elinewidth=2, capsize=5, ecolor='midnightblue')
         wp, wp_err, radius = c2.get_wp_blue(i)
         ax.plot(radius, wp, '-', color='blue')
         ax.fill_between(radius, wp-wp_err, wp+wp_err, color='blue', alpha=0.2)
@@ -1366,8 +1366,8 @@ def compare_wp_rp_caldata(c1: CalibrationData, c2: CalibrationData):
 
     # Make the final axes just a legend
     axes[-1].axis('off')
-    axes[-1].errorbar([], [], yerr=[], fmt='o', markersize=5, markerfacecolor='darkred', markeredgecolor='k', elinewidth=2, capsize=5, ecolor='k', label='BGS Quiescent')
-    axes[-1].errorbar([], [], yerr=[], fmt='o', markersize=5, markerfacecolor='darkblue', markeredgecolor='k', elinewidth=2, capsize=5, ecolor='k', label='BGS Star-forming')
+    axes[-1].errorbar([], [], yerr=[], fmt='o', markersize=5, markerfacecolor='red', markeredgecolor='k', elinewidth=2, capsize=5, ecolor='k', label='BGS Quiescent')
+    axes[-1].errorbar([], [], yerr=[], fmt='o', markersize=5, markerfacecolor='blue', markeredgecolor='midnightblue', elinewidth=2, capsize=5, ecolor='k', label='BGS Star-forming')
     axes[-1].plot([], [], '-', color='red', label='SDSS Quiescent')
     axes[-1].plot([], [], '-', color='blue', label='SDSS Star-forming')
     axes[-1].legend(loc='center')
@@ -1915,30 +1915,56 @@ def hodt_satparams_evolution_2(gc: GroupCatalog, colors: list):
     for color in colors:
         if color == 'k':
             popt = gc.hodt_sat_all_popt
+            poptc = gc.hodt_cen_all_popt
             label = 'All'
         elif color == 'r':
             popt = gc.hodt_sat_red_popt
+            poptc = gc.hodt_cen_red_popt
             label = 'Quiescent'
         elif color == 'b':
             popt = gc.hodt_sat_blue_popt
+            poptc = gc.hodt_cen_blue_popt
             label = 'Star-forming'
 
-        popt = np.array(popt) # Convert list to numpy array to allow slicing
-        # Reverse direction
-        axes[0].plot(maglims[:-1], 10**popt[:,1] / 10**popt[:,0], marker='o', label=label, color=color, alpha=0.7)
-        axes[1].plot(maglims[:-1], popt[:,2], marker='o', label=label, color=color, alpha=0.7)
+        popt = np.array(popt) 
+        poptc = np.array(poptc)
+        axes[0].plot(maglims[:-1], 10**popt[:,1] / 10**poptc[:,0], 'o', markersize=9, markerfacecolor=color, markeredgecolor='k', markeredgewidth=1.8, label=label, color=color, alpha=1.0)
+        axes[1].plot(maglims[:-1], popt[:,2], 'o', markersize=9, markerfacecolor=color, markeredgecolor='k', markeredgewidth=1.8, label=label, color=color, alpha=1.0)
+
+    # Plot Zehavi 2011 Results
+    z_Mr = np.array([-18.0, -18.5, -19.0, -19.5, -20.0, -20.5, -21.0, -21.5, -22.0])
+    #z_Mr = sdss_mag_to_bgslike_mag(z_Mr)
+    z_logM1 = np.array([12.42, 12.50, 12.63, 12.75, 12.98, 13.43, 13.76, 14.20, 14.80])
+    z_logM1_err = np.array([0.05, 0.04, 0.04, 0.07, 0.07, 0.04, 0.05, 0.07, 0.08])
+    z_logM0 = np.array([9.81, 8.99, 9.77, 12.23, 12.35, 11.62, 12.71, 13.35, 13.72])
+    z_logMmin = np.array([11.18, 11.33, 11.45, 11.57, 11.83, 12.14, 12.78, 13.38, 14.06])
+    z_logMmin_err = np.array([0.04, 0.07, 0.04, 0.04, 0.03, 0.03, 0.1, 0.07, 0.06])
+    z_alpha = np.array([1.04, 1.02, 1.02, 0.99, 1.00, 1.15, 1.15, 1.09, 1.35])
+    z_alpha_err = np.array([0.04, 0.03, 0.02, 0.04, 0.05, 0.03, 0.06, 0.17, 0.49])
+
+    x = 10**z_logM1
+    y = 10**z_logMmin
+    x_err = 10**(z_logM1 + z_logM1_err) - x 
+    y_err = 10**(z_logMmin + z_logMmin_err) - y
+    ratio = x / y
+    ratio_err = ratio * np.sqrt( (x_err / x)**2 + (y_err / y)**2 )
+
+    axes[0].plot(z_Mr, ratio, '-', color='purple', label='Zehavi+2011')
+    axes[0].fill_between(z_Mr, ratio - ratio_err, ratio + ratio_err, color='purple', alpha=0.3)
+    axes[1].plot(z_Mr, z_alpha, '-', color='purple', label='Zehavi+2011 (All)')
+    axes[1].fill_between(z_Mr, np.array(z_alpha)-np.array(z_alpha_err), np.array(z_alpha)+np.array(z_alpha_err), color='purple', alpha=0.3)
 
     # x axis is reversed
     for ax in axes:
         ax.invert_xaxis()
     axes[0].set_xlabel("$M_r^{0.1}$ Threshold")
-    axes[0].set_ylabel("$M_{sat} / M_{cut}$")
-    axes[0].set_ylim(0, 110)
+    axes[0].set_ylabel("$\log (M_{\\rm sat} / M_{\\rm min})$")
+    axes[0].set_yscale('log')
     axes[1].set_xlabel("$M_r^{0.1}$ Threshold")
     axes[1].set_ylabel("α")
     for ax in axes:
         ax.grid(True)
-    axes[0].legend()
+    axes[1].legend()
     
     plt.tight_layout()
 
@@ -2232,18 +2258,26 @@ def proj_clustering_plot(gc: GroupCatalog):
 
         if caldata.color_separation[idx]:
             wp, wp_err, radius = caldata.get_wp_red(i)
-            ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markeredgewidth=1.5, markeredgecolor='k', markerfacecolor='darkred', capsize=5, elinewidth=1.5, ecolor='k')
+            ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markeredgewidth=1.4, markeredgecolor='k', markerfacecolor='red', capsize=5, elinewidth=1.5, ecolor='k')
 
             wp_mock, wp_mock_err = gc.get_mock_wp(i, 'red', wp_err)
             ax.plot(radius, wp_mock, '-', color='r', alpha=1.0)
             ax.fill_between(radius, wp_mock - wp_mock_err, wp_mock + wp_mock_err, color='r', alpha=SHADED_ERR_ALPHA)
 
             wp, wp_err, radius = caldata.get_wp_blue(i)
-            ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markeredgewidth=1.5, markeredgecolor='k', markerfacecolor='blue', capsize=5, elinewidth=1.5, ecolor='k')
+            ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markeredgewidth=1.4, markeredgecolor='midnightblue', markerfacecolor='blue', capsize=5, elinewidth=1.5, ecolor='midnightblue')
+            
+            if idx >= 6:
+                a = SHADED_ERR_ALPHA - 0.15
+            else:
+                a = SHADED_ERR_ALPHA
 
             wp_mock, wp_mock_err = gc.get_mock_wp(i, 'blue', wp_err)
             ax.plot(radius, wp_mock, '-', color='b', alpha=1.0)
-            ax.fill_between(radius, wp_mock - wp_mock_err, wp_mock + wp_mock_err, color='b', alpha=SHADED_ERR_ALPHA)
+            ax.fill_between(radius, np.clip(wp_mock - wp_mock_err, 0.1, None), wp_mock + wp_mock_err, color='b', alpha=a)
+            if idx == 7:
+                print("upper ", wp_mock + wp_mock_err)
+                print("lower ", wp_mock - wp_mock_err)
 
             # Put text of the chisqr value in plot
             ax.text(0.6, 0.9, f"$\chi^2_q$: {clust_r[i+mag_start]:.1f}", transform=ax.transAxes)
@@ -2254,7 +2288,7 @@ def proj_clustering_plot(gc: GroupCatalog):
             ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markeredgewidth=1.5, markeredgecolor='k', markerfacecolor='gray', capsize=5, elinewidth=1.5, ecolor='k')
             wp_mock, wp_mock_err = gc.get_mock_wp(i, 'all', wp_err)
             ax.plot(radius, wp_mock, '-', color='purple', alpha=1.0)
-            ax.fill_between(radius, wp_mock - wp_mock_err, wp_mock + wp_mock_err, color='purple', alpha=SHADED_ERR_ALPHA)
+            ax.fill_between(radius, np.clip(wp_mock - wp_mock_err, 0.1, None), wp_mock + wp_mock_err, color='purple', alpha=SHADED_ERR_ALPHA)
 
             # Put text of the chisqr value in plot
             ax.text(0.6, 0.9, f"$\chi^2$: {clust_nosep[i+mag_start]:.1f}", transform=ax.transAxes)
@@ -2492,9 +2526,11 @@ def lostgal_lum_func_paper_compare(*catalogs):
             lost_assumed_red_counts[lost_assumed_red_counts < lim] = np.nan
             lost_assumed_blue_counts[lost_assumed_blue_counts < lim] = np.nan
 
-            red_percent_change =  ((lost_assumed_red_counts - lost_truth_red_counts) / lost_truth_red_counts) * 100
-            blue_percent_change =  ((lost_assumed_blue_counts - lost_truth_blue_counts) / lost_truth_blue_counts) * 100
-            return red_percent_change, blue_percent_change
+            red_ratio = np.divide(lost_assumed_red_counts, lost_truth_red_counts, out=np.full_like(lost_assumed_red_counts, np.nan), where=lost_truth_red_counts!=0)
+            blue_ratio = np.divide(lost_assumed_blue_counts, lost_truth_blue_counts, out=np.full_like(lost_assumed_blue_counts, np.nan), where=lost_truth_blue_counts!=0)
+            #red_percent_change =  ((lost_assumed_red_counts - lost_truth_red_counts) / lost_truth_red_counts) * 100
+            #blue_percent_change =  ((lost_assumed_blue_counts - lost_truth_blue_counts) / lost_truth_blue_counts) * 100
+            return red_ratio, blue_ratio
 
         # Main result
         assumed_vs_truth_red[i], assumed_vs_truth_blue[i] = _iteration(np.arange(len(lost_withT_galaxies)))
@@ -2521,32 +2557,32 @@ def lostgal_lum_func_paper_compare(*catalogs):
         # shaded error bars
         axes[0].fill_between(x, assumed_vs_truth_red[i] - assumed_vs_truth_red_err[i], assumed_vs_truth_red[i] + assumed_vs_truth_red_err[i], color=catalogs[i].color, alpha=SHADED_ERR_ALPHA)
     axes[0].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
-    axes[0].set_ylabel("$\Delta \Phi_{L}^{q}(L)$ (%)")
+    axes[0].set_ylabel("$\log (\Phi_L^{q}(L) / \Phi_{L,\\rm true}^{q}(L))$")
     axes[0].set_xscale('log')
+    axes[0].set_yscale('log')
     axes[0].set_xlim(1e9, LGAL_MAX_TIGHT)
-    axes[0].set_ylim(-percent_lim, percent_lim)
-    axes[0].axhline(0, color='black', lw=1)
-    axes[0].text(0.65, 0.05, "Quiescent", transform=axes[0].transAxes)
+    axes[0].axhline(1, color='black', lw=1)
+    axes[0].text(0.5, 0.9, "Quiescent", transform=axes[0].transAxes)
     ax2 = axes[0].twiny()
     ax2.set_xscale('linear')
     ax2.set_xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
-    ax2.set_xlabel('$M_r - 5log(h)$')
+    ax2.set_xlabel('$M_r^{0.1} - 5\\log(h)$')
 
     for i in range(len(catalogs)):
         axes[1].plot(x , assumed_vs_truth_blue[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
         #axes[1].errorbar(x, assumed_vs_truth_blue[i], yerr=assumed_vs_truth_blue_err[i], label=f"{catalogs[i].name}", color=catalogs[i].color, fmt='-')
         axes[1].fill_between(x, assumed_vs_truth_blue[i] - assumed_vs_truth_blue_err[i], assumed_vs_truth_blue[i] + assumed_vs_truth_blue_err[i], color=catalogs[i].color, alpha=SHADED_ERR_ALPHA)
     axes[1].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
-    axes[1].set_ylabel("$\Delta \Phi_{L}^{sf}(L)$ (%)")
+    axes[1].set_ylabel("$\log (\Phi_L^{sf}(L) / \Phi_{L,\\rm true}^{sf}(L))$")
     axes[1].set_xscale('log')
+    axes[1].set_yscale('log')
     axes[1].set_xlim(1e8, LGAL_MAX_TIGHT)
-    axes[1].set_ylim(-percent_lim, percent_lim)
-    axes[1].axhline(0, color='black', lw=1)
-    axes[1].text(0.6, 0.05, "Star-forming", transform=axes[1].transAxes)
+    axes[1].axhline(1, color='black', lw=1)
+    axes[1].text(0.5, 0.9, "Star-forming", transform=axes[1].transAxes)
     ax3 = axes[1].twiny()
     ax3.set_xscale('linear')
     ax3.set_xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
-    ax3.set_xlabel('$M_r - 5log(h)$')
+    ax3.set_xlabel('$M_r^{0.1} - 5\\log(h)$')
 
     axes[1].legend()
     fig.tight_layout()
@@ -3180,16 +3216,23 @@ def _getsize(z):
 def examine_area(ra_min, ra_max, dec_min, dec_max, data: pd.DataFrame):
     length_arcmin = (ra_max - ra_min) * 60
     galaxies = data.query('RA < @ra_max and RA > @ra_min and DEC < @dec_max and DEC > @dec_min')
-    centrals = galaxies.query('IS_SAT == False')
-    sats = galaxies.query('IS_SAT == True')
+    fieldgal = galaxies.loc[galaxies['N_SAT'] == 0]
+    groups = galaxies.loc[galaxies['N_SAT'] > 0]
+    groups = groups.groupby('IGRP')
+    centrals = galaxies.loc[~galaxies['IS_SAT']]
     textsize = 9
 
     fig,ax = plt.subplots(1)
     fig.set_size_inches(10,10)
     ax.set_aspect('equal')
 
-    plt.scatter(centrals.RA, centrals['DEC'], s=list(map(lambda x: _getsize(x)/(length_arcmin/10), centrals['Z'])), color='k')
-    plt.scatter(sats.RA, sats['DEC'], s=list(map(lambda x: _getsize(x)/(length_arcmin/10), sats['Z'])), color='b')
+    plt.scatter(fieldgal.RA, fieldgal['DEC'], s=list(map(lambda x: _getsize(x)/(length_arcmin/10), fieldgal['Z'])), color='k')
+    for g in groups:
+        color = get_color(g[0])
+        cen = g[1].loc[~g[1]['IS_SAT']]
+        sat = g[1].loc[g[1]['IS_SAT']]
+        plt.scatter(cen['RA'], cen['DEC'], marker='o', s=list(map(lambda x: _getsize(x)/(length_arcmin/10), cen['Z'])), color=color)
+        plt.scatter(sat['RA'], sat['DEC'], marker='x',  s=list(map(lambda x: _getsize(x)/(length_arcmin/10), sat['Z'])), color=color)
     plt.xlabel('RA')
     plt.ylabel('DEC')
     plt.title("Galaxies in Area")
@@ -4036,7 +4079,7 @@ def fq_lgal_mh_heatmap(gc: GroupCatalog, centrals_only=True):
         If True, only use central galaxies (default: True)
     """
     data = gc.centrals if centrals_only else gc.all_data
-    data = data.loc[data['Z'] < 0.2]
+    #data = data.loc[data['Z'] < 0.2]
 
     # Group by both LGAL_BIN and Mh_bin and calculate quiescent fraction
     fq_2d = data.groupby(['LGAL_BIN', 'Mh_bin2'], observed=False).apply(qf_vmax_weighted_lowcut).unstack()
@@ -4077,3 +4120,92 @@ def fq_lgal_mh_heatmap(gc: GroupCatalog, centrals_only=True):
     
     plt.tight_layout()
     plt.show()
+
+    
+
+def fq_mstellar_lgal_heatmap_zoomed(gc: GroupCatalog, centrals_only=True, qfunc=qf_vmax_weighted_lowcut):
+    """
+    Create a 2D heatmap showing quiescent fraction as a function of stellar mass and galaxy luminosity.
+    
+    Parameters
+    ----------
+    gc : GroupCatalog
+        The group catalog to analyze
+    centrals_only : bool, optional
+        If True, only use central galaxies (default: True)
+    """
+    data = gc.all_data.copy()
+    #data = data.loc[data['N_SAT'] > 0]
+    
+    ms_bins = np.linspace(8.0, 12.0, 70)
+    lum_bins = np.linspace(8.0, 11.3, 70)
+
+    data['MSTAR_FINEBIN'] = pd.cut(data['LOGMSTAR'], bins=ms_bins, labels=ms_bins[:-1], include_lowest=True)
+    data['LOGLGAL_FINEBIN'] = pd.cut(data['LOGLGAL'], bins=lum_bins, labels=lum_bins[:-1], include_lowest=True)
+
+    if centrals_only == None:
+        pass
+    elif centrals_only:
+        data = data.loc[~data['IS_SAT']] 
+    else:
+        data = data.loc[data['IS_SAT']] # Sats only
+    #data = data.loc[z_flag_is_spectro_z(data['Z_ASSIGNED_FLAG'])] # Lost galaxies don't seem to be an issue
+
+    zcut = None
+    if zcut is not None:
+        data = data.loc[data['Z'] < zcut]
+
+    outliers_removed = False
+    #if 'OUTLIER_MLR' in data.columns:
+    #    data = data.loc[~data['OUTLIER_MLR']]
+    #    outliers_removed = True
+
+    fq_2d = data.groupby(['MSTAR_FINEBIN', 'LOGLGAL_FINEBIN'], observed=False).apply(qfunc).unstack()
+    
+    # Get bin labels
+    mstar_labels = ms_bins[:-1]
+    lum_labels = lum_bins[:-1]
+    
+    fig, ax = plt.subplots(figsize=(7, 5), dpi=DPI)
+    
+    # Create the heatmap
+    im = ax.imshow(fq_2d.values, aspect='auto', origin='lower', 
+                   extent=[lum_labels[0], lum_labels[-1], mstar_labels[0], mstar_labels[-1]],
+                   cmap='RdYlBu_r', vmin=0, vmax=1)
+    
+
+    # Add contours - create meshgrid matching the actual data shape
+    x_edges = np.linspace(lum_labels[0], lum_labels[-1], fq_2d.shape[1] + 1)
+    y_edges = np.linspace(mstar_labels[0], mstar_labels[-1], fq_2d.shape[0] + 1)
+    x_centers = (x_edges[:-1] + x_edges[1:]) / 2
+    y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+    X, Y = np.meshgrid(x_centers, y_centers)
+    
+    contour_levels = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    contours = ax.contour(X, Y, fq_2d.values, levels=contour_levels, 
+                          colors='black', linewidths=1.5, alpha=0.7)
+    #ax.clabel(contours, inline=True, fontsize=10, fmt='%.1f')
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label('$f_Q$', rotation=270, labelpad=20)
+    
+    # Labels
+    ax.set_xlabel('log$(L_{\\rm gal}~/~[L_{\odot} h^{-2}])$)')
+    ax.set_ylabel('log$(M_{\\star}~/~[M_{\odot} h^{-2}])$')
+    
+    if centrals_only == None:
+        text = "All Galaxies"
+    elif centrals_only:
+        text = "Central Galaxies Only"
+    else:
+        text = "Satellite Galaxies Only"
+    ax.text(0.7, .1, text, transform=ax.transAxes, ha='center', va='bottom', fontsize=18)
+    if zcut is not None:
+        ax.text(0.6, .05, f'z < {zcut}', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)
+    if outliers_removed:
+        ax.text(0.75, .05, 'Outliers Removed', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)
+
+    ax.text(0.75, .05, 'g-r classification', transform=ax.transAxes, ha='center', va='bottom', fontsize=15)
+    
+    plt.tight_layout()

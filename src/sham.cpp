@@ -5,10 +5,10 @@
 #include <math.h>
 #include <gsl/gsl_spline.h>
 #include <gsl/gsl_errno.h>
+#include <assert.h>
 #include "nrutil.h"
 #include "groups.hpp"
 #include "sham.hpp"
-
 
 double gsl_spline_eval_extrap(const gsl_spline *spline, const double *x, const double *y, int n, double xq, gsl_interp_accel *acc);
 
@@ -24,61 +24,135 @@ double gsl_spline_eval_extrap(const gsl_spline *spline, const double *x, const d
     }
 }
 
-
-/* 
-* For a galaxy at a certain redshift and vmax, use the provided halo mass function to
- * determine the host halo mass. 
- * For a given galaxy density, use the provided halo mass function to... */
-float density2host_halo(float galaxy_density)
-{
-  //std::cerr << "Finding host halo mass for galaxy density = " << galaxy_density << std::endl;
-  return exp(zbrent(func_match_nhost, log(HALO_MIN), log(HALO_MAX), 1.0E-5, galaxy_density));
+HMFCumulative::HMFCumulative() {
+    build();
 }
 
-/* For a galaxy at a certain redshift and vmax, use the provided halo mass function to
- * determine the host halo mass. For flux-limited mode. 
- * 
- * Using a vmax correction for galaxies that can't make it
- * to the end of the redshift bin.
- */
-float density2host_halo_zbins3(float z, double vmax)
+// Returns log( n(>exp(logmass)) ) via spline interpolation.
+double HMFCumulative::eval(double logmass) {
+    return gsl_spline_eval_extrap(spline, mh, nh, N, logmass, acc);
+}
+
+void HMFCumulative::build() {
+    double mlo = HALO_MIN, mhi = HALO_MAX;
+    double dlogm = log(mhi / mlo) / N;
+    for (int i = 0; i < N; ++i) {
+        mh[i] = exp((i + 0.5) * dlogm) * mlo;
+        double n1 = qromo(halo_abundance_log, log(mh[i]), log(HALO_MAX), midpnt);
+        nh[i] = log(n1);
+        mh[i] = log(mh[i]);
+    }
+    acc = gsl_interp_accel_alloc();
+    spline = gsl_spline_alloc(gsl_interp_cspline, N); 
+    if (spline == nullptr || acc == nullptr) {
+        fprintf(stderr, "Failed to allocate GSL spline or accelerator\n");
+        exit(1);
+    }
+    int status = gsl_spline_init(spline, mh, nh, N);
+    if (status != GSL_SUCCESS) {
+        fprintf(stderr, "Failed to initialize GSL spline: %s\n", gsl_strerror(status));
+        exit(1);
+    }
+
+}
+
+
+float func_match_nhost(float logmass, float galdensity)
 {
-#define NZBIN 200
+    double a = HMFCumulative::get().eval(logmass);
+    return exp(a) - galdensity;
+}
+
+struct HaloMassFunction {
+
+    static HaloMassFunction& get() {
+        static HaloMassFunction inst;
+        return inst;
+    }
+
+    float eval(float m) {
+      if (!spline) build();
+      float a = gsl_spline_eval_extrap(spline, x, y, n, log(m), acc);
+      return exp(a);
+    }
+
+    float eval_log(float logM) {
+      float m = exp(logM);
+      return eval(m) * m; // eval(m) returns dn/dM, multiply by m to get dn/d(logM)
+    }  
+
+    private:
+      int n = 0;
+      double *x = nullptr, *y = nullptr;
+      gsl_spline *spline = nullptr;
+      gsl_interp_accel *acc = nullptr;
+
+      HaloMassFunction() = default;
+
+      void build() {
+        char aa[1000];
+        FILE *fp = openfile(HALO_MASS_FUNC_FILE);
+        n = filesize(fp);
+        x = (double*)malloc(n * sizeof(double));
+        y = (double*)malloc(n * sizeof(double));
+        for (int i = 0; i < n; ++i)
+        {
+            float xf, yf;
+            fscanf(fp, "%f %f", &xf, &yf);
+            x[i] = log(xf);
+            y[i] = log(yf);
+            fgets(aa, 1000, fp);
+        }
+        fclose(fp);
+
+        acc = gsl_interp_accel_alloc();
+        spline = gsl_spline_alloc(gsl_interp_cspline, n); // Consider gsl_interp_steffen to prevent oscillations between points.
+        gsl_spline_init(spline, x, y, n);
+      }
+};
+
+/**
+ * Returns the density of halos at mass log(m) (number/(Mpc/h)^3) according to the provided halo mass function.
+ */
+float halo_abundance_log(float logm) {
+    return HaloMassFunction::get().eval_log(logm);
+}
+
+/**
+ * Returns the density of halos at mass m (number/(Mpc/h)^3) according to the provided halo mass function.
+ */
+float halo_abundance(float m) {
+    return HaloMassFunction::get().eval(m);
+}
+
+
+float AbundanceMatchingManager::match_in_zbins(float z, double vmax) {
   int i, iz;
   double rlo, rhi, dz, dzmin, vv;
-  static int flag = 1, negcnt[NZBIN];
-  static double zcnt[NZBIN];
-  static float volume[NZBIN], zlo[NZBIN], zhi[NZBIN],
-      vhi[NZBIN], vlo[NZBIN];
 
   // if first call, get the volume in each dz bin
-  if (flag)
-  {
-    for (i = 0; i < NZBIN; ++i)
-    {
-      zlo[i] = i * 1. / NZBIN;
-      zhi[i] = zlo[i] + 0.05;
-      if (i == 0)
-        rlo = 0;
-      else
-        rlo = distance_redshift(zlo[i]);
-      rhi = distance_redshift(zhi[i]);
-      volume[i] = 4. / 3. * PI * (rhi * rhi * rhi - rlo * rlo * rlo) * FRAC_AREA;
-      vhi[i] = 4. / 3. * PI * rhi * rhi * rhi * FRAC_AREA;
-      vlo[i] = 4. / 3. * PI * rlo * rlo * rlo * FRAC_AREA;
-      //fprintf(stderr,"%d: z_lo-z_hi: %f - %f",i,zlo[i],zhi[i]);
-      //fprintf(stderr,"  r_lo-r_hi: %f - %f",rlo,rhi);
-      //fprintf(stderr,"  volume= %e\n",volume[i]);
-    }
-    flag = 0;
+  if (needs_setup) {
+      for (i = 0; i < NZBIN; ++i) {
+          zlo[i] = i * 1. / NZBIN;
+          zhi[i] = zlo[i] + 0.05;
+          if (i == 0)
+            rlo = 0;
+          else
+            rlo = distance_redshift(zlo[i]);
+          rhi = distance_redshift(zhi[i]);
+          volume[i] = 4. / 3. * PI * (rhi * rhi * rhi - rlo * rlo * rlo) * FRAC_AREA;
+          vhi[i] = 4. / 3. * PI * rhi * rhi * rhi * FRAC_AREA;
+          vlo[i] = 4. / 3. * PI * rlo * rlo * rlo * FRAC_AREA;
+          //fprintf(stderr,"%d: z_lo-z_hi: %f - %f",i,zlo[i],zhi[i]);
+          //fprintf(stderr,"  r_lo-r_hi: %f - %f",rlo,rhi);
+          //fprintf(stderr,"  volume= %e\n",volume[i]);
+      }
+      needs_setup = false;
   }
-  // if negative redshift, reset the counters;
-  if (z < 0)
-  {
-    // fprintf(stderr,"Resetting sham counts\n");
-    for (i = 0; i < NZBIN; ++i)
-      zcnt[i] = negcnt[i] = 0;
-    return 0;
+
+  if (z < 0 || isnan(z) || !isfinite(z)) {
+    LOG_ERROR("ERROR: invalid redshift %f\n", z);
+    assert(false);
   }
 
   if (z > 100)
@@ -89,13 +163,11 @@ float density2host_halo_zbins3(float z, double vmax)
     return 0;
   }
 
-  // what bins does this galaxy belong to?
+  // Determine what bins this galaxy belong to
   // TODO this can definitely be optimized to not have a loop NZBIN times for each galaxy.
   dzmin = 1;
-  for (i = 0; i < NZBIN; ++i)
-  {
-    if (z >= zlo[i] && z < zhi[i])
-    {
+  for (i = 0; i < NZBIN; ++i) {
+    if (z >= zlo[i] && z < zhi[i]) {
       //fprintf(stderr, "Matched z = %f to bin %d\n", z, i);
       if (vmax > vhi[i])
         vv = volume[i];
@@ -107,13 +179,10 @@ float density2host_halo_zbins3(float z, double vmax)
       zcnt[i] += 1 / vv;
 
       if (vv < 0.0)
-      {
         LOG_ERROR("vmax = %e.  %e %e %e %e %e %e\n", vmax, vlo[i], vhi[i], zlo[i], zhi[i], z, zcnt[i]);
-      }
     }
     dz = fabs(z - (zhi[i] + zlo[i]) / 2);
-    if (dz < dzmin)
-    {
+    if (dz < dzmin) {
       dzmin = dz;
       iz = i;
     }
@@ -121,98 +190,207 @@ float density2host_halo_zbins3(float z, double vmax)
   // fprintf(stdout,"%f %d %e %e %f %f %f\n",z,iz,zcnt[iz],vmax,zlo[iz],zhi[iz],dzmin);
   // fflush(stdout);
   //fprintf(stderr, "Getting mass for z = %f, iz = %d, zcnt = %f", z, iz, zcnt[iz]);
-  //float results = density2host_halo(zcnt[iz]);
+  //float results = match(zcnt[iz]);
   //fprintf(stderr, ". Result = %e\n", results);
-  return density2host_halo(zcnt[iz]);
-
-#undef NZBIN
+  return match(zcnt[iz]);
 }
 
-float func_match_nhost(float mass, float galdensity)
-{
-    static int flag = 1, n = 100;
-    static double *mh, *nh;
-    static gsl_interp_accel *acc = nullptr;
-    static gsl_spline *spline = nullptr;
-    int i;
-    double a, mlo, mhi, dlogm, n1;
+void AbundanceMatchingManager::reset() {
+    for (int i = 0; i < NZBIN; ++i)
+      zcnt[i] = negcnt[i] = 0;
+}
+  
+float HaloMassAMManager::match(float galaxy_density) {
+    // Let's track the largest galaxy density we've seen so far and print it later
+    if (galaxy_density > max_density_seen) {
+        max_density_seen = galaxy_density;
+    }
+    return exp(zbrent(func_match_nhost, log(HALO_MIN), log(HALO_MAX), 1.0E-5, galaxy_density));
+}
 
-    // First time setup, will read in a halo mass function file
-    if (flag)
-    {
-        flag = 0;
-        mh = (double*)malloc(n * sizeof(double));
-        nh = (double*)malloc(n * sizeof(double));
 
-        mlo = HALO_MIN;
-        mhi = HALO_MAX;
-        dlogm = log(mhi / mlo) / n;
+HaloPCADensityFuncs::HaloPCADensityFuncs() {
+    for (int i = 0; i < NCOMP; ++i)
+        build(i);
+}
 
-        for (i = 0; i < n; ++i)
-        {
-            mh[i] = exp((i + 0.5) * dlogm) * mlo;
-            n1 = qromo(halo_abundance2, log(mh[i]), log(HALO_MAX), midpnt);
-            nh[i] = log(n1);
-            mh[i] = log(mh[i]);
-            //std::cerr << "mh[" << i << "] = " << mh[i] << ", nh[" << i << "] = " << nh[i] << std::endl;
-        }
+void HaloPCADensityFuncs::build(int idx) {
+    const char *files[NCOMP] = {
+        HALO_PCA1_DENSITY_FUNC_FILE,
+        HALO_PCA2_DENSITY_FUNC_FILE,
+        HALO_PCA3_DENSITY_FUNC_FILE,
+        HALO_PCA4_DENSITY_FUNC_FILE
+    };
+    FILE *fp = openfile(files[idx]);
+    n[idx] = filesize(fp);
+    px[idx] = (double*)malloc(n[idx] * sizeof(double));
+    py[idx] = (double*)malloc(n[idx] * sizeof(double));
+    for (int i = 0; i < n[idx]; i++)
+        fscanf(fp, "%lf %lf", &px[idx][i], &py[idx][i]);
+    fclose(fp);
+    //std::cerr << "Loaded PCA density function for component " << (idx + 1) << " with " << n[idx] << " points." << std::endl;
+}
 
-        acc = gsl_interp_accel_alloc();
-        spline = gsl_spline_alloc(gsl_interp_cspline, n);
-        gsl_spline_init(spline, mh, nh, n);
+HaloPCAFuncCumulative::HaloPCAFuncCumulative() {
+    for (int i = 0; i < N_HPCA_COMP; ++i)
+        build(i);
+}
+
+// Returns n(>pca_val) via spline interpolation.
+double HaloPCAFuncCumulative::eval(double pca_val, int comp) {
+    int idx = comp - 1;
+    #ifndef OPTIMIZE
+    if (idx < 0 || idx >= N_HPCA_COMP) {
+        LOG_ERROR("Invalid PCA component %d in HaloPCAFuncCumulative::eval\n", comp);
+        exit(1);
+    } 
+    #endif
+    // Spline works on log CDF, so exponentiate the result to get n(>pca_val)
+    return exp(gsl_spline_eval_extrap(spline[idx], mh[idx].data(), cumulativeDensity[idx].data(), mh[idx].size(), pca_val, acc[idx]));
+}
+
+
+void HaloPCAFuncCumulative::build(int idx) {
+
+    // Get the raw tabulated density data 
+    HaloPCADensityFuncs& pdf = HaloPCADensityFuncs::get();
+    int cnt = pdf.n[idx];
+    const double *x   = pdf.px[idx];  // PCA coordinate bin centers
+    const double *rho = pdf.py[idx];  // density at each bin center
+
+    // Cumulative n(> x[i]) via right-to-left trapezoid sum
+    // Using bin centers so the trapezoid width is (x[i+1] - x[i])
+    mh[idx].resize(cnt);
+    cumulativeDensity[idx].resize(cnt);
+
+    double sum = 0.0;
+    mh[idx][cnt - 1] = x[cnt - 1];
+    cumulativeDensity[idx][cnt - 1] = -80.0; // assume n(> last point) = 0
+    for (int i = cnt - 2; i >= 0; i--) {
+        double dx = x[i + 1] - x[i];  // uneven bins ok
+        sum += 0.5 * (rho[i] + rho[i + 1]) * dx; // trapezoid area
+        mh[idx][i] = x[i];
+        cumulativeDensity[idx][i] = (sum > 0.0) ? log(sum) : -80.0; // a min value in log space
     }
 
-    // Interpolate the halo mass function
-    a = gsl_spline_eval_extrap(spline, mh, nh, n, mass, acc);
-    return exp(a) - galdensity;
-}
-
-/**
- * Given the natural log of a halo mass m, return the mass * abundance from the halo mass function.
- */
-float halo_abundance2(float logM)
-{
-  float m = exp(logM);
-  return halo_abundance(m) * m;
-}
-
-/**
- * Given a halo mass m, return the abundance from the halo mass function.
- * 
- * Tinker website says the default file is in Bolshoi Planck cosmology using Tinker08 mass function.
- * 
- */
-float halo_abundance(float m)
-{
-    int i;
-    FILE *fp;
-    float a;
-    static int n = 0;
-    static double *x = nullptr, *y = nullptr;
-    static gsl_interp_accel *acc = nullptr;
-    static gsl_spline *spline = nullptr;
-    char aa[1000];
-
-    if (!n)
-    {
-        fp = openfile(HALO_MASS_FUNC_FILE);
-        n = filesize(fp);
-        x = (double*)malloc(n * sizeof(double));
-        y = (double*)malloc(n * sizeof(double));
-        for (i = 0; i < n; ++i)
-        {
-            float xf, yf;
-            fscanf(fp, "%f %f", &xf, &yf);
-            x[i] = log(xf);
-            y[i] = log(yf);
-            fgets(aa, 1000, fp);
-        }
-        fclose(fp);
-
-        acc = gsl_interp_accel_alloc();
-        spline = gsl_spline_alloc(gsl_interp_cspline, n);
-        gsl_spline_init(spline, x, y, n);
+    // Fit spline to the cumulative density function
+    acc[idx]    = gsl_interp_accel_alloc();
+    spline[idx] = gsl_spline_alloc(gsl_interp_cspline, cnt);
+    if (!spline[idx] || !acc[idx]) {
+        LOG_ERROR("Failed to allocate GSL spline for PCA cumulative %d\n", idx + 1);
+        exit(1);
     }
-    a = gsl_spline_eval_extrap(spline, x, y, n, log(m), acc);
-    return exp(a);
+    int status = gsl_spline_init(spline[idx], mh[idx].data(), cumulativeDensity[idx].data(), cnt);
+    if (status) {
+        LOG_ERROR("GSL spline init failed for PCA cumulative %d: %s\n", idx + 1, gsl_strerror(status));
+        exit(1);
+    }
+
+    //std::cerr << "Built cumulative density spline for PCA component " << (idx + 1) << " with " << cnt << " points." << std::endl;
+}
+
+float func_match_nhost_pca1(float pca_val, float galdensity) {
+    //std::cerr << "Matching galaxy density " << galdensity << " to PCA component 1 value..." << std::endl;
+    return HaloPCAFuncCumulative::get().eval(pca_val, 1) - galdensity;
+}
+
+float func_match_nhost_pca2(float pca_val, float galdensity) {
+    return HaloPCAFuncCumulative::get().eval(pca_val, 2) - galdensity;
+}
+
+float func_match_nhost_pca3(float pca_val, float galdensity) {
+    return HaloPCAFuncCumulative::get().eval(pca_val, 3) - galdensity;
+}
+
+float func_match_nhost_pca4(float pca_val, float galdensity) {
+    return HaloPCAFuncCumulative::get().eval(pca_val, 4) - galdensity;
+}
+
+
+float HaloPCA1AMManager::match(float galaxy_density) {
+    //std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 1 value..." << std::endl;
+    return zbrent(func_match_nhost_pca1, HALO_PCA_MIN, HALO_PCA_MAX, 1.0E-5, galaxy_density);
+}
+float HaloPCA2AMManager::match(float galaxy_density) {
+    return zbrent(func_match_nhost_pca2, HALO_PCA_MIN, HALO_PCA_MAX, 1.0E-5, galaxy_density);
+}
+float HaloPCA3AMManager::match(float galaxy_density) {
+    return zbrent(func_match_nhost_pca3, HALO_PCA_MIN, HALO_PCA_MAX, 1.0E-5, galaxy_density);
+}
+float HaloPCA4AMManager::match(float galaxy_density) {
+    return zbrent(func_match_nhost_pca4, HALO_PCA_MIN, HALO_PCA_MAX, 1.0E-5, galaxy_density);
+}
+
+void HaloPCAModel::load() {
+    std::ifstream fp(HALO_PCA_MODEL_TEXT_FILE);
+    if (!fp) { fprintf(stderr, "Could not open %s\n", HALO_PCA_MODEL_TEXT_FILE); exit(1); }
+    std::string line;
+    int block = 0;
+    while (std::getline(fp, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::istringstream ss(line);
+        switch (block) {
+            case 0: ss >> scaler_mean[0] >> scaler_mean[1] >> scaler_mean[2] >> scaler_mean[3]; break;
+            case 1: ss >> scaler_scale[0] >> scaler_scale[1] >> scaler_scale[2] >> scaler_scale[3]; break;
+            case 2: ss >> pca_mean[0] >> pca_mean[1] >> pca_mean[2] >> pca_mean[3]; break;
+            case 3: ss >> W[0][0] >> W[0][1] >> W[0][2] >> W[0][3]; break;
+            case 4: ss >> W[1][0] >> W[1][1] >> W[1][2] >> W[1][3]; break;
+            case 5: ss >> W[2][0] >> W[2][1] >> W[2][2] >> W[2][3]; break;
+            case 6: ss >> W[3][0] >> W[3][1] >> W[3][2] >> W[3][3]; break;
+        }
+        block++;
+    }
+    loaded = true;
+}
+
+void HaloPCAModel::inverse_transform(galaxy *galaxy) {
+    if (!loaded) load();
+    double xs[NFEAT] = {0};
+    for (int j = 0; j < NFEAT; j++)
+        for (int i = 0; i < NFEAT; i++)
+            xs[j] += W[i][j] * galaxy->halo_pca[i];
+    
+    galaxy->mass = pow(10, ((xs[0] + pca_mean[0]) * scaler_scale[0] + scaler_mean[0]));
+    galaxy->c = (xs[1] + pca_mean[1]) * scaler_scale[1] + scaler_mean[1];
+    galaxy->spin = (xs[2] + pca_mean[2]) * scaler_scale[2] + scaler_mean[2];
+    galaxy->age = (xs[3] + pca_mean[3]) * scaler_scale[3] + scaler_mean[3];
+}
+
+void HaloPCAModel::forward_transform(galaxy *galaxy) {
+    // pca[NFEAT] in, x[NFEAT] out.
+    // x[0]=LOGMHALO, x[1]=c, x[2]=Spin, x[3]=Halfmass_Scale
+    if (!loaded) load();
+    double xs[NFEAT];
+    double x[NFEAT] = {log10(galaxy->mass), galaxy->c, galaxy->spin, galaxy->age};
+    for (int j = 0; j < NFEAT; j++)
+        xs[j] = (x[j] - scaler_mean[j]) / scaler_scale[j] - pca_mean[j];
+    for (int i = 0; i < NFEAT; i++) {
+        galaxy->halo_pca[i] = 0;
+        for (int j = 0; j < NFEAT; j++)
+            galaxy->halo_pca[i] += W[i][j] * xs[j];
+    }
+}
+
+void set_halo_props_from_pca_props(galaxy *galaxy)
+{
+    const float MIN = -15.0;
+    const float MAX = 15.0;
+    for (int i = 0; i < 4; i++) {
+      if (isnan(galaxy->halo_pca[i]) || !isfinite(galaxy->halo_pca[i])) {
+        LOG_ERROR("ERROR: galaxy has invalid halo PCA value %f for component %d\n", galaxy->halo_pca[i], i+1);
+        assert(false);
+      }
+    }
+    for (int i = 0; i < 4; i++) {
+      if (galaxy->halo_pca[i] < MIN) {
+        galaxy->halo_pca[i] = MIN;
+        LOG_WARN("WARNING: galaxy halo_pca%d value %f is below minimum %f, clamping to minimum.\n", i+1, galaxy->halo_pca[i], MIN);
+      } else if (galaxy->halo_pca[i] > MAX) {
+        galaxy->halo_pca[i] = MAX;
+        LOG_WARN("WARNING: galaxy halo_pca%d value %f is above maximum %f, clamping to maximum.\n", i+1, galaxy->halo_pca[i], MAX);
+      }
+    }
+
+    HaloPCAModel::get().inverse_transform(galaxy);
+    update_galaxy_halo_props(galaxy);
 }

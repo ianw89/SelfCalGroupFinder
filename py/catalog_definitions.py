@@ -164,9 +164,6 @@ mxxl_simple_4_c.marker = '--'
 uchuu_all = UchuuGroupCatalog("All UCHUU <19.5", Mode.ALL, 19.5, 20.0, False, gfprops=GF_PROPS_BGS_VANILLA.copy())
 uchuu_all.marker = '-'
 
-bgs_y1_fiberonly_1pass = BGSGroupCatalog("Observed 1pass BGS Y1", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=1, gfprops=GF_PROPS_BGS_VANILLA.copy())
-bgs_y1_fiberonly_1pass.marker = '-'
-
 bgs_y1_fiberonly = BGSGroupCatalog("Observed BGS Y1", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y1_fiberonly.marker = '-'
 
@@ -635,7 +632,6 @@ bgs_sv3_list : list[GroupCatalog] = [
     bgs_y3_like_sv3_nn_c3,
 ]
 bgs_aux_list : list[GroupCatalog] = [
-    bgs_y1_fiberonly_1pass,
     bgs_y3_fiberonly_1pass,
     bgs_nn_sdsslike,
     bgs_y1_pzp_2_6,
