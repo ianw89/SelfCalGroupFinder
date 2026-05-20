@@ -557,6 +557,8 @@ def create_merged_file(lsscat_fn : str, merged_fn : str, year : str, photoz_wspe
     table = add_photometric_columns(table, year)
     print("Photometric VAC Joined", flush=True)
 
+    table = add_physical_halflight_radius(table)
+
     # Add photo-zs
     if photoz_wspec:
         table = add_photz_columns(table, IAN_PHOT_Z_FILE_WSPEC)

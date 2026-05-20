@@ -23,6 +23,7 @@ from astropy.cosmology import z_at_value
 #from pykdtree.kdtree import KDTree # Way faster, but not pickleable
 from scipy.spatial.kdtree import KDTree
 from joblib import Parallel, delayed
+from scipy.interpolate import interp1d
 
 if './SelfCalGroupFinder/py/' not in sys.path:
     sys.path.append('./SelfCalGroupFinder/py/')
@@ -301,6 +302,22 @@ def powerlaw_score_1(target_z, z_arr):
 
     return power
 
+def soft_clip_floor(x, floor, base=math.e):
+    valid = np.isfinite(x)
+    results = np.nan * np.ones_like(x)
+    results[valid] = floor + np.log(1 + np.power(base, x[valid] - floor)) / np.log(base)
+    if not np.isfinite(results[valid]).all():
+        raise ValueError("Output contains non-finite values")
+    return results
+
+def invert_soft_clip_floor(y, floor, base=math.e):
+    valid = np.isfinite(y)
+    results = np.nan * np.ones_like(y)
+    results[valid] = floor + np.log(np.power(base, y[valid] - floor) - 1) / np.log(base)
+    if not np.isfinite(results[valid]).all():
+        raise ValueError("Output contains non-finite values")
+    return results
+
 def powerlaw_score_2(target_z, z_arr):
     POW = 3
     FAT = 0.01 
@@ -397,12 +414,24 @@ def get_physical_angular_diameter_distance(arcsec, z):
     """
     Converts an angular separation in arcseconds at redshift z to a physical transverse distance in kpc/h.
     """
+    assert len(arcsec) == len(z)
     cosmo = get_cosmology()
-    ang_diam_dist = cosmo.angular_diameter_distance(z) # in Mpc / h
+
+    z_clip = np.clip(z, 0.001, 5.0) # clip to avoid errors; we won't use galaxies less than this anyway
+
+    if len(arcsec) > 3000:
+        z_grid = np.linspace(0.0, np.max(z_clip), 1000)
+        d_grid = cosmo.angular_diameter_distance(z_grid).value
+
+        d_interp = interp1d(z_grid, d_grid, kind='cubic')
+        ang_diam_dist = d_interp(z_clip) # in Mpc / h
+    else:
+        ang_diam_dist = cosmo.angular_diameter_distance(z_clip).value # in Mpc / h
+
     # Convert arcsec to radians: 1 arcsec = (1/3600)*(pi/180) radians
     radians = arcsec * (np.pi / 180) / 3600.0
     physical_dist = ang_diam_dist * radians # in Mpc / h
-    return physical_dist.to(u.kpc).value # return in kpc / h
+    return physical_dist * 1000 # convert to kpc / h
 
 def z_to_ldist(zs):
     """
@@ -1842,7 +1871,8 @@ def chains_to_wcen_bsat(chains_flat, x):
 # PCA Utils
 ###################################
 
-HALO_PCA_FEATURES_COLS = ['LOGMHALO', 'c', 'Spin', 'Halfmass_Scale']
+#HALO_PCA_FEATURES_COLS = ['LOGMHALO', 'c', 'Spin', 'Halfmass_Scale']
+HALO_PCA_FEATURES_COLS = ['M200b', 'c', 'Spin', 'Halfmass_Scale']
 
 def halo_pca_to_original(pca_values):
     """
