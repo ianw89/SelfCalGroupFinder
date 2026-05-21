@@ -393,10 +393,10 @@ void groupfind()
         galden += 1 / GAL[i].vmax;
 
         if (FLUXLIM) {
-          GAL[i].halo_pca[1] = HaloPCA2AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
+          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
         }
         else {
-          GAL[i].halo_pca[1] = HaloPCA2AMManager::get().match(galden);
+          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match(galden);
         }
       }
 
@@ -406,6 +406,24 @@ void groupfind()
       std::iota(random_idx.begin(), random_idx.end(), 0); // Fill with 0, 1, 2, ..., ngrp-1
       std::mt19937 g(1989); // fixed seed for reproducibility, can be changed to std::random_device for non-deterministic
 
+
+      /*
+      galden = 0;
+      std::shuffle(random_idx.begin(), random_idx.end(), g);
+      for (int j = 0; j < ngrp; ++j) {
+        int i = sorted_indices[random_idx[j]]; // A random central
+        galden += 1 / GAL[i].vmax;
+
+        if (FLUXLIM) {
+          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
+        }
+        else {
+          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match(galden);
+        }
+      }
+      */
+
+      galden = 0;
       std::shuffle(random_idx.begin(), random_idx.end(), g);
       for (int j = 0; j < ngrp; ++j) {
         int i = sorted_indices[random_idx[j]]; // A random central
@@ -426,10 +444,10 @@ void groupfind()
         galden += 1 / GAL[i].vmax;
 
         if (FLUXLIM) {
-          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
+          GAL[i].halo_pca[1] = HaloPCA2AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
         }
         else {
-          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match(galden);
+          GAL[i].halo_pca[1] = HaloPCA2AMManager::get().match(galden);
         }
       }
 

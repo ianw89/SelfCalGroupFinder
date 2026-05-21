@@ -18,9 +18,6 @@
 #define HALO_MAX 1.0E+16
 #define HALO_MIN 1.0E+8
 
-#define HALO_PCA_MIN -25.0
-#define HALO_PCA_MAX 25.0
-
 // Interface for methods like density2host_halo
 
 float func_match_nhost(float logmass, float galaxy_density);
@@ -130,6 +127,12 @@ public:
         return inst;
     }
 
+    double getMin(int comp) {
+        return px[comp][0];
+    }
+    double getMax(int comp) {
+        return px[comp][n[comp] - 1];
+    }
     int n[NCOMP] = {0, 0, 0, 0};
     double *px[NCOMP] = {nullptr, nullptr, nullptr, nullptr};
     double *py[NCOMP] = {nullptr, nullptr, nullptr, nullptr};

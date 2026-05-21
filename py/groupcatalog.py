@@ -31,6 +31,7 @@ from uchuu_to_dat import pre_process_uchuu
 from bgs_helpers import *
 from calibrationdata import *
 from hod import fit_hod_models, HODThresholdsTabulated, HODTabulated, fit_hod_threshold_models
+from dataloc import *
 
 # Must keep this protocol syncronized with the C++ code in groups.hpp
 MSG_REQUEST = 0
@@ -1579,6 +1580,9 @@ class TestGroupCatalog(GroupCatalog):
         print(f"Cut to {len(indexes)} galaxies.")
         cut_galprops = galprops.iloc[indexes]
 
+        # Recompute vmax
+        cut_gals['VMAX'] = get_max_observable_volume(log_solar_L_to_abs_mag_r(cut_gals['LOGLGAL']), 0.0, 1.0, 17.7, 4.0/DEGREES_ON_SPHERE)
+
         # write to TEST_DAT_FILE and TEST_GALPROPS_FILE
         cut_gals.to_csv(TEST_DAT_FILE, sep=' ', header=False, index=False)
         cut_galprops.to_csv(TEST_GALPROPS_FILE, sep=' ', header=False, index=False)
@@ -1586,6 +1590,69 @@ class TestGroupCatalog(GroupCatalog):
     def postprocess(self):
         origprops = pd.read_csv(TEST_DAT_FILE, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
         galprops = pd.read_csv(TEST_GALPROPS_FILE, delimiter=' ', names=('MAG_G', 'MAG_R', 'SIGMA_V', 'DN4000', 'CONCENTRATION', 'LOG_M_STAR', 'Z_ASSIGNED_FLAG'))
+        galprops['G_R'] = galprops['MAG_G'] - galprops['MAG_R'] 
+        galprops['QUIESCENT'] = origprops['QUIESCENT'].astype(bool)
+        galprops.rename(columns={'MAG_R': 'APP_MAG_R'}, inplace=True)
+        self.all_data = read_and_combine_gf_output(self, galprops)
+        add_halo_columns(self)
+        return super().postprocess()
+
+class TestVolumeLimGroupCatalog(GroupCatalog):
+    """
+    A miniature volume-limited sample cut from SDSS data for quick testing purposes.
+
+    The COSMOS survey is centered at (J2000):
+    RA +150.11916667 (10:00:28.600)
+    DEC +2.20583333 (+02:12:21.00)
+
+    This sample is cut to around this, +/- 2 degree in RA and DEC.
+
+    """
+    def __init__(self, name):
+        super().__init__(name)
+        self.preprocess_file = TEST_VOL_DAT_FILE
+        self.GF_props = {
+            'halomassfunc':HMF_T08_BOL_FILE,
+            'zmin':0,
+            'zmax':0.107225113,
+            'frac_area':16.0/DEGREES_ON_SPHERE,
+            'color':0,
+        }
+        self.mag_cut = 17.7
+        self.caldata = CalibrationData.SDSS_5bin(self.mag_cut, self.GF_props['frac_area'])
+
+    def create_test_dat_files(self):
+        gals = pd.read_csv(SDSS_v1_DAT_FILE, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
+        galprops = pd.read_csv(SDSS_v1_1_GALPROPS_FILE, delimiter=' ', names=('MAG_G', 'MAG_R', 'SIGMA_V', 'DN4000', 'CONCENTRATION', 'LOG_M_STAR', 'Z_ASSIGNED_FLAG'))
+
+        cut_gals = gals[np.logical_and(gals.RA > 148.119, gals.RA < 152.119)]
+        cut_gals = cut_gals[np.logical_and(cut_gals['DEC'] > 0.205, cut_gals['DEC'] < 4.205)]
+
+
+        # Let's cut to -20 and brighter. Find zmax to keep
+        zmax = get_max_observable_z(-20, self.mag_cut)
+        self.GF_props['zmax'] = zmax
+        print("Cutting to zmax = ", zmax)
+
+        zmaxes = get_max_observable_z(log_solar_L_to_abs_mag_r(cut_gals['LOGLGAL']), self.mag_cut)
+        cut_gals = cut_gals[zmaxes >= zmax] # Only keep bright enough galxies
+        print(f"Dimmest galaxy kept: {log_solar_L_to_abs_mag_r(cut_gals['LOGLGAL'].min())}.")
+
+        cut_gals = cut_gals[cut_gals.Z < zmax] # Cut to the volume limit we want
+        indexes = cut_gals.index
+
+        cut_gals['VMAX'] =  0.0 # Should not be used for volume limited sample
+
+        cut_galprops = galprops.iloc[indexes]
+        print(f"Cut to {len(indexes)} galaxies.")
+
+        # write to TEST_VOL_DAT_FILE and TEST_VOL_GALPROPS_FILE
+        cut_gals.to_csv(TEST_VOL_DAT_FILE, sep=' ', header=False, index=False)
+        cut_galprops.to_csv(TEST_VOL_GALPROPS_FILE, sep=' ', header=False, index=False)
+
+    def postprocess(self):
+        origprops = pd.read_csv(TEST_VOL_DAT_FILE, delimiter=' ', names=('RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT', 'CHI'))
+        galprops = pd.read_csv(TEST_VOL_GALPROPS_FILE, delimiter=' ', names=('MAG_G', 'MAG_R', 'SIGMA_V', 'DN4000', 'CONCENTRATION', 'LOG_M_STAR', 'Z_ASSIGNED_FLAG'))
         galprops['G_R'] = galprops['MAG_G'] - galprops['MAG_R'] 
         galprops['QUIESCENT'] = origprops['QUIESCENT'].astype(bool)
         galprops.rename(columns={'MAG_R': 'APP_MAG_R'}, inplace=True)
