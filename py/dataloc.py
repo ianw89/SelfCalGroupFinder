@@ -99,6 +99,9 @@ SDSS_DR7B_PHOTO_FILE = SDSS_FOLDER + "photoinfo.dr72bright34.dat"
 #################
 TEST_DAT_FILE = DATA_FOLDER + 'test_mini_fluxlim.dat'
 TEST_GALPROPS_FILE = DATA_FOLDER + 'test_mini_galprops.dat'
+TEST_VOL_DAT_FILE = DATA_FOLDER + 'test_mini_vol.dat'
+TEST_VOL_GALPROPS_FILE = DATA_FOLDER + 'test_mini_vol_galprops.dat'
+
 
 # Simulation Data Files
 #######################

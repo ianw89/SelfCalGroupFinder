@@ -308,17 +308,24 @@ float func_match_nhost_pca4(float pca_val, float galdensity) {
 
 
 float HaloPCA1AMManager::match(float galaxy_density) {
-    //std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 1 value..." << std::endl;
-    return zbrent(func_match_nhost_pca1, HALO_PCA_MIN, HALO_PCA_MAX, 1.0E-5, galaxy_density);
+    //auto val =  zbrent(func_match_nhost_pca1, HaloPCADensityFuncs::get().getMin(0), HaloPCADensityFuncs::get().getMax(0), 1.0E-5, galaxy_density);
+    std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 1 value " << val << std::endl;
+    return val;
 }
 float HaloPCA2AMManager::match(float galaxy_density) {
-    return zbrent(func_match_nhost_pca2, HALO_PCA_MIN, HALO_PCA_MAX, 1.0E-5, galaxy_density);
+    //auto val = zbrent(func_match_nhost_pca2, HaloPCADensityFuncs::get().getMin(1), HaloPCADensityFuncs::get().getMax(1) , 1.0E-5, galaxy_density);
+    std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 2 value " << val << std::endl;
+    return val;
 }
 float HaloPCA3AMManager::match(float galaxy_density) {
-    return zbrent(func_match_nhost_pca3, HALO_PCA_MIN, HALO_PCA_MAX, 1.0E-5, galaxy_density);
+    //auto val = zbrent(func_match_nhost_pca3, HaloPCADensityFuncs::get().getMin(2), HaloPCADensityFuncs::get().getMax(2), 1.0E-5, galaxy_density);
+    std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 3 value " << val << std::endl;
+    return val;
 }
 float HaloPCA4AMManager::match(float galaxy_density) {
-    return zbrent(func_match_nhost_pca4, HALO_PCA_MIN, HALO_PCA_MAX, 1.0E-5, galaxy_density);
+    //auto val = zbrent(func_match_nhost_pca4, HaloPCADensityFuncs::get().getMin(3), HaloPCADensityFuncs::get().getMax(3), 1.0E-5, galaxy_density);
+    std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 4 value " << val << std::endl;
+    return val;
 }
 
 void HaloPCAModel::load() {

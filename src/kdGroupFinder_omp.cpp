@@ -122,8 +122,7 @@ void groupfind()
 
   // In interactive mode, groupfind() can be called more than once (changing the GF parameters between calls).
   // So we only do this initialization the first time.
-  if (first_call)
-  {
+  if (first_call) {
     first_call = 0;
     fp = openfile(INPUTFILE);
     NGAL = filesize(fp);
@@ -136,18 +135,17 @@ void groupfind()
 
     // For volume-limited samples, we calculate the volume and put that in the vmax
     // property of each galxaxy.
-    if (!FLUXLIM)
-    {
+    if (!FLUXLIM) {
       volume = 4. / 3. * PI * (pow(distance_redshift(MAXREDSHIFT), 3.0)) * FRAC_AREA;
       volume = volume - 4. / 3. * PI * (pow(distance_redshift(MINREDSHIFT), 3.0)) * FRAC_AREA;
+      std::cerr << "Volume for volume-limited sample: " << volume << " (Mpc^3), from z [" << MINREDSHIFT << ", " << MAXREDSHIFT << "] and fsky " << FRAC_AREA << std::endl;
     }
 
     // For flux-limited samples, we read in the vmax values from the file.
     // For that case, a factor of frac_area should already be included in the vmax.
 
     galden = 0;
-    for (int i = 0; i < NGAL; ++i)
-    {
+    for (int i = 0; i < NGAL; ++i) {
       // Thought called lum throughout the code, this galaxy property could be mstellar too.
       fscanf(fp, "%f %f %f %f", &GAL[i].ra, &GAL[i].dec, &GAL[i].redshift, &GAL[i].lum);
       GAL[i].ra *= PI / 180.;
@@ -172,6 +170,13 @@ void groupfind()
         fscanf(fp, "%f", &GAL[i].propx);
       if (SECOND_PARAMETER == 2)
         fscanf(fp, "%f", &GAL[i].propx2);
+      /*
+      if (LATENT) { // Read in N_GPCA_COMP components
+        for (int j = 0; j < N_GPCA_COMP; ++j) {
+          fscanf(fp, "%f", &GAL[i].halo_pca[j]);
+        }
+      } 
+      */
       GAL[i].weight = get_wcen(i);
       GAL[i].chiweight = get_chi_weight(i);
       GAL[i].bprob = get_bprob(i);
@@ -393,10 +398,10 @@ void groupfind()
         galden += 1 / GAL[i].vmax;
 
         if (FLUXLIM) {
-          GAL[i].halo_pca[1] = HaloPCA2AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
+          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
         }
         else {
-          GAL[i].halo_pca[1] = HaloPCA2AMManager::get().match(galden);
+          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match(galden);
         }
       }
 
@@ -406,6 +411,24 @@ void groupfind()
       std::iota(random_idx.begin(), random_idx.end(), 0); // Fill with 0, 1, 2, ..., ngrp-1
       std::mt19937 g(1989); // fixed seed for reproducibility, can be changed to std::random_device for non-deterministic
 
+
+      /*
+      galden = 0;
+      std::shuffle(random_idx.begin(), random_idx.end(), g);
+      for (int j = 0; j < ngrp; ++j) {
+        int i = sorted_indices[random_idx[j]]; // A random central
+        galden += 1 / GAL[i].vmax;
+
+        if (FLUXLIM) {
+          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
+        }
+        else {
+          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match(galden);
+        }
+      }
+      */
+
+      galden = 0;
       std::shuffle(random_idx.begin(), random_idx.end(), g);
       for (int j = 0; j < ngrp; ++j) {
         int i = sorted_indices[random_idx[j]]; // A random central
@@ -426,10 +449,10 @@ void groupfind()
         galden += 1 / GAL[i].vmax;
 
         if (FLUXLIM) {
-          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
+          GAL[i].halo_pca[1] = HaloPCA2AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
         }
         else {
-          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match(galden);
+          GAL[i].halo_pca[1] = HaloPCA2AMManager::get().match(galden);
         }
       }
 
@@ -818,4 +841,8 @@ double lgrp_to_matching_rank(int idx) {
   if (FLUXLIM)
     value *= fluxlim_correction(GAL[idx].redshift);
   return value;
+}
+
+double rank_for_hpca1(int idx) {
+
 }

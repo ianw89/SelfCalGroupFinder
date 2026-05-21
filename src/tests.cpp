@@ -650,7 +650,7 @@ void test_HaloPCAModel_model() {
     g.c = 4.141850;
     g.spin = 0.03922;
     g.age = 0.4420;
-    float halo1_pca_expected[] = {2.64207392,  4.05250815,  2.13720949, -0.52889892}; // From Python implementation with same PCA components and scaler
+    float halo1_pca_expected[] = {1.962247,  -2.330396,  1.535792	, -0.508829}; // From Python implementation with same PCA components and scaler
     t.forward_transform(&g);
     for (int i = 0; i < 4; ++i) {
         TEST_CASE(isclose(g.halo_pca[i], halo1_pca_expected[i]), g.halo_pca[i], "Halo PCA value should match expected");

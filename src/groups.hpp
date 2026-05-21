@@ -44,6 +44,7 @@
 #define MAX_BSAT 100.0
 
 #define N_HPCA_COMP 4
+#define N_GPCA_COMP 6
 
 /* Structure definition for galaxies. */
 struct galaxy {
@@ -63,6 +64,18 @@ struct galaxy {
   double vmax;
   int igrp;
   int grp_rank; // Rank of the group it's in when finding satellites (lower number means higher priority)
+
+  // In latent mode, these are the extra galaxy properties
+  //float mag_r; // TODO maybe dedupe later
+  //float mag_g;
+  //float mag_z;
+  //float logmstellar;
+  //float dn4000;
+  //float reff_kpc;
+  //float sersic;
+  //float logssfr;
+  //float lw_age;
+  float gal_pca[N_GPCA_COMP];
   
   // halo/group properties  
   float mass;
