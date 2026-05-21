@@ -384,7 +384,8 @@ def photoz_plus_metric_4(z_guessed: np.ndarray[float], z_truth: np.ndarray[float
 
 
 def get_app_mag(flux):
-    """This converts nanomaggies into Pogson magnitudes"""
+    """This converts nanomaggies into magnitudes"""
+    flux = np.atleast_1d(flux)
     return 22.5 - 2.5*np.log10(flux.clip(1e-16))
 
     #g = 22.5 - 2.5*np.log10(gflux.clip(1e-16))

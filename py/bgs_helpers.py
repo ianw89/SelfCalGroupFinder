@@ -4,6 +4,7 @@ import astropy.coordinates as coord
 import astropy.units as u
 import astropy.io.fits as fits
 from astropy.table import Table,join,vstack,unique,QTable
+from scipy.special import gamma as gamma_func, gammaincinv
 import sys
 import pickle
 import fitsio
@@ -231,6 +232,41 @@ def add_photz_columns(table, phot_z_file):
     final_table.remove_columns(['RA_2', 'DEC_2'])
 
     return final_table
+
+def add_concentration_column(table: Table):
+    """
+    Adds a c90/50 concentration column (ratio of radii enclosing 90% and 50% of flux).
+
+    L(Rx) = I_0 R_e^2 2pi n b_n^(-2n) gamma(2n, b_n (R_x/R_e)^(1/n))
+    You can do the algebra to see that Rx/Re is given by the below. We want R90/Re as our concentration.
+    """
+    if 'c9050' in table.columns:
+        print("c9050 already in table, replacing it.")
+        table.remove_columns(['c9050'])
+
+    n = table['SERSIC'].astype("<f8") 
+    
+    # TODO question - is this 1D Sersic what in LS or is it 2D Sersic? Check around. 
+    # My tests seems to make me think 1D. Proceeding with that here.
+
+    valid = np.isfinite(n) & (n > 0)
+    #assert np.all(valid)
+
+    default_val = 8.5 # invalid appears to be all MORPHTYPE PSF (but spectra said galaxy). 
+    # Use a high concetration default for these, similar to result for the max SERSIC index of 6.
+
+    c9050 = np.full(len(table), default_val)
+    nv = n[valid]
+    # Get b_n with the Ciotti & Bertin (1999) approximation
+    b_n = 2*nv - 1/3 + 4/(405*nv) + 46/(25515*nv**2) + 131/(1148175*nv**3) - 2194697/(30690717750*nv**4)
+
+    x90 = gammaincinv(2*nv, 0.9)
+    c9050[valid] = (x90 / b_n) ** nv
+
+    table.add_column(c9050, name='c9050')
+    return table
+
+
 
 
 def get_radec_df(table: Table):
@@ -530,7 +566,7 @@ def add_physical_halflight_radius(table):
 def create_merged_file(lsscat_fn : str, merged_fn : str, year : str, photoz_wspec=True):
     print(f"CREATING MERGED FILE {merged_fn} for year {year}.", flush=True)
     # 'DCHISQ' not in SV3
-    columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'FLUX_Z', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS']
+    columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'FLUX_Z', 'FLUX_R_DERED', 'FLUX_G_DERED', 'FLUX_Z_DERED', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS']
     if ON_NERSC:
         import fitsio
         table = Table(fitsio.read(lsscat_fn, columns=columns))
@@ -571,6 +607,8 @@ def create_merged_file(lsscat_fn : str, merged_fn : str, year : str, photoz_wspe
     # Add information on the nearest tiles to each target for Npass filtering later
     table = add_NTILE_MINE_to_table(table, year)
     print("NTILE_MINE Joined", flush=True)
+
+    table = add_concentration_column(table)
     
     table.write(merged_fn, format='fits', overwrite='True')
     print("Merged file written.")
