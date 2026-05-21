@@ -1628,7 +1628,6 @@ class TestVolumeLimGroupCatalog(GroupCatalog):
         cut_gals = gals[np.logical_and(gals.RA > 148.119, gals.RA < 152.119)]
         cut_gals = cut_gals[np.logical_and(cut_gals['DEC'] > 0.205, cut_gals['DEC'] < 4.205)]
 
-
         # Let's cut to -20 and brighter. Find zmax to keep
         zmax = get_max_observable_z(-20, self.mag_cut)
         self.GF_props['zmax'] = zmax
@@ -2634,6 +2633,10 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
 
     # TODO get galaxy concentration from somewhere
     chi = np.zeros(len(V_max), dtype=np.int32) 
+
+    # TODO Calculate PCA components
+
+    # TODO And send to file writing
 
     ####################################################################################
     # Write the completed preprocess files for the group finder / post-processing to use
