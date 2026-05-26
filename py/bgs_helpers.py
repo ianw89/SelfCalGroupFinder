@@ -135,6 +135,15 @@ def find_tiles_for_galaxies(tiles_df, gals_df, num_tiles_to_find):
     
     return ntiles_inside, nearest_tile_ids
 
+
+def add_dered_flux(data, fcols=['G', 'R', 'Z', 'W1', 'W2']):
+    # data should be table with fcols flux columns and MW transmission columns for those fcols
+    # Method copied from LSS common_tools.py
+    for col in fcols:
+        data['FLUX_'+col.upper()+'_DERED'] = data['FLUX_'+col] / data['MW_TRANSMISSION_'+col]
+    return data
+
+
 def add_mag_columns(table):
     print("Adding magnitude and quiescent classification columns to table.")
     # if the table doesn't have HALPHA or SFR, print a warning
@@ -158,9 +167,12 @@ def add_mag_columns(table):
         print("ERROR: No photo-z present in table.")
         return
 
-    app_mag_r = get_app_mag(table['FLUX_R'])
-    app_mag_g = get_app_mag(table['FLUX_G'])
-    app_mag_z= get_app_mag(table['FLUX_Z'])
+    # By examining '/global/cfs/cdirs/desi/survey/catalogs/Y1/LSS/iron/LSScats/v1.5/BGS_BRIGHT_full.dat.fits',
+    # I find that BRIGHT cuts on the extinction corrected flux at 19.5, not the original one. So I should do this too.
+    app_mag_r_orig = get_app_mag(table['FLUX_R'])
+    app_mag_r = get_app_mag(table['FLUX_R_DERED'])
+    app_mag_g = get_app_mag(table['FLUX_G_DERED'])
+    app_mag_z= get_app_mag(table['FLUX_Z_DERED'])
 
     z_obs = get_tbl_column(table, 'Z', required=True).astype("<f8")
     no_spectra = determine_unobserved_from_z(z_obs)# | np.isnan(table['ABSMAG01_SDSS_R']) | np.isnan(table['ABSMAG01_SDSS_G'])
@@ -188,6 +200,7 @@ def add_mag_columns(table):
     #x, y, z, zz, quiescent_kmeans, missing = is_quiescent_BGS_kmeans(log_L_gal, dn4000, halpha, ssfr, G_R_BEST, model=QUIESCENT_MODEL_V2)
     quiescent = is_quiescent_BGS_dn4000(log_L_gal, dn4000, G_R_BEST)
     table.add_column(app_mag_r, name='APP_MAG_R') 
+    table.add_column(app_mag_r_orig, name='APP_MAG_R_ORIG') 
     table.add_column(app_mag_g, name='APP_MAG_G') 
     table.add_column(app_mag_z, name='APP_MAG_Z') 
     table.add_column(abs_mag_R, name='ABS_MAG_R') 
@@ -565,8 +578,7 @@ def add_physical_halflight_radius(table):
 
 def create_merged_file(lsscat_fn : str, merged_fn : str, year : str, photoz_wspec=True):
     print(f"CREATING MERGED FILE {merged_fn} for year {year}.", flush=True)
-    # 'DCHISQ' not in SV3
-    columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'FLUX_Z', 'FLUX_R_DERED', 'FLUX_G_DERED', 'FLUX_Z_DERED', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS']
+    columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'FLUX_Z', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_G', 'MW_TRANSMISSION_Z', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS']
     if ON_NERSC:
         import fitsio
         table = Table(fitsio.read(lsscat_fn, columns=columns))
@@ -583,6 +595,8 @@ def create_merged_file(lsscat_fn : str, merged_fn : str, year : str, photoz_wspe
     print(f"Removed stars, now {len(table)} objects.", flush=True)
     table = table[table['SPECTYPE'] != 'QSO']
     print(f"Removed quasars, now {len(table)} objects.", flush=True)
+
+    table = add_dered_flux(table, fcols=['G', 'R', 'Z'])
 
     # Add additional derived columns from fastspecfit
     # The lost galaxies will get nans for the fsf columns

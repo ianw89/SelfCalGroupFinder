@@ -421,7 +421,7 @@ def get_physical_angular_diameter_distance(arcsec, z):
     z_clip = np.clip(z, 0.001, 5.0) # clip to avoid errors; we won't use galaxies less than this anyway
 
     if len(arcsec) > 3000:
-        z_grid = np.linspace(0.0, np.max(z_clip), 1000)
+        z_grid = np.linspace(0.0, np.max(z_clip[~np.isnan(z_clip)]), 1000)
         d_grid = cosmo.angular_diameter_distance(z_grid).value
 
         d_interp = interp1d(z_grid, d_grid, kind='cubic')
