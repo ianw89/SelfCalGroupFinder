@@ -59,7 +59,7 @@ Each row in the table is a single galaxy. The columns are:
 | Z | float64 | - | Redshift; either as observed or assigned. See Z_ASSIGNED_FLAG. |
 | L_GAL | float64 | $L_\odot / h^2$ | Luminosity as converted from r-band absolute Mag (see below). |
 | ABS_MAG_R | float64 | magnitudes | Absolute magnitude in r-band, k-corrected to z=0.1, with $H_0$ = 100 km/s/Mpc. |
-| VMAX | float64 | Mpc${}^3$ | Maximum volume this galaxy could be observed in based on L_GAL; intended for 1/VMAX corrections for this flux-limited sample (editor: do these units contain $h$?). |
+| VMAX | float64 | (Mpc/h)${}^3$ | Maximum volume this galaxy could be observed in based on L_GAL; intended for 1/VMAX corrections for this flux-limited sample. |
 | P_SAT | float64 | - | A number between 0 and 1 indicating how likely this galaxy is to be a satellite as per the group finding algorithm. It is not a true probability; See the corresponding paper for details. When greater than 0.5 the galaxy is considered a satellite, and IS_SAT will be marked True. |
 | M_HALO | float64 | $M_\odot / h$ | Group property - assigned halo mass (of entire group). |
 | N_SAT | int32 | - | Group property - the number of satellites in the group which this galaxy is part of. |
@@ -89,7 +89,7 @@ NTILE_ALT >= 3 is a requirement to include a galaxy in this group catalog.
 
 #### Halo masses
 
-As with all halo-based group finders, the mass estimates should be treated with caution. While a ~0.2 dex error is typical, it can be much larger for certain subpopulations and can easily bias results when utilized in ways that have not been explicitly checked in mock studies such as those of Tinker 2022 (editor: link needed). Galaxies with no satellites and lost galaxy centrals will have much larger uncertainties in the halo mass.
+As with all halo-based group finders, the mass estimates should be treated with caution. While a ~0.2 dex error is typical, it can be much larger for certain subpopulations and can easily bias results when utilized in ways that have not been explicitly checked in mock studies such as those of [Tinker (2022)](https://ui.adsabs.harvard.edu/abs/2020arXiv200712200T/abstract). Galaxies with no satellites and lost galaxy centrals will have much larger uncertainties in the halo mass.
 
 #### Lost galaxies
 
@@ -113,7 +113,7 @@ When a galaxy is near the edge of the footprint, other group members may lie out
 
 #### Quiescent vs Star-forming
 
-Classifying quiescent galaxies is difficult at low luminosities, especially fainter than -17 (editor: in what units?). Classifications should be used with caution in this regime.
+Classifying quiescent galaxies is difficult at low luminosities, especially fainter than -17 mag. Classifications should be used with caution in this regime.
 
 ## Contact
 
