@@ -91,19 +91,20 @@ struct HaloMassFunction {
 
       void build() {
         char aa[1000];
-        FILE *fp = openfile(HALO_MASS_FUNC_FILE);
-        n = filesize(fp);
+        std::ifstream fp = openfile(HALO_MASS_FUNC_FILE);
+        n = filesize(HALO_MASS_FUNC_FILE);
         x = (double*)malloc(n * sizeof(double));
         y = (double*)malloc(n * sizeof(double));
         for (int i = 0; i < n; ++i)
         {
             float xf, yf;
-            fscanf(fp, "%f %f", &xf, &yf);
+            fp >> xf >> yf;
             x[i] = log(xf);
             y[i] = log(yf);
-            fgets(aa, 1000, fp);
+            std::string line;
+            std::getline(fp, line);
         }
-        fclose(fp);
+        fp.close();
 
         acc = gsl_interp_accel_alloc();
         spline = gsl_spline_alloc(gsl_interp_cspline, n); // Consider gsl_interp_steffen to prevent oscillations between points.
@@ -221,13 +222,13 @@ void HaloPCADensityFuncs::build(int idx) {
         HALO_PCA3_DENSITY_FUNC_FILE,
         HALO_PCA4_DENSITY_FUNC_FILE
     };
-    FILE *fp = openfile(files[idx]);
-    n[idx] = filesize(fp);
+    std::ifstream fp = openfile(files[idx]);
+    n[idx] = filesize(files[idx]);
     px[idx] = (double*)malloc(n[idx] * sizeof(double));
     py[idx] = (double*)malloc(n[idx] * sizeof(double));
     for (int i = 0; i < n[idx]; i++)
-        fscanf(fp, "%lf %lf", &px[idx][i], &py[idx][i]);
-    fclose(fp);
+        fp >> px[idx][i] >> py[idx][i];
+    fp.close();
     //std::cerr << "Loaded PCA density function for component " << (idx + 1) << " with " << n[idx] << " points." << std::endl;
 }
 
@@ -308,23 +309,23 @@ float func_match_nhost_pca4(float pca_val, float galdensity) {
 
 
 float HaloPCA1AMManager::match(float galaxy_density) {
-    //auto val =  zbrent(func_match_nhost_pca1, HaloPCADensityFuncs::get().getMin(0), HaloPCADensityFuncs::get().getMax(0), 1.0E-5, galaxy_density);
-    std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 1 value " << val << std::endl;
+    auto val =  zbrent(func_match_nhost_pca1, HaloPCADensityFuncs::get().getMin(0), HaloPCADensityFuncs::get().getMax(0), 1.0E-5, galaxy_density);
+    //std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 1 value " << val << std::endl;
     return val;
 }
 float HaloPCA2AMManager::match(float galaxy_density) {
-    //auto val = zbrent(func_match_nhost_pca2, HaloPCADensityFuncs::get().getMin(1), HaloPCADensityFuncs::get().getMax(1) , 1.0E-5, galaxy_density);
-    std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 2 value " << val << std::endl;
+    auto val = zbrent(func_match_nhost_pca2, HaloPCADensityFuncs::get().getMin(1), HaloPCADensityFuncs::get().getMax(1) , 1.0E-5, galaxy_density);
+    //std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 2 value " << val << std::endl;
     return val;
 }
 float HaloPCA3AMManager::match(float galaxy_density) {
-    //auto val = zbrent(func_match_nhost_pca3, HaloPCADensityFuncs::get().getMin(2), HaloPCADensityFuncs::get().getMax(2), 1.0E-5, galaxy_density);
-    std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 3 value " << val << std::endl;
+    auto val = zbrent(func_match_nhost_pca3, HaloPCADensityFuncs::get().getMin(2), HaloPCADensityFuncs::get().getMax(2), 1.0E-5, galaxy_density);
+    //std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 3 value " << val << std::endl;
     return val;
 }
 float HaloPCA4AMManager::match(float galaxy_density) {
-    //auto val = zbrent(func_match_nhost_pca4, HaloPCADensityFuncs::get().getMin(3), HaloPCADensityFuncs::get().getMax(3), 1.0E-5, galaxy_density);
-    std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 4 value " << val << std::endl;
+    auto val = zbrent(func_match_nhost_pca4, HaloPCADensityFuncs::get().getMin(3), HaloPCADensityFuncs::get().getMax(3), 1.0E-5, galaxy_density);
+    //std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 4 value " << val << std::endl;
     return val;
 }
 

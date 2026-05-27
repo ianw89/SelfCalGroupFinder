@@ -229,14 +229,14 @@ void lsat_model()
     for (j = -20; j <= 20; ++j)
       nhbx2[i][j] = nhrx2[i][j] = lsatbx2[i][j] = lsatrx2[i][j] = 0;
 
-  fp = openfile("lsat_lookup.dat");
-  nt = filesize(fp);
+  std::ifstream ifs = openfile("lsat_lookup.dat");
+  nt = filesize("lsat_lookup.dat");
   mx = vector(1, nt); // log10 mass
   lx = vector(1, nt); // log10 Lsat50
   m2x = vector(1, nt); // spline interpolation
   for (i = 1; i <= nt; ++i)
-    fscanf(fp, "%f %f", &mx[i], &lx[i]);
-  fclose(fp);
+    ifs >> mx[i] >> lx[i];
+  ifs.close();
 
   spline(mx, lx, nt, 1.0E+30, 1.0E+30, m2x);
 
@@ -1050,7 +1050,7 @@ void prepare_halos() {
     exit(ENOENT);
   }
 
-  NHALO = filesize(fp);
+  NHALO = filesize(MOCK_FILE);
   LOG_INFO("popsim> NHALO=%d\n", NHALO);
   HALO = (halo *) calloc(NHALO, sizeof(halo));
   for (int i = 0; i < NHALO; ++i)

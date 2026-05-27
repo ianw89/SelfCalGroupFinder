@@ -6,6 +6,9 @@
 #include <assert.h>
 #include <sys/time.h>
 #include <iostream>
+#include <fstream>
+#include <limits>
+#include <string>
 #include <numeric>
 #include "timing.hpp"
 #include "libs/nanoflann.hpp"
@@ -99,8 +102,6 @@ FILE *MSG_PIPE = NULL; // default is no message pipe
 
 void groupfind()
 {
-  FILE *fp;
-  char aa[1000];
   double minvmax, maxvmax;
   int niter, ngrp_prev, icen_new;
   double frac_area, nsat_tot, weight;
@@ -124,8 +125,7 @@ void groupfind()
   // So we only do this initialization the first time.
   if (first_call) {
     first_call = 0;
-    fp = openfile(INPUTFILE);
-    NGAL = filesize(fp);
+    NGAL = filesize(INPUTFILE);
     LOG_INFO("Allocating space for [%d] galaxies\n", NGAL);
     GAL = (struct galaxy*) calloc(NGAL, sizeof(struct galaxy));
     if (unvisited)
@@ -145,47 +145,54 @@ void groupfind()
     // For that case, a factor of frac_area should already be included in the vmax.
 
     galden = 0;
-    for (int i = 0; i < NGAL; ++i) {
-      // Thought called lum throughout the code, this galaxy property could be mstellar too.
-      fscanf(fp, "%f %f %f %f", &GAL[i].ra, &GAL[i].dec, &GAL[i].redshift, &GAL[i].lum);
-      GAL[i].ra *= PI / 180.;
-      GAL[i].dec *= PI / 180.;
-      GAL[i].rco = distance_redshift(GAL[i].redshift);
-      // check if the stellar mass (or luminosity) is in log
-      if (GAL[i].lum < 15) // assume it's log10 instead
-        GAL[i].lum = pow(10.0, GAL[i].lum);
-      GAL[i].loglum = log10(GAL[i].lum); // store this version too so we don't have to keep calculating it
-      if (FLUXLIM) {
-        fscanf(fp, "%lf", &GAL[i].vmax);
-        if (GAL[i].vmax <= 0 || isnan(GAL[i].vmax) || !isfinite(GAL[i].vmax)) {
-          LOG_ERROR("ERROR: vmax is invalid for galaxy %d with vmax=%f\n", i, GAL[i].vmax);
-          assert(false);
-        } 
+    {
+      std::ifstream ifs(INPUTFILE);
+      if (!ifs.is_open()) {
+        std::cerr << "ERROR opening " << INPUTFILE << std::endl;
+        exit(ENOENT);
       }
-      else
-        GAL[i].vmax = volume;
-      if (COLOR)
-        fscanf(fp, "%f", &GAL[i].color);
-      if (SECOND_PARAMETER)
-        fscanf(fp, "%f", &GAL[i].propx);
-      if (SECOND_PARAMETER == 2)
-        fscanf(fp, "%f", &GAL[i].propx2);
-      /*
-      if (LATENT) { // Read in N_GPCA_COMP components
-        for (int j = 0; j < N_GPCA_COMP; ++j) {
-          fscanf(fp, "%f", &GAL[i].halo_pca[j]);
+      for (int i = 0; i < NGAL; ++i) {
+        // Thought called lum throughout the code, this galaxy property could be mstellar too.
+        ifs >> GAL[i].ra >> GAL[i].dec >> GAL[i].redshift >> GAL[i].lum;
+        GAL[i].ra *= PI / 180.;
+        GAL[i].dec *= PI / 180.;
+        GAL[i].rco = distance_redshift(GAL[i].redshift);
+        // check if the stellar mass (or luminosity) is in log
+        if (GAL[i].lum < 15) // assume it's log10 instead
+          GAL[i].lum = pow(10.0, GAL[i].lum);
+        GAL[i].loglum = log10(GAL[i].lum); // store this version too so we don't have to keep calculating it
+        if (FLUXLIM) {
+          ifs >> GAL[i].vmax;
+          if (GAL[i].vmax <= 0 || isnan(GAL[i].vmax) || !isfinite(GAL[i].vmax)) {
+            LOG_ERROR("ERROR: vmax is invalid for galaxy %d with vmax=%f\n", i, GAL[i].vmax);
+            assert(false);
+          }
         }
-      } 
-      */
-      GAL[i].weight = get_wcen(i);
-      GAL[i].chiweight = get_chi_weight(i);
-      GAL[i].bprob = get_bprob(i);
-      GAL[i].x = GAL[i].rco * cos(GAL[i].ra) * cos(GAL[i].dec);
-      GAL[i].y = GAL[i].rco * sin(GAL[i].ra) * cos(GAL[i].dec);
-      GAL[i].z = GAL[i].rco * sin(GAL[i].dec);
-      fgets(aa, 1000, fp);
-      galden += 1 / GAL[i].vmax;
-    }
+        else
+          GAL[i].vmax = volume;
+        if (COLOR)
+          ifs >> GAL[i].color;
+        if (SECOND_PARAMETER)
+          ifs >> GAL[i].propx;
+        if (SECOND_PARAMETER == 2)
+          ifs >> GAL[i].propx2;
+        /*
+        if (LATENT) { // Read in N_GPCA_COMP components
+          for (int j = 0; j < N_GPCA_COMP; ++j) {
+            ifs >> GAL[i].halo_pca[j];
+          }
+        }
+        */
+        ifs.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        GAL[i].weight = get_wcen(i);
+        GAL[i].chiweight = get_chi_weight(i);
+        GAL[i].bprob = get_bprob(i);
+        GAL[i].x = GAL[i].rco * cos(GAL[i].ra) * cos(GAL[i].dec);
+        GAL[i].y = GAL[i].rco * sin(GAL[i].ra) * cos(GAL[i].dec);
+        GAL[i].z = GAL[i].rco * sin(GAL[i].dec);
+        galden += 1 / GAL[i].vmax;
+      }
+    } // ifstream closes here
     // print off largest and smallest vmax values
     minvmax = 1e10;
     maxvmax = -1e10;
@@ -198,7 +205,6 @@ void groupfind()
     }
     LOG_INFO("min vmax= %e max vmax= %e\n", minvmax, maxvmax);
 
-    fclose(fp);
     LOG_INFO("Done reading in from [%s]\n", INPUTFILE);
 
     if (!FLUXLIM)
@@ -843,6 +849,6 @@ double lgrp_to_matching_rank(int idx) {
   return value;
 }
 
-double rank_for_hpca1(int idx) {
-
-}
+//double rank_for_hpca1(int idx) {
+//
+//}

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <cstdio>
+#include <string>
+#include <fstream>
+#include <iostream>
 #include "fit_clustering_omp.hpp" 
 
 // Definitions
@@ -44,7 +47,7 @@
 #define MAX_BSAT 100.0
 
 #define N_HPCA_COMP 4
-#define N_GPCA_COMP 6
+#define N_GPCA_COMP 4
 
 /* Structure definition for galaxies. */
 struct galaxy {
@@ -172,5 +175,5 @@ float compute_p_z(float dz, float sigmav);
 float compute_p_proj(float mass, float dr, float rad, float ang_rad);
 float compute_p_proj_g(struct galaxy *gal, float dr);
 float psat(struct galaxy *central, float dr, float dz, float bprob);
-int filesize(FILE *fp);
-FILE *openfile(const char *filename);
+int filesize(const char *file);
+std::ifstream openfile(const char *filename);
