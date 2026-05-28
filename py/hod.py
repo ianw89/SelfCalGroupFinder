@@ -239,7 +239,9 @@ def fit_hod_models(log_halo_mass, logncen, lognsat, unweighted_counts, use_mcmc=
     satmask = lognsat > -4
     m1_guess = len(log_halo_mass[satmask]) // 2
     p0_sat = [log_halo_mass[satmask][0], log_halo_mass[satmask][m1_guess], 1.0]
-    bounds_sat = ([9.5, 9.5, 0.1], [17, 20, 3.0])
+
+    # Set Mcut lower boundary to (the first parameter) to the lowest mass bin in the satmask minus a bit
+    bounds_sat = ([log_halo_mass[satmask][0] - 0.3, log_halo_mass[satmask][0] - 0.3, 0.1], [17, 20, 3.0])
 
     if use_mcmc:
         print("--- Fitting Centrals with MCMC ---")
@@ -275,7 +277,7 @@ def _bin_log_probability(theta, x, y, yerr, model_func, lower_bounds, upper_boun
     return lp + _bin_log_likelihood(theta, x, y, yerr, model_func)
 
 
-def fit_hod_mcmc(log_halo_mass, logn, unweighted_counts, model_func, p0, bounds, min_counts=5, base_err=0.02, nwalkers=16, nsteps=10000, discard=100):
+def fit_hod_mcmc(log_halo_mass, logn, unweighted_counts, model_func, p0, bounds, min_counts=5, base_err=0.02, nwalkers=16, nsteps=15000, discard=100):
     """
     Fits a model to data using MCMC with emcee.
     The error is calculated from the unweighted counts.

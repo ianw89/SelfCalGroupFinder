@@ -146,6 +146,18 @@ GF_PROPS_BGS_COLORS_C3 = {
     'betaLsf': -0.67647083
 }
 
+GF_PROPS_LATENT_1 = {
+    'zmin':0, 
+    'zmax':0,
+    'frac_area':0, # should be filled in
+    'fluxlim':3,
+    'color':0, # TODO
+    'latent':np.array([[1.0, 0.0, 0.0, 0.0], 
+                       [0.0, 1.0, 0.0, 0.0], 
+                       [0.0, 0.0, 1.0, 0.0], 
+                       [0.0, 0.0, 0.0, 1.0]])
+}
+
 def set_all_seeds(seed=59418):
     """Set seeds for all common RNG sources"""
     random.seed(seed)
@@ -1077,8 +1089,9 @@ class GroupCatalog:
             args.append(f"--popmock={MOCK_FILE_FOR_POPMOCK},volume_bins.dat")
         if verbose:
             args.append("-v")
-        if 'latent' in self.GF_props and self.GF_props['latent']:
-            args.append("--latent")
+        if 'latent' in self.GF_props:
+            assert isinstance(self.GF_props['latent'], np.ndarray) and self.GF_props['latent'].ndim == 2, "latent GF prop should be a 2d numpy array"
+            args.append("--latent=" + ",".join(map(str, self.GF_props['latent'].flatten())))
         if 'hodw' in self.GF_props:
             args.append(f"--hodw={self.GF_props['hodw']}")
         if interactive:
@@ -2086,11 +2099,7 @@ def get_footprint_deg(data_cut, mode, num_passes_required):
 def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sdss_fill, num_passes_required, drop_passes, data_cut, extra_params, ffc):
     """
     Pre-processes the BGS data for use with the group finder.
-    """
-
-
-    # TODO BUG One galaxy is lost from this to group finder...
-    
+    """    
     print("Reading data from ", fname)
     # Unobserved galaxies have masked rows in appropriate columns of the table
     table = Table.read(fname, format='fits')
@@ -2187,6 +2196,7 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     photsys = get_tbl_column(table, 'PHOTSYS', required=True)
     ntile = get_tbl_column(table, 'NTILE', required=True)
     ntile_mine = get_tbl_column(table, 'NTILE_MINE', required=True)
+    bgs_target = get_tbl_column(table, 'BGS_TARGET', required=True)
     nan_pobs = np.isnan(p_obs)
     if np.any(nan_pobs):
         print(f"WARNING: {np.sum(nan_pobs)} galaxies have nan p_obs. Setting those to 0.689, the mean of Y3.")
@@ -2233,15 +2243,36 @@ def pre_process_BGS(fname, mode, outname_base, fluxlimit, catalog_fluxlimit, sds
     keep &= ntile_mine >= num_passes_required
     print(f"After NTILE_MINE >= {num_passes_required} cut: {keep.sum():,}")
 
-    offset = 0.04 # N gets this offset in the app_mag_r cut
-    fluxlimits = np.zeros(len(z_obs)) + fluxlimit
-    fluxlimits = np.where(photsys == b"N", fluxlimits + offset, fluxlimits)
-    # assert PHOTSYS is N or S for everything
-    if not np.all(np.isin(photsys, [b"N", b"S"])):
-        print("ERROR: PHOTSYS column has values other than N or S. Exiting.")
-        exit(2)
-    keep &= app_mag_r < fluxlimits
-    print(f"After app_mag_r < {fluxlimit} cut: {keep.sum():,}")
+
+    if fluxlimit == 19.5:
+        # instead of the app mag cut, use BGS BRIGHT targetting bit
+        bright = (bgs_target & 2**1) != 0
+        keep &= bright
+        print(f"After BGS BRIGHT cut (19.5 flux limit): {keep.sum():,}")
+
+        # debug test
+        offset = 0.04 # N gets this offset in the app_mag_r cut
+        fluxlimits = np.zeros(len(z_obs)) + fluxlimit
+        fluxlimits = np.where(photsys == b"N", fluxlimits + offset, fluxlimits)
+        # assert PHOTSYS is N or S for everything
+        if not np.all(np.isin(photsys, [b"N", b"S"])):
+            print("ERROR: PHOTSYS column has values other than N or S. Exiting.")
+            exit(2)
+        fluxcut = app_mag_r < fluxlimits
+        if np.sum(bright != fluxcut) > 0:
+            print(f"WARNING: BGS BRIGHT bit and my manual app_mag_r cut disagree for {np.sum(bright != fluxcut)} targets. Please investigate.")
+
+
+    else:
+        offset = 0.04 # N gets this offset in the app_mag_r cut
+        fluxlimits = np.zeros(len(z_obs)) + fluxlimit
+        fluxlimits = np.where(photsys == b"N", fluxlimits + offset, fluxlimits)
+        # assert PHOTSYS is N or S for everything
+        if not np.all(np.isin(photsys, [b"N", b"S"])):
+            print("ERROR: PHOTSYS column has values other than N or S. Exiting.")
+            exit(2)
+        keep &= app_mag_r < fluxlimits
+        print(f"After app_mag_r < {fluxlimit} cut: {keep.sum():,}")
 
     keep &= ~np.isin(target_id, bad_targets)
     catalog_keep &= ~np.isin(target_id, bad_targets)
