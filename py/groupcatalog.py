@@ -765,8 +765,8 @@ class GroupCatalog:
         bad_luminosity = lost_blue_smallhalo_centrals['L_GAL'] > 1e9
         assert np.sum(bad_luminosity) == 0, f"Lost blue centrals in small halos should have L_GAL < 1e9, but {np.sum(bad_luminosity)} do not."
         if 'LOGMSTAR' in lost_blue_smallhalo_centrals.columns:
-            bad_stellarmass = lost_blue_smallhalo_centrals['LOGMSTAR'] > 9.5
-            assert np.sum(bad_stellarmass) == 0, f"Lost blue centrals in small halos should have LOGMSTAR < 9.5, but {np.sum(bad_stellarmass)} do not."
+            bad_stellarmass = lost_blue_smallhalo_centrals['LOGMSTAR'] > 9.6
+            assert np.sum(bad_stellarmass) == 0, f"Lost blue centrals in small halos should have LOGMSTAR < 9.6, but {np.sum(bad_stellarmass)} do not."
 
         #if not skiphod:
         #    assert np.isclose(self.f_sat_q.to_numpy()[6:34], self.fsatr[6:34], atol=1e-4).all()

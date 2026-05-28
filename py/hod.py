@@ -70,7 +70,7 @@ def _thresh_log_probability(theta, x, y, yerr, model_func, lower_bounds, upper_b
         return -np.inf
     return lp + _thresh_log_likelihood(theta, x, y, yerr, model_func)
 
-def fit_hod_thresholds_mcmc(log_halo_mass, logn, unweighted_counts, model_func, p0, bounds, min_counts=10, base_err=0.1, nwalkers=10, nsteps=10000, discard=0):
+def fit_hod_thresholds_mcmc(log_halo_mass, logn, unweighted_counts, model_func, p0, bounds, min_counts=10, base_err=0.05, nwalkers=10, nsteps=10000, discard=0):
     """
     Fits a threshold HOD model to data using MCMC with emcee.
     The error is calculated from the unweighted counts.
@@ -245,7 +245,7 @@ def fit_hod_models(log_halo_mass, logncen, lognsat, unweighted_counts, use_mcmc=
         print("--- Fitting Centrals with MCMC ---")
         popt_cen = fit_hod_mcmc(log_halo_mass[cenmask], logncen[cenmask], unweighted_counts[cenmask], hod_bins_central_model, p0_cen, bounds_cen, base_err=0.005)
         print("\n--- Fitting Satellites with MCMC ---")
-        popt_sat = fit_hod_mcmc(log_halo_mass[satmask], lognsat[satmask], unweighted_counts[satmask], hod_bins_satellite_model, p0_sat, bounds_sat, base_err=0.1)
+        popt_sat = fit_hod_mcmc(log_halo_mass[satmask], lognsat[satmask], unweighted_counts[satmask], hod_bins_satellite_model, p0_sat, bounds_sat, base_err=0.05)
     else:
         print("--- Fitting with curve_fit ---")
         popt_cen, _ = curve_fit(hod_bins_central_model, log_halo_mass[cenmask], logncen[cenmask], p0=p0_cen, bounds=bounds_cen)

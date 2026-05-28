@@ -90,34 +90,3 @@ class CalibrationData:
     def __str__(self):
         return f"CalibrationData(\nmagbins={self.magbins}\nzmaxes={self.zmaxes}\nvolumes={self.volumes}\nmagcut={self.magcut}\nfrac_area={self.frac_area}\nparamsfolder={self.paramsfolder}\nbinsfile={self.rpbinsfile}\n)"
     
-
-def transform_sdss_lsat_to_bgs_mags():
-    """
-    Read in the SDSS LSat observations, convert the luminosities to BGS-like magnitudes, and write out a new file with the transformed data.
-
-    NOTE: we are no longer using this in DR1 group catalog. This is legacy code.
-    """
-    infile = LSAT_OBSERVATIONS_SDSS_FILE
-    outfile = LSAT_OBSERVATIONS_SDSS_TRANSFORMED_FILE
-    data = np.loadtxt(infile, skiprows=0, dtype='float')
-    lcen = data[:,0] # in log10
-    lsat_r = data[:,1]
-    err_r = data[:,2]
-    lsat_b = data[:,3]
-    err_b = data[:,4]
-
-    def convert_lum(ldata):
-        sdss_mag = log_solar_L_to_abs_mag_r(ldata)
-        bgs_mag = sdss_mag_to_bgslike_mag(sdss_mag)
-        return abs_mag_r_to_log_solar_L(bgs_mag)
-
-    # These are from SDSS photometry.
-    lcen = convert_lum(lcen)
-    # This are on the DESI Legacy survey already.
-    #lsat_r = np.power(10, convert_lum(np.log10(lsat_r)))
-    #err_r = np.power(10, convert_lum(np.log10(err_r)))
-    #lsat_b = np.power(10, convert_lum(np.log10(lsat_b)))
-    #err_b = np.power(10, convert_lum(np.log10(err_b)))
-
-    output_data = np.column_stack((lcen, lsat_r, err_r, lsat_b, err_b))
-    np.savetxt(outfile, output_data, fmt='%f %e %e %e %e')
