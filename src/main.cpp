@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sstream>
 #include <math.h>
 #include <time.h>
 #include <assert.h>
@@ -60,7 +61,7 @@ static struct argp_option options[] = {
   {"colors",       'c', 0,                                    0,  "Read in and use galaxy colors", 1},
   {"iterations",   'i', "N",                                  0,  "Number of iterations for group finding", 1},
   {"earlyexit",    'e', 0,                                    0,  "Allow early exit from group finding for various scenarios", 1},
-  {"latent",       'l', 0,                                    0,  "Assign halo properties in PCA latent space instead of just halo mass", 2},
+  {"latent",       'l', "PARAMETERS",                         0,  "Assign halo properties in PCA latent space instead of just halo mass", 2},
   {"wcen",         'w', "MASS,SIGMA,MASSR,SIGMAR,NORM,NORMR", 0,  "Six parameters for weighting the centrals", 2},
   {"bsat",         'b', "RED,XRED,BLUE,XBLUE",                0,  "Four parameters for the satellite probability", 2},
   {"chi1",         'x', "WEIGHT_B,WEIGHT_R,SLOPE_B,SLOPE_R",  0,  "Four parameters per-galaxy extra property weighting", 2},
@@ -86,7 +87,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
   /* Get the input argument from argp_parse, which we
      know is a pointer to our arguments structure. */
   struct arguments *arguments = (struct arguments *) (state->input);
-  int pipe_id;
+  int pipe_id, n, expected;
 
   switch (key)
   {
@@ -134,20 +135,45 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       break;
     case 'l':
       LATENT = 1;
+      expected = N_GPCA_COMP * N_HPCA_COMP;
+      {
+        std::istringstream ss(arg);
+        std::string token;
+        n = 0;
+        while (n < expected && std::getline(ss, token, ',')) {
+          LATENT_LINEAR_MODEL[n++] = std::stod(token);
+        }
+      }
+      if (n != expected) {
+        LOG_ERROR("Expected %d parameters for latent linear model, but got %d.\n", expected, n);
+        exit(EPERM);
+      }
       break;
     case 'w':
       USE_WCEN = 1;
       arguments->wcen_set = 1;
-      sscanf(arg, "%lf,%lf,%lf,%lf,%lf,%lf", &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR));
+      n = sscanf(arg, "%lf,%lf,%lf,%lf,%lf,%lf", &(WCEN_MASS), &(WCEN_SIG), &(WCEN_MASSR), &(WCEN_SIGR), &(WCEN_NORM), &(WCEN_NORMR));
+      if (n != 6) {
+          LOG_ERROR("Expected 6 parameters for wcen, but got %d.\n", n);
+          exit(EPERM);
+      }
       break;
     case 'b':
       USE_BSAT = 1;
       arguments->bsat_set = 1;
-      sscanf(arg, "%lf,%lf,%lf,%lf", &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE));
+      n = sscanf(arg, "%lf,%lf,%lf,%lf", &(BPROB_RED), &(BPROB_XRED), &(BPROB_BLUE), &(BPROB_XBLUE));
+      if (n != 4) {
+          LOG_ERROR("Expected 4 parameters for bsat, but got %d.\n", n);
+          exit(EPERM);
+      }
       break;
     case 'x':
       arguments->chi1_set = 1;
-      sscanf(arg, "%lf,%lf,%lf,%lf", &(PROPX_WEIGHT_BLUE), &(PROPX_WEIGHT_RED), &(PROPX_SLOPE_BLUE), &(PROPX_SLOPE_RED));
+      n = sscanf(arg, "%lf,%lf,%lf,%lf", &(PROPX_WEIGHT_BLUE), &(PROPX_WEIGHT_RED), &(PROPX_SLOPE_BLUE), &(PROPX_SLOPE_RED));
+      if (n != 4) {
+          LOG_ERROR("Expected 4 parameters for chi1, but got %d.\n", n);
+          exit(EPERM);
+      }
       break;
     case 'h':
       HALO_MASS_FUNC_FILE = strdup(arg);
@@ -246,6 +272,18 @@ int main(int argc, char **argv)
   // Summarize input
   LOG_INFO("input> FLUXLIM: %d, COLOR: %d, STELLAR_MASS: %d \n", FLUXLIM, COLOR, STELLAR_MASS);
   LOG_INFO("input> z: %f-%f, frac_area: %f\n", MINREDSHIFT, MAXREDSHIFT, FRAC_AREA);
+  if (LATENT)
+  {
+    std::stringstream ss;
+    for (i = 0; i < N_GPCA_COMP * N_HPCA_COMP; ++i) {
+        ss << LATENT_LINEAR_MODEL[i];
+        if ((i + 1) % N_GPCA_COMP == 0)
+            ss << "\n";
+        else
+            ss << ", ";
+    }
+    LOG_INFO("input> LATENT ON. Linear model weights: \n%s\n", ss.str().c_str());
+  }
   if (USE_WCEN)
     LOG_INFO("input> wcen ON: %f %f %f %f %f %f\n", WCEN_MASS, WCEN_SIG, WCEN_MASSR, WCEN_SIGR, WCEN_NORM, WCEN_NORMR);
   else 
@@ -277,6 +315,10 @@ int main(int argc, char **argv)
   if (LATENT && HALO_MASS_FUNC_FILE != nullptr) 
   {
     LOG_WARN("LATENT mode will not use the halo mass function file, but one was provided. It will be ignored.\n");
+  }
+  if (LATENT && (USE_WCEN || SECOND_PARAMETER > 0)) 
+  {
+    LOG_WARN("LATENT mode is not compatible with wcen or extra property weighting. Those options will be ignored.\n");
   }
 
   bool run = true;
@@ -391,6 +433,28 @@ bool await_request() {
   if (n_payload != count) {
     fprintf(stderr, "Failed to read MSG_REQUEST payload (got %zu doubles)\n", n_payload);
     return false;
+  }
+
+  if (LATENT) {
+    int expected = N_GPCA_COMP * N_HPCA_COMP;
+    if (USE_BSAT) {
+      expected += 4;
+    }
+    if (params.size() != expected) {
+        LOG_ERROR("Expected %d parameters for latent linear model, but got %zu.\n", expected, params.size());
+        return false;
+    }
+    
+    for (size_t i = 0; i < N_GPCA_COMP * N_HPCA_COMP; ++i) {
+        LATENT_LINEAR_MODEL[i] = params[i];
+    }
+    if (USE_BSAT) {
+      BPROB_RED = params[N_GPCA_COMP * N_HPCA_COMP + 0];
+      BPROB_XRED = params[N_GPCA_COMP * N_HPCA_COMP + 1];
+      BPROB_BLUE = params[N_GPCA_COMP * N_HPCA_COMP + 2];
+      BPROB_XBLUE = params[N_GPCA_COMP * N_HPCA_COMP + 3];
+    }
+    return true;
   }
 
   if (params.size() == 10) {

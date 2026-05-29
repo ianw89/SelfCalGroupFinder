@@ -47,6 +47,7 @@ double get_wcen(int idx);
 double get_chi_weight(int idx);
 double get_bprob(int idx);
 double lgrp_to_matching_rank(int idx);
+double rank_for_hpca(int idx, int hpca_idx);
 
 galaxy *GAL = nullptr;
 halo *HALO = nullptr;
@@ -60,6 +61,7 @@ const char *HALO_PCA2_DENSITY_FUNC_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/Sel
 const char *HALO_PCA3_DENSITY_FUNC_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder/py/parameters/bgs_y3/halo_pca3_density_func.dat";
 const char *HALO_PCA4_DENSITY_FUNC_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder/py/parameters/bgs_y3/halo_pca4_density_func.dat";
 const char *HALO_PCA_MODEL_TEXT_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder/py/parameters/bgs_y3/halo_pca_model.txt";
+const char *GAL_PCA_MODEL_TEXT_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder/py/parameters/bgs_y3/gal_pca_model.txt";
 const char *MOCK_FILE = nullptr;
 const char *VOLUME_BINS_FILE = nullptr;
 
@@ -71,6 +73,8 @@ double BPROB_RED, BPROB_BLUE, BPROB_XRED, BPROB_XBLUE= 0.0;
 /* Variables for weighting the central galaxies of the blue galaxies */
 int USE_WCEN = 0; // off by default
 double WCEN_MASS, WCEN_SIG, WCEN_MASSR, WCEN_SIGR, WCEN_NORM, WCEN_NORMR = 0.0;
+
+double LATENT_LINEAR_MODEL[N_GPCA_COMP * N_HPCA_COMP]; // This will be filled with command line arguments if LATENT mode is enabled
 
 // TODO update these to new pattern
 double PROPX_WEIGHT_RED = 1000.0,
@@ -138,7 +142,7 @@ void groupfind()
     if (!FLUXLIM) {
       volume = 4. / 3. * PI * (pow(distance_redshift(MAXREDSHIFT), 3.0)) * FRAC_AREA;
       volume = volume - 4. / 3. * PI * (pow(distance_redshift(MINREDSHIFT), 3.0)) * FRAC_AREA;
-      std::cerr << "Volume for volume-limited sample: " << volume << " (Mpc^3), from z [" << MINREDSHIFT << ", " << MAXREDSHIFT << "] and fsky " << FRAC_AREA << std::endl;
+      LOG_INFO("Volume for volume-limited sample: %e (Mpc^3), from z [%f, %f] and fsky %f\n", volume, MINREDSHIFT, MAXREDSHIFT, FRAC_AREA);
     }
 
     // For flux-limited samples, we read in the vmax values from the file.
@@ -176,13 +180,14 @@ void groupfind()
           ifs >> GAL[i].propx;
         if (SECOND_PARAMETER == 2)
           ifs >> GAL[i].propx2;
-        /*
-        if (LATENT) { // Read in N_GPCA_COMP components
+        
+        // If in latent mode, read in N_GPCA_COMP components
+        if (LATENT) { 
           for (int j = 0; j < N_GPCA_COMP; ++j) {
-            ifs >> GAL[i].halo_pca[j];
+            ifs >> GAL[i].gal_pca[j];
           }
         }
-        */
+        // Skip to the end of the line in case there are extra columns we don't care about
         ifs.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         GAL[i].weight = get_wcen(i);
         GAL[i].chiweight = get_chi_weight(i);
@@ -367,17 +372,18 @@ void groupfind()
       #endif
     }
 
-    // sort groups by their total group luminosity / stellar mass for abundance matching step
-    std::sort(sorted_indices.begin(), sorted_indices.begin() + ngrp,
-              [](int i, int j) { 
-                return lgrp_to_matching_rank(i) < lgrp_to_matching_rank(j); 
-              });
-
     // Re-assign the halo masses to each central
     nsat_tot = galden = 0;
     reset_sham_counters();
 
     if (!LATENT) {
+
+      // sort groups by their total group luminosity / stellar mass for abundance matching step
+      std::sort(sorted_indices.begin(), sorted_indices.begin() + ngrp,
+                [](int i, int j) { 
+                  return lgrp_to_matching_rank(i) < lgrp_to_matching_rank(j); 
+                });
+
       for (int j = 0; j < ngrp; ++j) {
         int i = sorted_indices[j];
         GAL[i].grp_rank = j; 
@@ -396,82 +402,81 @@ void groupfind()
       }
     } 
     else { // Latent mode
+
+      // sort according to the linear model provided
+      std::sort(sorted_indices.begin(), sorted_indices.begin() + ngrp,
+                [](int i, int j) { 
+                  return rank_for_hpca(i, 0) < rank_for_hpca(j, 0); 
+                });
       
-      // Assignment of all 4 latent halo properties and not just mass
-      // For now we will use the same ordering for PCA2, which is most like halo mass
       for (int j = 0; j < ngrp; ++j) {
         int i = sorted_indices[j]; // Sorted index
-        galden += 1 / GAL[i].vmax;
-
-        if (FLUXLIM) {
-          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
-        }
-        else {
-          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match(galden);
-        }
-      }
-
-      // Others will be random for now
-      galden = 0;
-      random_idx.resize(ngrp);
-      std::iota(random_idx.begin(), random_idx.end(), 0); // Fill with 0, 1, 2, ..., ngrp-1
-      std::mt19937 g(1989); // fixed seed for reproducibility, can be changed to std::random_device for non-deterministic
-
-
-      /*
-      galden = 0;
-      std::shuffle(random_idx.begin(), random_idx.end(), g);
-      for (int j = 0; j < ngrp; ++j) {
-        int i = sorted_indices[random_idx[j]]; // A random central
-        galden += 1 / GAL[i].vmax;
-
-        if (FLUXLIM) {
-          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
-        }
-        else {
-          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match(galden);
-        }
-      }
-      */
-
-      galden = 0;
-      std::shuffle(random_idx.begin(), random_idx.end(), g);
-      for (int j = 0; j < ngrp; ++j) {
-        int i = sorted_indices[random_idx[j]]; // A random central
-        galden += 1 / GAL[i].vmax;
 
         if (FLUXLIM) {
           GAL[i].halo_pca[0] = HaloPCA1AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
         }
         else {
+          galden += 1 / GAL[i].vmax;
           GAL[i].halo_pca[0] = HaloPCA1AMManager::get().match(galden);
         }
       }
 
+      // Others will be random for now
+      //galden = 0;
+      //random_idx.resize(ngrp);
+      //std::iota(random_idx.begin(), random_idx.end(), 0); // Fill with 0, 1, 2, ..., ngrp-1
+      //std::mt19937 g(1989); // fixed seed for reproducibility, can be changed to std::random_device for non-deterministic
+
+      std::sort(sorted_indices.begin(), sorted_indices.begin() + ngrp,
+          [](int i, int j) { 
+            return rank_for_hpca(i, 1) < rank_for_hpca(j, 1); 
+          });
+
       galden = 0;
-      std::shuffle(random_idx.begin(), random_idx.end(), g);
       for (int j = 0; j < ngrp; ++j) {
-        int i = sorted_indices[random_idx[j]]; // A random central
-        galden += 1 / GAL[i].vmax;
+        int i = sorted_indices[j]; // Sorted index
 
         if (FLUXLIM) {
           GAL[i].halo_pca[1] = HaloPCA2AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
         }
         else {
+          galden += 1 / GAL[i].vmax;
           GAL[i].halo_pca[1] = HaloPCA2AMManager::get().match(galden);
         }
       }
 
+      std::sort(sorted_indices.begin(), sorted_indices.begin() + ngrp,
+          [](int i, int j) { 
+            return rank_for_hpca(i, 2) < rank_for_hpca(j, 2); 
+          });
+
       galden = 0;
-      std::shuffle(random_idx.begin(), random_idx.end(), g);
       for (int j = 0; j < ngrp; ++j) {
-        int i = sorted_indices[random_idx[j]]; // A random central
-        galden += 1 / GAL[i].vmax;
+        int i = sorted_indices[j]; // Sorted index
+
+        if (FLUXLIM) {
+          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
+        }
+        else {
+          galden += 1 / GAL[i].vmax;
+          GAL[i].halo_pca[2] = HaloPCA3AMManager::get().match(galden);
+        }
+      }
+
+      std::sort(sorted_indices.begin(), sorted_indices.begin() + ngrp,
+          [](int i, int j) { 
+            return rank_for_hpca(i, 3) < rank_for_hpca(j, 3); 
+          });
+
+      galden = 0;
+      for (int j = 0; j < ngrp; ++j) {
+        int i = sorted_indices[j]; // Sorted index
 
         if (FLUXLIM) {
           GAL[i].halo_pca[3] = HaloPCA4AMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
         }
         else {
+          galden += 1 / GAL[i].vmax;
           GAL[i].halo_pca[3] = HaloPCA4AMManager::get().match(galden);
         }
       }
@@ -849,6 +854,18 @@ double lgrp_to_matching_rank(int idx) {
   return value;
 }
 
-//double rank_for_hpca1(int idx) {
-//
-//}
+/**
+ * Get the galaxy's rank order for assigning to a halo PCA property.
+ * 
+ * idx is the galaxy index
+ * hpca_num is 0-3 for the 4 halo PCA components.
+ * TODO clearly the linearly latent model is dumb in that it doesn't use group information
+ */
+double rank_for_hpca(int idx, int hpca_num) {
+
+  double value = 0;
+  for (int i = hpca_num*N_GPCA_COMP/4; i < (hpca_num+1)*N_GPCA_COMP/4; ++i) {
+    value += LATENT_LINEAR_MODEL[i] * GAL[idx].gal_pca[i];
+  }
+  return value;
+}

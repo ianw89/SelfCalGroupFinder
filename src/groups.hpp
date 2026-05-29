@@ -134,6 +134,7 @@ extern const char *HALO_PCA2_DENSITY_FUNC_FILE;
 extern const char *HALO_PCA3_DENSITY_FUNC_FILE;
 extern const char *HALO_PCA4_DENSITY_FUNC_FILE;
 extern const char *HALO_PCA_MODEL_TEXT_FILE;
+extern const char *GAL_PCA_MODEL_TEXT_FILE;
 extern const char *MOCK_FILE;
 extern const char *VOLUME_BINS_FILE;
 extern FILE *MSG_PIPE;
@@ -149,6 +150,13 @@ extern double WCEN_MASS, WCEN_SIG, WCEN_MASSR, WCEN_SIGR, WCEN_NORM, WCEN_NORMR;
 /* Variables for affecting individual galaxy weights when assigning halo mass */
 extern double PROPX_WEIGHT_RED, PROPX_WEIGHT_BLUE, PROPX_SLOPE_RED, PROPX_SLOPE_BLUE;
 extern double PROPX2_WEIGHT_RED, PROPX2_WEIGHT_BLUE;
+
+/**
+ * Flattened matrix for linear mapping of galaxy PCA to halo PCA in latent mode.
+ * The first N_GPCA_COMP entries are the weights for the first halo PCA component, 
+ * the next N_GPCA_COMP entries are the weights for the second halo PCA component, and so on.
+ */
+extern double LATENT_LINEAR_MODEL[N_GPCA_COMP * N_HPCA_COMP]; 
 
 /* Imported functions from numerical recipes 
  */

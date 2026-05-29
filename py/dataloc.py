@@ -58,7 +58,9 @@ HALO_PCA4_DENSITY_FUNC_FILE = PARAMS_BGSY3_FOLDER + "halo_pca4_density_func.dat"
 # Contains the pca model and the scaler
 HALO_PCA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "halo_pca_model.pkl" # built by pca_halo.ipynb notebook
 HALO_PCA_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "halo_pca_model.txt" # same info as the pkl but in text format for easy reading; built by pca_halo.ipynb notebook
-GAL_PCA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "gal_pca_model.pkl" # built by pca_halo.ipynb notebook
+GAL_PCA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "gal_pca_model.pkl" # built by pca_gal.ipynb notebook
+GAL_PCA_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "gal_pca_model.txt" # same info as the pkl but in text format for easy reading; built by pca_gal.ipynb notebook
+
 
 # None of these got used in the end.
 QUIESCENT_MODEL = PARAMS_BGSY1_FOLDER + "kmeans_quiescent_model.pkl" # made from Y1

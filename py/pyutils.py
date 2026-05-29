@@ -1300,7 +1300,7 @@ def get_NN_40_line_v4(z, t_Pobs, target_quiescent, nn_quiescent):
     arcsecs = base[zb]**exponent
     return arcsecs
 
-def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, pcas=None):
+def write_dat_files(df: pd.DataFrame, outname_base):
     """
     Use np.column_stack with dtype='str' to convert your galprops arrays into an all-string
     array before writing it to disk.
@@ -1312,14 +1312,29 @@ def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base,
     # Time the optimized approach
     t1 = time.time()
 
-    d = (ra, dec, z_eff, log_L_gal, V_max, colors)
-    f = ['%.14f', '%.14f', '%.14f', '%f', '%f', '%d']
-    if chi is not None:
-        d += (chi,)
+    # These 4 always required in this order. Can give luminosity or log10 luminosity and it will figure it out
+    d = (df['RA'].values, df['DEC'].values, df['Z'].values, df['LOGLGAL'].values, )
+    f = ['%.14f', '%.14f', '%.14f', '%f',]
+
+    if 'VMAX' in df.columns:
+        d += (df['VMAX'].values,)
+        f += ['%f']
+    if 'QUIESCENT' in df.columns:
+        d += (df['QUIESCENT'].values,)
+        f += ['%d']
+    if 'CHI' in df.columns:
+        d += (df['CHI'].values,)
         f += ['%s']
-    if pcas is not None:
-        d += (*pcas,)
-        f += ['%f'] * len(pcas)
+
+    i = 1
+    while (True):
+        colname = 'PCA'+str(i)
+        if colname in df.columns:
+            d += (df[colname].values,)
+            f += ['%f']
+            i += 1
+        else:
+            break
 
     data = np.column_stack(d)
     np.savetxt(outname_1, data, fmt=f)
@@ -1878,9 +1893,50 @@ def chains_to_wcen_bsat(chains_flat, x):
 ###################################
 # PCA Utils
 ###################################
+GAL_PCA_FEATURES_COLS = ['ABSMAG01_SDSS_R', 'G-R', 'c9050', 'DN4000_MODEL']
+HALO_PCA_FEATURES_COLS = ['LOGMHALO', 'c', 'Spin', 'Halfmass_Scale']
 
-#HALO_PCA_FEATURES_COLS = ['LOGMHALO', 'c', 'Spin', 'Halfmass_Scale']
-HALO_PCA_FEATURES_COLS = ['M200b', 'c', 'Spin', 'Halfmass_Scale']
+def gal_pca_to_orginal(pca_values):
+    """
+    Convert galaxy PCA coordinates back to original (unscaled) feature values.
+    """
+    if isinstance(pca_values, pd.DataFrame):
+        vals = pca_values[[f'PCA{i+1}' for i in range(pca_values.shape[1])]].values
+    else:
+        vals = np.atleast_2d(pca_values)
+
+    pca_model, scaler, feature_cols = joblib.load(GAL_PCA_MODEL_FILE)
+    scaled = pca_model.inverse_transform(vals)
+    original = scaler.inverse_transform(scaled)
+
+    if isinstance(pca_values, pd.DataFrame):
+        # Add new columns for original values
+        for i, col in enumerate(feature_cols):
+            pca_values[col] = original[:, i]
+        return pca_values
+
+    return original
+
+def gal_original_to_pca(original_values):
+    """
+    Convert original (unscaled) feature values to galaxy PCA coordinates.
+    """
+    if isinstance(original_values, pd.DataFrame):
+        vals = original_values[GAL_PCA_FEATURES_COLS].values
+    else: 
+        vals = np.atleast_2d(original_values)
+
+    pca_model, scaler, feature_cols = joblib.load(GAL_PCA_MODEL_FILE)
+    scaled = scaler.transform(vals)
+    pca_values = pca_model.transform(scaled)
+
+    if isinstance(original_values, pd.DataFrame):
+        # Add new columns for PCA values
+        for i in range(pca_values.shape[1]):
+            original_values[f'PCA{i+1}'] = pca_values[:, i]
+        return original_values
+    
+    return pca_values
 
 def halo_pca_to_original(pca_values):
     """
