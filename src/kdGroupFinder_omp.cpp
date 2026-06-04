@@ -60,7 +60,7 @@ const char *HALO_PCA1_DENSITY_FUNC_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/Sel
 const char *HALO_PCA2_DENSITY_FUNC_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder/py/parameters/bgs_y3/halo_pca2_density_func.dat";
 const char *HALO_PCA3_DENSITY_FUNC_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder/py/parameters/bgs_y3/halo_pca3_density_func.dat";
 const char *HALO_PCA4_DENSITY_FUNC_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder/py/parameters/bgs_y3/halo_pca4_density_func.dat";
-const char *HALO_PCA_MODEL_TEXT_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder/py/parameters/bgs_y3/halo_pca_model.txt";
+const char *HALO_LATENT_MODEL_TEXT_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder/py/parameters/bgs_y3/halo_ica_model.txt";
 const char *GAL_PCA_MODEL_TEXT_FILE = "/mount/sirocco1/imw2293/GROUP_CAT/SelfCalGroupFinder/py/parameters/bgs_y3/gal_pca_model.txt";
 const char *MOCK_FILE = nullptr;
 const char *VOLUME_BINS_FILE = nullptr;
@@ -419,6 +419,10 @@ void groupfind()
           galden += 1 / GAL[i].vmax;
           GAL[i].halo_pca[0] = HaloPCA1AMManager::get().match(galden);
         }
+
+        //if (j < 10) {
+        //  LOG_INFO("HPCA1 for galaxy %d (redshift=%.3f, vmax=%e) is %f\n", i, GAL[i].redshift, GAL[i].vmax, GAL[i].halo_pca[0]);
+        //}
       }
 
       // Others will be random for now
@@ -567,10 +571,19 @@ void groupfind()
   // **********************************
   if (!INTERACTIVE) {
     for (int i = 0; i < NGAL; ++i) {
-      printf("%d %f %f %f %e %e %f %e %d %e %d %f %f\n",
-              i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
-              GAL[i].lum, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
-              GAL[i].nsat, GAL[i].lgrp, GAL[i].igrp, GAL[i].weight, GAL[i].chiweight);
+      if (LATENT) {
+        printf("%d %f %f %f %e %e %f %e %d %e %d %f %f %f %f %f\n",
+                i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
+                GAL[i].lum, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
+                GAL[i].nsat, GAL[i].lgrp, GAL[i].igrp, GAL[i].weight, GAL[i].chiweight,
+                GAL[i].c, GAL[i].spin, GAL[i].age);
+      }
+      else {
+        printf("%d %f %f %f %e %e %f %e %d %e %d %f %f\n",
+                i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
+                GAL[i].lum, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
+                GAL[i].nsat, GAL[i].lgrp, GAL[i].igrp, GAL[i].weight, GAL[i].chiweight);
+      }
     }
   }
   fflush(stdout);

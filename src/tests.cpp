@@ -640,20 +640,22 @@ void test_HaloMassAMManager_match_halo_monotonic() {
     printf(" *** HaloMassAMManager.match monotonicity tests passed.\n\n");
 }
 
-void test_HaloPCAModel_model() {
-    // Load the HaloPCAModel and sample some values to see if it's loaded right.
-    printf("=== HaloPCAModel MODEL TESTS ===\n");
-    HaloPCAModel& t = HaloPCAModel::get();
+void test_HaloLatentModel_model() {
+    // Load the HaloLatentModel and sample some values to see if it's loaded right.
+    printf("=== HaloLatentModel MODEL TESTS ===\n");
+    HaloLatentModel& t = HaloLatentModel::get();
     // LOGMHALO, c, Spin, Halfmass_scale
     galaxy g = {};
-    g.mass = pow(10,14.094681f);
+    g.mass = pow(10, 14.094681);
     g.c = 4.141850;
     g.spin = 0.03922;
     g.age = 0.4420;
-    float halo1_pca_expected[] = {1.962247,  -2.330396,  1.535792	, -0.508829}; // From Python implementation with same PCA components and scaler
+    //float halo1_pca_expected[] = {1.962247,  -2.330396,  1.535792	, -0.508829}; 
+    float halo1_pca_expected[] = {-0.217462,  0.743441,  3.046117	, 1.497010}; // From Python implementation with same model
     t.forward_transform(&g);
     for (int i = 0; i < 4; ++i) {
-        TEST_CASE(isclose(g.halo_pca[i], halo1_pca_expected[i]), g.halo_pca[i], "Halo PCA value should match expected");
+        std::string s = "Halo PCA component " + std::to_string(i) + " should match expected value";
+        TEST_CASE(isclose(g.halo_pca[i], halo1_pca_expected[i]), g.halo_pca[i], s);
     }
     // Now check roundtrip
     t.inverse_transform(&g);
@@ -665,10 +667,10 @@ void test_HaloPCAModel_model() {
     }
 }
 
-void test_HaloPCADensityFuncs_loading_and_splines() {
+void test_HaloLatentDensityFuncs_loading_and_splines() {
     printf("\n=== HALO PCA DENSITY FUNCTIONS LOADING ===\n");
 
-    HaloPCADensityFuncs& t = HaloPCADensityFuncs::get();
+    HaloLatentDensityFuncs& t = HaloLatentDensityFuncs::get();
 
     // Test that files load correctly for all 4 components
     for (int idx = 0; idx < 4; idx++) {       
@@ -676,18 +678,18 @@ void test_HaloPCADensityFuncs_loading_and_splines() {
         double* y = t.py[idx];
         int n = t.n[idx];
         // Ensure the arrays are populated
-        TEST_CASE(n > 10, idx, "PCA density function should have enough points loaded");
-        TEST_CASE(x[5] > -100, idx, "PCA density function x array should be populated");
-        TEST_CASE(y[5] >= 0, idx, "PCA density function y array should be populated");
+        TEST_CASE(n > 10, n, "Latent-space density function should have enough points loaded");
+        TEST_CASE(x[5] > -1000, x[5], "Latent-space density function x array should be populated");
+        TEST_CASE(y[5] >= 0, y[5], "Latent-space density function y array should be populated");
     }
 
     printf(" *** HaloPCA density function tests passed.\n\n");
 }
 
-void test_HaloPCAFuncCumulative() {
+void test_HaloLatentDensFuncCumulative() {
     printf("\n=== HALO PCA CUMULATIVE DENSITY FUNCTIONS TESTS ===\n");
 
-    HaloPCAFuncCumulative& t = HaloPCAFuncCumulative::get();
+    HaloLatentDensFuncCumulative& t = HaloLatentDensFuncCumulative::get();
 
     // Test spline interpolation quality by checking smoothness
     printf("\n--- Testing Spline Smoothness and Monotonicity ---\n");
@@ -775,9 +777,9 @@ int main(int argc, char **argv) {
     test_tabulate_hod_2();
     test_HaloMassAMManager_match_halo_values();
     test_HaloMassAMManager_match_halo_monotonic();
-    test_HaloPCAModel_model();
-    test_HaloPCADensityFuncs_loading_and_splines();
-    test_HaloPCAFuncCumulative();
+    test_HaloLatentModel_model();
+    test_HaloLatentDensityFuncs_loading_and_splines();
+    test_HaloLatentDensFuncCumulative();
     test_HaloPCAAMManager_monotonic();
     
     printf(" *** ALL TESTS PASSED ***\n");

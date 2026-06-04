@@ -2824,19 +2824,20 @@ def find_optimal_parameters_mcmc(scorer: HNNRedshiftGuesser, mode, app_mag_r, p_
 ##########################
 
 def read_and_combine_gf_output(gc: GroupCatalog, galprops_df):
-    # TODO instead of reading GF output from disk, have option to just keep in memory
-    main_df = pd.read_csv(gc.GF_outfile, delimiter=' ', names=
-                          ('RA', 'DEC', 'Z', 'L_GAL', 'VMAX', 'P_SAT', 'M_HALO', 'N_SAT', 'L_TOT', 'IGRP', 'WEIGHT', 'CHI1_WEIGHT'),
-                          dtype={'RA': np.float64, 'DEC': np.float64, 'Z': np.float64, 'L_GAL': np.float64, 'VMAX': np.float64,
-                                 'P_SAT': np.float64, 'M_HALO': np.float64, 'N_SAT': np.int32, 'L_TOT': np.float64, 'IGRP': np.int64, 'WEIGHT': np.float64, 'CHI1_WEIGHT': np.float64})
-    df = pd.merge(main_df, galprops_df, left_index=True, right_index=True, validate='1:1')
+    """
+    Reads the group finder output file and combines it with the extra galaxy properties dataframe.
+    This function is responsible for knowing the C++ group finders output format.
+    """
+    propnames = ['RA', 'DEC', 'Z', 'L_GAL', 'VMAX', 'P_SAT', 'M_HALO', 'N_SAT', 'L_TOT', 'IGRP', 'WEIGHT', 'CHI1_WEIGHT']
+    proptypes = {'RA': np.float64, 'DEC': np.float64, 'Z': np.float64, 'L_GAL': np.float64, 'VMAX': np.float64,
+                 'P_SAT': np.float64, 'M_HALO': np.float64, 'N_SAT': np.int32, 'L_TOT': np.float64, 'IGRP': np.int64, 'WEIGHT': np.float64, 'CHI1_WEIGHT': np.float64}
+    
+    if 'latent' in gc.GF_props:
+        propnames += ['C', 'SPIN', 'HALFMASS_SCALE']
+        proptypes.update({'C': np.float64, 'SPIN': np.float64, 'HALFMASS_SCALE': np.float64})
 
-    # Drop bad data, should have been cleaned up earlier though!
-    orig_count = len(df)
-    df = df[df['M_HALO'] != 0]
-    new_count = len(df)
-    if (orig_count != new_count):
-        print("WARNING: Dropped {0} bad galaxies".format(orig_count - new_count))
+    main_df = pd.read_csv(gc.GF_outfile, delimiter=' ', names=propnames, dtype=proptypes)
+    df = pd.merge(main_df, galprops_df, left_index=True, right_index=True, validate='1:1')
 
     # add columns indicating if galaxy is a satellite
     df['IS_SAT'] = (df.index != df['IGRP']).astype(bool)
@@ -2847,7 +2848,7 @@ def read_and_combine_gf_output(gc: GroupCatalog, galprops_df):
     df['Mh_bin2'] = pd.cut(x = df['M_HALO'], bins = Mhalo_bins2, labels = Mhalo_labels2, include_lowest = True)
     df['LGAL_BIN'] = pd.cut(x = df['L_GAL'], bins = gc.L_gal_bins, labels = gc.L_gal_labels, include_lowest = True)
 
-    return df # TODO update callers2
+    return df 
 
 def z_flag_is_spectro_z(arr):
     return np.logical_or(arr == AssignedRedshiftFlag.SDSS_SPEC.value, arr == AssignedRedshiftFlag.DESI_SPEC.value)

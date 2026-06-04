@@ -1938,44 +1938,60 @@ def gal_original_to_pca(original_values):
     
     return pca_values
 
-def halo_pca_to_original(pca_values):
+def halo_latent_to_original(latent_values):
     """
-    Convert halo PCA coordinates back to original (unscaled) feature values.
+    Convert halo latent-space coordinates back to original (unscaled) feature values.
     """
-    if isinstance(pca_values, pd.DataFrame):
-        vals = pca_values[[f'PCA{i+1}' for i in range(pca_values.shape[1])]].values
-    else:
-        vals = np.atleast_2d(pca_values)
+    model, scaler, feature_cols, order, signs = joblib.load(HALO_ICA_MODEL_FILE)
 
-    pca_model, scaler, feature_cols = joblib.load(HALO_PCA_MODEL_FILE)
-    scaled = pca_model.inverse_transform(vals)
+    if isinstance(latent_values, pd.DataFrame):
+        vals = latent_values[[f'ICA{i+1}' for i in range(len(feature_cols))]].values
+    else:
+        vals = np.atleast_2d(latent_values)
+
+    # Undo the signs multiplication and reordering 
+    vals = vals / signs
+    vals = vals[:, np.argsort(order)]
+
+    scaled = model.inverse_transform(vals)
     original = scaler.inverse_transform(scaled)
 
-    if isinstance(pca_values, pd.DataFrame):
+    if isinstance(latent_values, pd.DataFrame):
         # Add new columns for original values
         for i, col in enumerate(feature_cols):
-            pca_values[col] = original[:, i]
-        return pca_values
+            latent_values[col] = original[:, i]
+        return latent_values
 
     return original
 
-def halo_original_to_pca(original_values):
+def halo_original_to_latent(original_values):
     """
-    Convert original (unscaled) feature values to halo PCA coordinates.
+    Convert original (unscaled) feature values to halo latent-space coordinates.
     """
+    model, scaler, feature_cols, order, signs = joblib.load(HALO_ICA_MODEL_FILE)
+
     if isinstance(original_values, pd.DataFrame):
-        vals = original_values[HALO_PCA_FEATURES_COLS].values
+        vals = original_values.loc[:, feature_cols]
     else: 
         vals = np.atleast_2d(original_values)
 
-    pca_model, scaler, feature_cols = joblib.load(HALO_PCA_MODEL_FILE)
     scaled = scaler.transform(vals)
-    pca_values = pca_model.transform(scaled)
+    latent_values = model.transform(scaled)[:, order] * signs
 
     if isinstance(original_values, pd.DataFrame):
-        # Add new columns for PCA values
-        for i in range(pca_values.shape[1]):
-            original_values[f'PCA{i+1}'] = pca_values[:, i]
+        # Add new columns for latent values
+        for i in range(latent_values.shape[1]):
+            original_values[f'ICA{i+1}'] = latent_values[:, i]
         return original_values
     
-    return pca_values
+    return latent_values
+
+def display_latent_halo_model():
+    model, scaler, feature_cols, order, signs = joblib.load(HALO_ICA_MODEL_FILE)
+    print("Independent Components (latent features) in terms of original features:")
+    for i in range(model.components_.shape[0]):
+        component = model.components_[i]
+        terms = []
+        for j in range(len(feature_cols)):
+            terms.append(f"{component[j]:.2f} * {feature_cols[j]}")
+        print(f"ICA{i+1}: " + " + ".join(terms))

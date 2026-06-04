@@ -210,12 +210,12 @@ float HaloMassAMManager::match(float galaxy_density) {
 }
 
 
-HaloPCADensityFuncs::HaloPCADensityFuncs() {
+HaloLatentDensityFuncs::HaloLatentDensityFuncs() {
     for (int i = 0; i < NCOMP; ++i)
         build(i);
 }
 
-void HaloPCADensityFuncs::build(int idx) {
+void HaloLatentDensityFuncs::build(int idx) {
     const char *files[NCOMP] = {
         HALO_PCA1_DENSITY_FUNC_FILE,
         HALO_PCA2_DENSITY_FUNC_FILE,
@@ -229,20 +229,20 @@ void HaloPCADensityFuncs::build(int idx) {
     for (int i = 0; i < n[idx]; i++)
         fp >> px[idx][i] >> py[idx][i];
     fp.close();
-    //std::cerr << "Loaded PCA density function for component " << (idx + 1) << " with " << n[idx] << " points." << std::endl;
+    //LOG_INFO("Loaded latent-space density function %d with %d points from %s\n", idx + 1, n[idx], files[idx]);
 }
 
-HaloPCAFuncCumulative::HaloPCAFuncCumulative() {
+HaloLatentDensFuncCumulative::HaloLatentDensFuncCumulative() {
     for (int i = 0; i < N_HPCA_COMP; ++i)
         build(i);
 }
 
 // Returns n(>pca_val) via spline interpolation.
-double HaloPCAFuncCumulative::eval(double pca_val, int comp) {
+double HaloLatentDensFuncCumulative::eval(double pca_val, int comp) {
     int idx = comp - 1;
     #ifndef OPTIMIZE
     if (idx < 0 || idx >= N_HPCA_COMP) {
-        LOG_ERROR("Invalid PCA component %d in HaloPCAFuncCumulative::eval\n", comp);
+        LOG_ERROR("Invalid PCA component %d in HaloLatentDensFuncCumulative::eval\n", comp);
         exit(1);
     } 
     #endif
@@ -251,10 +251,10 @@ double HaloPCAFuncCumulative::eval(double pca_val, int comp) {
 }
 
 
-void HaloPCAFuncCumulative::build(int idx) {
+void HaloLatentDensFuncCumulative::build(int idx) {
 
     // Get the raw tabulated density data 
-    HaloPCADensityFuncs& pdf = HaloPCADensityFuncs::get();
+    HaloLatentDensityFuncs& pdf = HaloLatentDensityFuncs::get();
     int cnt = pdf.n[idx];
     const double *x   = pdf.px[idx];  // PCA coordinate bin centers
     const double *rho = pdf.py[idx];  // density at each bin center
@@ -292,48 +292,51 @@ void HaloPCAFuncCumulative::build(int idx) {
 
 float func_match_nhost_pca1(float pca_val, float galdensity) {
     //std::cerr << "Matching galaxy density " << galdensity << " to PCA component 1 value..." << std::endl;
-    return HaloPCAFuncCumulative::get().eval(pca_val, 1) - galdensity;
+    return HaloLatentDensFuncCumulative::get().eval(pca_val, 1) - galdensity;
 }
 
 float func_match_nhost_pca2(float pca_val, float galdensity) {
-    return HaloPCAFuncCumulative::get().eval(pca_val, 2) - galdensity;
+    return HaloLatentDensFuncCumulative::get().eval(pca_val, 2) - galdensity;
 }
 
 float func_match_nhost_pca3(float pca_val, float galdensity) {
-    return HaloPCAFuncCumulative::get().eval(pca_val, 3) - galdensity;
+    return HaloLatentDensFuncCumulative::get().eval(pca_val, 3) - galdensity;
 }
 
 float func_match_nhost_pca4(float pca_val, float galdensity) {
-    return HaloPCAFuncCumulative::get().eval(pca_val, 4) - galdensity;
+    return HaloLatentDensFuncCumulative::get().eval(pca_val, 4) - galdensity;
 }
 
 
 float HaloPCA1AMManager::match(float galaxy_density) {
-    auto val =  zbrent(func_match_nhost_pca1, HaloPCADensityFuncs::get().getMin(0), HaloPCADensityFuncs::get().getMax(0), 1.0E-5, galaxy_density);
+    auto val =  zbrent(func_match_nhost_pca1, HaloLatentDensityFuncs::get().getMin(0), HaloLatentDensityFuncs::get().getMax(0), 1.0E-5, galaxy_density);
     //std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 1 value " << val << std::endl;
     return val;
 }
 float HaloPCA2AMManager::match(float galaxy_density) {
-    auto val = zbrent(func_match_nhost_pca2, HaloPCADensityFuncs::get().getMin(1), HaloPCADensityFuncs::get().getMax(1) , 1.0E-5, galaxy_density);
+    auto val = zbrent(func_match_nhost_pca2, HaloLatentDensityFuncs::get().getMin(1), HaloLatentDensityFuncs::get().getMax(1) , 1.0E-5, galaxy_density);
     //std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 2 value " << val << std::endl;
     return val;
 }
 float HaloPCA3AMManager::match(float galaxy_density) {
-    auto val = zbrent(func_match_nhost_pca3, HaloPCADensityFuncs::get().getMin(2), HaloPCADensityFuncs::get().getMax(2), 1.0E-5, galaxy_density);
+    auto val = zbrent(func_match_nhost_pca3, HaloLatentDensityFuncs::get().getMin(2), HaloLatentDensityFuncs::get().getMax(2), 1.0E-5, galaxy_density);
     //std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 3 value " << val << std::endl;
     return val;
 }
 float HaloPCA4AMManager::match(float galaxy_density) {
-    auto val = zbrent(func_match_nhost_pca4, HaloPCADensityFuncs::get().getMin(3), HaloPCADensityFuncs::get().getMax(3), 1.0E-5, galaxy_density);
+    auto val = zbrent(func_match_nhost_pca4, HaloLatentDensityFuncs::get().getMin(3), HaloLatentDensityFuncs::get().getMax(3), 1.0E-5, galaxy_density);
     //std::cerr << "Matching galaxy density " << galaxy_density << " to PCA component 4 value " << val << std::endl;
     return val;
 }
 
-void HaloPCAModel::load() {
-    std::ifstream fp(HALO_PCA_MODEL_TEXT_FILE);
-    if (!fp) { fprintf(stderr, "Could not open %s\n", HALO_PCA_MODEL_TEXT_FILE); exit(1); }
+void HaloLatentModel::load() {
+    std::ifstream fp(HALO_LATENT_MODEL_TEXT_FILE);
+    if (!fp) { fprintf(stderr, "Could not open %s\n", HALO_LATENT_MODEL_TEXT_FILE); exit(1); }
     std::string line;
     int block = 0;
+    // Default order = 0,1,2,3 and signs = 1,1,1,1 if not specified in the file.
+    for (int i = 0; i < NFEAT; i++) order[i] = i;
+    for (int i = 0; i < NFEAT; i++) signs[i] = 1;
     while (std::getline(fp, line)) {
         if (line.empty() || line[0] == '#') continue;
         std::istringstream ss(line);
@@ -345,18 +348,35 @@ void HaloPCAModel::load() {
             case 4: ss >> W[1][0] >> W[1][1] >> W[1][2] >> W[1][3]; break;
             case 5: ss >> W[2][0] >> W[2][1] >> W[2][2] >> W[2][3]; break;
             case 6: ss >> W[3][0] >> W[3][1] >> W[3][2] >> W[3][3]; break;
+            // If ICA there is a mixing matrix for the inverse transform, so we need to read that in too.
+            case 7: ss >> MIXING[0][0] >> MIXING[0][1] >> MIXING[0][2] >> MIXING[0][3]; use_mixing=true; break;
+            case 8: ss >> MIXING[1][0] >> MIXING[1][1] >> MIXING[1][2] >> MIXING[1][3]; break;
+            case 9: ss >> MIXING[2][0] >> MIXING[2][1] >> MIXING[2][2] >> MIXING[2][3]; break;
+            case 10: ss >> MIXING[3][0] >> MIXING[3][1] >> MIXING[3][2] >> MIXING[3][3]; break;
+            case 11: ss >> order[0] >> order[1] >> order[2] >> order[3]; break;
+            case 12: ss >> signs[0] >> signs[1] >> signs[2] >> signs[3]; break;
         }
         block++;
     }
     loaded = true;
+    //LOG_INFO("Order: %d %d %d %d\n", order[0], order[1], order[2], order[3]);
+    //LOG_INFO("Signs: %d %d %d %d\n", signs[0], signs[1], signs[2], signs[3]);
+    LOG_INFO("Loaded halo latent model with use_mixing = %d\n", use_mixing);
 }
 
-void HaloPCAModel::inverse_transform(galaxy *galaxy) {
+void HaloLatentModel::inverse_transform(galaxy *galaxy) {
     if (!loaded) load();
+    double pca[NFEAT];
+    for (int i = 0; i < NFEAT; i++)
+        pca[order[i]] = galaxy->halo_pca[i] * signs[i];
     double xs[NFEAT] = {0};
     for (int j = 0; j < NFEAT; j++)
-        for (int i = 0; i < NFEAT; i++)
-            xs[j] += W[i][j] * galaxy->halo_pca[i];
+        for (int i = 0; i < NFEAT; i++) {
+            if (use_mixing)
+                xs[j] += MIXING[j][i] * pca[i];
+            else
+                xs[j] += W[i][j] * pca[i]; 
+        }
     
     galaxy->mass = pow(10, ((xs[0] + pca_mean[0]) * scaler_scale[0] + scaler_mean[0]));
     galaxy->c = (xs[1] + pca_mean[1]) * scaler_scale[1] + scaler_mean[1];
@@ -364,25 +384,29 @@ void HaloPCAModel::inverse_transform(galaxy *galaxy) {
     galaxy->age = (xs[3] + pca_mean[3]) * scaler_scale[3] + scaler_mean[3];
 }
 
-void HaloPCAModel::forward_transform(galaxy *galaxy) {
+void HaloLatentModel::forward_transform(galaxy *galaxy) {
     // pca[NFEAT] in, x[NFEAT] out.
     // x[0]=LOGMHALO, x[1]=c, x[2]=Spin, x[3]=Halfmass_Scale
     if (!loaded) load();
     double xs[NFEAT];
     double x[NFEAT] = {log10(galaxy->mass), galaxy->c, galaxy->spin, galaxy->age};
+    double temp[NFEAT];
     for (int j = 0; j < NFEAT; j++)
         xs[j] = (x[j] - scaler_mean[j]) / scaler_scale[j] - pca_mean[j];
     for (int i = 0; i < NFEAT; i++) {
-        galaxy->halo_pca[i] = 0;
+        temp[i] = 0;
         for (int j = 0; j < NFEAT; j++)
-            galaxy->halo_pca[i] += W[i][j] * xs[j];
+            temp[i] += W[i][j] * xs[j];
     }
+    for (int i = 0; i < NFEAT; i++)
+        galaxy->halo_pca[i] = temp[order[i]] * signs[i];
 }
 
 void set_halo_props_from_pca_props(galaxy *galaxy)
 {
-    const float MIN = -15.0;
-    const float MAX = 15.0;
+    // TODO these are pretty dumb
+    const float MIN = -1000.0;
+    const float MAX = 1000.0;
     for (int i = 0; i < 4; i++) {
       if (isnan(galaxy->halo_pca[i]) || !isfinite(galaxy->halo_pca[i])) {
         LOG_ERROR("ERROR: galaxy has invalid halo PCA value %f for component %d\n", galaxy->halo_pca[i], i+1);
@@ -399,6 +423,6 @@ void set_halo_props_from_pca_props(galaxy *galaxy)
       }
     }
 
-    HaloPCAModel::get().inverse_transform(galaxy);
+    HaloLatentModel::get().inverse_transform(galaxy);
     update_galaxy_halo_props(galaxy);
 }

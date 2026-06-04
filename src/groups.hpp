@@ -133,7 +133,7 @@ extern const char *HALO_PCA1_DENSITY_FUNC_FILE;
 extern const char *HALO_PCA2_DENSITY_FUNC_FILE;
 extern const char *HALO_PCA3_DENSITY_FUNC_FILE;
 extern const char *HALO_PCA4_DENSITY_FUNC_FILE;
-extern const char *HALO_PCA_MODEL_TEXT_FILE;
+extern const char *HALO_LATENT_MODEL_TEXT_FILE;
 extern const char *GAL_PCA_MODEL_TEXT_FILE;
 extern const char *MOCK_FILE;
 extern const char *VOLUME_BINS_FILE;

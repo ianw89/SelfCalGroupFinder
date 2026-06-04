@@ -118,12 +118,12 @@ class HaloMassAMManager : public AbundanceMatchingManager {
 // Singleton holding tabulated density functions for the 4 halo PCA components.
 // The PCA coordinate density is assumed to be in (Mpc^-3 h^3) as read from input files.
 // This is the equivalent of HaloMassFunction. 
-class HaloPCADensityFuncs {
+class HaloLatentDensityFuncs {
 public:
     static constexpr int NCOMP = 4;
 
-    static HaloPCADensityFuncs& get() {
-        static HaloPCADensityFuncs inst;
+    static HaloLatentDensityFuncs& get() {
+        static HaloLatentDensityFuncs inst;
         return inst;
     }
 
@@ -138,7 +138,7 @@ public:
     double *py[NCOMP] = {nullptr, nullptr, nullptr, nullptr};
 
 private:
-    HaloPCADensityFuncs();
+    HaloLatentDensityFuncs();
     /**
      * Read in the tabulated density function.
      */
@@ -146,14 +146,14 @@ private:
 };
 
 // Singleton holding the PCA model matrices for halo property transforms.
-// Reads HALO_PCA_MODEL_TEXT_FILE (written by pca_halo.ipynb).
+// Reads HALO_LATENT_MODEL_TEXT_FILE (written by pca_halo.ipynb).
 // Features order: LOGMHALO, c, Spin, Halfmass_Scale
-class HaloPCAModel {
+class HaloLatentModel {
 public:
     static constexpr int NFEAT = 4;
 
-    static HaloPCAModel& get() {
-        static HaloPCAModel inst;
+    static HaloLatentModel& get() {
+        static HaloLatentModel inst;
         return inst;
     }
 
@@ -169,18 +169,22 @@ private:
     double scaler_mean[NFEAT];
     double scaler_scale[NFEAT];
     double pca_mean[NFEAT];
+    int order[NFEAT];
+    int signs[NFEAT];
     double W[NFEAT][NFEAT]; // W[component][feature]
+    double MIXING[NFEAT][NFEAT]; // mixing_[feature][component]
     bool loaded = false;
+    bool use_mixing = false; 
 
-    HaloPCAModel() = default;
+    HaloLatentModel() = default;
 
     void load();
 };
 
-class HaloPCAFuncCumulative {
+class HaloLatentDensFuncCumulative {
     public:
-    static HaloPCAFuncCumulative& get() {
-        static HaloPCAFuncCumulative inst;
+    static HaloLatentDensFuncCumulative& get() {
+        static HaloLatentDensFuncCumulative inst;
         return inst;
     }    
     double eval(double pca_val, int comp);
@@ -192,7 +196,7 @@ class HaloPCAFuncCumulative {
     gsl_interp_accel* acc[N_HPCA_COMP] = {nullptr, nullptr, nullptr, nullptr};
     gsl_spline* spline[N_HPCA_COMP] = {nullptr, nullptr, nullptr, nullptr};
 
-    HaloPCAFuncCumulative();
+    HaloLatentDensFuncCumulative();
     void build(int comp);
 };
 
@@ -207,8 +211,8 @@ class HaloPCA1AMManager : public AbundanceMatchingManager {
 
     private:
     HaloPCA1AMManager() {
-        HaloPCAModel::get(); // load transformation matrices
-        HaloPCAFuncCumulative::get(); // trigger loading of the PCA splines
+        HaloLatentModel::get(); // load transformation matrices
+        HaloLatentDensFuncCumulative::get(); // trigger loading of the PCA splines
     }
 };
 
@@ -223,7 +227,7 @@ class HaloPCA2AMManager : public AbundanceMatchingManager {
 
     private:
     HaloPCA2AMManager() {
-        HaloPCAModel::get(); // trigger loading of the PCA splines
+        HaloLatentModel::get(); // trigger loading of the PCA splines
     }
 };
 
@@ -238,7 +242,7 @@ class HaloPCA3AMManager : public AbundanceMatchingManager {
 
     private:
     HaloPCA3AMManager() {
-        HaloPCAModel::get(); // trigger loading of the PCA splines
+        HaloLatentModel::get(); // trigger loading of the PCA splines
     }
 };
 
@@ -253,7 +257,7 @@ class HaloPCA4AMManager : public AbundanceMatchingManager {
 
     private:
     HaloPCA4AMManager() {
-        HaloPCAModel::get(); // trigger loading of the PCA splines
+        HaloLatentModel::get(); // trigger loading of the PCA splines
     }
 };
 
