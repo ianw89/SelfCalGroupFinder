@@ -169,8 +169,6 @@ private:
     double scaler_mean[NFEAT];
     double scaler_scale[NFEAT];
     double pca_mean[NFEAT];
-    int order[NFEAT];
-    int signs[NFEAT];
     double W[NFEAT][NFEAT]; // W[component][feature]
     double MIXING[NFEAT][NFEAT]; // mixing_[feature][component]
     bool loaded = false;

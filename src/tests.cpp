@@ -650,8 +650,7 @@ void test_HaloLatentModel_model() {
     g.c = 4.141850;
     g.spin = 0.03922;
     g.age = 0.4420;
-    //float halo1_pca_expected[] = {1.962247,  -2.330396,  1.535792	, -0.508829}; 
-    float halo1_pca_expected[] = {-0.217462,  0.743441,  3.046117	, 1.497010}; // From Python implementation with same model
+    float halo1_pca_expected[] = { 3.04691177,  0.74165441,  1.49943079, -0.20363544}; // From Python implementation with same model
     t.forward_transform(&g);
     for (int i = 0; i < 4; ++i) {
         std::string s = "Halo PCA component " + std::to_string(i) + " should match expected value";

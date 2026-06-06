@@ -334,9 +334,6 @@ void HaloLatentModel::load() {
     if (!fp) { fprintf(stderr, "Could not open %s\n", HALO_LATENT_MODEL_TEXT_FILE); exit(1); }
     std::string line;
     int block = 0;
-    // Default order = 0,1,2,3 and signs = 1,1,1,1 if not specified in the file.
-    for (int i = 0; i < NFEAT; i++) order[i] = i;
-    for (int i = 0; i < NFEAT; i++) signs[i] = 1;
     while (std::getline(fp, line)) {
         if (line.empty() || line[0] == '#') continue;
         std::istringstream ss(line);
@@ -353,14 +350,10 @@ void HaloLatentModel::load() {
             case 8: ss >> MIXING[1][0] >> MIXING[1][1] >> MIXING[1][2] >> MIXING[1][3]; break;
             case 9: ss >> MIXING[2][0] >> MIXING[2][1] >> MIXING[2][2] >> MIXING[2][3]; break;
             case 10: ss >> MIXING[3][0] >> MIXING[3][1] >> MIXING[3][2] >> MIXING[3][3]; break;
-            case 11: ss >> order[0] >> order[1] >> order[2] >> order[3]; break;
-            case 12: ss >> signs[0] >> signs[1] >> signs[2] >> signs[3]; break;
         }
         block++;
     }
     loaded = true;
-    //LOG_INFO("Order: %d %d %d %d\n", order[0], order[1], order[2], order[3]);
-    //LOG_INFO("Signs: %d %d %d %d\n", signs[0], signs[1], signs[2], signs[3]);
     LOG_INFO("Loaded halo latent model with use_mixing = %d\n", use_mixing);
 }
 
@@ -368,7 +361,7 @@ void HaloLatentModel::inverse_transform(galaxy *galaxy) {
     if (!loaded) load();
     double pca[NFEAT];
     for (int i = 0; i < NFEAT; i++)
-        pca[order[i]] = galaxy->halo_pca[i] * signs[i];
+        pca[i] = galaxy->halo_pca[i];
     double xs[NFEAT] = {0};
     for (int j = 0; j < NFEAT; j++)
         for (int i = 0; i < NFEAT; i++) {
@@ -390,16 +383,13 @@ void HaloLatentModel::forward_transform(galaxy *galaxy) {
     if (!loaded) load();
     double xs[NFEAT];
     double x[NFEAT] = {log10(galaxy->mass), galaxy->c, galaxy->spin, galaxy->age};
-    double temp[NFEAT];
     for (int j = 0; j < NFEAT; j++)
         xs[j] = (x[j] - scaler_mean[j]) / scaler_scale[j] - pca_mean[j];
     for (int i = 0; i < NFEAT; i++) {
-        temp[i] = 0;
+        galaxy->halo_pca[i] = 0;
         for (int j = 0; j < NFEAT; j++)
-            temp[i] += W[i][j] * xs[j];
+            galaxy->halo_pca[i] += W[i][j] * xs[j];
     }
-    for (int i = 0; i < NFEAT; i++)
-        galaxy->halo_pca[i] = temp[order[i]] * signs[i];
 }
 
 void set_halo_props_from_pca_props(galaxy *galaxy)

@@ -63,6 +63,8 @@ HALO_ICA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "halo_ica_model.pkl"
 HALO_ICA_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "halo_ica_model.txt"
 GAL_PCA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "gal_pca_model.pkl" # built by pca_gal.ipynb notebook
 GAL_PCA_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "gal_pca_model.txt" # same info as the pkl but in text format for easy reading; built by pca_gal.ipynb notebook
+GAL_2P_MODEL_FILE = PARAMS_BGSY3_FOLDER + "gal_2p_model.pkl" # built by pca_gal.ipynb notebook
+GAL_2P_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "gal_2p_model.txt" # same info as the pkl but in text format for easy reading; built by pca_gal.ipynb notebook
 
 
 # None of these got used in the end.

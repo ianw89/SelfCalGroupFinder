@@ -1942,16 +1942,12 @@ def halo_latent_to_original(latent_values):
     """
     Convert halo latent-space coordinates back to original (unscaled) feature values.
     """
-    model, scaler, feature_cols, order, signs = joblib.load(HALO_ICA_MODEL_FILE)
+    model, scaler, feature_cols = joblib.load(HALO_ICA_MODEL_FILE)
 
     if isinstance(latent_values, pd.DataFrame):
         vals = latent_values[[f'ICA{i+1}' for i in range(len(feature_cols))]].values
     else:
         vals = np.atleast_2d(latent_values)
-
-    # Undo the signs multiplication and reordering 
-    vals = vals / signs
-    vals = vals[:, np.argsort(order)]
 
     scaled = model.inverse_transform(vals)
     original = scaler.inverse_transform(scaled)
@@ -1968,7 +1964,7 @@ def halo_original_to_latent(original_values):
     """
     Convert original (unscaled) feature values to halo latent-space coordinates.
     """
-    model, scaler, feature_cols, order, signs = joblib.load(HALO_ICA_MODEL_FILE)
+    model, scaler, feature_cols = joblib.load(HALO_ICA_MODEL_FILE)
 
     if isinstance(original_values, pd.DataFrame):
         vals = original_values.loc[:, feature_cols]
@@ -1976,7 +1972,7 @@ def halo_original_to_latent(original_values):
         vals = np.atleast_2d(original_values)
 
     scaled = scaler.transform(vals)
-    latent_values = model.transform(scaled)[:, order] * signs
+    latent_values = model.transform(scaled)
 
     if isinstance(original_values, pd.DataFrame):
         # Add new columns for latent values
@@ -1987,7 +1983,7 @@ def halo_original_to_latent(original_values):
     return latent_values
 
 def display_latent_halo_model():
-    model, scaler, feature_cols, order, signs = joblib.load(HALO_ICA_MODEL_FILE)
+    model, scaler, feature_cols = joblib.load(HALO_ICA_MODEL_FILE)
     print("Independent Components (latent features) in terms of original features:")
     for i in range(model.components_.shape[0]):
         component = model.components_[i]
