@@ -1,0 +1,17 @@
+# Galaxy model for C++ use
+# features: ABSMAG01_SDSS_R G-R
+# n_features: 2
+# n_components: 2
+
+# scaler_mean (2)
+-2.0303156924e+01 7.5157122505e-01
+
+# scaler_scale (2)
+1.2892203804e+00 2.0823025376e-01
+
+# latent_mean_in_scaled_space (2)
+2.3335375854e-09 -8.0694571025e-09
+
+# latent_components (2 x 2)  — row i is eigenvector i
+7.0710945129e-01 -7.0710414648e-01
+7.0710414648e-01 7.0710945129e-01

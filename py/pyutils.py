@@ -1991,3 +1991,39 @@ def display_latent_halo_model():
         for j in range(len(feature_cols)):
             terms.append(f"{component[j]:.2f} * {feature_cols[j]}")
         print(f"ICA{i+1}: " + " + ".join(terms))
+
+
+def make_adaptive_density_bins(data, n_bins, n_tail, alpha, limit):
+    """
+    Widths go as 1/f(x)^alpha (alpha=0.5: sqrt-density spacing).
+    Implemented by spacing edges evenly in cumulative(f^alpha) space.
+    Tail extensions use the edge bin spacing for a smooth cutoff to zero.
+    """
+    N = len(data)
+    
+    # Pilot density over the covered range (exclude extreme outliers)
+    p_lo, p_hi = np.quantile(data, [limit, 1 - limit])
+    n_pilot = min(2000, N // 50)
+    pilot_edges = np.linspace(p_lo, p_hi, n_pilot + 1)
+    pilot_counts, _ = np.histogram(data, bins=pilot_edges)
+    pilot_density = pilot_counts / np.diff(pilot_edges) / N
+    # Floor: avoid pathological zero regions swallowing all the tail budget
+    #floor = pilot_density[pilot_density > 0].min() * 0.01
+    #pilot_density = np.maximum(pilot_density, floor)
+    
+    # Cumulative of f^alpha → spacing evenly in this = widths ∝ 1/f^alpha
+    dx = np.diff(pilot_edges)
+    cumulative = np.concatenate([[0], np.cumsum(pilot_density**alpha * dx)])
+    total = cumulative[-1]
+    
+    target = np.linspace(0, total, n_bins + 1)
+    adaptive_edges = np.unique(np.interp(target, cumulative, pilot_edges))
+    
+    # Extend tails with uniform bins at the edge. Capture some of the rarest halos. Mostly 0's out here.
+    dl = np.median(np.diff(adaptive_edges[:10]))
+    dr = np.median(np.diff(adaptive_edges[-10:]))
+    left  = adaptive_edges[0]  - np.arange(n_tail, 0, -1) * dl
+    right = adaptive_edges[-1] + np.arange(1, n_tail + 1)  * dr
+    
+    return np.concatenate([left, adaptive_edges, right])
+
