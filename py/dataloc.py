@@ -59,9 +59,9 @@ HALO_PCA4_DENSITY_FUNC_FILE = PARAMS_BGSY3_FOLDER + "halo_pca4_density_func.dat"
 def get_gal_prop_density_func_file(prop: str):
     base = PARAMS_BGSY3_FOLDER
     return base + f"gal_{prop.lower()}_density_func.dat"
-def get_gal_ica_density_func_file(i):
+def get_gal_ica_density_func_file(model:str, i: int):
     base = PARAMS_BGSY3_FOLDER
-    return base + f"gal_ica{i+1}_density_func.dat"
+    return base + f"gal_{model.lower()}_ica{i+1}_density_func.dat"
 
 
 # Contains the pca model and the scaler
@@ -71,6 +71,9 @@ HALO_ICA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "halo_ica_model.pkl"
 HALO_ICA_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "halo_ica_model.txt"
 GAL_PCA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "gal_pca_model.pkl" # built by pca_gal.ipynb notebook
 GAL_PCA_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "gal_pca_model.txt" # same info as the pkl but in text format for easy reading; built by pca_gal.ipynb notebook
+
+HALO_2P_MODEL_FILE = PARAMS_BGSY3_FOLDER + "halo_2p_model.pkl" # built by pca_halo.ipynb notebook
+HALO_2P_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "halo_2p_model.txt" # same info as the pkl but in text format for easy reading
 GAL_2P_MODEL_FILE = PARAMS_BGSY3_FOLDER + "gal_2p_model.pkl" # built by pca_gal.ipynb notebook
 GAL_2P_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "gal_2p_model.txt" # same info as the pkl but in text format for easy reading; built by pca_gal.ipynb notebook
 

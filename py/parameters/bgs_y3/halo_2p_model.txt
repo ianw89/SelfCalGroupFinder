@@ -1,0 +1,21 @@
+# Halo ICA model for C++ use
+# features: LOGMHALO Halfmass_Scale
+# n_features: 2
+# n_components: 2
+
+# scaler_mean (2)
+1.1728434511e+01 4.3741740846e-01
+
+# scaler_scale (2)
+7.2047153139e-01 1.0970706285e-01
+
+# ica_mean_in_scaled_space (2)
+1.5895095072e-15 -2.7784756742e-16
+
+# ica_components (2 x 2)  — row i is eigenvector i
+9.0365437055e-01 2.2940150789e-01
+5.4213522853e-01 -1.0285313683e+00
+
+# ica_mixing_matrix (2 x 2)  — for inverse transform
+9.7601816971e-01 2.1768907274e-01
+5.1445570819e-01 -8.5751695278e-01

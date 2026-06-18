@@ -33,6 +33,7 @@ double HMFCumulative::eval(double logmass) {
     return gsl_spline_eval_extrap(spline, mh, nh, N, logmass, acc);
 }
 
+// TODO to switch over to the generic latsham AMCDF, we need to remake the density function file in the right density units
 void HMFCumulative::build() {
     double mlo = HALO_MIN, mhi = HALO_MAX;
     double dlogm = log(mhi / mlo) / N;

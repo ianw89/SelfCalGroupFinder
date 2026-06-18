@@ -308,6 +308,10 @@ class GroupCatalog:
         
         # Idea is to take the error bars from the data and use them on the mock
         # But since the volumes are different, we need to scale them.
+        
+        # TODO these volumes are wrong. They are volumes for that use the frac_area from the group catalog.
+        # But when we measured the clustering we didn't restrict it to 3 pass.
+
         vfac = (self.caldata.volumes[idx]/250.0**3)**.5 # factor by which to multiply errors
         
         # Add in an additional error term that is a fraction of the wp value itself as well. 
