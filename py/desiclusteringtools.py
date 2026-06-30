@@ -36,6 +36,33 @@ def save_wp(savedir, red_results, blue_results, all_results, magbins):
             np.save(os.path.join(savedir, f'wp_all_M{-magbins[i]:d}_cov.npy'), all_cov)
 
 
+def save_wp_for_maggmr(savedir, results):
+    # make savedir if needed
+    if not os.path.exists(savedir):
+        os.makedirs(savedir)
+
+    for item in results:
+        params = item['params']
+        estimator = item['data']
+
+        if params['njack'] is not None and int(params['njack']) > 1:
+            rp, wp, cov = estimator.get_corr(return_sep=True, return_cov=True, mode='wp')
+            wp_err = np.sqrt(np.diag(cov))
+        else:
+            rp, wp = estimator.get_corr(return_sep=True, mode='wp')
+            cov = None
+            wp_err = np.zeros_like(wp)  * np.nan  # Placeholder for error if covariance is not available
+
+
+        fname = f"wp_mag{params['mag_range']}_gmr{params['gr_range']}.dat"
+        fname_cov = f"wp_mag{params['mag_range']}_gmr{params['gr_range']}_cov.npy"
+
+        if wp is not None:
+            with open(os.path.join(savedir, fname), 'w') as f:
+                for j in range(len(wp)):
+                    f.write(f'{rp[j]:.8f} {wp[j]:.8f} {wp_err[j]:.8f}\n')
+        if cov is not None:
+            np.save(os.path.join(savedir, fname_cov), cov)
 
 
 def load_allcounts_from_disk(base_dir):
@@ -73,6 +100,21 @@ def load_allcounts_from_disk(base_dir):
         r"\.npy"
     )
 
+    # New filename example: allcounts_BGS_BRIGHT_CEN_mag-20.7092to-20.3206_gr0.5105to0.6492_GCcomb_pip_bitwise_custom_njack0_nran1_split20.npy
+    filename_pattern2 = re.compile(
+        r"allcounts_BGS_BRIGHT"
+        r"(?:_CEN)?"  # Optional CEN 
+        r"(?:_mag(?P<mag_range>[\d\.-]+to[\d\.-]+))?"  # Optional magnitude range, needs to handle negative sign too
+        r"(?:_gr(?P<gr_range>[\d\.-]+to[\d\.-]+))?"  # Optional gr range
+        r"_(?P<region>GCcomb)"                # Region
+        r"_(?P<weights>[\w_]+)"               # Weights
+        r"_(?P<bin_type>\w+)"                 # Binning type
+        r"_njack(?P<njack>\d+)"               # njack
+        r"_nran(?P<nran>\d+)"                 # nran
+        r"_split(?P<split>\d+)"               # split
+        r"\.npy"
+    )
+
     loaded_results = []
     print(f"Searching for allcounts files in: {base_dir}")
 
@@ -82,13 +124,17 @@ def load_allcounts_from_disk(base_dir):
 
     for root, _, files in os.walk(base_dir):
         for file in files:
+
             match = filename_pattern.match(file)
+            if not match:
+                match = filename_pattern2.match(file)
+
             if match:
                 full_path = os.path.join(root, file)
                 params = match.groupdict()
 
                 # Default sample_type to 'ALL' if not present in filename
-                if params['sample_type'] is None:
+                if params.get('sample_type') is None:
                     params['sample_type'] = 'ALL'
                 
                 print(f"Found and loading: {file}")
@@ -365,7 +411,82 @@ def compare_wp_thresholds_to_sdss(loaded_results, weight_type):
     plt.tight_layout()
 
 
+def gmr_to_color(gmr):
+    cmin = 0.3
+    cmax = 1.0
+    cmap = plt.get_cmap("seismic")   # or "RdBu", "turbo", "viridis"
+    normalized = np.clip((gmr-cmin)/(cmax-cmin), 0, 1)
+    rgb = cmap(normalized)[:3]
+    return rgb
 
+
+def plot_wp_mag_gmr(loaded_results, weight_type):
+    """
+    Plots wp(rp) for a list of loaded clustering results for a specific weight type.
+
+    Creates a figure for each unique magnitude ranges and plot everything found for that.
+    """
+    # Filter results by the specified weight type
+    filtered_results = [res for res in loaded_results if res['params']['weights'] == weight_type]
+
+    if not filtered_results:
+        print(f"No results found for weight_type='{weight_type}'.")
+        return
+
+    print(f"Plotting results for weight_type='{weight_type}'")
+
+    # Group results by magnitude range
+    results_by_mag = {}
+    for result in filtered_results:
+        mag_range = result['params'].get('mag_range', 'all_magnitudes')
+        if mag_range not in results_by_mag:
+            results_by_mag[mag_range] = []
+        results_by_mag[mag_range].append(result)
+
+    # Order by magnitude range 
+    results_by_mag = dict(sorted(results_by_mag.items(), key=lambda x: float(x[0].split('to')[0])))
+
+    assert len(results_by_mag) == 10
+    fig, axes = plt.subplots(2, 5, figsize=(20, 8), sharex=True, sharey=True)
+    axes = axes.flatten()
+    idx = 0
+
+    # Create one plot for each magnitude range
+    for mag_range, results in results_by_mag.items():
+        #fig.suptitle(f'$w_p(r_p)$ ({weight_type}) {mag_range.replace("to", " to ")}', fontsize=16)
+        ax = axes[idx]
+        idx += 1
+        ax.set_title(f'{mag_range.replace("to", " to ")}')
+
+        # Now for 'results', reduce it to the ones with 'gr_range' and order by the gr_range
+        results = [r for r in results if 'gr_range' in r['params']]
+        results.sort(key=lambda x: float(x['params']['gr_range'].split('to')[0]))  # Sort by the lower bound of gr_range
+
+        for item in results:
+            params = item['params']
+            estimator = item['data']
+
+            if int(params['njack']) > 0:
+                rp, wp, cov = estimator.get_corr(return_sep=True, return_cov=True, mode='wp')
+                wp_err = np.sqrt(np.diag(cov))
+            else:
+                rp, wp = estimator.get_corr(return_sep=True, mode='wp')
+                wp_err = None
+
+            gmr_min = float(params['gr_range'].split('to')[0])
+            gmr_max = float(params['gr_range'].split('to')[1])
+
+            label = f"g-r: {gmr_min:.2f} to {gmr_max:.2f}"
+            ax.errorbar(rp, wp, yerr=wp_err, label=label, fmt='o', capsize=3, color=gmr_to_color((gmr_min + gmr_max) / 2))
+
+        ax.set_ylim(3, 600)
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_xlabel(r'$r_p$ [Mpc/h]')
+        ax.set_ylabel(r'$w_p(r_p)$')
+        ax.legend()
+
+        plt.tight_layout()
 
 
 

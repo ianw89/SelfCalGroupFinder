@@ -143,6 +143,20 @@ def add_dered_flux(data, fcols=['G', 'R', 'Z', 'W1', 'W2']):
         data['FLUX_'+col.upper()+'_DERED'] = data['FLUX_'+col] / data['MW_TRANSMISSION_'+col]
     return data
 
+def add_BGS_TARGET_column(table: Table, lsscat_file: str):
+    if 'SV3' in lsscat_file:
+        col = 'SV3_BGS_TARGET'
+    else:
+        col = 'BGS_TARGET'
+    lsscat = Table(fitsio.read(lsscat_file, columns=['TARGETID', col]))
+
+    if col == 'SV3_BGS_TARGET':
+        lsscat.rename_column(col, 'BGS_TARGET') # rename to match the non-SV3 version so the rest of the code can be the same
+
+    table = join(table, lsscat, keys='TARGETID', join_type='left')
+    
+    return table
+
 
 def add_mag_columns(table):
     print("Adding magnitude and quiescent classification columns to table.")
@@ -579,12 +593,20 @@ def add_physical_halflight_radius(table):
 def create_merged_file(lsscat_fn : str, merged_fn : str, year : str, photoz_wspec=True):
     print(f"CREATING MERGED FILE {merged_fn} for year {year}.", flush=True)
     columns = ['TARGETID', 'SPECTYPE', 'DEC', 'RA', 'Z_not4clus', 'FLUX_R', 'FLUX_G', 'FLUX_Z', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_G', 'MW_TRANSMISSION_Z', 'PROB_OBS', 'ZWARN', 'DELTACHI2', 'NTILE', 'TILES', 'MASKBITS', 'SHAPE_R', 'PHOTSYS']
+    if 'SV3' in lsscat_fn:
+        columns.append('SV3_BGS_TARGET')
+    else:
+        columns.append('BGS_TARGET')
+
     if ON_NERSC:
         import fitsio
         table = Table(fitsio.read(lsscat_fn, columns=columns))
     else:
         table = Table.read(lsscat_fn, format='fits')
         table.keep_columns(columns)
+
+    if 'SV3_BGS_TARGET' in table.colnames:
+        table.rename_column('SV3_BGS_TARGET', 'BGS_TARGET')
 
     print(f"Read {len(table)} galaxies from {lsscat_fn}", flush=True)
     table.rename_column('Z_not4clus', 'Z')
@@ -692,9 +714,9 @@ def supplement_sv3_merged_file_with_y3(orig_path, supplemental_path, combined_pa
     combined = vstack([sv3_table, y3_table], join_type='outer')
 
     # Ensure resultant data is what we want
-    print(sv3_table.columns)
-    print(y3_table.columns)
-    print(combined.columns)
+    #print(sv3_table.columns)
+    #print(y3_table.columns)
+    #print(combined.columns)
 
     combined.write(combined_path, format='fits', overwrite=True)
 
