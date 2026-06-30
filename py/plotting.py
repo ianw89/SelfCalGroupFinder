@@ -734,6 +734,33 @@ def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
     scatter_r[np.isnan(r_lower) | np.isnan(r_upper)] = np.nan
     scatter_b[np.isnan(b_lower) | np.isnan(b_upper)] = np.nan
 
+    all_valid = ~np.isnan(scatter_all)
+    r_valid = ~np.isnan(scatter_r)
+    b_valid = ~np.isnan(scatter_b)
+
+    shaded_all_min = lhmr_all_scatter_err[0][all_valid]
+    shaded_all_max = lhmr_all_scatter_err[1][all_valid]
+    shaded_r_min = lhmr_r_scatter_err[0][r_valid]
+    shaded_r_max = lhmr_r_scatter_err[1][r_valid]
+    shaded_b_min = lhmr_b_scatter_err[0][b_valid]
+    shaded_b_max = lhmr_b_scatter_err[1][b_valid]
+
+    # If the point lies above the shaded region, increase the shaded region to reach the point. Same for lower.
+    # Print a warning too
+    if np.any(scatter_all[all_valid] > shaded_all_max) or np.any(scatter_all[all_valid] < shaded_all_min):
+        print("Warning: Some 'All' scatter points lie outside the shaded systematic error region. Adjusting shaded region to include these points.")
+    if np.any(scatter_r[r_valid] > shaded_r_max) or np.any(scatter_r[r_valid] < shaded_r_min):
+        print("Warning: Some 'Q Centrals' scatter points lie outside the shaded systematic error region. Adjusting shaded region to include these points.")
+    if np.any(scatter_b[b_valid] > shaded_b_max) or np.any(scatter_b[b_valid] < shaded_b_min):
+        print("Warning: Some 'SF Centrals' scatter points lie outside the shaded systematic error region. Adjusting shaded region to include these points.")
+    shaded_all_max = np.where(scatter_all[all_valid] > shaded_all_max, scatter_all[all_valid], shaded_all_max)
+    shaded_all_min = np.where(scatter_all[all_valid] < shaded_all_min, scatter_all[all_valid], shaded_all_min)
+    shaded_r_max = np.where(scatter_r[r_valid] > shaded_r_max, scatter_r[r_valid], shaded_r_max)
+    shaded_r_min = np.where(scatter_r[r_valid] < shaded_r_min, scatter_r[r_valid], shaded_r_min)
+    shaded_b_max = np.where(scatter_b[b_valid] > shaded_b_max, scatter_b[b_valid], shaded_b_max)
+    shaded_b_min = np.where(scatter_b[b_valid] < shaded_b_min, scatter_b[b_valid], shaded_b_min)
+
+
     plt.figure(dpi=DPI)
     x_vals = np.log10(Mhalo_labels)
 
@@ -743,18 +770,15 @@ def LHMR_scatter_savederr(f: GroupCatalog, show_all=False):
     plt.errorbar(x_vals, scatter_r, yerr=[r_lower, r_upper], label='Q Centrals', fmt='o', markerfacecolor='red', markersize=4, markeredgecolor='k', markeredgewidth=1.25, elinewidth=2, capsize=5, ecolor='k')
 
     if show_all:
-        all_valid = ~np.isnan(scatter_all)
-        plt.fill_between(x_vals[all_valid], lhmr_all_scatter_err[0][all_valid], lhmr_all_scatter_err[1][all_valid], color='gray', alpha=SHADED_ERR_ALPHA)
-    r_valid = ~np.isnan(scatter_r)
-    plt.fill_between(x_vals[r_valid], lhmr_r_scatter_err[0][r_valid], lhmr_r_scatter_err[1][r_valid], color='red', alpha=SHADED_ERR_ALPHA)
-    b_valid = ~np.isnan(scatter_b)
-    plt.fill_between(x_vals[b_valid], lhmr_b_scatter_err[0][b_valid], lhmr_b_scatter_err[1][b_valid], color='blue', alpha=SHADED_ERR_ALPHA)
+        plt.fill_between(x_vals[all_valid], shaded_all_max, shaded_all_min, color='gray', alpha=SHADED_ERR_ALPHA)
+    plt.fill_between(x_vals[r_valid], shaded_r_max, shaded_r_min, color='red', alpha=SHADED_ERR_ALPHA)
+    plt.fill_between(x_vals[b_valid], shaded_b_max, shaded_b_min, color='blue', alpha=SHADED_ERR_ALPHA)
 
     plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'$\sigma_{{\mathrm{log}}(L_{\mathrm{cen}}~/~[L_{\odot} h^{-2}])}$')
     plt.legend()
     plt.xlim(10,15)
-    plt.ylim(0.0, 0.3)
+    plt.ylim(0.0, 0.25)
     plt.legend()
     plt.twinx()
     plt.ylim(0, np.abs(log_solar_L_to_abs_mag_r(9.4) - log_solar_L_to_abs_mag_r(9)))

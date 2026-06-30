@@ -3,6 +3,9 @@
 #include <string.h>
 #include <math.h>
 #include <errno.h>
+#include <iostream>
+#include <fstream>
+#include <limits>
 #include "groups.hpp"
 
 /*
@@ -168,27 +171,23 @@ int search(int n, float *x, float val)
  * rewinds the file and returns the lines.
  */
 
-int filesize(FILE *fp)
-{
-  int i=-1;
-  char a[1000];
-
-  while(!feof(fp))
-    {
-      i++;
-      fgets(a,1000,fp);
-    }
-  rewind(fp);
-  return(i);
-}
-
-FILE *openfile(const char *ff)
-{
-  FILE *fp;
-  if(!(fp=fopen(ff,"r")))
-    {
-      fprintf(stderr,"ERROR opening %s\n",ff);
+int filesize(const char *file) {
+    int size = 0;
+    std::string line;
+    std::ifstream count_ifs(file);
+    if (!count_ifs.is_open()) {
+      std::cerr << "ERROR opening " << file << std::endl;
       exit(ENOENT);
     }
-  return(fp);
+    while (std::getline(count_ifs, line)) ++size;
+    return size;
+}
+
+std::ifstream openfile(const char *file) {
+    std::ifstream ifs(file);
+    if (!ifs.is_open()) {
+      std::cerr << "ERROR opening " << file << std::endl;
+      exit(ENOENT);
+    }
+    return ifs;
 }

@@ -1,0 +1,21 @@
+# Galaxy model for C++ use
+# features: ABS_MAG_R_K_BEST G-R
+# n_features: 2
+# n_components: 2
+
+# scaler_mean (2)
+-2.0303334424e+01 7.5161401156e-01
+
+# scaler_scale (2)
+1.2890775320e+00 2.0821271807e-01
+
+# latent_mean_in_scaled_space (2)
+1.7741790190e-15 -2.6139845720e-17
+
+# latent_components (2 x 2)  — row i is eigenvector i
+-1.1181493811e+00 -3.6796579020e-01
+1.7667828714e-01 1.0705486597e+00
+
+# latent_mixing_matrix (2 x 2)  — for inverse transform
+-9.4569618848e-01 -3.2505187140e-01
+1.5607322583e-01 9.8774548755e-01

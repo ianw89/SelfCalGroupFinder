@@ -173,10 +173,6 @@ bgs_nn.marker = '-'
 bgs_nn_sdsslike = BGSGroupCatalog("Nearest Neighbor BGS Y1 SDSS-like", Mode.NEAREST_NEIGHBOR, 17.7, 17.7, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_nn_sdsslike.marker = '-'
 
-bgs_y1_pzp_2_6 = BGSGroupCatalog("BGS Y1 PZP v2.6 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_VANILLA.copy())
-bgs_y1_pzp_2_6.marker = '-'
-bgs_y1_pzp_2_6.color = 'darkgreen'
-
 bgs_y1_pzp_2_6_c1 = BGSGroupCatalog("BGS Y1 PZP v2.6 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
 bgs_y1_pzp_2_6_c1.marker = '--'
 bgs_y1_pzp_2_6_c1.color = 'darkgreen'
@@ -230,10 +226,6 @@ bgs_y1_v1_mcmc = BGSGroupCatalog("BGS Y1 v1 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21
 bgs_y1_v1_mcmc.marker = '.'
 bgs_y1_v1_mcmc.color = 'darkgreen'
 
-bgs_y3_pzp_2_6 = BGSGroupCatalog("BGS Y3 PZP v2.6 Vanilla", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_VANILLA.copy())
-bgs_y3_pzp_2_6.color = 'darkorange'
-bgs_y3_pzp_2_6.marker = '-'
-
 bgs_y3_pzp_2_6_c2 = BGSGroupCatalog("BGS Y3 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y3_pzp_2_6_c2.color = 'darkorange'
 bgs_y3_pzp_2_6_c2.marker = '-'
@@ -243,6 +235,10 @@ bgs_y3_pzp_2_6_c3 = BGSGroupCatalog("BGS Y3 C3", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0
 bgs_y3_pzp_2_6_c3.color = 'darkorange'
 bgs_y3_pzp_2_6_c3.marker = '-'
 bgs_y3_pzp_2_6_c3.GF_props['iterations'] = 10
+
+bgs_y3_pzp_2_6_c3_1p = BGSGroupCatalog("BGS Y3 C3 1pass", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=1, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C3.copy())
+bgs_y3_pzp_2_6_c3_1p.color = 'darkorange'
+bgs_y3_pzp_2_6_c3_1p.marker = '-'
 
 bgs_y3_fiberonly = BGSGroupCatalog("Observed BGS Y3 <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, data_cut='Y3-Loa', gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y3_fiberonly.marker = '-'
@@ -278,6 +274,18 @@ bgs_sv3_pz_2_6_10p_c3 = BGSGroupCatalog(
 )
 bgs_sv3_pz_2_6_10p_c3.GF_props['iterations'] = 10
 bgs_sv3_pz_2_6_10p_c3.color = 'k'
+
+bgs_sv3_latent_test1 = BGSGroupCatalog(
+    "BGS SV3 Latent Test1", 
+    Mode.PHOTOZ_PLUS_v2, 
+    19.5, 
+    21.0, 
+    num_passes=10, 
+    data_cut='sv3', 
+    sdss_fill=True, 
+    extra_params=PZP_PARAMS_V26, 
+    gfprops=GF_PROPS_LATENT_1.copy()
+)
 
 bgs_sv3_pz_2_6_10p_c2 = BGSGroupCatalog(
     "Photo-z Plus v2.6 BGS sv3 10pass C2", 
@@ -541,17 +549,6 @@ bgs_y3_like_sv3_nn_c2 = BGSGroupCatalog(
 )
 bgs_y3_like_sv3_nn_c2.color = 'green'
 
-bgs_sv3_fiberonly_10p = BGSGroupCatalog(
-    "Observed BGS sv3 10pass", 
-    Mode.FIBER_ASSIGNED_ONLY, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    data_cut='sv3', 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_fiberonly_10p.color = 'orange'
-
 bgs_sv3_simple_4_10p = BGSGroupCatalog(
     "Simple v4 BGS sv3 10pass", 
     Mode.SIMPLE_v4, 
@@ -563,31 +560,6 @@ bgs_sv3_simple_4_10p = BGSGroupCatalog(
     gfprops=GF_PROPS_BGS_VANILLA.copy()
 )
 bgs_sv3_simple_4_10p.color = [0.0, 1.0, 0.0]
-
-bgs_sv3_nn_10p = BGSGroupCatalog(
-    "NN BGS sv3 10pass", 
-    Mode.NEAREST_NEIGHBOR, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    data_cut='sv3', 
-    sdss_fill=True, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_nn_10p.color = [1.0, 1.0, 0.0]
-
-bgs_sv3_fiberonly_10p = BGSGroupCatalog(
-    "Observed BGS sv3 10pass", 
-    Mode.FIBER_ASSIGNED_ONLY, 
-    19.5, 
-    21.0, 
-    num_passes=10, 
-    data_cut='sv3', 
-    sdss_fill=True, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_sv3_fiberonly_10p.color = 'r'
-
 
 
 
@@ -623,9 +595,7 @@ mxxl_list : list[GroupCatalog] = [
     #mxxl_simple_4_c,
 ]
 bgs_sv3_list : list[GroupCatalog] = [
-    bgs_sv3_nn_10p,
-    bgs_sv3_fiberonly_10p,
-    bgs_sv3_pz_2_6_10p_c3,
+    bgs_sv3_pz_2_6_10p_c3, # 'Truth' catalog
     bgs_y3_like_sv3_pz_2_6_c3,
     bgs_y3_like_sv3_fiberonly_c3,
     bgs_y3_like_sv3_pz_2_0_c3,
@@ -634,8 +604,6 @@ bgs_sv3_list : list[GroupCatalog] = [
 bgs_aux_list : list[GroupCatalog] = [
     bgs_y3_fiberonly_1pass,
     bgs_nn_sdsslike,
-    bgs_y1_pzp_2_6,
-    bgs_y3_pzp_2_6,
     bgs_y1_pzp_2_6_c2_vmaxold,
 ]
 bgs_y1_list : list[GroupCatalog] = [
@@ -643,4 +611,5 @@ bgs_y1_list : list[GroupCatalog] = [
 ]
 bgs_y3_list : list[GroupCatalog] = [
     bgs_y3_pzp_2_6_c3,
+    bgs_y3_pzp_2_6_c3_1p,
 ]

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <cstdio>
+#include <string>
+#include <fstream>
+#include <iostream>
 #include "fit_clustering_omp.hpp" 
 
 // Definitions
@@ -44,7 +47,7 @@
 #define MAX_BSAT 100.0
 
 #define N_HPCA_COMP 4
-#define N_GPCA_COMP 6
+#define N_GPCA_COMP 4
 
 /* Structure definition for galaxies. */
 struct galaxy {
@@ -130,7 +133,8 @@ extern const char *HALO_PCA1_DENSITY_FUNC_FILE;
 extern const char *HALO_PCA2_DENSITY_FUNC_FILE;
 extern const char *HALO_PCA3_DENSITY_FUNC_FILE;
 extern const char *HALO_PCA4_DENSITY_FUNC_FILE;
-extern const char *HALO_PCA_MODEL_TEXT_FILE;
+extern const char *HALO_LATENT_MODEL_TEXT_FILE;
+extern const char *GAL_PCA_MODEL_TEXT_FILE;
 extern const char *MOCK_FILE;
 extern const char *VOLUME_BINS_FILE;
 extern FILE *MSG_PIPE;
@@ -146,6 +150,13 @@ extern double WCEN_MASS, WCEN_SIG, WCEN_MASSR, WCEN_SIGR, WCEN_NORM, WCEN_NORMR;
 /* Variables for affecting individual galaxy weights when assigning halo mass */
 extern double PROPX_WEIGHT_RED, PROPX_WEIGHT_BLUE, PROPX_SLOPE_RED, PROPX_SLOPE_BLUE;
 extern double PROPX2_WEIGHT_RED, PROPX2_WEIGHT_BLUE;
+
+/**
+ * Flattened matrix for linear mapping of galaxy PCA to halo PCA in latent mode.
+ * The first N_GPCA_COMP entries are the weights for the first halo PCA component, 
+ * the next N_GPCA_COMP entries are the weights for the second halo PCA component, and so on.
+ */
+extern double LATENT_LINEAR_MODEL[N_GPCA_COMP * N_HPCA_COMP]; 
 
 /* Imported functions from numerical recipes 
  */
@@ -172,5 +183,5 @@ float compute_p_z(float dz, float sigmav);
 float compute_p_proj(float mass, float dr, float rad, float ang_rad);
 float compute_p_proj_g(struct galaxy *gal, float dr);
 float psat(struct galaxy *central, float dr, float dz, float bprob);
-int filesize(FILE *fp);
-FILE *openfile(const char *filename);
+int filesize(const char *file);
+std::ifstream openfile(const char *filename);

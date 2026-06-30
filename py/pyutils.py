@@ -1300,7 +1300,7 @@ def get_NN_40_line_v4(z, t_Pobs, target_quiescent, nn_quiescent):
     arcsecs = base[zb]**exponent
     return arcsecs
 
-def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base, pcas=None):
+def write_dat_files(df: pd.DataFrame, outname_base):
     """
     Use np.column_stack with dtype='str' to convert your galprops arrays into an all-string
     array before writing it to disk.
@@ -1312,14 +1312,29 @@ def write_dat_files(ra, dec, z_eff, log_L_gal, V_max, colors, chi, outname_base,
     # Time the optimized approach
     t1 = time.time()
 
-    d = (ra, dec, z_eff, log_L_gal, V_max, colors)
-    f = ['%.14f', '%.14f', '%.14f', '%f', '%f', '%d']
-    if chi is not None:
-        d += (chi,)
+    # These 4 always required in this order. Can give luminosity or log10 luminosity and it will figure it out
+    d = (df['RA'].values, df['DEC'].values, df['Z'].values, df['LOGLGAL'].values, )
+    f = ['%.14f', '%.14f', '%.14f', '%f',]
+
+    if 'VMAX' in df.columns:
+        d += (df['VMAX'].values,)
+        f += ['%f']
+    if 'QUIESCENT' in df.columns:
+        d += (df['QUIESCENT'].values,)
+        f += ['%d']
+    if 'CHI' in df.columns:
+        d += (df['CHI'].values,)
         f += ['%s']
-    if pcas is not None:
-        d += (*pcas,)
-        f += ['%f'] * len(pcas)
+
+    i = 1
+    while (True):
+        colname = 'PCA'+str(i)
+        if colname in df.columns:
+            d += (df[colname].values,)
+            f += ['%f']
+            i += 1
+        else:
+            break
 
     data = np.column_stack(d)
     np.savetxt(outname_1, data, fmt=f)
@@ -1878,20 +1893,19 @@ def chains_to_wcen_bsat(chains_flat, x):
 ###################################
 # PCA Utils
 ###################################
+GAL_PCA_FEATURES_COLS = ['ABSMAG01_SDSS_R', 'G-R', 'c9050', 'DN4000_MODEL']
+HALO_PCA_FEATURES_COLS = ['LOGMHALO', 'c', 'Spin', 'Halfmass_Scale']
 
-#HALO_PCA_FEATURES_COLS = ['LOGMHALO', 'c', 'Spin', 'Halfmass_Scale']
-HALO_PCA_FEATURES_COLS = ['M200b', 'c', 'Spin', 'Halfmass_Scale']
-
-def halo_pca_to_original(pca_values):
+def gal_pca_to_orginal(pca_values):
     """
-    Convert halo PCA coordinates back to original (unscaled) feature values.
+    Convert galaxy PCA coordinates back to original (unscaled) feature values.
     """
     if isinstance(pca_values, pd.DataFrame):
         vals = pca_values[[f'PCA{i+1}' for i in range(pca_values.shape[1])]].values
     else:
         vals = np.atleast_2d(pca_values)
 
-    pca_model, scaler, feature_cols = joblib.load(HALO_PCA_MODEL_FILE)
+    pca_model, scaler, feature_cols = joblib.load(GAL_PCA_MODEL_FILE)
     scaled = pca_model.inverse_transform(vals)
     original = scaler.inverse_transform(scaled)
 
@@ -1903,16 +1917,16 @@ def halo_pca_to_original(pca_values):
 
     return original
 
-def halo_original_to_pca(original_values):
+def gal_original_to_pca(original_values):
     """
-    Convert original (unscaled) feature values to halo PCA coordinates.
+    Convert original (unscaled) feature values to galaxy PCA coordinates.
     """
     if isinstance(original_values, pd.DataFrame):
-        vals = original_values[HALO_PCA_FEATURES_COLS].values
+        vals = original_values[GAL_PCA_FEATURES_COLS].values
     else: 
         vals = np.atleast_2d(original_values)
 
-    pca_model, scaler, feature_cols = joblib.load(HALO_PCA_MODEL_FILE)
+    pca_model, scaler, feature_cols = joblib.load(GAL_PCA_MODEL_FILE)
     scaled = scaler.transform(vals)
     pca_values = pca_model.transform(scaled)
 
@@ -1923,3 +1937,93 @@ def halo_original_to_pca(original_values):
         return original_values
     
     return pca_values
+
+def halo_latent_to_original(latent_values):
+    """
+    Convert halo latent-space coordinates back to original (unscaled) feature values.
+    """
+    model, scaler, feature_cols = joblib.load(HALO_ICA_MODEL_FILE)
+
+    if isinstance(latent_values, pd.DataFrame):
+        vals = latent_values[[f'ICA{i+1}' for i in range(len(feature_cols))]].values
+    else:
+        vals = np.atleast_2d(latent_values)
+
+    scaled = model.inverse_transform(vals)
+    original = scaler.inverse_transform(scaled)
+
+    if isinstance(latent_values, pd.DataFrame):
+        # Add new columns for original values
+        for i, col in enumerate(feature_cols):
+            latent_values[col] = original[:, i]
+        return latent_values
+
+    return original
+
+def halo_original_to_latent(original_values):
+    """
+    Convert original (unscaled) feature values to halo latent-space coordinates.
+    """
+    model, scaler, feature_cols = joblib.load(HALO_ICA_MODEL_FILE)
+
+    if isinstance(original_values, pd.DataFrame):
+        vals = original_values.loc[:, feature_cols]
+    else: 
+        vals = np.atleast_2d(original_values)
+
+    scaled = scaler.transform(vals)
+    latent_values = model.transform(scaled)
+
+    if isinstance(original_values, pd.DataFrame):
+        # Add new columns for latent values
+        for i in range(latent_values.shape[1]):
+            original_values[f'ICA{i+1}'] = latent_values[:, i]
+        return original_values
+    
+    return latent_values
+
+def display_latent_halo_model():
+    model, scaler, feature_cols = joblib.load(HALO_ICA_MODEL_FILE)
+    print("Independent Components (latent features) in terms of original features:")
+    for i in range(model.components_.shape[0]):
+        component = model.components_[i]
+        terms = []
+        for j in range(len(feature_cols)):
+            terms.append(f"{component[j]:.2f} * {feature_cols[j]}")
+        print(f"ICA{i+1}: " + " + ".join(terms))
+
+
+def make_adaptive_density_bins(data, n_bins, n_tail, alpha, limit):
+    """
+    Widths go as 1/f(x)^alpha (alpha=0.5: sqrt-density spacing).
+    Implemented by spacing edges evenly in cumulative(f^alpha) space.
+    Tail extensions use the edge bin spacing for a smooth cutoff to zero.
+    """
+    N = len(data)
+    
+    # Pilot density over the covered range (exclude extreme outliers)
+    p_lo, p_hi = np.quantile(data, [limit, 1 - limit])
+    n_pilot = min(2000, N // 50)
+    pilot_edges = np.linspace(p_lo, p_hi, n_pilot + 1)
+    pilot_counts, _ = np.histogram(data, bins=pilot_edges)
+    pilot_density = pilot_counts / np.diff(pilot_edges) / N
+    # Floor: avoid pathological zero regions swallowing all the tail budget
+    #floor = pilot_density[pilot_density > 0].min() * 0.01
+    #pilot_density = np.maximum(pilot_density, floor)
+    
+    # Cumulative of f^alpha → spacing evenly in this = widths ∝ 1/f^alpha
+    dx = np.diff(pilot_edges)
+    cumulative = np.concatenate([[0], np.cumsum(pilot_density**alpha * dx)])
+    total = cumulative[-1]
+    
+    target = np.linspace(0, total, n_bins + 1)
+    adaptive_edges = np.unique(np.interp(target, cumulative, pilot_edges))
+    
+    # Extend tails with uniform bins at the edge. Capture some of the rarest halos. Mostly 0's out here.
+    dl = np.median(np.diff(adaptive_edges[:10]))
+    dr = np.median(np.diff(adaptive_edges[-10:]))
+    left  = adaptive_edges[0]  - np.arange(n_tail, 0, -1) * dl
+    right = adaptive_edges[-1] + np.arange(1, n_tail + 1)  * dr
+    
+    return np.concatenate([left, adaptive_edges, right])
+

@@ -50,15 +50,33 @@ LSAT_OBSERVATIONS_SDSS_TRANSFORMED_FILE = PARAMS_BGSY1_FOLDER + 'Lsat_SDSS_DnGMM
 LSAT_RAW_2020_OBSERVATIONS_FILE = LSAT_FOLDER + 'LsatCat_2020.csv'
 MOCK_FILE_FOR_POPMOCK = DATA_FOLDER + 'POPMOCK/' + 'hosthalo_z0.0_M1e10_Lsat.dat'
 
+# write now we also use this for ICA
 HALO_PCA1_DENSITY_FUNC_FILE = PARAMS_BGSY3_FOLDER + "halo_pca1_density_func.dat"
 HALO_PCA2_DENSITY_FUNC_FILE = PARAMS_BGSY3_FOLDER + "halo_pca2_density_func.dat"
 HALO_PCA3_DENSITY_FUNC_FILE = PARAMS_BGSY3_FOLDER + "halo_pca3_density_func.dat"
 HALO_PCA4_DENSITY_FUNC_FILE = PARAMS_BGSY3_FOLDER + "halo_pca4_density_func.dat"
 
+def get_gal_prop_density_func_file(prop: str):
+    base = PARAMS_BGSY3_FOLDER
+    return base + f"gal_{prop.lower()}_density_func.dat"
+def get_gal_ica_density_func_file(model:str, i: int):
+    base = PARAMS_BGSY3_FOLDER
+    return base + f"gal_{model.lower()}_ica{i+1}_density_func.dat"
+
+
 # Contains the pca model and the scaler
 HALO_PCA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "halo_pca_model.pkl" # built by pca_halo.ipynb notebook
 HALO_PCA_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "halo_pca_model.txt" # same info as the pkl but in text format for easy reading; built by pca_halo.ipynb notebook
-GAL_PCA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "gal_pca_model.pkl" # built by pca_halo.ipynb notebook
+HALO_ICA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "halo_ica_model.pkl"
+HALO_ICA_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "halo_ica_model.txt"
+GAL_PCA_MODEL_FILE = PARAMS_BGSY3_FOLDER + "gal_pca_model.pkl" # built by pca_gal.ipynb notebook
+GAL_PCA_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "gal_pca_model.txt" # same info as the pkl but in text format for easy reading; built by pca_gal.ipynb notebook
+
+HALO_2P_MODEL_FILE = PARAMS_BGSY3_FOLDER + "halo_2p_model.pkl" # built by pca_halo.ipynb notebook
+HALO_2P_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "halo_2p_model.txt" # same info as the pkl but in text format for easy reading
+GAL_2P_MODEL_FILE = PARAMS_BGSY3_FOLDER + "gal_2p_model.pkl" # built by pca_gal.ipynb notebook
+GAL_2P_MODEL_TEXT_FILE = PARAMS_BGSY3_FOLDER + "gal_2p_model.txt" # same info as the pkl but in text format for easy reading; built by pca_gal.ipynb notebook
+
 
 # None of these got used in the end.
 QUIESCENT_MODEL = PARAMS_BGSY1_FOLDER + "kmeans_quiescent_model.pkl" # made from Y1
