@@ -2739,14 +2739,6 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
         idx = valid_idx & (z_flag_is_not_spectro_z(s.all_data['Z_ASSIGNED_FLAG']))
         print(f"There are {idx.sum()} lost galaxies with 'truth'. {zt1.sum()} {zt2.sum()} {zt3.sum()}")
 
-        # Truth method 2 for SV3 where we dropped passes. Should be equivalent to the above... but not quite? TODO BUG
-        #zt1a = (s.all_data['Z_OBS'] < -1 ) # Looking for sentinal values
-        #zt2a = (np.isnan(s.all_data['Z_OBS']))
-        #zt3a = (s.all_data['Z_OBS'] > 20.0) # Looking for sentinal values
-        #valid_idx_alt = ~np.any([zt1a, zt2a, zt3a], axis=0)
-        #idx_alt = valid_idx_alt & (z_flag_is_not_spectro_z(s.all_data['Z_ASSIGNED_FLAG']))
-        #print(f"There are {idx_alt.sum()} lost galaxies with 'truth' (alt). {zt1a.sum()} {zt2a.sum()} {zt3a.sum()}")
-
         assigned_z = s.all_data.loc[idx, 'Z'] 
         truth_z = s.all_data.loc[idx, 'Z_T'] # was using z_obs before which is fine for SV3 with droped passes
         assignment_type = s.all_data.loc[idx, 'Z_ASSIGNED_FLAG']
