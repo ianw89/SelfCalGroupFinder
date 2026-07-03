@@ -32,6 +32,7 @@ from bgs_helpers import *
 from calibrationdata import *
 from hod import fit_hod_models, HODThresholdsTabulated, HODTabulated, fit_hod_threshold_models
 from dataloc import *
+from FootprintManager import FootprintManager
 
 # Must keep this protocol syncronized with the C++ code in groups.hpp
 MSG_REQUEST = 0
@@ -303,10 +304,14 @@ class GroupCatalog:
         # Idea is to take the error bars from the data and use them on the mock
         # But since the volumes are different, we need to scale them.
         
-        # TODO these volumes are wrong. They are volumes for that use the frac_area from the group catalog.
-        # But when we measured the clustering we didn't restrict it to 3 pass.
+        # Get the volume of the calibration data measurements 
+        frac_area = FootprintManager().get_footprint("Y1", min_passes=1) / DEGREES_ON_SPHERE
+        volume = get_volume_at_z(self.caldata.zmaxes[idx], frac_area)
 
-        vfac = (self.caldata.volumes[idx]/250.0**3)**.5 # factor by which to multiply errors
+        vfac_old = (self.caldata.volumes[idx]/250.0**3)**.5 # This is incorrect old way which used 3pass footprint instead of 1pass which is how wp was measured
+        vfac = (volume/(250.0**3))**0.5
+
+        print(f"Old vfac: {vfac_old}, New vfac: {vfac}")
         
         # Add in an additional error term that is a fraction of the wp value itself as well. 
         # This is to account for the fact that the mock is not a perfect representation of the data.
