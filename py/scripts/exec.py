@@ -50,8 +50,8 @@ callable_list = [
     [mcmc2], #1
     [cat.bgs_sv3_hybrid_mcmc], #2
     cat.sdss_list, #3
-    cat.uchuu_list, #4
-    cat.mxxl_list, #5
+    [], #4
+    [], #5
     cat.bgs_sv3_list, #6
     cat.bgs_aux_list, #7
     cat.bgs_y1_list, #8
