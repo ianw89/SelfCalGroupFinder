@@ -141,9 +141,6 @@ def single_plots(d: GroupCatalog, truth_on=False):
 
     hod_bins_plot(d)
 
-    #wp_rp(d)
-    #wp_rp_magbins(d)
-
 def completeness_comparison(*datasets):        
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)

@@ -227,12 +227,6 @@ class GroupCatalog:
         # Generated from run_corrfunc; holds the wp measurements on the mock populated with this group catalog's HOD.
         self.wp_mock = {}
 
-        # These are direct wp measurements, not on the mock. This code doesn't work BUG
-        self.wp_all = None # (rbins, wp_all, wp_r, wp_b)
-        self.wp_all_extra = None # (rbins, wp_all, wp_r, wp_b)
-        self.wp_slices = np.array(len(CLUSTERING_MAG_BINS) * [None]) # Tuple of (rbins, wp) at each index
-        self.wp_slices_extra = np.array(len(CLUSTERING_MAG_BINS) * [None]) # Tuple of (rbins, wp) at each index
-
         self.f_sat = None # per Lgal bin 
         self.Lgal_counts = None # size of Lgal bins 
 
