@@ -168,7 +168,6 @@ void spline(float x[], float y[], int n, float yp1, float ypn, float y2[]);
 void splint(float xa[], float ya[], float y2a[], int n, float x, float *y);
 void sort2(int n, float arr[], int id[]);
 float qtrap(float (*func)(float), float a, float b);
-float zbrent(float (*func)(float, float), float x1, float x2, float tol, float galaxy_density);
 
 
 /* other functions shared by multiple files
