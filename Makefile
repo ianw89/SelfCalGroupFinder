@@ -11,8 +11,8 @@
 # -- for sirocco/howdy/sirocco1
 #CC = gcc
 CC = g++
-CFLAGS = -O2 -fopenmp -std=c++11 -Isrc/libs
-CFLAGS_SERIAL = -O2 -std=c++11 -Isrc/libs
+CFLAGS = -O3 -fopenmp -std=c++11 -Isrc/libs -MMD -MP
+CFLAGS_SERIAL = -O3 -std=c++11 -Isrc/libs  -MMD -MP
 #CFLAGS += -march=native
 LIB = -lm -fopenmp -lgsl -lgslcblas -L/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 LIB_SERIAL = -lm -lgsl -lgslcblas -L/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
@@ -48,8 +48,6 @@ _OBJ = kdGroupFinder_omp.o qromo.o midpnt.o polint.o sham.o spline.o splint.o \
 	zbrent.o sort2.o fit_clustering_omp.o utils.o nrutil.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 OBJ_SERIAL = $(patsubst %,$(ODIR_SERIAL)/%,$(_OBJ))
-
-
 
 # ------------------------------------ #
 # TARGETS
@@ -88,10 +86,7 @@ $(BDIR)/tests: $(OBJ) $(TESTS_OBJ)
 	@mkdir -p $(BDIR)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIB) -Wl,-rpath,/mount/sirocco1/imw2293/GROUP_CAT/libs/gsl
 
+-include $(ODIR)/*.d $(ODIR_SERIAL)/*.d
+
 clean:
-	rm -f *.o $(ODIR)/*.o
-	rm -f *.o $(ODIR_SERIAL)/*.o
-	rm -f $(BDIR)/kdGroupFinder_omp
-	rm -f $(BDIR)/kdGroupFinder_serial
-	rm -f $(BDIR)/PerfGroupFinder
-	rm -f $(BDIR)/tests
+	rm -rf $(ODIR) $(ODIR_SERIAL) $(BDIR)
