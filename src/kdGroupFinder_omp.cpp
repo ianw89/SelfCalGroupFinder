@@ -309,15 +309,14 @@ void groupfind()
     }
     auto t_end_findsats = get_wtime();
 
-    // After finding satellites, now set some properties on the centrals
+    // Set igrp on centrals
+    
     for (int i1 = 0; i1 < ngrp_prev; ++i1)
     {
       int i = sorted_indices[i1];
       if (GAL[i].psat <= 0.5) // Still a central
       {
         GAL[i].igrp = i;
-        sorted_indices[ngrp] = i;  // Store central in next available spot
-        ngrp++;
       }
     }
 
@@ -329,30 +328,20 @@ void groupfind()
     {
       if (unvisited[j_par] && GAL[j_par].psat <= 0.5)
       {
-        //LOG_INFO("Newly exposed central: %d with psat=%.3f.\n", j_par, GAL[j_par].psat);
+        LOG_INFO("Newly exposed central: %d with psat=%.3f.\n", j_par, GAL[j_par].psat);
         find_satellites(j_par, tree);
       }
     }
 
-    for (int k = 0; k < NGAL; ++k)
-    {
-      if (unvisited[k] && GAL[k].psat <= 0.5)
-      {
-        GAL[k].igrp = k;
-        sorted_indices[ngrp] = k;
-        ngrp++;
-        // No need to mark as visited here, loop is ending
-      }
-    }
 
-    // Fix up orphaned satellites (satellites of centrals that became satellites)
+
     for (int k = 0; k < NGAL; ++k) {
+
+      // Fix up orphaned satellites (satellites of centrals that became satellites)
       if (GAL[k].psat > 0.5) {
-        #ifndef OPTIMIZE
         if (GAL[k].igrp == k) { 
           LOG_ERROR("ERROR - psat>0.5 galaxy %d has igrp itself! (N_SAT=%d)\n", k, GAL[k].nsat);
         }
-        #endif
         // Orphaned Satellite - it's central became a satellite in the final iteration. Need to reassign.
         if (GAL[GAL[k].igrp].igrp != GAL[k].igrp) { 
           // Consider this a central now, next loop will process it.
@@ -365,46 +354,32 @@ void groupfind()
           ngrp++;  
         }
       }
-      #ifndef OPTIMIZE
-      else if (GAL[k].igrp != k) {
-          LOG_ERROR("ERROR - psat<=0.5 galaxy %d not it's own central. igrp=%d, (N_SAT=%d)\n", k, GAL[k].igrp, GAL[k].nsat);
+
+      // And assign central galaxy properties
+      else  { 
+        GAL[k].igrp = k;
+        sorted_indices[ngrp] = k;
+        ngrp++;
       }
-      #endif
     }
 
     // Re-assign the halo masses to each central
     nsat_tot = galden = 0;
     reset_sham_counters();
-
-    // print off sorted_indices
-    //for (int i = 0; i < NGAL; ++i) {
-    //  LOG_INFO("sorted_indices[%d] = %d. lum=%e, mhalo=%e\n", i, sorted_indices[i], GAL[sorted_indices[i]].lum, GAL[sorted_indices[i]].mass);
-    //}
     
     auto t_sort_start = get_wtime();
-
-    // sort groups by their total group luminosity / stellar mass for abundance matching step
-    
+  
+    // Sort groups for abundance matching 
     for (int i1=0; i1 < ngrp; ++i1) {
       int i = sorted_indices[i1];
-
-      // TODO BUG Not sure how but this error is hit right now
-      
-      if (GAL[i].psat > 0.5) {
-        LOG_ERROR("ERROR - psat > 0.5 galaxy %d is in the central list! (N_SAT=%d)\n", i, GAL[i].nsat);
-      }
-      if (GAL[i].igrp != i) {
-        LOG_ERROR("ERROR - igrp (%d) != i galaxy %d is in the central list! (N_SAT=%d)\n", GAL[i].igrp, i, GAL[i].nsat);
-      }
-      
       set_sorting_rank(i);
     }
-    
 
     std::sort(sorted_indices.begin(), sorted_indices.begin() + ngrp,
               [](int i, int j) { 
                 return GAL[i].sort_rank < GAL[j].sort_rank;
               });
+
     auto t_sort_end = get_wtime();
 
     auto t_start_halo_assign = get_wtime();
@@ -742,6 +717,9 @@ void find_satellites(int icen, GalaxyKDTree *tree)
           // If this was previously a member of another lower priority groups (higher grp_rank), we need to update that group's properties
           if (GAL[j].igrp >= 0)
           {
+            // Somehow this does happen in serial mode a bit. Much more commmon in parallel mode.
+            //LOG_INFO("Galaxy %d was previously assigned to group %d (grp_rank=%d) with psat=%.3f. Now assigned to group %d (grp_rank=%d) with psat=%.3f\n", 
+            //  j, GAL[j].igrp, GAL[GAL[j].igrp].grp_rank, GAL[j].psat, icen, GAL[icen].grp_rank, p0);
 
             if (GAL[j].igrp == j) 
             {
