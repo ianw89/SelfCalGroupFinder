@@ -39,15 +39,14 @@ typedef KDTreeSingleIndexAdaptor<
 
 /* Local functions */
 void reset_sham_counters();
-void assign_halo(galaxy *gal, double galdensity);
 void recalc_galprops();
 void find_satellites(int icen, GalaxyKDTree *tree);
 double fluxlim_correction(double z);
 double get_wcen(int idx);
 double get_chi_weight(int idx);
 double get_bprob(int idx);
-double lgrp_to_matching_rank(int idx);
-double rank_for_hpca(int idx, int hpca_idx);
+void set_sorting_rank(int idx);
+//double rank_for_hpca(int idx, int hpca_idx);
 
 galaxy *GAL = nullptr;
 halo *HALO = nullptr;
@@ -109,7 +108,7 @@ void groupfind()
   double minvmax, maxvmax;
   int niter, ngrp_prev, icen_new;
   double frac_area, nsat_tot, weight;
-  double galden, pt[3], t_start_findsats, t_end_findsats, t_start_iter, t_end_iter, t_alliter_s, t_alliter_e; // galden (galaxy density) only includes centrals, because only they get halos
+  double galden, pt[3]; // galden (galaxy density) only includes centrals, because only they get halos
   double *fsat_arr;
 
 
@@ -182,11 +181,12 @@ void groupfind()
           ifs >> GAL[i].propx2;
         
         // If in latent mode, read in N_GPCA_COMP components
-        if (LATENT) { 
-          for (int j = 0; j < N_GPCA_COMP; ++j) {
-            ifs >> GAL[i].gal_pca[j];
-          }
-        }
+        //if (LATENT) { 
+        //  for (int j = 0; j < N_GPCA_COMP; ++j) {
+        //    ifs >> GAL[i].gal_pca[j];
+        //  }
+        //}
+
         // Skip to the end of the line in case there are extra columns we don't care about
         ifs.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         GAL[i].weight = get_wcen(i);
@@ -278,10 +278,10 @@ void groupfind()
   // ********************************************
   // The group-finding iterations
   // ********************************************
-  t_alliter_s = get_wtime();
+  auto t_alliter_s = get_wtime();
   for (niter = 1; niter <= MAX_ITER; ++niter)
   {
-    t_start_iter = get_wtime();
+    auto t_start_iter = get_wtime();
 
     // Reset group properties except the halo mass
     // (We have the sorted_indices array from the last iteration with the previous LGRP values sorted already)
@@ -298,7 +298,7 @@ void groupfind()
     // This is the where most CPU time is spent
     ngrp_prev = ngrp; // first iteration this is NGAL
     ngrp = 0;
-    t_start_findsats = get_wtime();
+    auto t_start_findsats = get_wtime();
     int i1_par, i_par;
     #pragma omp parallel for private(i1_par, i_par) schedule(static)
     for (i1_par = 0; i1_par < ngrp_prev; ++i1_par)
@@ -307,7 +307,7 @@ void groupfind()
       unvisited[i_par] = 0;
       find_satellites(i_par, tree);
     }
-    t_end_findsats = get_wtime();
+    auto t_end_findsats = get_wtime();
 
     // After finding satellites, now set some properties on the centrals
     for (int i1 = 0; i1 < ngrp_prev; ++i1)
@@ -376,33 +376,59 @@ void groupfind()
     nsat_tot = galden = 0;
     reset_sham_counters();
 
-    if (!LATENT) {
+    // print off sorted_indices
+    //for (int i = 0; i < NGAL; ++i) {
+    //  LOG_INFO("sorted_indices[%d] = %d. lum=%e, mhalo=%e\n", i, sorted_indices[i], GAL[sorted_indices[i]].lum, GAL[sorted_indices[i]].mass);
+    //}
+    
+    auto t_sort_start = get_wtime();
 
-      // sort groups by their total group luminosity / stellar mass for abundance matching step
-      std::sort(sorted_indices.begin(), sorted_indices.begin() + ngrp,
-                [](int i, int j) { 
-                  return lgrp_to_matching_rank(i) < lgrp_to_matching_rank(j); 
-                });
+    // sort groups by their total group luminosity / stellar mass for abundance matching step
+    
+    for (int i1=0; i1 < ngrp; ++i1) {
+      int i = sorted_indices[i1];
 
-      for (int j = 0; j < ngrp; ++j) {
-        int i = sorted_indices[j];
-        GAL[i].grp_rank = j; 
-        // Note - this won't be in exact mass ordering in flux limited mode. We have different densities for different redshift slices,
-        // so the abundance matching doesn't necessarily preserve the same mass order as the lgrp ordering. This is fine.
-        // The grp_rank design could reasonably be changed anyway - computing psat for all possible parents and picking highest might be a better design.
-        galden += 1 / GAL[i].vmax;
-        if (FLUXLIM) {
-          GAL[i].mass = HaloMassAMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
-        }
-        else {
-          GAL[i].mass = HaloMassAMManager::get().match(galden);
-        }
-        nsat_tot += GAL[i].nsat;
-        update_galaxy_halo_props(&GAL[i]);
+      // TODO BUG Not sure how but this error is hit right now
+      
+      if (GAL[i].psat > 0.5) {
+        LOG_ERROR("ERROR - psat > 0.5 galaxy %d is in the central list! (N_SAT=%d)\n", i, GAL[i].nsat);
       }
-    } 
-    else { // Latent mode
+      if (GAL[i].igrp != i) {
+        LOG_ERROR("ERROR - igrp (%d) != i galaxy %d is in the central list! (N_SAT=%d)\n", GAL[i].igrp, i, GAL[i].nsat);
+      }
+      
+      set_sorting_rank(i);
+    }
+    
 
+    std::sort(sorted_indices.begin(), sorted_indices.begin() + ngrp,
+              [](int i, int j) { 
+                return GAL[i].sort_rank < GAL[j].sort_rank;
+              });
+    auto t_sort_end = get_wtime();
+
+    auto t_start_halo_assign = get_wtime();
+
+    for (int j = 0; j < ngrp; ++j) {
+      int i = sorted_indices[j];
+      GAL[i].grp_rank = j; 
+      // Note - this won't be in exact mass ordering in flux limited mode. We have different densities for different redshift slices,
+      // so the abundance matching doesn't necessarily preserve the same mass order as the lgrp ordering. This is fine.
+      // The grp_rank design could reasonably be changed anyway - computing psat for all possible parents and picking highest might be a better design.
+      galden += 1 / GAL[i].vmax;
+      if (FLUXLIM) {
+        GAL[i].mass = HaloMassAMManager::get().match_in_zbins(GAL[i].redshift, GAL[i].vmax);
+      }
+      else {
+        GAL[i].mass = HaloMassAMManager::get().match(galden);
+      }
+      nsat_tot += GAL[i].nsat;
+      update_galaxy_halo_props(&GAL[i]);
+    }
+    auto t_end_halo_assign = get_wtime();
+
+    // Latent mode code
+    /*
       // sort according to the linear model provided
       std::sort(sorted_indices.begin(), sorted_indices.begin() + ngrp,
                 [](int i, int j) { 
@@ -513,12 +539,14 @@ void groupfind()
       for (int j = 0; j < ngrp; ++j) {
         nsat_tot += GAL[sorted_indices[j]].nsat;
       }
-    }
+        */
+    
 
     fsat_arr[niter-1] = nsat_tot / NGAL; // store the fraction of satellites in this iteration
-    t_end_iter = get_wtime();
+    auto t_end_iter = get_wtime();
 
-    LOG_INFO("iter %d ngroups=%d fsat=%f (kdtime=%.2f %.2f)\n", niter, ngrp, fsat_arr[niter-1], t_end_findsats - t_start_findsats, t_end_iter - t_start_iter);
+    LOG_INFO("iter %d ngroups=%d fsat=%f ([findsats=%.2fs, haloassign=%.2fs, sort=%.2fs, total=%.2fs])\n",
+      niter, ngrp, fsat_arr[niter-1], t_end_findsats - t_start_findsats, t_end_halo_assign - t_start_halo_assign, t_sort_end - t_sort_start, t_end_iter - t_start_iter);
 
     // When allowing early exit, check if the change in fsat is small enough to stop
     if (ALLOW_EARLY_EXIT && niter > 1 && fabs(fsat_arr[niter-1] - fsat_arr[niter-2]) < 0.001)
@@ -529,7 +557,7 @@ void groupfind()
 
   } // end of main iteration loop
 
-  t_alliter_e = get_wtime();
+  auto t_alliter_e = get_wtime();
   LOG_PERF("Group finding complete. All iterations took %.2fs.\n", t_alliter_e - t_alliter_s);
 
   double maxdensity = HaloMassAMManager::get().max_density_seen;
@@ -571,20 +599,21 @@ void groupfind()
   // **********************************
   if (!INTERACTIVE) {
     for (int i = 0; i < NGAL; ++i) {
+      /*
       if (LATENT) {
         printf("%d %f %f %f %e %e %f %e %d %e %d %f %f %f %f %f\n",
                 i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
                 GAL[i].lum, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
                 GAL[i].nsat, GAL[i].lgrp, GAL[i].igrp, GAL[i].weight, GAL[i].chiweight,
                 GAL[i].c, GAL[i].spin, GAL[i].age);
-      }
-      else {
+      }*/
+      //else {
         printf("%d %f %f %f %e %e %f %e %d %e %d %f %f\n",
                 i, GAL[i].ra * 180 / PI, GAL[i].dec * 180 / PI, GAL[i].redshift,
                 GAL[i].lum, GAL[i].vmax, GAL[i].psat, GAL[i].mass,
                 GAL[i].nsat, GAL[i].lgrp, GAL[i].igrp, GAL[i].weight, GAL[i].chiweight);
       }
-    }
+    //}
   }
   fflush(stdout);
   
@@ -596,10 +625,11 @@ void reset_sham_counters() {
   if (FLUXLIM) {
     HaloMassAMManager::get().reset();
     if (LATENT) {
-      HaloPCA1AMManager::get().reset();
-      HaloPCA2AMManager::get().reset();
-      HaloPCA3AMManager::get().reset();
-      HaloPCA4AMManager::get().reset();
+      throw std::runtime_error("Latent mode not yet implemented.");
+      //  HaloPCA1AMManager::get().reset();
+      //  HaloPCA2AMManager::get().reset();
+      //  HaloPCA3AMManager::get().reset();
+      //  HaloPCA4AMManager::get().reset();
     }
   }
 }
@@ -857,14 +887,14 @@ double get_bprob(int idx) {
   return bprob;
 }
 
-double lgrp_to_matching_rank(int idx) {
+void set_sorting_rank(int idx) {
   // Lgrp sums all unweighted luminosities (or stellar mass) in the group.
   // For the abundance matching, we want the chi weight to be applied to the central only.
   // The wcen weight is applied to the entire group luminosity.
   double value = - (GAL[idx].lgrp - GAL[idx].lum + GAL[idx].lum*GAL[idx].chiweight) * GAL[idx].weight;
   if (FLUXLIM)
     value *= fluxlim_correction(GAL[idx].redshift);
-  return value;
+  GAL[idx].sort_rank = value;
 }
 
 /**
@@ -874,6 +904,7 @@ double lgrp_to_matching_rank(int idx) {
  * hpca_num is 0-3 for the 4 halo PCA components.
  * TODO clearly the linearly latent model is dumb in that it doesn't use group information
  */
+/*
 double rank_for_hpca(int idx, int hpca_num) {
 
   double value = 0;
@@ -882,3 +913,4 @@ double rank_for_hpca(int idx, int hpca_num) {
   }
   return value;
 }
+*/

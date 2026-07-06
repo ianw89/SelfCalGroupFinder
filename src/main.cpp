@@ -134,6 +134,10 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
       ALLOW_EARLY_EXIT = 1;
       break;
     case 'l':
+      // Temp disable this mode. Exit
+      LOG_ERROR("Latent mode is not yet implemented. Exiting.\n");
+      exit(EPERM);
+      /*
       LATENT = 1;
       expected = N_GPCA_COMP * N_HPCA_COMP;
       {
@@ -148,6 +152,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         LOG_ERROR("Expected %d parameters for latent linear model, but got %d.\n", expected, n);
         exit(EPERM);
       }
+      */
       break;
     case 'w':
       USE_WCEN = 1;

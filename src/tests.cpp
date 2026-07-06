@@ -11,6 +11,17 @@
 #include "fit_clustering_omp.hpp"
 #include "sham.hpp"
 
+#define TEST_CASE2(condition, value, result, message) \
+    if (!(condition)) { \
+        std::cerr << "! TEST FAILED ! : " << message << "\n" \
+                  << "  Test Value: " << (value) << "\n" \
+                  << "  Result: " << (result) << "\n" \
+                  << "  File: " << __FILE__ << ", Line: " << __LINE__ << "\n"; \
+        std::abort(); \
+    } else { \
+        std::cout << "Test passed: " << message << ". Value: " << (value) << ", Result: " << (result) << "\n"; \
+    }
+
 #define TEST_CASE(condition, value, message) \
     if (!(condition)) { \
         std::cerr << "! TEST FAILED ! : " << message << "\n" \
@@ -309,23 +320,6 @@ void test_psat() {
     printf(" *** All psat tests passed.\n\n");
 }
 
-void test_func_match_nhost_baseline() {
-    printf("=== FUNC_MATCH_NHOST BASELINE TESTS ===\n");
-    float loggalden = 1e-5; // not sure at all if this is a reasonable value but it doesn't matter
-    float tol = 1e-5; // Acceptable relative difference
-
-    float baseline[] = {-0.0000100000, -0.0000099998, -0.0000099740, -0.0000094658, -0.0000057188, 0.0000103041, 0.0000608401, 0.0001940445, 0.0005124758, 0.0012343820, 0.0028256753, 0.0062867291, 0.0137773650, 0.0299867131, 0.0651531070, 0.1417509466, 0.3093677461, 0.6779714823, 1.4924468994, 3.2999482155};
-
-    // Test over a range of halo masses
-    for (int i = 0; i < 20; ++i) {
-        float logmass = log(HALO_MAX) - i * (log(HALO_MAX) - log(HALO_MIN)) / 21.0;
-        float new_val = func_match_nhost(logmass, loggalden);
-        printf("mass=%.3e, old=%.6e, new=%.6e, rel_diff=%.2g\n", exp(logmass), baseline[i], new_val, fabs(baseline[i]-new_val)/fabs(baseline[i]));
-        assert(fabs(baseline[i] - new_val) < tol * fabs(baseline[i]) + 1e-8 && "func_match_nhost results changed!");
-    }
-    printf(" *** func_match_nhost baseline tests passed.\n\n");
-}
-
 void test_tabulate_hod() {
     printf("=== TABULATE HOD ORIGINAL TESTS ===\n");
 
@@ -604,6 +598,14 @@ void test_tabulate_hod_2() {
     printf(" *** All tabulate_hod total_vmax tests passed.\n\n");
   }
 
+void test_HMFCumulative_builds() {
+    printf("=== HMFCumulative BUILD TESTS ===\n");
+    HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
+
+    auto& hmf = HMFCumulative::get();
+    hmf.eval(log(1e-5)); // Example usage
+}
+
 void test_HaloMassAMManager_match_halo_values() {
     printf("=== HaloMassAMManager.match VALUE TESTS ===\n");
     HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
@@ -615,9 +617,10 @@ void test_HaloMassAMManager_match_halo_values() {
         float n_gt_M = qromo(halo_abundance_log, log(M), log(HALO_MAX), midpnt);
         float recovered_mass = HaloMassAMManager::get().match(n_gt_M);
         float rel_err = fabs(recovered_mass - M) / M;
-        //printf("Input mass: %e, n(>M): %e, recovered: %e, rel_err: %e\n", M, n_gt_M, recovered_mass, rel_err);
-        TEST_CASE(rel_err < 1e-3, M, "HaloMassAMManager should roundtrip");
+        printf("Input mass: %e, n(>M): %e, recovered: %e, rel_err: %e\n", M, n_gt_M, recovered_mass, rel_err);
+        TEST_CASE2(rel_err < 1e-3, M, recovered_mass, "HaloMassAMManager should roundtrip");
     }
+
 
     printf(" *** HaloMassAMManager.match value tests passed.\n\n");
 }
@@ -640,6 +643,27 @@ void test_HaloMassAMManager_match_halo_monotonic() {
     printf(" *** HaloMassAMManager.match monotonicity tests passed.\n\n");
 }
 
+void test_HaloMassAMManager_match_inzbins() {
+    printf("=== HaloMassAMManager.match_in_zbins TESTS ===\n");
+    HALO_MASS_FUNC_FILE = "py/parameters/sdss/hmf_t08_bolshoi.dat";
+    FRAC_AREA = 1.0;
+
+    // For the flux limited sample version, density should be tracked in different z regions
+    float vmax = 1e10; // use same for all for simplicity
+    float redshifts[] = {0.07, 0.08, 0.26, 0.27, 0.071};
+    std::vector<float> results;
+    for (float z : redshifts) {
+        results.push_back(HaloMassAMManager::get().match_in_zbins(z, vmax));
+    }
+
+    TEST_CASE2(results[0] > results[1], results[0], results[1], "First low z call gives higher mass than second low z call");
+    TEST_CASE2(results[2] > results[3], results[2], results[3], "First high z call gives higher mass than second high z call");
+    TEST_CASE2(results[4] < results[0], results[0], results[4], "Later low z call gives lower mass than earlier low z calls");
+
+    printf(" *** HaloMassAMManager.match_in_zbins tests passed.\n\n");
+}
+
+/*
 void test_HaloLatentModel_model() {
     // Load the HaloLatentModel and sample some values to see if it's loaded right.
     printf("=== HaloLatentModel MODEL TESTS ===\n");
@@ -684,6 +708,7 @@ void test_HaloLatentDensityFuncs_loading_and_splines() {
 
     printf(" *** HaloPCA density function tests passed.\n\n");
 }
+
 
 void test_HaloLatentDensFuncCumulative() {
     printf("\n=== HALO PCA CUMULATIVE DENSITY FUNCTIONS TESTS ===\n");
@@ -762,11 +787,14 @@ void test_HaloPCAAMManager_monotonic() {
 
     printf(" *** HaloPCA SHAM Manager match monotonicity tests passed.\n\n");
 }
+*/
+
 
 int main(int argc, char **argv) {
 
+    test_HMFCumulative_builds();
     test_halo_abundance();
-    test_func_match_nhost_baseline();
+    //test_func_match_nhost_baseline();
     test_poisson_deviate_basic();
     test_poisson_deviate_edge_cases();
     test_angular_separation();
@@ -776,10 +804,15 @@ int main(int argc, char **argv) {
     test_tabulate_hod_2();
     test_HaloMassAMManager_match_halo_values();
     test_HaloMassAMManager_match_halo_monotonic();
-    test_HaloLatentModel_model();
-    test_HaloLatentDensityFuncs_loading_and_splines();
-    test_HaloLatentDensFuncCumulative();
-    test_HaloPCAAMManager_monotonic();
+    test_HaloMassAMManager_match_inzbins();
+
+    // TODO Latent mode in group finder not implemented
+    // When ready, use the latsham.hpp header library from other project
+    //
+    //test_HaloLatentModel_model(); 
+    //test_HaloLatentDensityFuncs_loading_and_splines();
+    //test_HaloLatentDensFuncCumulative();
+    //test_HaloPCAAMManager_monotonic();
     
     printf(" *** ALL TESTS PASSED ***\n");
 }
