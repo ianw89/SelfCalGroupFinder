@@ -190,9 +190,14 @@ bgs_y1_hybrid8_v1_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 v1 MCMC", Mode.PHOTOZ_P
 bgs_y1_hybrid8_v1_mcmc.marker = '.'
 bgs_y1_hybrid8_v1_mcmc.color = 'darkgreen'
 
-bgs_y1_v1_mcmc = BGSGroupCatalog("BGS Y1 v1 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
-bgs_y1_v1_mcmc.marker = '.'
-bgs_y1_v1_mcmc.color = 'darkgreen'
+# This one produced v0.7 and v0.8 catalog parameters I think
+bgs_y1_v07_mcmc = BGSGroupCatalog("BGS Y1 v07 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
+bgs_y1_v07_mcmc.marker = '.'
+bgs_y1_v07_mcmc.color = 'darkgreen'
+
+bgs_y1_v09_mcmc = BGSGroupCatalog("BGS Y1 v09 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
+bgs_y1_v09_mcmc.marker = '.'
+bgs_y1_v09_mcmc.color = 'darkgreen'
 
 bgs_y3_pzp_2_6_c2 = BGSGroupCatalog("BGS Y3 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y3_pzp_2_6_c2.color = 'darkorange'

@@ -328,7 +328,7 @@ void groupfind()
     {
       if (unvisited[j_par] && GAL[j_par].psat <= 0.5)
       {
-        LOG_INFO("Newly exposed central: %d with psat=%.3f.\n", j_par, GAL[j_par].psat);
+        //LOG_INFO("Newly exposed central: %d with psat=%.3f.\n", j_par, GAL[j_par].psat);
         find_satellites(j_par, tree);
       }
     }
