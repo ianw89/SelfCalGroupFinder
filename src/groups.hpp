@@ -67,6 +67,7 @@ struct galaxy {
   double vmax;
   int igrp;
   int grp_rank; // Rank of the group it's in when finding satellites (lower number means higher priority)
+  double sort_rank;
 
   // In latent mode, these are the extra galaxy properties
   //float mag_r; // TODO maybe dedupe later
@@ -78,7 +79,7 @@ struct galaxy {
   //float sersic;
   //float logssfr;
   //float lw_age;
-  float gal_pca[N_GPCA_COMP];
+  //float gal_pca[N_GPCA_COMP];
   
   // halo/group properties  
   float mass;
@@ -86,10 +87,10 @@ struct galaxy {
   float rad;
   float sigmav;
   float lgrp; // tracks total luminosity or stellar mass of group
-  float c; // concentration, but currently not used in the psat formula, which makes a assumption based entirely on halo mass instead.
-  float age; // half-mass scale factor of the universe, an age marker. [0,1]
-  float spin; // halo spin parameter
-  float halo_pca[N_HPCA_COMP]; // PCA coordinates of halo (log10(mass), concentration, spin, age)
+  //float c; // concentration, but currently not used in the psat formula, which makes a assumption based entirely on halo mass instead.
+  //float age; // half-mass scale factor of the universe, an age marker. [0,1]
+  //float spin; // halo spin parameter
+  //float halo_pca[N_HPCA_COMP]; // PCA coordinates of halo (log10(mass), concentration, spin, age)
   int nsat;
 };
 
@@ -167,7 +168,6 @@ void spline(float x[], float y[], int n, float yp1, float ypn, float y2[]);
 void splint(float xa[], float ya[], float y2a[], int n, float x, float *y);
 void sort2(int n, float arr[], int id[]);
 float qtrap(float (*func)(float), float a, float b);
-float zbrent(float (*func)(float, float), float x1, float x2, float tol, float galaxy_density);
 
 
 /* other functions shared by multiple files

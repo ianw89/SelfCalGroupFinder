@@ -50,15 +50,15 @@ callable_list = [
     [mcmc2], #1
     [cat.bgs_sv3_hybrid_mcmc], #2
     cat.sdss_list, #3
-    cat.uchuu_list, #4
-    cat.mxxl_list, #5
+    [], #4
+    [], #5
     cat.bgs_sv3_list, #6
     cat.bgs_aux_list, #7
     cat.bgs_y1_list, #8
     cat.bgs_y3_list, #9
     [cat.bgs_y3_like_sv3_hybrid_mcmc_new], #10
     [cat.bgs_sv3_10p_mcmc], #11 sloan one
-    [cat.bgs_y1_v1_mcmc], # 12
+    [cat.bgs_y1_v09_mcmc], # 12
 ]
 
 def process_gc(gc: GroupCatalog):

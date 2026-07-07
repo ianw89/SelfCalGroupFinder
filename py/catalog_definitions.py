@@ -132,38 +132,6 @@ sdss_colors_v2_desiparams_v1 = SDSSGroupCatalog("SDSS Colors v2 MCMC", SDSS_v2_D
 
 sdss_published = SDSSPublishedGroupCatalog("SDSS Published")
 
-mxxl_all = MXXLGroupCatalog("All MXXL <19.5", Mode.ALL, 19.5, 20.0, False, gfprops=GF_PROPS_BGS_VANILLA.copy())
-_cat = mxxl_all
-_cat.marker = '-'
-mxxl_all_c = MXXLGroupCatalog("All MXXL <19.5 c", Mode.ALL, 17.0, 17.5, True, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
-mxxl_all_c.marker = '--'
-
-mxxl_fiberonly = MXXLGroupCatalog("Fiber Only MXXL <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 20.0, False, gfprops=GF_PROPS_BGS_VANILLA.copy())
-mxxl_fiberonly.marker = '-'
-
-mxxl_fiberonly_c = MXXLGroupCatalog("Fiber Only MXXL <19.5 c", Mode.FIBER_ASSIGNED_ONLY, 19.5, 20.0, True, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
-mxxl_fiberonly_c.marker = '--'
-
-mxxl_nn = MXXLGroupCatalog("Nearest Neighbor MXXL <19.5", Mode.NEAREST_NEIGHBOR, 19.5, 20.0, False, gfprops=GF_PROPS_BGS_VANILLA.copy())
-mxxl_nn.marker = '-'
-
-mxxl_nn_c = MXXLGroupCatalog("Nearest Neighbor MXXL <19.5 c", Mode.NEAREST_NEIGHBOR, 19.5, 20.0, True, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
-mxxl_nn_c.marker = '--'
-
-mxxl_simple_2 = MXXLGroupCatalog("Simple v2 MXXL <19.5", Mode.SIMPLE, 19.5, 20.0, False, gfprops=GF_PROPS_BGS_VANILLA.copy())
-mxxl_simple_2.marker = '-'
-
-mxxl_simple_2_c = MXXLGroupCatalog("Simple v2 MXXL <19.5 c", Mode.SIMPLE, 19.5, 20.0, True, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
-mxxl_simple_2_c.marker = '--'
-mxxl_simple_4 = MXXLGroupCatalog("Simple v4 MXXL <19.5", Mode.SIMPLE_v4, 19.5, 20.0, False, gfprops=GF_PROPS_BGS_VANILLA.copy())
-mxxl_simple_4.marker = '-'
-
-mxxl_simple_4_c = MXXLGroupCatalog("Simple v4 MXXL <19.5 c", Mode.SIMPLE_v4, 19.5, 20.0, True, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
-mxxl_simple_4_c.marker = '--'
-
-uchuu_all = UchuuGroupCatalog("All UCHUU <19.5", Mode.ALL, 19.5, 20.0, False, gfprops=GF_PROPS_BGS_VANILLA.copy())
-uchuu_all.marker = '-'
-
 bgs_y1_fiberonly = BGSGroupCatalog("Observed BGS Y1", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_y1_fiberonly.marker = '-'
 
@@ -222,9 +190,14 @@ bgs_y1_hybrid8_v1_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 v1 MCMC", Mode.PHOTOZ_P
 bgs_y1_hybrid8_v1_mcmc.marker = '.'
 bgs_y1_hybrid8_v1_mcmc.color = 'darkgreen'
 
-bgs_y1_v1_mcmc = BGSGroupCatalog("BGS Y1 v1 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
-bgs_y1_v1_mcmc.marker = '.'
-bgs_y1_v1_mcmc.color = 'darkgreen'
+# This one produced v0.7 and v0.8 catalog parameters I think
+bgs_y1_v07_mcmc = BGSGroupCatalog("BGS Y1 v07 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
+bgs_y1_v07_mcmc.marker = '.'
+bgs_y1_v07_mcmc.color = 'darkgreen'
+
+bgs_y1_v09_mcmc = BGSGroupCatalog("BGS Y1 v09 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
+bgs_y1_v09_mcmc.marker = '.'
+bgs_y1_v09_mcmc.color = 'darkgreen'
 
 bgs_y3_pzp_2_6_c2 = BGSGroupCatalog("BGS Y3 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y3_pzp_2_6_c2.color = 'darkorange'
@@ -578,21 +551,6 @@ sdss_list : list[GroupCatalog] = [
     sdss_colors_v2,
     sdss_colors_chi_v2,
     sdss_colors_v2_desiparams_v1,
-]
-uchuu_list : list[GroupCatalog] = [
-    uchuu_all,
-]
-mxxl_list : list[GroupCatalog] = [
-    mxxl_all,
-    #mxxl_all_c,
-    mxxl_fiberonly,
-    #mxxl_fiberonly_c,
-    mxxl_nn,
-    #mxxl_nn_c,
-    mxxl_simple_2,
-    #mxxl_simple_2_c,
-    mxxl_simple_4,
-    #mxxl_simple_4_c,
 ]
 bgs_sv3_list : list[GroupCatalog] = [
     bgs_sv3_pz_2_6_10p_c3, # 'Truth' catalog

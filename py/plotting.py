@@ -141,9 +141,6 @@ def single_plots(d: GroupCatalog, truth_on=False):
 
     hod_bins_plot(d)
 
-    #wp_rp(d)
-    #wp_rp_magbins(d)
-
 def completeness_comparison(*datasets):        
     fig,ax1=plt.subplots()
     fig.set_dpi(DPI)
@@ -2212,7 +2209,7 @@ def hod_bins_plot_diff(gc1: GroupCatalog, gc2: GroupCatalog, color: str):
         color_label = 'Star-forming'
 
 
-    # --- BUG FIX: Convert from log-space to linear space before calculating difference ---
+    # Convert from log-space to linear space before calculating difference
     cen1, sat1 = 10**log_cen1, 10**log_sat1
     cen2, sat2 = 10**log_cen2, 10**log_sat2
 
@@ -2464,54 +2461,6 @@ def group_finder_centrals_halo_masses_plots(all_df, comparisons):
 # Luminosity Funcions
 ##################################
 
-def Lfunc_compare(cat1, cat2):
-    """
-    TODO BUG Incomplete.
-    Compare the luminosity functions of two catalogs. Shows a % difference plot for total, red, and blue galaxies.
-    The total count of galaxies is scaled to be the same in the two catalogs (for overall, red, blue seperately) so only the relative difference in Lfunc is shown.
-    """
-    fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-    fig.set_dpi(DPI)
-    one = cat1.all_data
-    two = cat2.all_data
-
-    # Calculate the luminosity functions for both catalogs
-    counts1 = one.groupby('LGAL_BIN').size()
-    counts2 = two.groupby('LGAL_BIN').size()
-
-    # Normalize the counts to the same total number of galaxies
-    norm_counts1 = counts1 / counts1.sum()
-    norm_counts2 = counts2 / counts2.sum()
-
-    # Calculate the percentage difference
-    percent_diff = 100 * (norm_counts1 - norm_counts2) / norm_counts2
-
-    # Plot the percentage difference
-    ax.plot(cat1.L_gal_labels, percent_diff, label='Total', color='black')
-
-    # Repeat for red and blue galaxies
-    counts1_red = one[one['QUIESCENT']].groupby('LGAL_BIN').size()
-    counts2_red = two[two['QUIESCENT']].groupby('LGAL_BIN').size()
-    norm_counts1_red = counts1_red / counts1_red.sum()
-    norm_counts2_red = counts2_red / counts2_red.sum()
-    percent_diff_red = 100 * (norm_counts1_red - norm_counts2_red) / norm_counts2_red
-    ax.plot(cat1.L_gal_labels, percent_diff_red, label='Red', color='red')
-
-    counts1_blue = one[~one['QUIESCENT']].groupby('LGAL_BIN').size()
-    counts2_blue = two[~two['QUIESCENT']].groupby('LGAL_BIN').size()
-    norm_counts1_blue = counts1_blue / counts1_blue.sum()
-    norm_counts2_blue = counts2_blue / counts2_blue.sum()
-    percent_diff_blue = 100 * (norm_counts1_blue - norm_counts2_blue) / norm_counts2_blue
-    ax.plot(cat1.L_gal_labels, percent_diff_blue, label='Blue', color='blue')
-
-    ax.set_xscale('log')
-    ax.set_xlabel('$L_{\\mathrm{gal}}~[\\mathrm{L}_\\odot \\mathrm{h}^{-2} ]$')
-    ax.set_ylabel('% Difference in counts')
-    ax.legend()
-    ax.set_xlim(LGAL_MIN, LGAL_MAX)
-    ax.set_ylim(-35, 35)
-    ax.axhline(0, color='black', lw=1)
-    fig.tight_layout()
 
 def lostgal_lum_func_paper_compare(*catalogs):
         
@@ -2789,14 +2738,6 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
         valid_idx = ~np.any([zt1, zt2, zt3], axis=0)
         idx = valid_idx & (z_flag_is_not_spectro_z(s.all_data['Z_ASSIGNED_FLAG']))
         print(f"There are {idx.sum()} lost galaxies with 'truth'. {zt1.sum()} {zt2.sum()} {zt3.sum()}")
-
-        # Truth method 2 for SV3 where we dropped passes. Should be equivalent to the above... but not quite? TODO BUG
-        #zt1a = (s.all_data['Z_OBS'] < -1 ) # Looking for sentinal values
-        #zt2a = (np.isnan(s.all_data['Z_OBS']))
-        #zt3a = (s.all_data['Z_OBS'] > 20.0) # Looking for sentinal values
-        #valid_idx_alt = ~np.any([zt1a, zt2a, zt3a], axis=0)
-        #idx_alt = valid_idx_alt & (z_flag_is_not_spectro_z(s.all_data['Z_ASSIGNED_FLAG']))
-        #print(f"There are {idx_alt.sum()} lost galaxies with 'truth' (alt). {zt1a.sum()} {zt2a.sum()} {zt3a.sum()}")
 
         assigned_z = s.all_data.loc[idx, 'Z'] 
         truth_z = s.all_data.loc[idx, 'Z_T'] # was using z_obs before which is fine for SV3 with droped passes

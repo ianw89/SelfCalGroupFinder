@@ -32,6 +32,7 @@ from bgs_helpers import *
 from calibrationdata import *
 from hod import fit_hod_models, HODThresholdsTabulated, HODTabulated, fit_hod_threshold_models
 from dataloc import *
+from footprintmanager import FootprintManager
 
 # Must keep this protocol syncronized with the C++ code in groups.hpp
 MSG_REQUEST = 0
@@ -227,12 +228,6 @@ class GroupCatalog:
         # Generated from run_corrfunc; holds the wp measurements on the mock populated with this group catalog's HOD.
         self.wp_mock = {}
 
-        # These are direct wp measurements, not on the mock. This code doesn't work BUG
-        self.wp_all = None # (rbins, wp_all, wp_r, wp_b)
-        self.wp_all_extra = None # (rbins, wp_all, wp_r, wp_b)
-        self.wp_slices = np.array(len(CLUSTERING_MAG_BINS) * [None]) # Tuple of (rbins, wp) at each index
-        self.wp_slices_extra = np.array(len(CLUSTERING_MAG_BINS) * [None]) # Tuple of (rbins, wp) at each index
-
         self.f_sat = None # per Lgal bin 
         self.Lgal_counts = None # size of Lgal bins 
 
@@ -309,10 +304,14 @@ class GroupCatalog:
         # Idea is to take the error bars from the data and use them on the mock
         # But since the volumes are different, we need to scale them.
         
-        # TODO these volumes are wrong. They are volumes for that use the frac_area from the group catalog.
-        # But when we measured the clustering we didn't restrict it to 3 pass.
+        # Get the volume of the calibration data measurements 
+        frac_area = FootprintManager().get_footprint("Y1", min_passes=1) / DEGREES_ON_SPHERE
+        volume = get_volume_at_z(self.caldata.zmaxes[idx], frac_area)
 
-        vfac = (self.caldata.volumes[idx]/250.0**3)**.5 # factor by which to multiply errors
+        vfac_old = (self.caldata.volumes[idx]/250.0**3)**.5 # This is incorrect old way which used 3pass footprint instead of 1pass which is how wp was measured
+        vfac = (volume/(250.0**3))**0.5
+
+        #print(f"Old vfac: {vfac_old}, New vfac: {vfac}")
         
         # Add in an additional error term that is a fraction of the wp value itself as well. 
         # This is to account for the fact that the mock is not a perfect representation of the data.
@@ -1677,103 +1676,6 @@ class TestVolumeLimGroupCatalog(GroupCatalog):
         self.all_data = read_and_combine_gf_output(self, galprops)
         add_halo_columns(self)
         return super().postprocess()
-
-class MXXLGroupCatalog(GroupCatalog):
-
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool, gfprops: dict):
-        super().__init__(name)
-        self.mode = mode
-        self.mag_cut = mag_cut
-        self.catalog_mag_cut = catalog_mag_cut
-        self.use_colors = use_colors
-        self.color = mode_to_color(mode)
-        self.GF_props = gfprops
-        
-
-    def preprocess(self):
-        if not os.path.exists(self.output_folder):
-            os.makedirs(self.output_folder)
-        fname, props = pre_process_mxxl(MXXL_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors)
-        self.preprocess_file = fname
-        for p in props:
-            self.GF_props[p] = props[p]
-
-    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, serial=False, interactive=False):
-        if self.preprocess_file is None:
-            self.preprocess()
-        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
-
-
-    def postprocess(self):
-
-        filename_props_fast = str.replace(self.GF_outfile, ".out", "_galprops.pkl")
-        filename_props_slow = str.replace(self.GF_outfile, ".out", "_galprops.dat")
-        if os.path.exists(filename_props_fast):
-            galprops = pd.read_pickle(filename_props_fast)
-        else:
-            galprops = pd.read_csv(filename_props_slow, delimiter=' ', names=('APP_MAG_R', 'G_R', 'galaxy_type', 'mxxl_halo_mass', 'Z_ASSIGNED_FLAG', 'assigned_halo_mass', 'Z_OBS', 'mxxl_halo_id', 'assigned_halo_id'), dtype={'mxxl_halo_id': np.int32, 'assigned_halo_id': np.int32, 'Z_ASSIGNED_FLAG': np.int32})
-        
-        self.all_data = read_and_combine_gf_output(self, galprops)
-        df = self.all_data
-        self.has_truth = True#self.mode.value == Mode.ALL.value
-        df['IS_SAT_T'] = np.logical_or(df.galaxy_type == 1, df.galaxy_type == 3)
-        df['Z_T'] = df['Z_OBS'] # MXXL truth values are always there
-        if self.has_truth:
-            df['Mh_bin_T'] = pd.cut(x = df['mxxl_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
-            df['L_GAL_T'] = np.power(10, abs_mag_r_to_log_solar_L(app_mag_to_abs_mag_k(df.app_mag.to_numpy(), df.z_obs.to_numpy(), df.G_R.to_numpy())))
-            df['LGAL_BIN_T'] = pd.cut(x = df['L_GAL_T'], bins = self.L_gal_bins, labels = self.L_gal_labels, include_lowest = True)
-            self.truth_f_sat = df.groupby('LGAL_BIN_T').apply(fsat_truth_vmax_weighted)
-            self.centrals_T = df[np.invert(df.IS_SAT_T)]
-            self.sats_T = df[df.IS_SAT_T]
-
-        # TODO if we switch to using bins we need a Truth version of this
-        df['QUIESCENT'] = is_quiescent_BGS_gmr(df['LOGLGAL'], df.G_R)
-
-        super().postprocess()
-
-class UchuuGroupCatalog(GroupCatalog):
-   
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, use_colors: bool, gfprops: dict):
-        super().__init__(name)
-        self.mode = mode
-        self.mag_cut = mag_cut
-        self.catalog_mag_cut = catalog_mag_cut
-        self.use_colors = use_colors
-        self.color = get_color(9)
-        self.GF_props = gfprops
-
-    def preprocess(self):
-        if not os.path.exists(self.output_folder):
-            os.makedirs(self.output_folder)
-        fname, props = pre_process_uchuu(UCHUU_FILE, self.mode.value, self.file_pattern, self.mag_cut, self.catalog_mag_cut, self.use_colors)
-        self.preprocess_file = fname
-        for p in props:
-            self.GF_props[p] = props[p]
-
-    def run_group_finder(self, popmock=False, silent=False, verbose=False, profile=False, serial=False, interactive=False):
-        if self.preprocess_file is None:
-            self.preprocess()
-        return super().run_group_finder(popmock=popmock, silent=silent, profile=profile, interactive=interactive)
-
-
-    def postprocess(self):
-        galprops = pd.read_pickle(str.replace(self.GF_outfile, ".out", "_galprops.pkl"))
-        
-        df = read_and_combine_gf_output(self, galprops)
-        self.all_data = df
-
-        self.has_truth = True
-        self['IS_SAT_T'] = np.invert(df.central)
-        self['Mh_bin_T'] = pd.cut(x = self['uchuu_halo_mass']*10**10, bins = Mhalo_bins, labels = Mhalo_labels, include_lowest = True)
-        # TODO BUG Need L_GAL_T, the below is wrong!
-        truth_f_sat = df.groupby('LGAL_BIN').apply(fsat_truth_vmax_weighted)
-        self.truth_f_sat = truth_f_sat
-        self.centrals_T = df[np.invert(df.IS_SAT_T)]
-        self.sats_T = df[df.IS_SAT_T]
-
-        # TODO add quiescent column
-
-        super().postprocess()
 
 class BGSGroupCatalog(GroupCatalog):
     
