@@ -4,37 +4,12 @@ import re
 from matplotlib import pyplot as plt
 from pycorr import TwoPointEstimator
 from matplotlib.lines import Line2D
-from scipy.optimize import curve_fit, minimize
+from clusteringtools import save_wp_dr2format
 
-def save_wp(savedir, red_results, blue_results, all_results, magbins):
-    
-     # Save the results to text files in the format we want, and also save the covariance matrix as numpy array
-    for i in range(len(red_results)):
-        red_wp, red_cov = red_results[i]
-        blue_wp, blue_cov = blue_results[i]
-        all_wp, all_cov = all_results[i]
-
-        # Currently we're choosing not to use the full covariance matrix, just the diagonal for our chi squared
-        # since the result of the jackknife tests was kinda weird correlation matrices.
-
-        # Format is: rp wp wp_err
-        if red_wp is not None:
-            with open(os.path.join(savedir, f'wp_red_M{-magbins[i]:d}.dat'), 'w') as f:
-                for j in range(len(red_wp)):
-                    f.write(f'{red_wp[j,0]:.8f} {red_wp[j,2]:.8f} {red_wp[j,3]:.8f}\n')
-            np.save(os.path.join(savedir, f'wp_red_M{-magbins[i]:d}_cov.npy'), red_cov)
-
-        if blue_wp is not None:
-            with open(os.path.join(savedir, f'wp_blue_M{-magbins[i]:d}.dat'), 'w') as f:
-                for j in range(len(blue_wp)):
-                    f.write(f'{blue_wp[j,0]:.8f} {blue_wp[j,2]:.8f} {blue_wp[j,3]:.8f}\n')
-            np.save(os.path.join(savedir, f'wp_blue_M{-magbins[i]:d}_cov.npy'), blue_cov)
-            
-        if all_wp is not None:
-            with open(os.path.join(savedir, f'wp_all_M{-magbins[i]:d}.dat'), 'w') as f:
-                for j in range(len(all_wp)):
-                    f.write(f'{all_wp[j,0]:.8f} {all_wp[j,2]:.8f} {all_wp[j,3]:.8f}\n')
-            np.save(os.path.join(savedir, f'wp_all_M{-magbins[i]:d}_cov.npy'), all_cov)
+#######################################################################################
+# My helper functions for interacting with pycorr TwoPointEstimator objects and such.
+# NERSC only file.
+#######################################################################################
 
 
 def save_wp_for_maggmr(savedir, results):
@@ -48,22 +23,16 @@ def save_wp_for_maggmr(savedir, results):
 
         if params['njack'] is not None and int(params['njack']) > 1:
             rp, wp, cov = estimator.get_corr(return_sep=True, return_cov=True, mode='wp')
-            wp_err = np.sqrt(np.diag(cov))
         else:
             rp, wp = estimator.get_corr(return_sep=True, mode='wp')
-            cov = None
-            wp_err = np.zeros_like(wp)  * np.nan  # Placeholder for error if covariance is not available
+            cov = np.eye(len(wp)) * np.nan  # Placeholder for covariance if not available
 
 
         fname = f"wp_mag{params['mag_range']}_gmr{params['gr_range']}.dat"
-        fname_cov = f"wp_mag{params['mag_range']}_gmr{params['gr_range']}_cov.npy"
 
-        if wp is not None:
-            with open(os.path.join(savedir, fname), 'w') as f:
-                for j in range(len(wp)):
-                    f.write(f'{rp[j]:.8f} {wp[j]:.8f} {wp_err[j]:.8f}\n')
-        if cov is not None:
-            np.save(os.path.join(savedir, fname_cov), cov)
+        to_save = (rp, wp, cov)
+
+        save_wp_dr2format(os.path.join(savedir, fname), to_save)
 
 
 def load_allcounts_from_disk(base_dir):
@@ -155,10 +124,6 @@ def load_allcounts_from_disk(base_dir):
     return loaded_results
 
 
-
-
-
-
 def wp_thresholds(loaded_results, weight_type):
     """
     Plots wp(rp) for a list of loaded clustering results for a specific weight type.
@@ -248,8 +213,6 @@ def wp_thresholds(loaded_results, weight_type):
     ax.legend(handles=symbol_handles, fontsize=11, loc='upper right')
 
     plt.tight_layout()
-
-
 
 
 def compare_wp_thresholds_to_sdss(loaded_results, weight_type):
@@ -423,38 +386,17 @@ def gmr_to_color(gmr):
     return rgb
 
 
-def plot_wp_mag_gmr(loaded_results, weight_type):
+def plot_wp_mag_gmr(results_by_mag, reference_result):
     """
     Plots wp(rp) for a list of loaded clustering results for a specific weight type.
 
     Creates a figure for each unique magnitude ranges and plot everything found for that.
     """
-    # Filter results by the specified weight type
-    filtered_results = [res for res in loaded_results if res['params']['weights'] == weight_type]
-
-    if not filtered_results:
-        print(f"No results found for weight_type='{weight_type}'.")
-        return
-
-    # Find the reference calculation - no mag range or color range
-    reference_result = None
-
-    # Group results by magnitude range
-    results_by_mag = {}
-    for result in filtered_results:
-        mag_range = result['params'].get('mag_range')
-        if mag_range is None and reference_result is None:
-            reference_result = result
-            continue
-        if mag_range not in results_by_mag:
-            results_by_mag[mag_range] = []
-        results_by_mag[mag_range].append(result)
-
     # Order by magnitude range 
     results_by_mag = dict(sorted(results_by_mag.items(), key=lambda x: float(x[0].split('to')[0])))
 
     assert len(results_by_mag) == 10
-    fig, axes = plt.subplots(2, 5, figsize=(20, 8), sharex=True, sharey=True)
+    fig, axes = plt.subplots(2, 5, figsize=(20, 8), sharex=True, sharey=False)
     axes = axes.flatten()
     idx = 0
 
@@ -495,16 +437,15 @@ def plot_wp_mag_gmr(loaded_results, weight_type):
             ref_wp_err = np.sqrt(np.diag(ref_cov))
             ax.errorbar(ref_rp, ref_wp, yerr=ref_wp_err, label='Reference', capsize=3, color='black')
 
-        ax.set_ylim(3, 600)
+        #ax.set_ylim(3, 600)
         ax.set_xscale('log')
         ax.set_yscale('log')
-        ax.set_xlim([1.5, 12])
+        ax.set_xlim([2, 10])
         ax.set_xlabel(r'$r_p$ [Mpc/h]')
         ax.set_ylabel(r'$w_p(r_p)$')
-        ax.legend()
+        #ax.legend()
 
-        plt.tight_layout()
-
+    plt.tight_layout()
 
 
 def plot_wp_QSF_bins(loaded_results, weight_type):
@@ -611,7 +552,6 @@ def plot_wp_QSF_bins(loaded_results, weight_type):
         plt.show()
 
 
-
 def plot_weight_comparison(loaded_results):
     """
     Compares wp(rp) for different weight types, holding all other parameters constant.
@@ -688,161 +628,3 @@ def plot_weight_comparison(loaded_results):
 
 
 
-def compare_wp_powerlaws(ref_wp, target_wp):
-    """
-    Reduces and compares two wp(rp) measurements.
-
-    1. Reduce the measurements to the 2-10Mpc range.
-    2. Fit the reference to a powerlaw, and save the slope parameter.
-    3. Fit the target using the same slope parameter, (flagging if it's a poor fit), and save the offset.
-
-    Args:
-        ref_wp (tuple): A tuple containing (rp_ref, wp_ref) for the reference measurement, with an optional wp_ref_cov if available.
-        target_wp (tuple): A tuple containing (rp_target, wp_target) for the target measurement, with an optional wp_target_cov if available.
-    """
-    if len(ref_wp) != 3:
-        raise ValueError("Reference wp tuple must have 3 elements.")
-    if len(target_wp) != 2 and len(target_wp) != 3:
-        raise ValueError("Target wp tuple must have 2 or 3 elements.")
-
-    rp_ref, wp_ref, wp_ref_cov = ref_wp
-
-    rp_target, wp_target = target_wp[:2]
-    wp_target_cov = target_wp[2] if len(target_wp) == 3 else None
-
-    assert len(rp_ref) == len(wp_ref), "Reference rp and wp arrays must be of the same length."
-    assert len(rp_target) == len(wp_target), "Target rp and wp arrays must be of the same length."
-
-    # Step 2: Reduce the measurements to the 2-10Mpc range
-    MIN = 2 # instead of 2 just for now TODO
-    MAX = 10
-    mask_ref = (rp_ref >= MIN) & (rp_ref <= MAX)
-    mask_target = (rp_target >= MIN) & (rp_target <= MAX)
-
-    rp_ref_reduced = rp_ref[mask_ref]
-    wp_ref_reduced = wp_ref[mask_ref]
-    wp_ref_cov_reduced = wp_ref_cov[mask_ref][:, mask_ref] if wp_ref_cov is not None else None
-
-    rp_target_reduced = rp_target[mask_target]
-    wp_target_reduced = wp_target[mask_target]
-    wp_target_cov_reduced = wp_target_cov[mask_target][:, mask_target] if wp_target_cov is not None else None
-
-    if len(rp_ref_reduced) != len(rp_target_reduced):
-        print("WARNING: reduced rp arrays are different lengths for reference and target data.")
-
-    # Fit the reference to a powerlaw and save the slope parameter
-    def powerlaw(r, A, gamma):
-        return A * r**(-gamma)
-
-    if wp_ref_cov_reduced is not None:
-        popt_ref, pcov_ref = curve_fit(powerlaw, rp_ref_reduced, wp_ref_reduced, sigma=np.sqrt(wp_ref_cov_reduced), absolute_sigma=True)
-    else:
-        popt_ref, pcov_ref = curve_fit(powerlaw, rp_ref_reduced, wp_ref_reduced)
-
-    A_ref, gamma_ref = popt_ref
-    print(f"Reference fit parameters: A = {A_ref:.3f}, gamma = {gamma_ref:.3f} and covariance matrix:\n{pcov_ref}")
-
-    # Fit the target using the same slope parameter
-    def powerlaw_fixed_gamma(r, A):
-        return A * r**(-gamma_ref)
-
-    if wp_target_cov_reduced is not None:
-        popt_target, pcov_target = curve_fit(powerlaw_fixed_gamma, rp_target_reduced, wp_target_reduced, sigma=np.sqrt(wp_target_cov_reduced), absolute_sigma=True)
-    else:
-        popt_target, pcov_target = curve_fit(powerlaw_fixed_gamma, rp_target_reduced, wp_target_reduced)
-    
-    print(f"Target fit parameters: A = {popt_target[0]:.3f} and covariance matrix:\n{pcov_target}")
-
-    # If the shape is way different, something went wrong...
-    popt_target_free, pcov_target_free = curve_fit(powerlaw, rp_target_reduced, wp_target_reduced)
-    if abs(popt_target_free[1] - gamma_ref) > 0.2:  # Arbitrary threshold for poor fit
-        print(f"Warning: Target fit slope {popt_target_free[1]:.3f} deviates significantly from reference slope {gamma_ref:.3f}.")
-        print("Consider reviewing the target data or using a different fitting range.")
-
-        # In this case, let's plot it
-        plt.figure(figsize=(6, 4))
-        plt.errorbar(rp_ref_reduced, wp_ref_reduced, fmt='o', label='Reference', color='green')
-        plt.plot(rp_ref_reduced, powerlaw(rp_ref_reduced, *popt_ref), label='Reference Fit', color='green', linestyle='--')
-        plt.errorbar(rp_target_reduced, wp_target_reduced, fmt='o', label='Target', color='orange')
-        plt.plot(rp_target_reduced, powerlaw_fixed_gamma(rp_target_reduced, *popt_target), label='Fixed $\gamma$', color='blue')
-        plt.plot(rp_target_reduced, powerlaw(rp_target_reduced, *popt_target_free), label='Free $\gamma$', color='red', linestyle='--')
-        plt.xscale('log')
-        plt.yscale('log')
-        plt.xlabel(r'$r_p$ [Mpc/h]')
-        plt.ylabel(r'$w_p(r_p)$')
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
-
-    A_target = popt_target[0]
-
-    # Calculate offset between reference and target
-    offset = A_target - A_ref
-
-    return {
-        'gamma': gamma_ref,
-        'A_ref': A_ref,
-        'A_target': A_target,
-        'offset': offset,
-        'offset_err': np.sqrt(pcov_target[0, 0] + pcov_ref[0, 0])  # Error propagation for the offset
-    }
-
-
-def get_bias(ref_wp, target_wp):
-    """
-    Similar to above, compares two wp(rp) measurements by calculating the bias of one with respect to the other.
-
-    Bias is defined b^2 = target / reference, i.e., the ratio of the target wp to the reference wp.
-
-    1. Ensure that the rp values are very close to each other, bin by bin (warn if not).
-    2. Minimize a function to find the bias.
-
-    Use the provided covariance matrices to compute the weighted average of the bias.
-
-    Args:
-        ref_wp (tuple): A tuple containing (rp_ref, wp_ref, wp_ref_cov)
-        target_wp (tuple): A tuple containing (rp_target, wp_target, wp_target_cov) for the target measurement.
-
-    Returns:
-        tuple float: The best-fit bias value that minimizes the chi-squared function and an upper and lower uncertainty.
-    """
-    
-    rp_ref, wp_ref, cov_ref = ref_wp
-    rp_target, wp_target, cov_target = target_wp
-
-    if not np.allclose(rp_ref, rp_target, rtol=0.1):
-        print("WARNING: rp values of reference and target are not closely matched.")
-        print("rp_ref:", rp_ref)
-        print("rp_target:", rp_target)
-
-    def _chisqr(bias):
-        residual = wp_target - (bias**2 * wp_ref)
-        C_tot = cov_target + (bias**4 * cov_ref)  # Could instead compute this once outside for an assumed bias ~ 1 
-        reg = np.eye(C_tot.shape[0]) * 1e-10
-        inv_cov = np.linalg.inv(C_tot + reg)
-        return residual.T @ inv_cov @ residual
-
-    # Minimize the chi-squared function to find the best-fit bias
-    result = minimize(_chisqr, x0=1.0, bounds=[(0.1, 10.0)])
-    best_fit_bias = result.x[0]
-
-    # Estimate the uncertainty on the best-fit bias by measuring the chisqr around the best-fit value
-    # until we find where delta chi sqr is equal to 1 (allow asymmetric)
-    delta_chi2 = 1.0
-    step = 1e-4
-    chi2_min = _chisqr(best_fit_bias)
-
-    # Find upper error
-    bias_up = best_fit_bias
-    while _chisqr(bias_up) - chi2_min < delta_chi2:
-        bias_up += step
-    bias_err_up = bias_up - best_fit_bias
-
-    # Find lower error
-    bias_down = best_fit_bias
-    while _chisqr(bias_down) - chi2_min < delta_chi2:
-        bias_down -= step
-    bias_err_down = best_fit_bias - bias_down
-
-    return best_fit_bias, bias_err_up, bias_err_down
- 
