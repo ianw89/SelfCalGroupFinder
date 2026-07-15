@@ -470,7 +470,7 @@ def plot_wp_mag_gmr(loaded_results, weight_type):
         results.sort(key=lambda x: float(x['params']['gr_range'].split('to')[0]))  # Sort by the lower bound of gr_range
 
         cmap = plt.get_cmap("seismic")   # or "RdBu", "turbo", "viridis"
-        c = 0
+        c = 0.2
         for item in results:
             params = item['params']
             estimator = item['data']
@@ -486,8 +486,8 @@ def plot_wp_mag_gmr(loaded_results, weight_type):
             gmr_max = float(params['gr_range'].split('to')[1])
 
             label = f"g-r: {gmr_min:.2f} to {gmr_max:.2f}"
-            ax.errorbar(rp, wp, yerr=wp_err, label=label, fmt='o', capsize=3, color=cmap(c))
-            c += 0.2
+            ax.errorbar(rp, wp, yerr=wp_err, label=label, fmt='.', capsize=3, color=cmap(c))
+            c += 0.16
 
         # Plot the reference
         if reference_result is not None:
@@ -504,6 +504,7 @@ def plot_wp_mag_gmr(loaded_results, weight_type):
         ax.legend()
 
         plt.tight_layout()
+
 
 
 def plot_wp_QSF_bins(loaded_results, weight_type):
@@ -806,8 +807,8 @@ def get_bias(ref_wp, target_wp):
         tuple float: The best-fit bias value that minimizes the chi-squared function and an upper and lower uncertainty.
     """
     
-    rp_ref, wp_ref, wp_ref_cov = ref_wp
-    rp_target, wp_target, wp_target_cov = target_wp
+    rp_ref, wp_ref, cov_ref = ref_wp
+    rp_target, wp_target, cov_target = target_wp
 
     if not np.allclose(rp_ref, rp_target, rtol=0.1):
         print("WARNING: rp values of reference and target are not closely matched.")
@@ -816,12 +817,13 @@ def get_bias(ref_wp, target_wp):
 
     def _chisqr(bias):
         residual = wp_target - (bias**2 * wp_ref)
-        C_tot = wp_target_cov + (bias**4 * wp_ref_cov) 
-        inv_cov = np.linalg.inv(C_tot)
+        C_tot = cov_target + (bias**4 * cov_ref)  # Could instead compute this once outside for an assumed bias ~ 1 
+        reg = np.eye(C_tot.shape[0]) * 1e-10
+        inv_cov = np.linalg.inv(C_tot + reg)
         return residual.T @ inv_cov @ residual
 
     # Minimize the chi-squared function to find the best-fit bias
-    result = minimize(_chisqr, x0=1.0, bounds=[(0.01, 100.0)])
+    result = minimize(_chisqr, x0=1.0, bounds=[(0.1, 10.0)])
     best_fit_bias = result.x[0]
 
     # Estimate the uncertainty on the best-fit bias by measuring the chisqr around the best-fit value
