@@ -3514,111 +3514,16 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
         print("Skipping empty plot for {0}".format(title))
 
 
-
-def plot_parameters(params):
-    # Weights for each galaxy luminosity, when abundance matching
-    # log w_cen,r = (ω_0,r / 2) (1 + erf[(log L_gal - ω_L,r) / σ_ω,r)] ) 
-    # log w_cen,b = (ω_0,b / 2) (1 + erf[(log L_gal - ω_L,b) / σ_ω,b)] ) 
-    # Bsat,r = β_0,r + β_L,r(log L_gal − 9.5)
-    # Bsat,b = β_0,b + β_L,b(log L_gal − 9.5)
-
-    def bsat(p0, p1, L):
-        return np.maximum(p0 + p1 * (L - 9.5), 0.001)
-    
-    def cweight(w0, wl, s, L):
-        return L * (w0 / 2) * (1 + special.erf((np.log10(L) - wl) / s))
-
-    fig, axes = plt.subplots(1,2)
-    fig.set_size_inches(8, 4)
-    x = np.logspace(6, 12, 100)
-
-    axes[0].set_title("Central Weights")
-    axes[0].set_xlabel("log$(L_{\\mathrm{gal}}) [L_{\\odot} h^{-2}]$")
-    axes[0].set_ylabel("Weight")
-    axes[0].set_yscale('log')
-    axes[0].set_xscale('log')
-
-    axes[0].plot(x, x, color='k', linestyle='--')
-    axes[0].plot(x, cweight(params[0], params[1], params[4], x), label='SF', color='b')
-    axes[0].plot(x, cweight(params[2], params[3], params[5], x), label='Q', color='r')
-
-    x = np.linspace(6, 12, 100)
-
-    axes[1].set_title("Bsat")
-    axes[1].set_xlabel("log$(L_{\\mathrm{gal}}) [L_{\\odot} h^{-2}]$")
-    axes[1].set_ylabel("$B_{\\mathrm{sat}}$")
-    #axes[1].set_yscale('log')
-    axes[1].plot(x, bsat(params[6], params[7], x), label='Q', color='r')
-    axes[1].plot(x, bsat(params[8], params[9], x), label='SF', color='b')
-
-    axes[1].legend()
-
-    plt.tight_layout()
-    plt.show()
-
-def plot_parameters_wcenratio(axes, params):
-    # ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
-    def bsat(p0, p1, L):
-        return np.maximum(p0 + p1 * (L - 9.5), 0.5)
-    def cweight(w0, wl, s, L):
-        return - (w0 / 2) * (1 + special.erf((L - wl) / s))
-    def w_plot(q_w, sf_w):
-        return np.log10(q_w / sf_w)
-
-    LMIN = 6.5
-    x = np.linspace(6, 11.5, 100)
-    axes[0].set_xlabel("log$(L_{\\mathrm{cen}} / (L_{\\odot} h^{-2}) )$")
-    axes[0].set_ylabel("log$(w_{\\rm cen}^q / w_{\\rm cen}^{sf})$")
-    axes[0].set_ylim(-1,1)
-    axes[0].set_xlim(LMIN, 11.1)
-    axes[0].set_xticks(np.arange(7,12,1))
-    ax0 = axes[0].twiny() # Mag axis on top
-    ax0.set_xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
-    ax0.set_xticks(np.arange(-13, -25, -2))
-    ax0.set_xlabel("$M_r$ - 5log(h)")
-
-    axes[1].set_xlabel("log$(L_{\\mathrm{cen}}~/~(L_{\\odot} h^{-2}) )$")
-    axes[1].set_ylabel("$B_{\\mathrm{sat}}$")
-    axes[1].set_ylim(-1,40)
-    axes[1].set_xlim(LMIN, 11.1)
-    axes[1].set_xticks(np.arange(7,12,1))
-    ax1 = axes[1].twiny() # Mag axis on top
-    ax1.set_xlim(log_solar_L_to_abs_mag_r(7), log_solar_L_to_abs_mag_r(LOG_LGAL_MAX_TIGHT))
-    ax1.set_xticks(np.arange(-13, -25, -2))
-    ax1.set_xlabel("$M_r$ - 5log(h)")
-
-    axes[0].plot(
-        x,
-        w_plot(
-            cweight(params[4], params[0], params[1], x),
-            cweight(params[5], params[2], params[3], x)
-        ),
-        color='purple'
-    )
-    axes[1].plot(
-        x,
-        bsat(params[6], params[7], x),
-        color='red'
-    )
-    axes[1].plot(
-        x,
-        bsat(params[8], params[9], x),
-        color='blue'
-    )
-    # Horizontal line at y=0
-    axes[0].axhline(0, color='k', linestyle='--', lw=1, alpha=0.5)
-
-
 def gfparams_plots(gc: GroupCatalog, chains_flat):
     # ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
     params = np.array([gc.GF_props['omegaL_sf'], gc.GF_props['sigma_sf'], gc.GF_props['omegaL_q'], gc.GF_props['sigma_q'], gc.GF_props['omega0_sf'], gc.GF_props['omega0_q'], gc.GF_props['beta0q'], gc.GF_props['betaLq'], gc.GF_props['beta0sf'], gc.GF_props['betaLsf']])
 
-    LMIN = 6.5
+    LMIN = 6.9
     fig, axes = plt.subplots(2, 1, figsize=(5, 9))
     x = np.linspace(6, 11.5, 100)
     axes[0].set_xlabel("log$(L_{\\mathrm{cen}} / (L_{\\odot} h^{-2}) )$")
     axes[0].set_ylabel("log$(w_{\\rm cen}^q / w_{\\rm cen}^{sf})$")
-    axes[0].set_ylim(-1, 1)
+    axes[0].set_ylim(-0.75, 1.5)
     axes[0].set_xlim(LMIN, 11.5)
     axes[0].set_xticks(np.arange(7, 12, 1))
     ax0 = axes[0].twiny()
@@ -3665,7 +3570,7 @@ def gfparams_plots(gc: GroupCatalog, chains_flat):
     # Horizontal line at y=0
     axes[0].axhline(0, color='k', linestyle='--', lw=1, alpha=0.5)
 
-    axes[0].plot(x, wcen_logratio(cweight(params[4], params[0], params[1], x), cweight(params[5], params[2], params[3], x)), color='k', lw=2)
+    axes[0].plot(x, wcen_logratio(lin_weight(params[5], params[2], params[3], x), lin_weight(params[4], params[0], params[1], x)), color='k', lw=2)
     axes[1].plot(x, bsat(params[6], params[7], x), '-', label='Q', color='k', lw=2)
     axes[1].plot(x, bsat(params[8], params[9], x), '-', label='SF', color='k', lw=2)
 

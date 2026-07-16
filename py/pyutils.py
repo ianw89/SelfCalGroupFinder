@@ -1844,17 +1844,22 @@ def lsat_variance_from_saved():
 
 def bsat(p0, p1, L):
     return np.maximum(p0 + p1 * (L - 9.5), 0.5)
-def cweight(w0, wl, s, L):
+def log_weight(w0, wl, s, L):
     return - (w0 / 2) * (1 + special.erf((L - wl) / s))
+def lin_weight(w0, wl, s, L):
+    return 1 / 10**((w0 / 2) * (1 + special.erf((L - wl) / s)))
 def wcen_logratio(q_w, sf_w):
+    if np.isnan(q_w).any() or np.isnan(sf_w).any() or np.isclose(q_w, 0.0).any() or np.isclose(sf_w, 0.0).any():
+        return np.zeros_like(q_w) * np.nan
     return np.log10(q_w / sf_w)
 
 
 def samples_to_wcen_bsat(samples, x):
+    # ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
     def process_sample(sample_params):
         w = wcen_logratio(
-            cweight(sample_params[4], sample_params[0], sample_params[1], x),
-            cweight(sample_params[5], sample_params[2], sample_params[3], x)
+            lin_weight(sample_params[5], sample_params[2], sample_params[3], x),
+            lin_weight(sample_params[4], sample_params[0], sample_params[1], x),
         )
         bsat_q = bsat(sample_params[6], sample_params[7], x)
         bsat_sf = bsat(sample_params[8], sample_params[9], x)
@@ -1873,9 +1878,8 @@ def samples_to_wcen_bsat(samples, x):
 
     return w_samples, bsat_q_samples, bsat_sf_samples
 
-def chains_to_wcen_bsat(chains_flat, x):
+def chains_to_wcen_bsat(chains_flat, x, SAMPLES=50000):
     # ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
-    SAMPLES = 1000
 
     # Sample posterior and evaluate functions
     n_samples = min(SAMPLES, len(chains_flat))  # Use subset for efficiency
