@@ -147,6 +147,27 @@ GF_PROPS_BGS_COLORS_C3 = {
     'betaLsf': -0.67647083
 }
 
+#[[ 1.31286274e+01  1.89459259e+00  1.50830459e+01  2.58513642e+00
+#  9.39882509e+00  4.99771640e+00 -4.48260460e+00  1.52917924e+01
+# 1.08276136e+01  8.48313542e-03]
+GF_PROPS_BGS_COLORS_C4 = {
+    'zmin':0, 
+    'zmax':0,
+    'frac_area':0, # should be filled in
+    'fluxlim':3,
+    'color':1,
+    'omegaL_sf': 13.12,
+    'sigma_sf': 1.894,
+    'omegaL_q': 15.08,
+    'sigma_q': 2.585,
+    'omega0_sf': 9.398,
+    'omega0_q': 4.998,
+    'beta0q':  -4.483,
+    'betaLq': 15.292,
+    'beta0sf': 10.82,
+    'betaLsf': 0.008483
+}
+
 GF_PROPS_LATENT_1 = {
     'zmin':0, 
     'zmax':0,
@@ -377,7 +398,7 @@ class GroupCatalog:
 
         # Run the group finder in interactive mode
         print("Calling group finder with interactive on for inital run.")
-        self.run_group_finder(popmock=True, interactive=True, silent=False)
+        self.run_group_finder(popmock=True, interactive=True, silent=True)
         
         # If there is a state, continue from there
         if self.sampler.backend.iteration > 0:

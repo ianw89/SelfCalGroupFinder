@@ -178,6 +178,11 @@ bgs_y1_pzp_2_6_c3.marker = '-'
 bgs_y1_pzp_2_6_c3.color = 'darkgreen'
 bgs_y1_pzp_2_6_c3.GF_props['iterations'] = 10
 
+bgs_y1_pzp_2_6_c4 = BGSGroupCatalog("BGS Y1 C4", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C4.copy())
+bgs_y1_pzp_2_6_c4.marker = '-'
+bgs_y1_pzp_2_6_c4.color = 'darkgreen'
+bgs_y1_pzp_2_6_c4.GF_props['iterations'] = 10
+
 # Prerelease version (v0.4)
 # Note the calibration data on Lsat side has changed and this will be broken 
 bgs_y1_hybrid8_mcmc = BGSGroupCatalog("BGS Y1 Hybrid8 MCMC", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V24, gfprops=GF_PROPS_BGS_COLORS_C1.copy(), caldata_ctor=CalibrationData.BGS_Y1_8bin)
