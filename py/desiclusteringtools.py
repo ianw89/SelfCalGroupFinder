@@ -4,36 +4,12 @@ import re
 from matplotlib import pyplot as plt
 from pycorr import TwoPointEstimator
 from matplotlib.lines import Line2D
+from clusteringtools import save_wp_dr2format
 
-def save_wp(savedir, red_results, blue_results, all_results, magbins):
-    
-     # Save the results to text files in the format we want, and also save the covariance matrix as numpy array
-    for i in range(len(red_results)):
-        red_wp, red_cov = red_results[i]
-        blue_wp, blue_cov = blue_results[i]
-        all_wp, all_cov = all_results[i]
-
-        # Currently we're choosing not to use the full covariance matrix, just the diagonal for our chi squared
-        # since the result of the jackknife tests was kinda weird correlation matrices.
-
-        # Format is: rp wp wp_err
-        if red_wp is not None:
-            with open(os.path.join(savedir, f'wp_red_M{-magbins[i]:d}.dat'), 'w') as f:
-                for j in range(len(red_wp)):
-                    f.write(f'{red_wp[j,0]:.8f} {red_wp[j,2]:.8f} {red_wp[j,3]:.8f}\n')
-            np.save(os.path.join(savedir, f'wp_red_M{-magbins[i]:d}_cov.npy'), red_cov)
-
-        if blue_wp is not None:
-            with open(os.path.join(savedir, f'wp_blue_M{-magbins[i]:d}.dat'), 'w') as f:
-                for j in range(len(blue_wp)):
-                    f.write(f'{blue_wp[j,0]:.8f} {blue_wp[j,2]:.8f} {blue_wp[j,3]:.8f}\n')
-            np.save(os.path.join(savedir, f'wp_blue_M{-magbins[i]:d}_cov.npy'), blue_cov)
-            
-        if all_wp is not None:
-            with open(os.path.join(savedir, f'wp_all_M{-magbins[i]:d}.dat'), 'w') as f:
-                for j in range(len(all_wp)):
-                    f.write(f'{all_wp[j,0]:.8f} {all_wp[j,2]:.8f} {all_wp[j,3]:.8f}\n')
-            np.save(os.path.join(savedir, f'wp_all_M{-magbins[i]:d}_cov.npy'), all_cov)
+#######################################################################################
+# My helper functions for interacting with pycorr TwoPointEstimator objects and such.
+# NERSC only file.
+#######################################################################################
 
 
 def save_wp_for_maggmr(savedir, results):
@@ -47,22 +23,16 @@ def save_wp_for_maggmr(savedir, results):
 
         if params['njack'] is not None and int(params['njack']) > 1:
             rp, wp, cov = estimator.get_corr(return_sep=True, return_cov=True, mode='wp')
-            wp_err = np.sqrt(np.diag(cov))
         else:
             rp, wp = estimator.get_corr(return_sep=True, mode='wp')
-            cov = None
-            wp_err = np.zeros_like(wp)  * np.nan  # Placeholder for error if covariance is not available
+            cov = np.eye(len(wp)) * np.nan  # Placeholder for covariance if not available
 
 
         fname = f"wp_mag{params['mag_range']}_gmr{params['gr_range']}.dat"
-        fname_cov = f"wp_mag{params['mag_range']}_gmr{params['gr_range']}_cov.npy"
 
-        if wp is not None:
-            with open(os.path.join(savedir, fname), 'w') as f:
-                for j in range(len(wp)):
-                    f.write(f'{rp[j]:.8f} {wp[j]:.8f} {wp_err[j]:.8f}\n')
-        if cov is not None:
-            np.save(os.path.join(savedir, fname_cov), cov)
+        to_save = (rp, wp, cov)
+
+        save_wp_dr2format(os.path.join(savedir, fname), to_save)
 
 
 def load_allcounts_from_disk(base_dir):
@@ -85,10 +55,10 @@ def load_allcounts_from_disk(base_dir):
     # It captures named groups for each parameter.
     filename_pattern = re.compile(
         r"allcounts_BGS_BRIGHT"
-        r"(?:_R-(?P<mag_thresh>[\d\.]+))?"           # Optional magnitude threshold
+        r"(?:_R-(?P<mag_thresh>[\d\.]+))?"          # Optional magnitude threshold
         r"(?:_R-(?P<mag_range>[\d\.]+-[\d\.]+))?"   # Optional magnitude range
-        r"(?:_SERSIC-(?P<sersic>[\d\.-]+))?"  # Optional SERSIC cut
-        r"(?:_(?P<sample_type>SF|Q|ALL))?"           # Optional sample type
+        r"(?:_SERSIC-(?P<sersic>[\d\.-]+))?"        # Optional SERSIC cut
+        r"(?:_(?P<sample_type>SF|Q|ALL))?"          # Optional sample type
         r"_(?P<region>GCcomb)"                # Region
         r"_(?P<zmin>[\d\.]+)"                 # zmin
         r"_(?P<zmax>[\d\.]+)"                 # zmax
@@ -107,6 +77,8 @@ def load_allcounts_from_disk(base_dir):
         r"(?:_mag(?P<mag_range>[\d\.-]+to[\d\.-]+))?"  # Optional magnitude range, needs to handle negative sign too
         r"(?:_gr(?P<gr_range>[\d\.-]+to[\d\.-]+))?"  # Optional gr range
         r"_(?P<region>GCcomb)"                # Region
+        r"(?:_(?P<zmin>[\d\.]+))?"                # optional zmin
+        r"(?:_(?P<zmax>[\d\.]+))?"                # optional zmax
         r"_(?P<weights>[\w_]+)"               # Weights
         r"_(?P<bin_type>\w+)"                 # Binning type
         r"_njack(?P<njack>\d+)"               # njack
@@ -150,10 +122,6 @@ def load_allcounts_from_disk(base_dir):
 
     print(f"\nFinished search. Loaded {len(loaded_results)} files.")
     return loaded_results
-
-
-
-
 
 
 def wp_thresholds(loaded_results, weight_type):
@@ -245,8 +213,6 @@ def wp_thresholds(loaded_results, weight_type):
     ax.legend(handles=symbol_handles, fontsize=11, loc='upper right')
 
     plt.tight_layout()
-
-
 
 
 def compare_wp_thresholds_to_sdss(loaded_results, weight_type):
@@ -420,34 +386,17 @@ def gmr_to_color(gmr):
     return rgb
 
 
-def plot_wp_mag_gmr(loaded_results, weight_type):
+def plot_wp_mag_gmr(results_by_mag, reference_result):
     """
     Plots wp(rp) for a list of loaded clustering results for a specific weight type.
 
     Creates a figure for each unique magnitude ranges and plot everything found for that.
     """
-    # Filter results by the specified weight type
-    filtered_results = [res for res in loaded_results if res['params']['weights'] == weight_type]
-
-    if not filtered_results:
-        print(f"No results found for weight_type='{weight_type}'.")
-        return
-
-    print(f"Plotting results for weight_type='{weight_type}'")
-
-    # Group results by magnitude range
-    results_by_mag = {}
-    for result in filtered_results:
-        mag_range = result['params'].get('mag_range', 'all_magnitudes')
-        if mag_range not in results_by_mag:
-            results_by_mag[mag_range] = []
-        results_by_mag[mag_range].append(result)
-
     # Order by magnitude range 
     results_by_mag = dict(sorted(results_by_mag.items(), key=lambda x: float(x[0].split('to')[0])))
 
     assert len(results_by_mag) == 10
-    fig, axes = plt.subplots(2, 5, figsize=(20, 8), sharex=True, sharey=True)
+    fig, axes = plt.subplots(2, 5, figsize=(20, 8), sharex=True, sharey=False)
     axes = axes.flatten()
     idx = 0
 
@@ -462,6 +411,8 @@ def plot_wp_mag_gmr(loaded_results, weight_type):
         results = [r for r in results if 'gr_range' in r['params']]
         results.sort(key=lambda x: float(x['params']['gr_range'].split('to')[0]))  # Sort by the lower bound of gr_range
 
+        cmap = plt.get_cmap("seismic")   # or "RdBu", "turbo", "viridis"
+        c = 0.2
         for item in results:
             params = item['params']
             estimator = item['data']
@@ -477,18 +428,24 @@ def plot_wp_mag_gmr(loaded_results, weight_type):
             gmr_max = float(params['gr_range'].split('to')[1])
 
             label = f"g-r: {gmr_min:.2f} to {gmr_max:.2f}"
-            ax.errorbar(rp, wp, yerr=wp_err, label=label, fmt='o', capsize=3, color=gmr_to_color((gmr_min + gmr_max) / 2))
+            ax.errorbar(rp, wp, yerr=wp_err, label=label, fmt='.', capsize=3, color=cmap(c))
+            c += 0.16
 
-        ax.set_ylim(3, 600)
+        # Plot the reference
+        if reference_result is not None:
+            ref_rp, ref_wp, ref_cov = reference_result['data'].get_corr(return_sep=True, return_cov=True, mode='wp')
+            ref_wp_err = np.sqrt(np.diag(ref_cov))
+            ax.errorbar(ref_rp, ref_wp, yerr=ref_wp_err, label='Reference', capsize=3, color='black')
+
+        #ax.set_ylim(3, 600)
         ax.set_xscale('log')
         ax.set_yscale('log')
+        ax.set_xlim([2, 10])
         ax.set_xlabel(r'$r_p$ [Mpc/h]')
         ax.set_ylabel(r'$w_p(r_p)$')
-        ax.legend()
+        #ax.legend()
 
-        plt.tight_layout()
-
-
+    plt.tight_layout()
 
 
 def plot_wp_QSF_bins(loaded_results, weight_type):
@@ -595,11 +552,6 @@ def plot_wp_QSF_bins(loaded_results, weight_type):
         plt.show()
 
 
-
-
-
-
-
 def plot_weight_comparison(loaded_results):
     """
     Compares wp(rp) for different weight types, holding all other parameters constant.
@@ -673,3 +625,6 @@ def plot_weight_comparison(loaded_results):
         print("\nNo parameter sets found with more than one weight type. No comparison plots generated.")
     else:
         print(f"\nGenerated {plots_made} comparison plots.")
+
+
+
