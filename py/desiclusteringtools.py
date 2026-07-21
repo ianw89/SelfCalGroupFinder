@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 from pycorr import TwoPointEstimator
 from matplotlib.lines import Line2D
 from clusteringtools import save_wp_dr2format
+from plotting import save_plot_data
 
 #######################################################################################
 # My helper functions for interacting with pycorr TwoPointEstimator objects and such.
@@ -76,7 +77,7 @@ def load_allcounts_from_disk(base_dir):
         r"(?:_CEN)?"  # Optional CEN 
         r"(?:_mag(?P<mag_range>[\d\.-]+to[\d\.-]+))?"  # Optional magnitude range, needs to handle negative sign too
         r"(?:_gr(?P<gr_range>[\d\.-]+to[\d\.-]+))?"  # Optional gr range
-        r"_(?P<region>GCcomb)"                # Region
+        r"_(?P<region>GCcomb|NGC|SGC)"       # Region can be GCcomb or NGC or SGC
         r"(?:_(?P<zmin>[\d\.]+))?"                # optional zmin
         r"(?:_(?P<zmax>[\d\.]+))?"                # optional zmax
         r"_(?P<weights>[\w_]+)"               # Weights
@@ -84,6 +85,7 @@ def load_allcounts_from_disk(base_dir):
         r"_njack(?P<njack>\d+)"               # njack
         r"_nran(?P<nran>\d+)"                 # nran
         r"_split(?P<split>\d+)"               # split
+        r"(?:_downsample(?P<downsample>[\d\.]+))?"  # Optional downsample factor
         r"\.npy"
     )
 
@@ -215,7 +217,7 @@ def wp_thresholds(loaded_results, weight_type):
     plt.tight_layout()
 
 
-def compare_wp_thresholds_to_sdss(loaded_results, weight_type):
+def compare_wp_thresholds_to_sdss(loaded_results, weight_type, savedata=False):
     """
     Plots wp(rp) for a list of loaded clustering results for a specific weight type.
 
@@ -282,12 +284,13 @@ def compare_wp_thresholds_to_sdss(loaded_results, weight_type):
 
             if marker == '.':
                 print(params['mag_thresh'] )
+                save_plot_data(20, f"bgs_{thresh}", rp, wp, yerr=wp_err) if savedata else None
+
                 if params['mag_thresh'] == "19.52":
                     wp = wp * 0.398  # 0.4 dex shift down
                 if params['mag_thresh'] == "20.64":
                     wp = wp * 0.630 # 0.2 dex shift down
                 ax.errorbar(rp, wp, yerr=wp_err, fmt='o', markerfacecolor=c, markeredgecolor='k', markersize=4, capsize=5, ecolor='k', color=c)
-
 
     # SDSS Data
     from dataloc import PARAMS_SDSS_FOLDER
@@ -330,6 +333,7 @@ def compare_wp_thresholds_to_sdss(loaded_results, weight_type):
     zehavi_195_err = [9.2, 8.3, 7.2, 5.6, 4.2, 3.4, 2.9, 2.5, 2.4, 1.9, 1.28, 1.13, 0.91]
     plt.fill_between(zehavi_bins, np.array(zehavi_195) - np.array(zehavi_195_err), np.array(zehavi_195) + np.array(zehavi_195_err), color=colors2[0], alpha=0.2)
     plt.plot(zehavi_bins, zehavi_195, '-', color=colors2.pop(0), lw=lw)  
+    save_plot_data(20, f"sdss_19.5", zehavi_bins, zehavi_195, yerr=zehavi_195_err) if savedata else None
     zehavi_20 = [366.1, 264.3, 184.0, 128.6, 84.7, 59.4, 42.9, 30.9, 21.9, 14.6, 8.24, 4.88, 3.58]
     zehavi_20_err = [9.3, 7.6, 6.6, 5.5, 4.3, 3.6, 3.3, 3.1, 2.7, 2.1, 1.32, 1.06, 0.85]
     #plt.plot(zehavi_bins, zehavi_20, '-', color=colors2.pop(0), lw=lw)
@@ -337,18 +341,22 @@ def compare_wp_thresholds_to_sdss(loaded_results, weight_type):
     zehavi_205_err = [11.3, 6.9, 5.1, 4.1, 3.3, 2.6, 2.3, 2.0, 1.8, 1.5, 1.07, 0.88, 0.70]
     plt.fill_between(zehavi_bins, np.array(zehavi_205) - np.array(zehavi_205_err), np.array(zehavi_205) + np.array(zehavi_205_err), color=colors2[0], alpha=0.2)
     plt.plot(zehavi_bins, zehavi_205, '-', color=colors2.pop(0), lw=lw)
+    save_plot_data(20, f"sdss_20.5", zehavi_bins, zehavi_205, yerr=zehavi_205_err) if savedata else None
     zehavi_21 = [586.2, 402.9, 258.7, 163.2, 105.5, 68.9, 50.2, 35.5, 24.5, 15.3, 8.54, 4.11, 2.73]
     zehavi_21_err = [19.5, 11.7, 6.7, 4.7, 3.0, 2.2, 2.1, 1.8, 1.6, 1.3, 0.94, 0.71, 0.54]
     plt.fill_between(zehavi_bins, np.array(zehavi_21) - np.array(zehavi_21_err), np.array(zehavi_21) + np.array(zehavi_21_err), color=colors2[0], alpha=0.2)
     plt.plot(zehavi_bins, zehavi_21, '-', color=colors2.pop(0), lw=lw)
+    save_plot_data(20, f"sdss_21", zehavi_bins, zehavi_21, yerr=zehavi_21_err) if savedata else None
     zehavi_215 = [1028, 731.7, 392.6, 228.6, 144.6, 94.3, 70.5, 48.6, 33.1, 20.9, 11.6, 6.04, 3.28]
     zehavi_215_err = [68, 34.0, 17.1, 10.9, 6.4, 3.7, 2.7, 2.3, 1.8, 1.5, 1.2, 0.95, 0.64]
     plt.fill_between(zehavi_bins, np.array(zehavi_215) - np.array(zehavi_215_err), np.array(zehavi_215) + np.array(zehavi_215_err), color=colors2[0], alpha=0.2)
     plt.plot(zehavi_bins, zehavi_215, '-', color=colors2.pop(0), lw=lw)
+    save_plot_data(20, f"sdss_21.5", zehavi_bins, zehavi_215, yerr=zehavi_215_err) if savedata else None
     zehavi_22 = [2615, 1189, 728, 491, 272, 154, 111, 94.5, 56.8, 35.1, 22.0, 11.4, 5.89]
     zehavi_22_err = [491, 202, 96.3, 55.3, 23.2, 14.5, 10.4, 5.6, 3.8, 3.2, 2.2, 1.6, 1.21] 
     plt.fill_between(zehavi_bins, np.array(zehavi_22) - np.array(zehavi_22_err), np.array(zehavi_22) + np.array(zehavi_22_err), color=colors2[0], alpha=0.2)
     plt.plot(zehavi_bins, zehavi_22, '-', color=colors2.pop(0), lw=lw)
+    save_plot_data(20, f"sdss_22", zehavi_bins, zehavi_22, yerr=zehavi_22_err) if savedata else None
 
     ax.set_xscale('log')
     ax.set_yscale('log')
