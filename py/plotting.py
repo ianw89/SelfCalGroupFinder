@@ -1089,7 +1089,7 @@ def fsat_incompleteness_study_all(catalogs, truthcat: GroupCatalog):
     ax2.set_xlabel("$M_r$ - 5log(h)")
     fig.tight_layout()
 
-def fsat_incompleteness_study(catalogs, truthcat: GroupCatalog):
+def fsat_incompleteness_study(catalogs, truthcat: GroupCatalog, savedata=False):
     fig, axes = plt.subplots(1, 2, figsize=(10, 4.5))
     fig.set_dpi(DPI)
 
@@ -1100,15 +1100,13 @@ def fsat_incompleteness_study(catalogs, truthcat: GroupCatalog):
 
     for ax, truth_vals, truth_err, attr_name, ymax, xmin, title in panels:
         truth_vals_plot = np.asarray(truth_vals, dtype=float).copy()
-        truth_err_plot = np.asarray(truth_err, dtype=float)
+        truth_err_plot = np.asarray(truth_err, dtype=float) # (2, 40)
 
-        if truth_err_plot.ndim == 2:
-            invalid = np.any(np.isnan(truth_err_plot), axis=0)
-        else:
-            invalid = np.isnan(truth_err_plot)
+        invalid = np.any(np.isnan(truth_err_plot), axis=0)
 
         truth_vals_plot[invalid] = np.nan
 
+        save_plot_data(13, f"{title}_truth", truthcat.L_gal_labels[~invalid], truth_vals_plot[~invalid], yerrlow=truth_err_plot[0][~invalid], yerrhigh=truth_err_plot[1][~invalid]) if savedata else None
         ax.errorbar(
             truthcat.L_gal_labels,
             truth_vals_plot,
@@ -1125,6 +1123,7 @@ def fsat_incompleteness_study(catalogs, truthcat: GroupCatalog):
         )
 
         for f in catalogs:
+            save_plot_data(13, f"{title}_{f.name.replace(' ', '_')}", f.L_gal_labels[~invalid], getattr(f, attr_name)[~invalid]) if savedata else None
             ax.plot(
                 f.L_gal_labels[~invalid],
                 getattr(f, attr_name)[~invalid],
@@ -1398,7 +1397,7 @@ def compare_wp_rp(d1: BGSGroupCatalog|tuple, d2_t: BGSGroupCatalog|tuple):
         plt.tight_layout()
         plt.show()
 
-def compare_wp_rp_caldata(c1: CalibrationData, c2: CalibrationData):
+def compare_wp_rp_caldata(c1: CalibrationData, c2: CalibrationData, savedata=False):
     """
     Compare the wp_rp functions (red, blue) for two CalibrationData objects.
     """
@@ -1419,19 +1418,23 @@ def compare_wp_rp_caldata(c1: CalibrationData, c2: CalibrationData):
 
         wp, wp_err, radius = c1.get_wp_red(i)
         ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markerfacecolor='red', markeredgecolor='k', elinewidth=2, capsize=5, ecolor='k')
+        save_plot_data(19, f'red_bgs_{idx}', radius, wp, yerr=wp_err) if savedata else None
         wp, wp_err, radius = c2.get_wp_red(i)
         ax.plot(radius, wp, '-', color='red')
         ax.fill_between(radius, wp-wp_err, wp+wp_err, color='red', alpha=0.2)
+        save_plot_data(19, f'red_sdss_{idx}', radius, wp, yerr=wp_err) if savedata else None
         wp, wp_err, radius = c1.get_wp_blue(i)
         ax.errorbar(radius, wp, yerr=wp_err, fmt='o', markersize=5, markerfacecolor='blue', markeredgecolor='midnightblue', elinewidth=2, capsize=5, ecolor='midnightblue')
+        save_plot_data(19, f'blue_bgs_{idx}', radius, wp, yerr=wp_err) if savedata else None
         wp, wp_err, radius = c2.get_wp_blue(i)
         ax.plot(radius, wp, '-', color='blue')
         ax.fill_between(radius, wp-wp_err, wp+wp_err, color='blue', alpha=0.2)
+        save_plot_data(19, f'blue_sdss_{idx}', radius, wp, yerr=wp_err) if savedata else None
 
         ax.set_xscale('log')
         ax.set_yscale('log')
         ax.set_xlabel('$r_p$ [Mpc $h^{-1}$]')
-        ax.set_xlim(0.1, 10)
+        ax.set_xlim(0.1, 10)    
         ax.set_ylabel('$w_p(r_p)$')
         ax.set_ylim(5, 4000)
         ax.set_title(f'[{-i}, {-i-1}]')
@@ -2061,7 +2064,7 @@ def hodt_satparams_evolution_2(gc: GroupCatalog, colors: list):
     plt.tight_layout()
 
 
-def hod_bins_plot(gc: GroupCatalog, hodtab: hod.HODTabulated, model=False, seperate=False):
+def hod_bins_plot(gc: GroupCatalog, hodtab: hod.HODTabulated, model=False, seperate=False, savedata=False):
     """
     Plot the HOD from a file, overlaying with a histogram of the number of halos (nhalo).
     """
@@ -2095,9 +2098,12 @@ def hod_bins_plot(gc: GroupCatalog, hodtab: hod.HODTabulated, model=False, seper
             ax.plot(log_Mhalo, data.satellite_q[lbin], 'r:', label='Q Sat', alpha=alpha, linewidth=3)
             ax2.plot(log_Mhalo, data.central_sf[lbin], 'b-', label='SF Cen', alpha=alpha, linewidth=3)
             ax2.plot(log_Mhalo, data.satellite_sf[lbin], 'b:', label='SF Sat', alpha=alpha, linewidth=3)
-        #else:
-        #    ax.plot(log_halo_mass, log_all_cen_fraction, 'k-', label='All Cen', alpha=alpha, linewidth=3)
-        #    ax.plot(log_halo_mass, log_all_sat_fraction, 'k--', label='All Sat', alpha=alpha, linewidth=3)
+        
+        save_plot_data(25, f'cen_{lbin}', log_Mhalo, data.central_q[lbin]) if savedata else None
+        save_plot_data(25, f'sat_{lbin}', log_Mhalo, data.satellite_q[lbin]) if savedata else None
+        save_plot_data(26, f'cen_{lbin}', log_Mhalo, data.central_sf[lbin]) if savedata else None
+        save_plot_data(26, f'sat_{lbin}', log_Mhalo, data.satellite_sf[lbin]) if savedata else None
+
 
         if lbin / (ncols*2) >= 0.5:
             ax.set_xlabel('log($M_h$ / [$M_\odot / h$])')
@@ -2141,7 +2147,11 @@ def hod_bins_plot(gc: GroupCatalog, hodtab: hod.HODTabulated, model=False, seper
             ax2.plot(x_model, hod.hod_bins_central_model(x_model, *gc.hod_cen_blue_popt[lbin]), 'k-', label='SF Cen Model', linewidth=3)
             ax2.plot(x_model, hod.hod_bins_satellite_model(x_model, *gc.hod_sat_blue_popt[lbin]), 'k--', label='SF Sat Model', linewidth=3)
 
-            # TODO
+            save_plot_data(25, f'cenfit_{lbin}', x_model, hod.hod_bins_central_model(x_model, *gc.hod_cen_red_popt[lbin])) if savedata else None
+            save_plot_data(25, f'satfit_{lbin}', x_model, hod.hod_bins_satellite_model(x_model, *gc.hod_sat_red_popt[lbin])) if savedata else None
+            save_plot_data(26, f'cenfit_{lbin}', x_model, hod.hod_bins_central_model(x_model, *gc.hod_cen_blue_popt[lbin])) if savedata else None
+            save_plot_data(26, f'satfit_{lbin}', x_model, hod.hod_bins_satellite_model(x_model, *gc.hod_sat_blue_popt[lbin])) if savedata else None
+
             ax.text(10.1, 1.7, f"$M_{{\\rm min}}$: {gc.hod_cen_red_popt[lbin][0]:.2f}")
             ax.text(10.1, 1.4, f"$σ_{{\\rm min}}$: {gc.hod_cen_red_popt[lbin][1]:.2f}")
             ax.text(10.1, 1.1, f"$M_{{\\rm max}}$: {gc.hod_cen_red_popt[lbin][2]:.2f}")
@@ -2149,7 +2159,6 @@ def hod_bins_plot(gc: GroupCatalog, hodtab: hod.HODTabulated, model=False, seper
             ax.text(12.1, 1.1, f"α: {gc.hod_sat_red_popt[lbin][2]:.2f}")
             ax.text(12.1, 1.4, f"$M_{{\\rm sat}}$: {gc.hod_sat_red_popt[lbin][1]:.2f}")
             ax.text(12.1, 1.7, f"$M_{{\\rm cut}}$: {gc.hod_sat_red_popt[lbin][0]:.2f}")
-
 
             ax2.text(10.1, 1.7, f"$M_{{\\rm min}}$: {gc.hod_cen_blue_popt[lbin][0]:.2f}")
             ax2.text(10.1, 1.4, f"$σ_{{\\rm min}}$: {gc.hod_cen_blue_popt[lbin][1]:.2f}")
@@ -2540,7 +2549,7 @@ def group_finder_centrals_halo_masses_plots(all_df, comparisons):
 ##################################
 
 
-def lostgal_lum_func_paper_compare(*catalogs):
+def lostgal_lum_func_paper_compare(*catalogs, savedata=False):
         
     x_bins = np.logspace(8, 11.2, 12) # bins if using cic code
     x = (x_bins[:-1] + x_bins[1:]) / 2 # bin centers
@@ -2603,9 +2612,8 @@ def lostgal_lum_func_paper_compare(*catalogs):
     percent_lim = 100
 
     for i in range(len(catalogs)):
+        save_plot_data(16, f"red_{catalogs[i].name.replace(' ', '_')}", x, assumed_vs_truth_red[i], yerr=assumed_vs_truth_red_err[i]) if savedata else None
         axes[0].plot(x , assumed_vs_truth_red[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
-        #axes[0].errorbar(x, assumed_vs_truth_red[i], yerr=assumed_vs_truth_red_err[i], label=f"{catalogs[i].name}", color=catalogs[i].color, fmt='-')
-        # shaded error bars
         axes[0].fill_between(x, assumed_vs_truth_red[i] - assumed_vs_truth_red_err[i], assumed_vs_truth_red[i] + assumed_vs_truth_red_err[i], color=catalogs[i].color, alpha=SHADED_ERR_ALPHA)
     axes[0].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
     axes[0].set_ylabel("$\log (\Phi_L^{q}(L) / \Phi_{L,\\rm true}^{q}(L))$")
@@ -2620,8 +2628,8 @@ def lostgal_lum_func_paper_compare(*catalogs):
     ax2.set_xlabel('$M_r^{0.1} - 5\\log(h)$')
 
     for i in range(len(catalogs)):
+        save_plot_data(16, f"blue_{catalogs[i].name.replace(' ', '_')}", x, assumed_vs_truth_blue[i], yerr=assumed_vs_truth_blue_err[i]) if savedata else None
         axes[1].plot(x , assumed_vs_truth_blue[i], label=f"{catalogs[i].name}", color=catalogs[i].color)
-        #axes[1].errorbar(x, assumed_vs_truth_blue[i], yerr=assumed_vs_truth_blue_err[i], label=f"{catalogs[i].name}", color=catalogs[i].color, fmt='-')
         axes[1].fill_between(x, assumed_vs_truth_blue[i] - assumed_vs_truth_blue_err[i], assumed_vs_truth_blue[i] + assumed_vs_truth_blue_err[i], color=catalogs[i].color, alpha=SHADED_ERR_ALPHA)
     axes[1].set_xlabel('$L_{\\rm gal}~[L_{\\odot} h^{-2}]$')
     axes[1].set_ylabel("$\log (\Phi_L^{sf}(L) / \Phi_{L,\\rm true}^{sf}(L))$")
@@ -2794,7 +2802,7 @@ def luminosity_function_plots(*catalogs):
 #####################################
 # Correct Redshifts Assigned
 #####################################
-def correct_redshifts_assigned_plot(*sets: GroupCatalog):
+def correct_redshifts_assigned_plot(*sets: GroupCatalog, savedata=False):
     scores_all_lost = []
     scores_n_only = []
     rounded_tophat_scores = []
@@ -2856,6 +2864,7 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
         #print(f" Galaxies to compare: {len(assigned_z2)} ({len(assigned_z2) / len(s.all_data):.1%})")
         #print(f" Score Mean: {score2.mean():.4f}")
 
+
     # Plotting the results
     labels = [s.name for s in sets]
     x = np.arange(len(labels))  # the label locations
@@ -2867,6 +2876,8 @@ def correct_redshifts_assigned_plot(*sets: GroupCatalog):
     
     #rects2 = ax.bar(x - width/2        , rounded_tophat_scores, width, label='Fraction Correct', color=get_color(2))
     #rects5 = ax.bar(x + width/2, scores_metric4, width, label='MCMC Metric Score', color=get_color(3))
+
+    save_plot_data(14, None, labels, np.array(tophat_scores), yorange=np.array(wide_tophat_scores)) if savedata else None
 
     rects2 = ax.bar(x -width/2       , tophat_scores, width, label='Fraction with ($\Delta z < 0.005$)', color=get_color(2))
     rects3 = ax.bar(x +width/2       , wide_tophat_scores, width, label='Fraction with ($\Delta z < 0.01$)', color=get_color(1))
@@ -2975,7 +2986,7 @@ def test_purity_and_completeness(*catalogs: GroupCatalog, truth_catalog: GroupCa
         s.completeness_c_g = true_centrals_correct_g[s.keep4] / true_centrals_g[s.keep4]
 
 
-def purity_complete_plots(*sets, ymin=0.0):
+def purity_complete_plots(*sets, ymin=0.0, savedata=False):
     #plt.rcParams.update({'font.size': 14})
 
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(11, 8))
@@ -3022,6 +3033,10 @@ def purity_complete_plots(*sets, ymin=0.0):
     ax2.set_xlabel("$M_r$ - 5log(h)")
                    
     for s in sets:
+        save_plot_data(15, f"sat_purity_{get_dataset_display_name(s).replace(' ', '_')}", s.L_gal_bins[s.keep], s.purity_g)
+        save_plot_data(15, f"sat_completeness_{get_dataset_display_name(s).replace(' ', '_')}", s.L_gal_bins[s.keep2], s.completeness_g)
+        save_plot_data(15, f"central_purity_{get_dataset_display_name(s).replace(' ', '_')}", s.L_gal_bins[s.keep3], s.purity_c_g)
+        save_plot_data(15, f"central_completeness_{get_dataset_display_name(s).replace(' ', '_')}", s.L_gal_bins[s.keep4], s.completeness_c_g)
         axes[1][0].plot(np.log10(s.L_gal_bins[s.keep]), s.purity_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
         axes[1][1].plot(np.log10(s.L_gal_bins[s.keep2]), s.completeness_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
         axes[0][0].plot(np.log10(s.L_gal_bins[s.keep3]), s.purity_c_g, s.marker, label=f"{get_dataset_display_name(s)}", color=s.color)
@@ -3592,7 +3607,7 @@ def examine_around(target, data: pd.DataFrame, nearby_angle: coord.Angle = coord
         print("Skipping empty plot for {0}".format(title))
 
 
-def gfparams_plots(gc: GroupCatalog, chains_flat):
+def gfparams_plots(gc: GroupCatalog, chains_flat, savedata=False):
     # ω_L_sf, σ_sf, ω_L_q, σ_q, ω_0_sf, ω_0_q, β_0q, β_Lq, β_0sf, β_Lsf
     params = np.array([gc.GF_props['omegaL_sf'], gc.GF_props['sigma_sf'], gc.GF_props['omegaL_q'], gc.GF_props['sigma_q'], gc.GF_props['omega0_sf'], gc.GF_props['omega0_q'], gc.GF_props['beta0q'], gc.GF_props['betaLq'], gc.GF_props['beta0sf'], gc.GF_props['betaLsf']])
 
@@ -3648,9 +3663,16 @@ def gfparams_plots(gc: GroupCatalog, chains_flat):
     # Horizontal line at y=0
     axes[0].axhline(0, color='k', linestyle='--', lw=1, alpha=0.5)
 
-    axes[0].plot(x, wcen_logratio(lin_weight(params[5], params[2], params[3], x), lin_weight(params[4], params[0], params[1], x)), color='k', lw=2)
-    axes[1].plot(x, bsat(params[6], params[7], x), '-', label='Q', color='k', lw=2)
-    axes[1].plot(x, bsat(params[8], params[9], x), '-', label='SF', color='k', lw=2)
+    y_wcen = wcen_logratio(lin_weight(params[5], params[2], params[3], x), lin_weight(params[4], params[0], params[1], x))
+    y_bsatred = bsat(params[6], params[7], x)
+    y_bsatblue = bsat(params[8], params[9], x)
+    axes[0].plot(x, y_wcen, color='k', lw=2)
+    axes[1].plot(x, y_bsatred, '-', label='Q', color='k', lw=2)
+    axes[1].plot(x, y_bsatblue, '-', label='SF', color='k', lw=2)
+
+    save_plot_data(5, "wcen", x, y_wcen, ylower1=w_lower, yupper1=w_upper, ylower2=w_lower2, yupper2=w_upper2) if savedata else None
+    save_plot_data(5, "bsat_red", x, y_bsatred, ylower1=bsat_q_lower, yupper1=bsat_q_upper, ylower2=bsat_q_lower2, yupper2=bsat_q_upper2) if savedata else None
+    save_plot_data(5, "bsat_blue", x, y_bsatblue, ylower1=bsat_sf_lower, yupper1=bsat_sf_upper, ylower2=bsat_sf_lower2, yupper2=bsat_sf_upper2) if savedata else None
 
     plt.tight_layout()
 
@@ -3764,7 +3786,7 @@ def bgs_sdss_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
     return bgs_obs_zagreed
 
 
-def sdss_bgs_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=True, showsaved=True, quiescent=None):
+def sdss_bgs_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=True, showsaved=True, quiescent=None, savedata=False):
     """
     Make a plot comparing the SDSS and BGS magnitudes for the observed galaxies in BGS.
     This version uses SDSS M_r on the x-axis and fits a polynomial to predict BGS M_r.
@@ -3810,6 +3832,7 @@ def sdss_bgs_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
     print(f"Mean Squared Error: {mse:.4f}")
 
     plt.figure()
+    save_plot_data(18, 'percentiles', x, y, yerrlow=binned['16'].to_numpy(), yerrhigh=binned['84'].to_numpy(), yerrlow2=binned['2.5'].to_numpy(), yerrhigh2=binned['97.5'].to_numpy()) if savedata else None
     plt.grid()
     plt.fill_between(binned.index, binned['2.5'], binned['97.5'], alpha=0.2, color='blue', label='95% Interval')
     plt.fill_between(binned.index, binned['16'], binned['84'], alpha=SHADED_ERR_ALPHA, color='blue', label='68% Interval')
@@ -3817,6 +3840,7 @@ def sdss_bgs_mag_compare_plot(bgs: GroupCatalog, sdss: GroupCatalog, showpoly=Tr
     if showpoly:
         plt.plot(x_fit, y_fit, color='orange', label=f'Polynomial Fit (degree {degree})')
     if showsaved:
+        save_plot_data(18, 'fit', x_fit, y_fit) if savedata else None
         plt.plot(x_fit, sdss_mag_to_bgslike_mag(x_fit, quiescent=quiescent) - x_fit, color='green', label='Fitting Function')
     plt.xlabel('$M_r^{SDSS}$')
     plt.ylabel('$M_r^{BGS} - M_r^{SDSS}$')
