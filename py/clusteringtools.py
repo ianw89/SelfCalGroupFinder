@@ -80,8 +80,8 @@ def get_bias(ref_wp, target_wp):
     # Method 1: assume covariance matrices are independent and add them together
     def _chisqr_indepcov(bias):
         residual = wp_target - (bias**2 * wp_ref)
-        C_tot = cov_target + (bias**4 * cov_ref)  # Could instead compute this once outside for an assumed bias ~ 1 
-        reg = np.eye(C_tot.shape[0]) * 1e-10
+        C_tot = cov_target + cov_ref  
+        reg = np.eye(C_tot.shape[0]) * 1e-12
         inv_cov = np.linalg.inv(C_tot + reg)
         return residual.T @ inv_cov @ residual
 
@@ -95,7 +95,7 @@ def get_bias(ref_wp, target_wp):
     #    print("Modified target covariance matrix using reference correlation matrix:\n", cov_target_modified)
     def _chisqr_use_ref_corr(bias):
         residual = wp_target - (bias**2 * wp_ref)
-        C_tot = cov_target_modified + (bias**4 * cov_ref)  # Could instead compute this once outside for an assumed bias ~ 1 
+        C_tot = cov_target_modified + cov_ref  # Could instead compute this once outside for an assumed bias ~ 1 
         reg = np.eye(C_tot.shape[0]) * 1e-10
         inv_cov = np.linalg.inv(C_tot + reg)
         return residual.T @ inv_cov @ residual
@@ -103,11 +103,11 @@ def get_bias(ref_wp, target_wp):
     # Method 3: Use only the diagonal elements of the covariance matrices (i.e., ignore correlations)
     def _chisqr_diagonly(bias):
         residual = wp_target - (bias**2 * wp_ref)
-        C_tot = np.diag(np.diag(cov_target)) + (bias**4 * np.diag(np.diag(cov_ref)))  # Only use diagonal elements
+        C_tot = np.diag(np.diag(cov_target)) + np.diag(np.diag(cov_ref))  # Only use diagonal elements
         inv_cov = np.linalg.inv(C_tot)
         return residual.T @ inv_cov @ residual
 
-    # Method 4: Use target only, unmodified
+    # Method 4: Use target only, unmodified. Reference error bars are small anyway.
     def _chisqr_targetonly(bias):
         residual = wp_target - (bias**2 * wp_ref)
         C_tot = cov_target  # Only use target covariance
@@ -115,7 +115,7 @@ def get_bias(ref_wp, target_wp):
         inv_cov = np.linalg.inv(C_tot + reg)
         return residual.T @ inv_cov @ residual
 
-    _chisqr = _chisqr_targetonly  # Choose which method to use
+    _chisqr = _chisqr_indepcov  # Choose which method to use
 
     # Minimize the chi-squared function to find the best-fit bias
     result = minimize(_chisqr, x0=1.0, bounds=[(0.1, 10.0)])
