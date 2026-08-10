@@ -65,11 +65,11 @@ class FootprintManager:
         # Validate inputs
         if survey not in self._randoms_files:
             raise ValueError(f"Survey must be one of {list(self._randoms_files.keys())}")
-        if region not in ['all', 'N', 'S']:
-            raise ValueError("Region must be 'all', 'N', or 'S'")
+        if region not in ['all', 'N', 'S', 'NGC', 'SGC']:
+            raise ValueError("Region must be 'all', 'N', 'S', 'NGC', or 'SGC'")
         if not 1 <= min_passes <= 10:
             raise ValueError("min_passes must be between 1 and 10")
-        
+
         # Check cache first
         cache_key = (survey, region, min_passes)
         if cache_key in self._footprint_cache:
@@ -113,6 +113,15 @@ class FootprintManager:
             randoms_south = randoms_filtered.loc[randoms_filtered['PHOTSYS'] == 'S']
             footprint_south = len(randoms_south) / self.RANDOMS_DENSITY
             self._footprint_cache[(survey, 'S', min_passes)] = footprint_south
+
+            # Calculate for the NGC and SGC regions
+            randoms_ngc = randoms_filtered.loc[randoms_filtered['REGION'] == 'NGC']
+            footprint_ngc = len(randoms_ngc) / self.RANDOMS_DENSITY
+            self._footprint_cache[(survey, 'NGC', min_passes)] = footprint_ngc
+            
+            randoms_sgc = randoms_filtered.loc[randoms_filtered['REGION'] == 'SGC']
+            footprint_sgc = len(randoms_sgc) / self.RANDOMS_DENSITY
+            self._footprint_cache[(survey, 'SGC', min_passes)] = footprint_sgc
     
     def reload_all(self):
         """

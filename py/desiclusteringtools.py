@@ -36,7 +36,7 @@ def save_wp_for_maggmr(savedir, results):
         save_wp_dr2format(os.path.join(savedir, fname), to_save)
 
 
-def load_allcounts_from_disk(base_dir):
+def load_allcounts_from_disk(base_dir, pattern):
     """
     Recursively searches for and loads all 'allcounts*.npy' files from a base directory.
 
@@ -51,43 +51,6 @@ def load_allcounts_from_disk(base_dir):
               'params': A dictionary of metadata parsed from the filename.
               'data': The loaded TwoPointEstimator object.
     """
-    
-    # Regex to parse the complex filename structure.
-    # It captures named groups for each parameter.
-    filename_pattern = re.compile(
-        r"allcounts_BGS_BRIGHT"
-        r"(?:_R-(?P<mag_thresh>[\d\.]+))?"          # Optional magnitude threshold
-        r"(?:_R-(?P<mag_range>[\d\.]+-[\d\.]+))?"   # Optional magnitude range
-        r"(?:_SERSIC-(?P<sersic>[\d\.-]+))?"        # Optional SERSIC cut
-        r"(?:_(?P<sample_type>SF|Q|ALL))?"          # Optional sample type
-        r"_(?P<region>GCcomb)"                # Region
-        r"_(?P<zmin>[\d\.]+)"                 # zmin
-        r"_(?P<zmax>[\d\.]+)"                 # zmax
-        r"_(?P<weights>[\w_]+)"               # Weights
-        r"_(?P<bin_type>\w+)"                 # Binning type
-        r"_njack(?P<njack>\d+)"               # njack
-        r"_nran(?P<nran>\d+)"                 # nran
-        r"_split(?P<split>\d+)"               # split
-        r"\.npy"
-    )
-
-    # New filename example: allcounts_BGS_BRIGHT_CEN_mag-20.7092to-20.3206_gr0.5105to0.6492_GCcomb_pip_bitwise_custom_njack0_nran1_split20.npy
-    filename_pattern2 = re.compile(
-        r"allcounts_BGS_BRIGHT"
-        r"(?:_CEN)?"  # Optional CEN 
-        r"(?:_mag(?P<mag_range>[\d\.-]+to[\d\.-]+))?"  # Optional magnitude range, needs to handle negative sign too
-        r"(?:_gr(?P<gr_range>[\d\.-]+to[\d\.-]+))?"  # Optional gr range
-        r"_(?P<region>GCcomb|NGC|SGC)"       # Region can be GCcomb or NGC or SGC
-        r"(?:_(?P<zmin>[\d\.]+))?"                # optional zmin
-        r"(?:_(?P<zmax>[\d\.]+))?"                # optional zmax
-        r"_(?P<weights>[\w_]+)"               # Weights
-        r"_(?P<bin_type>\w+)"                 # Binning type
-        r"_njack(?P<njack>\d+)"               # njack
-        r"_nran(?P<nran>\d+)"                 # nran
-        r"_split(?P<split>\d+)"               # split
-        r"(?:_downsample(?P<downsample>[\d\.]+))?"  # Optional downsample factor
-        r"\.npy"
-    )
 
     loaded_results = []
     print(f"Searching for allcounts files in: {base_dir}")
@@ -99,9 +62,7 @@ def load_allcounts_from_disk(base_dir):
     for root, _, files in os.walk(base_dir):
         for file in files:
 
-            match = filename_pattern.match(file)
-            if not match:
-                match = filename_pattern2.match(file)
+            match = pattern.match(file)
 
             if match:
                 full_path = os.path.join(root, file)
