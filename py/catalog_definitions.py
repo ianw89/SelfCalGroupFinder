@@ -141,9 +141,6 @@ bgs_nn.marker = '-'
 bgs_nn_sdsslike = BGSGroupCatalog("Nearest Neighbor BGS Y1 SDSS-like", Mode.NEAREST_NEIGHBOR, 17.7, 17.7, gfprops=GF_PROPS_BGS_VANILLA.copy())
 bgs_nn_sdsslike.marker = '-'
 
-bgs_y1_pzp_2_6_c1 = BGSGroupCatalog("BGS Y1 PZP v2.6 C1", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C1.copy())
-bgs_y1_pzp_2_6_c1.marker = '--'
-bgs_y1_pzp_2_6_c1.color = 'darkgreen'
 
 bgs_y1_pzp_2_6_c2 = BGSGroupCatalog("BGS Y1 C2", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y1-Iron', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C2.copy())
 bgs_y1_pzp_2_6_c2.marker = '-'
@@ -214,15 +211,21 @@ bgs_y3_pzp_2_6_c3.color = 'darkorange'
 bgs_y3_pzp_2_6_c3.marker = '-'
 bgs_y3_pzp_2_6_c3.GF_props['iterations'] = 10
 
+bgs_y3_pzp_2_6_c4 = BGSGroupCatalog("BGS Y3 C4", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C4.copy())
+bgs_y3_pzp_2_6_c4.color = 'darkorange'
+bgs_y3_pzp_2_6_c4.marker = '-'
+bgs_y3_pzp_2_6_c4.GF_props['iterations'] = 10
+
 bgs_y3_pzp_2_6_c3_1p = BGSGroupCatalog("BGS Y3 C3 1pass", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=1, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C3.copy())
 bgs_y3_pzp_2_6_c3_1p.color = 'darkorange'
 bgs_y3_pzp_2_6_c3_1p.marker = '-'
+bgs_y3_pzp_2_6_c3_1p.GF_props['iterations'] = 10
 
-bgs_y3_fiberonly = BGSGroupCatalog("Observed BGS Y3 <19.5", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, data_cut='Y3-Loa', gfprops=GF_PROPS_BGS_VANILLA.copy())
-bgs_y3_fiberonly.marker = '-'
+bgs_y3_pzp_2_6_c4_1p = BGSGroupCatalog("BGS Y3 C4 1pass", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=1, data_cut='Y3-Loa', extra_params=PZP_PARAMS_V26, gfprops=GF_PROPS_BGS_COLORS_C4.copy())
+bgs_y3_pzp_2_6_c4_1p.color = 'darkorange'
+bgs_y3_pzp_2_6_c4_1p.marker = '-'
+bgs_y3_pzp_2_6_c4_1p.GF_props['iterations'] = 10
 
-bgs_y3_fiberonly_1pass = BGSGroupCatalog("Observed BGS Y3 <19.5 1pass", Mode.FIBER_ASSIGNED_ONLY, 19.5, 21.0, num_passes=1, data_cut='Y3-Loa', gfprops=GF_PROPS_BGS_VANILLA.copy())
-bgs_y3_fiberonly_1pass.marker = '.'
 #0.004 = 4.5
 # To translate between old sigma and new one, use new = -log10(2*old^2)
 

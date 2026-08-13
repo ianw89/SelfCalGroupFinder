@@ -302,6 +302,38 @@ def shmr_scatterplot(catalog: GroupCatalog, selection):
     plt.draw()
 
 
+def SHMR_inverted(f):
+
+    plt.figure(dpi=DPI)
+    means = np.log10(f.centrals[f.centrals['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted))
+    scatter = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(Mhalo_std_vmax_weighted)
+    plt.errorbar(logmstar_labels, means, yerr=scatter, label=get_dataset_display_name(f), color='r', elinewidth=1)
+
+    means = np.log10(f.centrals[~f.centrals['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted))
+    scatter = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(Mhalo_std_vmax_weighted)
+    plt.errorbar(logmstar_labels, means, yerr=scatter, label=get_dataset_display_name(f), color='b', elinewidth=1)
+    plt.ylabel('log$(M_h)~[M_\\odot]$')
+    plt.xlabel('log$(M_{\\star})~[M_\\odot / h^2]$')
+    plt.title("SHMR Inverted (Mean w/ scatter)")
+    plt.ylim(10,15)
+    plt.xlim(7,12.5)
+
+def LHMR_inverted(f):
+
+    plt.figure(dpi=DPI)
+    means = np.log10(f.centrals[f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted))
+    scatter = f.centrals.loc[f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_std_vmax_weighted)
+    plt.errorbar(np.log10(f.L_gal_labels), means, yerr=scatter, label=get_dataset_display_name(f), color='r', elinewidth=1)
+
+    means = np.log10(f.centrals[~f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_vmax_weighted))
+    scatter = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('LGAL_BIN', observed=False).apply(Mhalo_std_vmax_weighted)
+    plt.errorbar(np.log10(f.L_gal_labels), means, yerr=scatter, label=get_dataset_display_name(f), color='b', elinewidth=1)
+    plt.ylabel('(log$(M_h)~[M_\\odot]$')
+    plt.xlabel('log$(L_{cen})~[L_\odot / h^2]$')
+    plt.title("LHMR Inverted (Mean w/ scatter)")
+    plt.ylim(10,15)
+    plt.xlim(7,LOG_LGAL_MAX_TIGHT)
+
 def LHMR_withscatter(*catalogs):
 
 
