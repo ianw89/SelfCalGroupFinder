@@ -287,6 +287,9 @@ class GroupCatalog:
         self.shmr_scatter_bootstrap_err: np.ndarray = None
         self.shmr_sf_scatter_bootstrap_err: np.ndarray = None
         self.shmr_q_scatter_bootstrap_err: np.ndarray = None
+        self.shmr_inverted_bootstrap_err: np.ndarray = None
+        self.shmr_inverted_sf_bootstrap_err: np.ndarray = None
+        self.shmr_inverted_q_bootstrap_err: np.ndarray = None
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -438,7 +441,7 @@ class GroupCatalog:
     def bootstrap_statistics(self, N_ITERATIONS = 300):
         print("Bootstrapping...")
 
-        relevent_columns = ['LGAL_BIN', 'Mstar_bin', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'Mh_bin2', 'L_GAL', 'LOGMSTAR']
+        relevent_columns = ['LGAL_BIN', 'Mstar_bin', 'IS_SAT', 'VMAX', 'QUIESCENT', 'Mh_bin', 'Mh_bin2', 'L_GAL', 'LOGMSTAR', 'M_HALO']
         df = self.all_data
         t1 = time.time()
 
@@ -461,8 +464,11 @@ class GroupCatalog:
             shmr_scatter = alt_df.loc[~alt_df['IS_SAT']].groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
             shmr_sf_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
             shmr_q_scatter = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mh_bin2', observed=False).apply(LogMstar_lognormal_scatter_vmax_weighted)
+            shmr_inverted = alt_df.loc[~alt_df['IS_SAT']].groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted)
+            shmr_inverted_sf = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == False)].groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted)
+            shmr_inverted_q = alt_df.loc[~alt_df['IS_SAT'] & (alt_df['QUIESCENT'] == True)].groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted)
             
-            return f_sat, f_sat_sf, f_sat_q, f_sat_mstar, f_sat_mstar_sf, f_sat_mstar_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter
+            return f_sat, f_sat_sf, f_sat_q, f_sat_mstar, f_sat_mstar_sf, f_sat_mstar_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter, shmr_inverted, shmr_inverted_sf, shmr_inverted_q
 
 
         if hasattr(self, 'data_cut') and self.data_cut == 'sv3':
@@ -491,9 +497,9 @@ class GroupCatalog:
 
             results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(np.random.choice(range(len(df)), len(df), replace=True)) for _ in range(N_ITERATIONS))
 
-        f_sat, f_sat_sf, f_sat_q, f_sat_mstar, f_sat_mstar_sf, f_sat_mstar_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter = get_statistics_for_df(df)
+        f_sat, f_sat_sf, f_sat_q, f_sat_mstar, f_sat_mstar_sf, f_sat_mstar_q, lhmr, lhmr_sf, lhmr_q, lhmr_scatter, lhmr_sf_scatter, lhmr_q_scatter, shmr, shmr_sf, shmr_q, shmr_scatter, shmr_sf_scatter, shmr_q_scatter, shmr_inverted, shmr_inverted_sf, shmr_inverted_q = get_statistics_for_df(df)
 
-        fsat_reals, fsat_sf_reals, fsat_q_reals, fsat_mstar_reals, fsat_mstar_sf_reals, fsat_mstar_q_reals, lhmr_reals, lhmr_sf_reals, lhmr_q_reals, lhmr_scatter_reals, lhmr_sf_scatter_reals, lhmr_q_scatter_reals, shmr_reals, shmr_sf_reals, shmr_q_reals, shmr_scatter_reals, shmr_sf_scatter_reals, shmr_q_scatter_reals = zip(*results)
+        fsat_reals, fsat_sf_reals, fsat_q_reals, fsat_mstar_reals, fsat_mstar_sf_reals, fsat_mstar_q_reals, lhmr_reals, lhmr_sf_reals, lhmr_q_reals, lhmr_scatter_reals, lhmr_sf_scatter_reals, lhmr_q_scatter_reals, shmr_reals, shmr_sf_reals, shmr_q_reals, shmr_scatter_reals, shmr_sf_scatter_reals, shmr_q_scatter_reals, shmr_inverted_reals, shmr_inverted_sf_reals, shmr_inverted_q_reals = zip(*results)
         # Save off the bootstrapped error estimates as half the 16-84 percentile range
         self.fsat_bootstrap_err = (f_sat - np.percentile(fsat_reals, 16, axis=0), np.percentile(fsat_reals, 84, axis=0) - f_sat)
         self.fsat_sf_bootstrap_err = (f_sat_sf - np.percentile(fsat_sf_reals, 16, axis=0), np.percentile(fsat_sf_reals, 84, axis=0) - f_sat_sf)
@@ -514,6 +520,9 @@ class GroupCatalog:
         self.shmr_scatter_bootstrap_err = (np.percentile(shmr_scatter_reals, 16, axis=0), np.percentile(shmr_scatter_reals, 84, axis=0))
         self.shmr_sf_scatter_bootstrap_err = (np.percentile(shmr_sf_scatter_reals, 16, axis=0), np.percentile(shmr_sf_scatter_reals, 84, axis=0))
         self.shmr_q_scatter_bootstrap_err = (np.percentile(shmr_q_scatter_reals, 16, axis=0), np.percentile(shmr_q_scatter_reals, 84, axis=0))
+        self.shmr_inverted_bootstrap_err = (np.percentile(shmr_inverted_reals, 16, axis=0), np.percentile(shmr_inverted_reals, 84, axis=0))
+        self.shmr_inverted_sf_bootstrap_err = (np.percentile(shmr_inverted_sf_reals, 16, axis=0), np.percentile(shmr_inverted_sf_reals, 84, axis=0))
+        self.shmr_inverted_q_bootstrap_err = (np.percentile(shmr_inverted_q_reals, 16, axis=0), np.percentile(shmr_inverted_q_reals, 84, axis=0))
 
         t2 = time.time()
         print(f"Bootstrapping complete in {t2-t1:.2f} seconds.")

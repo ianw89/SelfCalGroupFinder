@@ -568,14 +568,12 @@ bgs_sv3_list : list[GroupCatalog] = [
     bgs_y3_like_sv3_nn_c3,
 ]
 bgs_aux_list : list[GroupCatalog] = [
-    bgs_y3_fiberonly_1pass,
     bgs_nn_sdsslike,
-    bgs_y1_pzp_2_6_c2_vmaxold,
 ]
 bgs_y1_list : list[GroupCatalog] = [
-    bgs_y1_pzp_2_6_c3,
+    bgs_y1_pzp_2_6_c4,
 ]
 bgs_y3_list : list[GroupCatalog] = [
-    bgs_y3_pzp_2_6_c3,
-    bgs_y3_pzp_2_6_c3_1p,
+    bgs_y3_pzp_2_6_c4,
+    bgs_y3_pzp_2_6_c4_1p,
 ]

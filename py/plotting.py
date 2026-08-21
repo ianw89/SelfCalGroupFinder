@@ -302,21 +302,38 @@ def shmr_scatterplot(catalog: GroupCatalog, selection):
     plt.draw()
 
 
-def SHMR_inverted(f):
+def SHMR_inverted(f: GroupCatalog, show_all=False, savedata=False):
+    clean = f.centrals
+    mean_all = np.log10(clean.groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted))
+    means_b = np.log10(clean.loc[~clean['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted))
+    means_r = np.log10(clean.loc[clean['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted))
+
+    yerr_all_lower, yerr_all_upper = safe_log_err(mean_all, f.shmr_inverted_bootstrap_err)
+    yerr_b_lower, yerr_b_upper = safe_log_err(means_b, f.shmr_inverted_sf_bootstrap_err)
+    yerr_r_lower, yerr_r_upper = safe_log_err(means_r, f.shmr_inverted_q_bootstrap_err)
+
+    amask = ~np.isnan(mean_all) & ~np.isnan(yerr_all_lower) & ~np.isnan(yerr_all_upper)
+    rmask = ~np.isnan(means_r) & ~np.isnan(yerr_r_lower) & ~np.isnan(yerr_r_upper)
+    bmask = ~np.isnan(means_b) & ~np.isnan(yerr_b_lower) & ~np.isnan(yerr_b_upper)
 
     plt.figure(dpi=DPI)
-    means = np.log10(f.centrals[f.centrals['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted))
-    scatter = f.centrals.loc[f.centrals['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(Mhalo_std_vmax_weighted)
-    plt.errorbar(logmstar_labels, means, yerr=scatter, label=get_dataset_display_name(f), color='r', elinewidth=1)
+    x_vals = logmstar_labels
 
-    means = np.log10(f.centrals[~f.centrals['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted))
-    scatter = f.centrals.loc[~f.centrals['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(Mhalo_std_vmax_weighted)
-    plt.errorbar(logmstar_labels, means, yerr=scatter, label=get_dataset_display_name(f), color='b', elinewidth=1)
-    plt.ylabel('log$(M_h)~[M_\\odot]$')
-    plt.xlabel('log$(M_{\\star})~[M_\\odot / h^2]$')
-    plt.title("SHMR Inverted (Mean w/ scatter)")
+    if show_all:
+        save_plot_data(9, "inverted_combined", x_vals[amask], mean_all[amask], yerrbarlow=yerr_all_lower[amask], yerrbarhigh=yerr_all_upper[amask]) if savedata else None
+        plt.errorbar(x_vals[amask], mean_all[amask], yerr=[yerr_all_lower[amask], yerr_all_upper[amask]], label='All', fmt='o', markerfacecolor='k', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
+    save_plot_data(9, "inverted_blue", x_vals[bmask], means_b[bmask], yerrbarlow=yerr_b_lower[bmask], yerrbarhigh=yerr_b_upper[bmask]) if savedata else None
+    plt.errorbar(x_vals[bmask], means_b[bmask], yerr=[yerr_b_lower[bmask], yerr_b_upper[bmask]], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=5, markeredgecolor='midnightblue', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='midnightblue')
+    save_plot_data(9, "inverted_red", x_vals[rmask], means_r[rmask], yerrbarlow=yerr_r_lower[rmask], yerrbarhigh=yerr_r_upper[rmask]) if savedata else None
+    plt.errorbar(x_vals[rmask], means_r[rmask], yerr=[yerr_r_lower[rmask], yerr_r_upper[rmask]], label='Q Centrals', fmt='o', markerfacecolor='red', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
+    # No shaded systematic errors here as we didn't save it in MCMC chains.
+
+    plt.ylabel('log$(M_h~/~[M_\\odot h^{-1}])$')
+    plt.xlabel('log$(M_{\\star}~/~[M_\\odot h^{-2}])$')
     plt.ylim(10,15)
-    plt.xlim(7,12.5)
+    plt.xlim(6.85,12.5)
+    plt.legend()
+    plt.tight_layout()
 
 def LHMR_inverted(f):
 
