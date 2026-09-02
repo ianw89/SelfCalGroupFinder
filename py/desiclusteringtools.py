@@ -35,7 +35,6 @@ def save_wp_for_maggmr(savedir, results):
 
         save_wp_dr2format(os.path.join(savedir, fname), to_save)
 
-
 def load_allcounts_from_disk(base_dir, pattern):
     """
     Recursively searches for and loads all 'allcounts*.npy' files from a base directory.
@@ -71,8 +70,9 @@ def load_allcounts_from_disk(base_dir, pattern):
                 # Default sample_type to 'ALL' if not present in filename
                 if params.get('sample_type') is None:
                     params['sample_type'] = 'ALL'
-                
-                print(f"Found and loading: {file}")
+
+                if len(loaded_results) < 5:
+                    print(f"Found and loading: {file}")
                 try:
                     # Load the TwoPointEstimator object
                     estimator = TwoPointEstimator.load(full_path)
@@ -521,9 +521,10 @@ def plot_wp_QSF_bins(loaded_results, weight_type):
         plt.show()
 
 
-def plot_weight_comparison(loaded_results):
+def plot_weight_comparison(loaded_results, zmatch=True):
     """
     Compares wp(rp) for different weight types, holding all other parameters constant.
+    If zmatch is True, only compares results with matching redshift ranges.
 
     Generates a plot for each combination of parameters (e.g., mag_range, sersic cut,
     sample type) that has been measured with more than one weight type.
@@ -539,7 +540,13 @@ def plot_weight_comparison(loaded_results):
         # The weight type will be used for labeling, not for grouping
         p.pop('weights', None)
         # Create a stable key from the remaining parameters
-        key = tuple(sorted(p.items()))
+        if zmatch:
+            key = tuple(sorted(p.items()))
+        else:
+            # If not matching by redshift, remove zmin and zmax from the key
+            p.pop('zmin', None)
+            p.pop('zmax', None)
+            key = tuple(sorted(p.items()))
 
         if key not in results_by_params:
             results_by_params[key] = []
@@ -570,16 +577,16 @@ def plot_weight_comparison(loaded_results):
                     rp, wp = estimator.get_corr(return_sep=True, mode='wp')
                     wp_err = None
 
-                ax.errorbar(rp, wp, yerr=wp_err, label=weight_type, fmt='-o', capsize=3, alpha=0.8)
+                ax.errorbar(rp, wp, yerr=wp_err, label=weight_type, fmt='o', capsize=3, alpha=0.8)
 
             # Create a descriptive title from the parameters
             param_dict = dict(param_key)
             title_parts = [
                 f"Mag: {param_dict.get('mag_range', 'N/A')}",
-                f"Sersic: {param_dict.get('sersic', 'N/A')}",
                 f"Type: {param_dict.get('sample_type', 'N/A')}",
-                f"z: {param_dict.get('zmin', '?')}-{param_dict.get('zmax', '?')}"
             ]
+            if 'third_property' in param_dict:
+                title_parts.append(f"3rd: {param_dict.get('third_property', 'N/A')} {param_dict.get('third_property_range', 'N/A')}")
             ax.set_title("Weight Comparison: " + ", ".join(title_parts))
             ax.set_xscale('log')
             ax.set_yscale('log')
