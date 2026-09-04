@@ -35,6 +35,26 @@ def save_wp_for_maggmr(savedir, results):
 
         save_wp_dr2format(os.path.join(savedir, fname), to_save)
 
+def save_wp_for_3prop(savedir, results):
+    # make savedir if needed
+    if not os.path.exists(savedir):
+        os.makedirs(savedir)
+
+    for item in results:
+        params = item['params']
+        estimator = item['data']
+
+        if params['njack'] is not None and int(params['njack']) > 1:
+            rp, wp, cov = estimator.get_corr(return_sep=True, return_cov=True, mode='wp')
+        else:
+            raise ValueError("Covariance matrix is required for 3-property results, but njack <= 1. Filter results beforehand.")
+
+        fname = f"wp_mag{params['mag_range']}_{params['sample_type']}_{params['third_property']}{params['third_property_range']}.dat"
+
+        to_save = (rp, wp, cov)
+
+        save_wp_dr2format(os.path.join(savedir, fname), to_save)
+
 def load_allcounts_from_disk(base_dir, pattern):
     """
     Recursively searches for and loads all 'allcounts*.npy' files from a base directory.
