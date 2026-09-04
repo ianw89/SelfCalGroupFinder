@@ -1,9 +1,12 @@
+from matplotlib.container import ErrorbarContainer
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import astropy.coordinates as coord
 import astropy.units as u
 from matplotlib.patches import Circle
+from matplotlib.colors import to_rgba
+
 import nnanalysis as nn
 import sys
 from sklearn.metrics import mean_squared_error
@@ -302,7 +305,67 @@ def shmr_scatterplot(catalog: GroupCatalog, selection):
     plt.draw()
 
 
-def SHMR_inverted(f: GroupCatalog, show_all=False, savedata=False):
+def SHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None, savedata=False):
+    # This does matter for SHMR
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5.5), dpi=DPI)
+
+    # --- Left panel: SHMR (M* vs Mh) ---
+    ax = axes[0]
+    clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
+    mean_all = clean.groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+    means_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+    means_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+    #shmr_r_mean, shmr_r_err, shmr_r_scatter_mean, shmr_r_scatter_err, shmr_b_mean, shmr_b_err, shmr_b_scatter_mean, shmr_b_scatter_err, shmr_all_mean, shmr_all_err, shmr_all_scatter_mean, shmr_all_scatter_err = shmr_variance_from_saved()
+
+    yerr_all_lower, yerr_all_upper = safe_log_err(np.log10(mean_all), f.shmr_bootstrap_err)
+    yerr_b_lower, yerr_b_upper = safe_log_err(np.log10(means_b), f.shmr_sf_bootstrap_err)
+    yerr_r_lower, yerr_r_upper = safe_log_err(np.log10(means_r), f.shmr_q_bootstrap_err)
+
+    amask = (mean_all > 0) & ~np.isnan(mean_all) 
+    rmask = (means_r > 0) & ~np.isnan(means_r)
+    bmask = (means_b > 0) & ~np.isnan(means_b)
+    ratio = means_r / means_b
+
+    x_vals = np.log10(Mhalo_labels)
+    x_vals2 = np.log10(Mhalo_labels2)
+
+    if show_all:
+        save_plot_data(9, "combined", x_vals2[amask], np.log10(mean_all[amask]), yerrbarlow=yerr_all_lower[amask], yerrbarhigh=yerr_all_upper[amask]) if savedata else None
+        ax.errorbar(x_vals2[amask], np.log10(mean_all[amask]), yerr=[yerr_all_lower[amask], yerr_all_upper[amask]], label='All', fmt='o', markerfacecolor='k', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
+    save_plot_data(9, "blue", x_vals2[bmask], np.log10(means_b[bmask]), yerrbarlow=yerr_b_lower[bmask], yerrbarhigh=yerr_b_upper[bmask]) if savedata else None
+    ax.errorbar(x_vals2[bmask], np.log10(means_b[bmask]), yerr=[yerr_b_lower[bmask], yerr_b_upper[bmask]], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=5, markeredgecolor='midnightblue', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='midnightblue')
+    save_plot_data(9, "red", x_vals2[rmask], np.log10(means_r[rmask]), yerrbarlow=yerr_r_lower[rmask], yerrbarhigh=yerr_r_upper[rmask]) if savedata else None
+    ax.errorbar(x_vals2[rmask], np.log10(means_r[rmask]), yerr=[yerr_r_lower[rmask], yerr_r_upper[rmask]], label='Q Centrals', fmt='o', markerfacecolor='red', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
+    # No shaded systematic errors here as we didn't save it in MCMC chains.
+    
+    ax.set_xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
+    ax.set_ylabel(r'log$(\langle M_{\star} \rangle / [M_{\odot} h^{-2}])$')
+    ax.set_xlim(10,15)
+    ax.set_ylim(7,12)
+
+    if inset is not None:
+        ax_inset = ax.inset_axes([0.45, 0.1, 0.5, 0.5])
+        ax_inset.tick_params(axis='both', which='major', labelsize=10)
+        inset_means_r = inset.centrals.loc[inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+        inset_means_b = inset.centrals.loc[~inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
+        rimask = inset_means_r > 0 & ~np.isnan(inset_means_r)
+        bimask = inset_means_b > 0 & ~np.isnan(inset_means_b)
+        ratio2 = inset_means_r / inset_means_b
+
+        save_plot_data(9, "bgs_inset", x_vals2[rmask & bmask], np.log10(ratio[rmask & bmask])) if savedata else None
+        ax_inset.plot(x_vals2[rmask & bmask], np.log10(ratio[rmask & bmask]), '-', color='k', label='BGS')
+        save_plot_data(9, "sdss_inset", x_vals2[rimask & bimask][:-3], np.log10(ratio2[rimask & bimask][:-3])) if savedata else None
+        ax_inset.plot(x_vals2[rimask & bimask][:-3], np.log10(ratio2[rimask & bimask][:-3]), '-', color='purple', label='SDSS')
+
+        ax_inset.set_xlim(10,15)
+        ax_inset.legend(fontsize=8)
+        ax_inset.set_ylabel('log(Q/SF)', fontsize=10)
+        ax_inset.axhline(0.0, color='gray', linestyle='--', alpha=0.5)
+
+    ax.legend()
+
+    # --- Right panel: SHMR Inverted (Mh vs M*) ---
+    ax = axes[1]
     clean = f.centrals
     mean_all = np.log10(clean.groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted))
     means_b = np.log10(clean.loc[~clean['QUIESCENT']].groupby('Mstar_bin', observed=False).apply(Mhalo_vmax_weighted))
@@ -316,24 +379,90 @@ def SHMR_inverted(f: GroupCatalog, show_all=False, savedata=False):
     rmask = ~np.isnan(means_r) & ~np.isnan(yerr_r_lower) & ~np.isnan(yerr_r_upper)
     bmask = ~np.isnan(means_b) & ~np.isnan(yerr_b_lower) & ~np.isnan(yerr_b_upper)
 
-    plt.figure(dpi=DPI)
     x_vals = logmstar_labels
 
     if show_all:
         save_plot_data(9, "inverted_combined", x_vals[amask], mean_all[amask], yerrbarlow=yerr_all_lower[amask], yerrbarhigh=yerr_all_upper[amask]) if savedata else None
-        plt.errorbar(x_vals[amask], mean_all[amask], yerr=[yerr_all_lower[amask], yerr_all_upper[amask]], label='All', fmt='o', markerfacecolor='k', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
+        ax.errorbar(x_vals[amask], mean_all[amask], yerr=[yerr_all_lower[amask], yerr_all_upper[amask]], label='All', fmt='o', markerfacecolor='k', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
     save_plot_data(9, "inverted_blue", x_vals[bmask], means_b[bmask], yerrbarlow=yerr_b_lower[bmask], yerrbarhigh=yerr_b_upper[bmask]) if savedata else None
-    plt.errorbar(x_vals[bmask], means_b[bmask], yerr=[yerr_b_lower[bmask], yerr_b_upper[bmask]], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=5, markeredgecolor='midnightblue', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='midnightblue')
+    ax.errorbar(x_vals[bmask], means_b[bmask], yerr=[yerr_b_lower[bmask], yerr_b_upper[bmask]], label='This Work', fmt='o', markerfacecolor='blue', markersize=5, markeredgecolor='midnightblue', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='midnightblue')
     save_plot_data(9, "inverted_red", x_vals[rmask], means_r[rmask], yerrbarlow=yerr_r_lower[rmask], yerrbarhigh=yerr_r_upper[rmask]) if savedata else None
-    plt.errorbar(x_vals[rmask], means_r[rmask], yerr=[yerr_r_lower[rmask], yerr_r_upper[rmask]], label='Q Centrals', fmt='o', markerfacecolor='red', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
+    ax.errorbar(x_vals[rmask], means_r[rmask], yerr=[yerr_r_lower[rmask], yerr_r_upper[rmask]], label='This Work', fmt='o', markerfacecolor='red', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
     # No shaded systematic errors here as we didn't save it in MCMC chains.
 
-    plt.ylabel('log$(M_h~/~[M_\\odot h^{-1}])$')
-    plt.xlabel('log$(M_{\\star}~/~[M_\\odot h^{-2}])$')
-    plt.ylim(10,15)
-    plt.xlim(6.85,12.5)
-    plt.legend()
+    eb_kw = {  'ls': '', 'lw': 2, 'elinewidth': 2, 'capsize': 5, 'markersize': 5, 'mew': 1.5 }
+    logh = np.log10(0.7)
+    ar = to_rgba('r', 0.1)
+    ab = to_rgba('b', 0.1)
+
+    # Mandelbaum+06
+    smr = np.array([10.39, 10.70, 10.97, 11.20, 11.38, 11.56, 11.75])
+    hmr = np.array([12.17, 12.14, 12.50, 12.89, 13.25, 13.63, 14.05])
+    hmr_le = np.array([0.24, 0.14, 0.05, 0.04, 0.03, 0.03, 0.05])
+    hmr_ue = np.array([0.19, 0.12, 0.04, 0.04, 0.03, 0.03, 0.05])
+    smb = np.array([10.29, 10.63, 10.94, 11.18, 11.35, 11.54, 11.69])
+    hmb = np.array([11.80, 11.73, 12.15, 12.61, 12.69, 12.79, 12.79])
+    hmb_le = np.array([0.20, 0.17, 0.10, 0.11, 0.25, 1.01, 2.23])
+    hmb_ue = np.array([0.16, 0.13, 0.08, 0.10, 0.19, 0.43, 0.58])
+    m1 = ax.errorbar(smr, hmr, yerr=[hmr_le, hmr_ue], c='r', mec='r', mfc=ar, marker='D', label=r"$\rm Mandelbaum+2016~(red)$", **eb_kw)
+    m2 = ax.errorbar(smb, hmb, yerr=[hmb_le, hmb_ue], c='b', mec='b', mfc=ab, marker='D', label=r"$\rm Mandelbaum+2016~(blue)$", **eb_kw)
+
+    # Bilicki
+    x = np.linspace(9, 12, 100)
+    sm, hm = np.loadtxt(DATA_FOLDER + "/EXTERNAL_PLOTS/bilicki_red.dat", delimiter=",", skiprows=1).T
+    sm, hm = sm - logh, hm + logh
+    hm = np.poly1d(np.polyfit(sm, hm, 4))(x)
+    b2, = ax.plot(x, hm, c='darkred', lw=2, dashes=[4, 2], label=r"$\rm Bilicki+2021~(red)$")
+    sm, hm = np.loadtxt(DATA_FOLDER + "/EXTERNAL_PLOTS/bilicki_blue.dat", delimiter=",", skiprows=1).T
+    sm, hm = sm - logh, hm + logh
+    hm = np.poly1d(np.polyfit(sm, hm, 4))(x)
+    b1, = ax.plot(x, hm, c='midnightblue', lw=2, dashes=[4, 2], label=r"$\rm Bilicki+2021~(blue)$")
+
+    # More+2011
+    x = np.linspace(9.9, 11.4, 100)
+    sml, hml = np.loadtxt(DATA_FOLDER + "/EXTERNAL_PLOTS/more_red_l.dat", delimiter=",", skiprows=1).T
+    smu, hmu = np.loadtxt(DATA_FOLDER + "/EXTERNAL_PLOTS/more_red_u.dat", delimiter=",", skiprows=1).T
+    sml, smu = sml - logh, smu - logh
+    yl = np.poly1d(np.polyfit(sml, hml, 5))(x)
+    yu = np.poly1d(np.polyfit(smu, hmu, 5))(x)
+    ax.fill_between(x, yl, yu, color='r', alpha=0.5, lw=0, zorder=-99)
+    ax.fill_between([0], [0], [0], color='r', alpha=1, lw=0, zorder=-99, label=r"$\rm More+2011~(red)$")
+    x = np.linspace(9.6, 10.9, 100)
+    sml, hml = np.loadtxt(DATA_FOLDER + "/EXTERNAL_PLOTS/more_blue_l.dat", delimiter=",", skiprows=1).T
+    smu, hmu = np.loadtxt(DATA_FOLDER + "/EXTERNAL_PLOTS/more_blue_u.dat", delimiter=",", skiprows=1).T
+    sml, smu = sml - logh, smu - logh
+    yl = np.poly1d(np.polyfit(sml, hml, 5))(x)
+    yu = np.poly1d(np.polyfit(smu, hmu, 5))(x)
+    ax.fill_between(x, yl, yu, color='b', alpha=0.5, lw=0, zorder=-99)
+    ax.fill_between([0], [0], [0], color='b', alpha=1, lw=0, zorder=-99, label=r"$\rm More+2011~(blue)$")
+
+    # Make a custom legend so we show each work only once in black instead of red and blue versions for all
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    from matplotlib.container import ErrorbarContainer
+    from matplotlib.lines import Line2D
+    from matplotlib.collections import LineCollection
+    def make_errorbar_handle(label, color='k', marker='o', mfc='k'):
+        line = Line2D([], [], ls="none", marker=marker,
+                    color=color, markerfacecolor=mfc, markersize=5, markeredgecolor=color, markeredgewidth=1.5)
+        barline = LineCollection(np.empty((2, 2, 2)), colors=color)
+        return ErrorbarContainer((line, [line], [barline]), has_xerr=False, has_yerr=True, label=label)
+    
+    custom_handles = [
+        make_errorbar_handle('This Work'),
+        make_errorbar_handle(r"$\rm Mandelbaum+2016$", marker='D', mfc=ar, color='k'),
+        Line2D([0], [0], color='k', dashes=[3, 1.5], lw=2, label=r"$\rm Bilicki+2021$"),
+        Patch(facecolor='k', alpha=0.5, label=r"$\rm More+2011$"),
+    ]
+    ax.legend(handles=custom_handles, loc='best', fontsize=16)
+
+    ax.set_ylabel('log$(M_h~/~[M_\\odot h^{-1}])$')
+    ax.set_xlabel('log$(M_{\\star}~/~[M_\\odot h^{-2}])$')
+    ax.set_ylim(10.25,15)
+    ax.set_xlim(6.85,12.3)
+
     plt.tight_layout()
+
 
 def LHMR_inverted(f):
 
@@ -595,64 +724,6 @@ def SHMR_likereview(f: GroupCatalog):
     #plt.legend()
     plt.tight_layout()
     
-
-def SHMR_savederr(f: GroupCatalog, show_all=False, inset: GroupCatalog=None, savedata=False):
-    # This does matter for SHMR
-    clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
-    mean_all = clean.groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
-    means_r = clean.loc[clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
-    means_b = clean.loc[~clean['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
-    #shmr_r_mean, shmr_r_err, shmr_r_scatter_mean, shmr_r_scatter_err, shmr_b_mean, shmr_b_err, shmr_b_scatter_mean, shmr_b_scatter_err, shmr_all_mean, shmr_all_err, shmr_all_scatter_mean, shmr_all_scatter_err = shmr_variance_from_saved()
-
-    yerr_all_lower, yerr_all_upper = safe_log_err(np.log10(mean_all), f.shmr_bootstrap_err)
-    yerr_b_lower, yerr_b_upper = safe_log_err(np.log10(means_b), f.shmr_sf_bootstrap_err)
-    yerr_r_lower, yerr_r_upper = safe_log_err(np.log10(means_r), f.shmr_q_bootstrap_err)
-
-    amask = (mean_all > 0) & ~np.isnan(mean_all) 
-    rmask = (means_r > 0) & ~np.isnan(means_r)
-    bmask = (means_b > 0) & ~np.isnan(means_b)
-    ratio = means_r / means_b
-
-    plt.figure(dpi=DPI)
-    x_vals = np.log10(Mhalo_labels)
-    x_vals2 = np.log10(Mhalo_labels2)
-
-    if show_all:
-        save_plot_data(9, "combined", x_vals2[amask], np.log10(mean_all[amask]), yerrbarlow=yerr_all_lower[amask], yerrbarhigh=yerr_all_upper[amask]) if savedata else None
-        plt.errorbar(x_vals2[amask], np.log10(mean_all[amask]), yerr=[yerr_all_lower[amask], yerr_all_upper[amask]], label='All', fmt='o', markerfacecolor='k', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
-    save_plot_data(9, "blue", x_vals2[bmask], np.log10(means_b[bmask]), yerrbarlow=yerr_b_lower[bmask], yerrbarhigh=yerr_b_upper[bmask]) if savedata else None
-    plt.errorbar(x_vals2[bmask], np.log10(means_b[bmask]), yerr=[yerr_b_lower[bmask], yerr_b_upper[bmask]], label='SF Centrals', fmt='o', markerfacecolor='blue', markersize=5, markeredgecolor='midnightblue', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='midnightblue')
-    save_plot_data(9, "red", x_vals2[rmask], np.log10(means_r[rmask]), yerrbarlow=yerr_r_lower[rmask], yerrbarhigh=yerr_r_upper[rmask]) if savedata else None
-    plt.errorbar(x_vals2[rmask], np.log10(means_r[rmask]), yerr=[yerr_r_lower[rmask], yerr_r_upper[rmask]], label='Q Centrals', fmt='o', markerfacecolor='red', markersize=5, markeredgecolor='k', markeredgewidth=1.5, elinewidth=2, capsize=5, ecolor='k')
-    # No shaded systematic errors here as we didn't save it in MCMC chains.
-    
-    plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
-    plt.ylabel(r'log$(\langle M_{\star} \rangle / [M_{\odot} h^{-2}])$')
-    plt.xlim(10,15)
-    plt.ylim(7,12)
-
-    if inset is not None:
-        ax_inset = plt.gca().inset_axes([0.45, 0.1, 0.5, 0.5])
-        ax_inset.tick_params(axis='both', which='major', labelsize=10)
-        inset_means_r = inset.centrals.loc[inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
-        inset_means_b = inset.centrals.loc[~inset.centrals['QUIESCENT']].groupby('Mh_bin2', observed=False).apply(mstar_vmax_weighted)
-        rimask = inset_means_r > 0 & ~np.isnan(inset_means_r)
-        bimask = inset_means_b > 0 & ~np.isnan(inset_means_b)
-        ratio2 = inset_means_r / inset_means_b
-
-        save_plot_data(9, "bgs_inset", x_vals2[rmask & bmask], np.log10(ratio[rmask & bmask])) if savedata else None
-        ax_inset.plot(x_vals2[rmask & bmask], np.log10(ratio[rmask & bmask]), '-', color='k', label='BGS')
-        save_plot_data(9, "sdss_inset", x_vals2[rimask & bimask][:-3], np.log10(ratio2[rimask & bimask][:-3])) if savedata else None
-        ax_inset.plot(x_vals2[rimask & bimask][:-3], np.log10(ratio2[rimask & bimask][:-3]), '-', color='purple', label='SDSS')
-
-        ax_inset.set_xlim(10,15)
-        ax_inset.legend(fontsize=8)
-        ax_inset.set_ylabel('log(Q/SF)', fontsize=10)
-        ax_inset.axhline(0.0, color='gray', linestyle='--', alpha=0.5)
-
-    plt.legend()
-
-    plt.tight_layout()
 
 def LHMR_scatter_nsat(f: GroupCatalog):
     # Show evolution of scatter with Nsat cuts. No error bars.
