@@ -927,6 +927,40 @@ def LHMR_scatter_savederr(f: GroupCatalog, show_all=False, savedata=False):
     plt.ylabel(r'$\sigma_{M_r}$')
     plt.tight_layout()
 
+def shao_shmr_scatter_eq(logMh):
+    # These all are H=100h
+    sigma_p = 0.17 # +/- 0.02
+    sigma_p_err = 0.02
+    sigma_l = 0.68 # +0.21 -0.33
+    sigma_l_err = 0.27
+    logMp = 12.03 # +/- 0.13
+    logMp_err = 0.13
+    logMl = 10.5 # fixed
+    # sigma is sigma_p is above Mp, and below is sigma_p + (sigma_l - sigma_p) * (logMh - logMp) / (logMl - logMp)
+    highM_result = sigma_p
+    lowM_result = sigma_p + (sigma_l - sigma_p) * (logMh - logMp) / (logMl - logMp)
+    shao_best = np.where(logMh >= logMp, highM_result, lowM_result)
+
+    np.random.seed(4598)
+    N = 3000
+    sigma_p_samples = np.random.normal(sigma_p, sigma_p_err, N)
+    sigma_l_samples = np.random.normal(sigma_l, sigma_l_err, N)
+    logMp_samples = np.random.normal(logMp, logMp_err, N)
+    # Reshape samples to (N, 1) so they broadcast against logMh's (len(logMh),) shape,
+    # producing (N, len(logMh)) arrays.
+    sigma_p_samples = sigma_p_samples[:, None]
+    sigma_l_samples = sigma_l_samples[:, None]
+    logMp_samples = logMp_samples[:, None]
+    logMh_2d = logMh[None, :]
+    lowM_samples = sigma_p_samples + (sigma_l_samples - sigma_p_samples) * (logMh_2d - logMp_samples) / (logMl - logMp_samples)
+    highM_samples = np.broadcast_to(sigma_p_samples, (N, len(logMh)))
+    samples = np.where(logMh_2d >= logMp_samples, highM_samples, lowM_samples)
+    # Take [16th and 84th percentiles for error bars
+    lo, hi = np.percentile(samples, [16, 84], axis=0)
+    return shao_best, lo, hi
+
+
+
 def SHMR_scatter_savederr(f: GroupCatalog, show_all=False, savedata=False):
     # This does matter on the tails again here.
     clean = f.centrals#.loc[z_flag_is_spectro_z(f.centrals['Z_ASSIGNED_FLAG'])]
@@ -1058,10 +1092,17 @@ def SHMR_scatter_litcompare(f: GroupCatalog, sdss: GroupCatalog, savedata=False)
     # arrow pointing up, because it's a lower limit
     plt.annotate('', xy=(12.0, 0.38), xytext=(12.0, 0.28), arrowprops=dict(facecolor='red', shrink=0.05, width=2, headwidth=8, alpha=0.5), annotation_clip=False)
 
+    # Shao+2026
+    logMh = np.linspace(10, 15, 100)
+    shao_scatter, shao_low, shao_hi = shao_shmr_scatter_eq(logMh)
+    save_plot_data(11, "shaoetal2026", logMh, shao_scatter, yerrshadedlow=shao_low, yerrshadedhigh=shao_hi) if savedata else None
+    plt.plot(logMh, shao_scatter, '-', color='palegreen', alpha=1.0)
+    plt.fill_between(logMh, shao_low, shao_hi, color='palegreen', alpha=0.4, label='Shao+26')
+
     plt.xlabel('log$(M_h~/~[M_\\odot h^{-1}]$)')
     plt.ylabel(r'$\sigma_{{\mathrm{log}}(M_{\star}~/~[M_{\odot} h^{-2}])}$')
     plt.xlim(10,15)
-    plt.ylim(0.0, 0.5)
+    plt.ylim(0.0, 0.7)
     plt.legend(fontsize=11)
     plt.tight_layout()
 
@@ -2471,6 +2512,7 @@ def proj_clustering_plot(gc: GroupCatalog, savedata=False):
     axes = np.array(axes).reshape(-1)  # flatten for easy indexing
 
     overall, clust_r, clust_b, clust_nosep, lsat = gc.chisqr()
+    Ndata = 15
 
     for idx in range(len(caldata.magbins) - 1):
         i = abs(caldata.magbins[idx])
@@ -2505,8 +2547,8 @@ def proj_clustering_plot(gc: GroupCatalog, savedata=False):
                 print("lower ", wp_mock - wp_mock_err)
 
             # Put text of the chisqr value in plot
-            ax.text(0.6, 0.9, f"$\chi^2_q$: {clust_r[i+mag_start]:.1f}", transform=ax.transAxes)
-            ax.text(0.6, 0.78, f"$\chi^2_{{sf}}$: {clust_b[i+mag_start]:.1f}", transform=ax.transAxes)
+            ax.text(0.6, 0.88, f"$\\frac{{\chi^2_q}}{{N}}$: $\\frac{{{clust_r[i+mag_start]:.1f}}}{{{Ndata}}}$", transform=ax.transAxes)
+            ax.text(0.6, 0.73, f"$\\frac{{\chi^2_{{sf}}}}{{N}}$: $\\frac{{{clust_b[i+mag_start]:.1f}}}{{{Ndata}}}$", transform=ax.transAxes)
 
         else:
             wp, wp_err, radius = caldata.get_wp_all(i)
@@ -2518,7 +2560,7 @@ def proj_clustering_plot(gc: GroupCatalog, savedata=False):
             ax.fill_between(radius, np.clip(wp_mock - wp_mock_err, 0.1, None), wp_mock + wp_mock_err, color='purple', alpha=SHADED_ERR_ALPHA)
 
             # Put text of the chisqr value in plot
-            ax.text(0.6, 0.9, f"$\chi^2$: {clust_nosep[i+mag_start]:.1f}", transform=ax.transAxes)
+            ax.text(0.6, 0.88, f"$\\frac{{\chi^2}}{{N}}$: $\\frac{{{clust_nosep[i+mag_start]:.1f}}}{{{Ndata}}}$", transform=ax.transAxes)
 
         # Plot config
         ax.set_xscale('log')
@@ -2579,7 +2621,7 @@ def lsat_compare_plot(data, lsat_r, lsat_b, lsat_r_std, lsat_b_std, savedata=Fal
     axes.legend()
 
     # Put text of the chisqr value in plot
-    axes.text(.4,.93, f"$\chi^2$: {np.sum(chisqr):.1f}", transform=axes.transAxes)  
+    axes.text(.4,.89, f"$\\frac{{\chi^2}}{{N}}$: $\\frac{{{np.sum(chisqr):.1f}}}{{{len(chisqr)}}}$", transform=axes.transAxes, fontsize=20)
 
     # Twin x for Mr
     ax2=axes.twiny()
