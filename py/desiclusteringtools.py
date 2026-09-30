@@ -55,6 +55,18 @@ def save_wp_for_3prop(savedir, results):
 
         save_wp_dr2format(os.path.join(savedir, fname), to_save)
 
+
+def save_biases(savedir, results):
+    # make savedir if needed
+    if not os.path.exists(savedir):
+        os.makedirs(savedir)
+
+    # Save a single file which is a numpy table of the info for the sample and the bias value and error
+    df = pd.DataFrame(columns=['mag_range', 'sample_type', 'third_property', 'third_property_range', 'bias', 'bias_err'])
+    # TODO
+
+    
+
 def load_allcounts_from_disk(base_dir, pattern):
     """
     Recursively searches for and loads all 'allcounts*.npy' files from a base directory.

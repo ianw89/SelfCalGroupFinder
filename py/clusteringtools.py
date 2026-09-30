@@ -7,7 +7,6 @@ from matplotlib import pyplot as plt
 # Helper functions for interacting with clusting measurements once outside of the DESI/pycorr ecosystem.
 #######################################################################################
 
-
 def save_wp_dr2format(path, dat):
     # Save a tuple of (rp, wp, cov), each of which are numpy arrays, to a text file
     np.savetxt(path, np.column_stack(dat), header='rp wp cov', comments='')
@@ -51,6 +50,26 @@ def save_wp_dr1format(savedir, red_results, blue_results, all_results, magbins):
             np.save(os.path.join(savedir, f'wp_all_M{-magbins[i]:d}_cov.npy'), all_cov)
 
 
+def get_bias_for_mag(magnitude: float|np.ndarray, quiescent: bool|np.ndarray) -> float|np.ndarray:
+    import pickle
+    spline_dir = '/global/cfs/cdirs/desi/users/ianw89/clustering712/DA2/LSS/loa-v1/LSScats/v1.1/v0.3/'
+    spline_file = os.path.join(spline_dir, 'luminosity_bias_splines.pkl')
+
+    # Ensure the spline file exists
+    if not os.path.exists(spline_file):
+        raise FileNotFoundError(f"Spline file not found: {spline_file}")
+
+    with open(spline_file, 'rb') as f:
+        splines = pickle.load(f)
+        spline_Q = splines['spline_Q']
+        spline_SF = splines['spline_SF']
+
+    if quiescent:
+        return spline_Q(magnitude)
+    else:
+        return spline_SF(magnitude)
+
+
 def get_bias(ref_wp, target_wp):
     """
     Similar to above, compares two wp(rp) measurements by calculating the bias of one with respect to the other.
@@ -73,7 +92,7 @@ def get_bias(ref_wp, target_wp):
     rp_ref, wp_ref, cov_ref = ref_wp
     rp_target, wp_target, cov_target = target_wp
 
-    if not np.allclose(rp_ref, rp_target, rtol=0.1):
+    if not np.allclose(rp_ref, rp_target, rtol=0.01):
         print("WARNING: rp values of reference and target are not closely matched.")
         print("rp_ref:", rp_ref)
         print("rp_target:", rp_target)
@@ -84,10 +103,18 @@ def get_bias(ref_wp, target_wp):
         C_tot = cov_target + cov_ref  
         reg = np.eye(C_tot.shape[0]) * 1e-12
         inv_cov = np.linalg.inv(C_tot + reg)
+
+        # Check if c_tot @ inv_cov is close to identity
+        identity_check = C_tot @ inv_cov
+        if not np.allclose(identity_check, np.eye(C_tot.shape[0]), rtol=1e-5):
+            print("WARNING: C_tot @ inv_cov is not close to identity.")
+            print("C_tot @ inv_cov:\n", identity_check)
+
         return residual.T @ inv_cov @ residual
 
     # Method 2: assume the correlation matrix from the reference is correct for all subsamples
     # Use the diagonal elements from the subsample, but recompute the off-diagonal elements from the reference correlation matrix
+    # I have now been convinced that this is not a valid method.
     cov_target_modified = np.diag(np.diag(cov_target))  # Keep only the diagonal elements
     corr_ref = cov_ref / np.outer(np.sqrt(np.diag(cov_ref)), np.sqrt(np.diag(cov_ref)))  # Compute the correlation matrix from the reference
     cov_target_modified = np.outer(np.sqrt(np.diag(cov_target)), np.sqrt(np.diag(cov_target))) * corr_ref  # Reconstruct the covariance matrix using the reference correlation matrix
@@ -102,13 +129,15 @@ def get_bias(ref_wp, target_wp):
         return residual.T @ inv_cov @ residual
 
     # Method 3: Use only the diagonal elements of the covariance matrices (i.e., ignore correlations)
+    # This is reasonable because the error bars on the reference are tiny anyway and the off-diagonal elements of the target are quite noisy.
     def _chisqr_diagonly(bias):
         residual = wp_target - (bias**2 * wp_ref)
         C_tot = np.diag(np.diag(cov_target)) + np.diag(np.diag(cov_ref))  # Only use diagonal elements
         inv_cov = np.linalg.inv(C_tot)
         return residual.T @ inv_cov @ residual
 
-    # Method 4: Use target only, unmodified. Reference error bars are small anyway.
+    # Method 4: Use target only, unmodified. 
+    # This is also reasonable because reference error bars are tiny by comparison.
     def _chisqr_targetonly(bias):
         residual = wp_target - (bias**2 * wp_ref)
         C_tot = cov_target  # Only use target covariance
@@ -140,10 +169,43 @@ def get_bias(ref_wp, target_wp):
         bias_down -= step
     bias_err_down = best_fit_bias - bias_down
 
-    return best_fit_bias, bias_err_up, bias_err_down
+    return best_fit_bias, bias_err_up, bias_err_down, chi2_min
  
 
+def get_bias_closedform(ref_wp, target_wp):
+    rp_ref, wp_ref, cov_ref = ref_wp
+    rp_target, wp_target, cov_target = target_wp
 
+    if not np.allclose(rp_ref, rp_target, rtol=0.01):
+        print("WARNING: rp values of reference and target are not closely matched.")
+        print("rp_ref:", rp_ref)
+        print("rp_target:", rp_target)
+
+    C_tot = cov_target + cov_ref
+    reg = np.eye(C_tot.shape[0]) * 1e-12
+    inv_cov = np.linalg.inv(C_tot + reg)
+
+    # For A=b^2, chi2 is a quadratic function of A, which allows an exact closed-form solution for the best-fit amplitude.
+    # chi2(A) = a*A^2 - 2*b*A + c 
+    a = wp_ref @ inv_cov @ wp_ref
+    b = wp_ref @ inv_cov @ wp_target
+    c = wp_target @ inv_cov @ wp_target
+
+    A_hat = b / a # best-fit amplitude
+    sigma_A = 1 / np.sqrt(a) # exact 1-sigma width in A (from curvature of the quadratic)
+    chi2_min = c - b**2 / a
+
+    best_fit_bias = np.sqrt(A_hat)
+
+    # TODO double check this math
+    # Delta chi2 = 1 in A-space is exact: A = A_hat +/- sigma_A. Transform to bias via sqrt.
+    bias_up = np.sqrt(A_hat + sigma_A) - best_fit_bias
+    if A_hat - sigma_A > 0:
+        bias_down = best_fit_bias - np.sqrt(A_hat - sigma_A)
+    else:
+        bias_down = best_fit_bias   # amplitude consistent with 0; one-sided/undefined lower bound
+
+    return best_fit_bias, bias_up, bias_down, chi2_min
 
 
 def bias_plots(results):
