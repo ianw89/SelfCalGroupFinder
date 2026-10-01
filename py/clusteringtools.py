@@ -61,13 +61,23 @@ def get_bias_for_mag(magnitude: float|np.ndarray, quiescent: bool|np.ndarray) ->
 
     with open(spline_file, 'rb') as f:
         splines = pickle.load(f)
-        spline_Q = splines['spline_Q']
+        spline_Q = splines['spline_Q'] # cubic spline
         spline_SF = splines['spline_SF']
+        linear_Q = splines['linear_Q'] # linear interpolation
+        linear_SF = splines['linear_SF']
 
     if quiescent:
-        return spline_Q(magnitude)
+        # -22.53977930844298 to -18.042940914856334
+        if magnitude < -22.6 or magnitude > -17.9:
+            raise ValueError(f"Requested magnitude {magnitude} is outside the range of the quiescent spline data (-22.5397 to -18.0429).")
+        
+        return linear_Q(magnitude)
     else:
-        return spline_SF(magnitude)
+        # -22.53977930844298 to -16.66915776095745
+        if magnitude < -22.6 or magnitude > -16.5:
+            raise ValueError(f"Requested magnitude {magnitude} is outside the range of the star-forming spline data (-22.5397 to -16.6691).")
+        
+        return linear_SF(magnitude)
 
 
 def get_bias(ref_wp, target_wp):
