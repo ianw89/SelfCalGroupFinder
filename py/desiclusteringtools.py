@@ -4,8 +4,9 @@ import re
 from matplotlib import pyplot as plt
 from pycorr import TwoPointEstimator
 from matplotlib.lines import Line2D
-from clusteringtools import save_wp_dr2format
+from clusteringtools import save_wp_dr2format, get_bias_for_mag, get_bias_closedform 
 from plotting import save_plot_data
+import fitsio
 
 #######################################################################################
 # My helper functions for interacting with pycorr TwoPointEstimator objects and such.
@@ -96,16 +97,80 @@ def save_wp_for_3prop(savedir, results):
         save_wp_dr2format(os.path.join(savedir, fname), to_save)
 
 
-def save_biases(savedir, results):
-    # make savedir if needed
-    if not os.path.exists(savedir):
-        os.makedirs(savedir)
+def process_estimator(result: dict, reference_info, base_dir: str):
+    rp, wp, cov = result['data'].get_corr(return_sep=True, return_cov=True, mode='wp')
+    result['rp'] = rp
+    result['wp'] = wp
+    result['cov'] = cov
+    del result['data'] # done with it, leaving tons of these in memory is problematic on the login node 
 
-    # Save a single file which is a numpy table of the info for the sample and the bias value and error
-    df = pd.DataFrame(columns=['mag_range', 'sample_type', 'third_property', 'third_property_range', 'bias', 'bias_err'])
-    # TODO
+    # A diagnostic
+    #corr = cov / np.outer(np.sqrt(np.diag(cov)), np.sqrt(np.diag(cov)))
+    #off_diag_elements = corr[~np.eye(corr.shape[0], dtype=bool)]
+    #mean_off_diag = np.mean(off_diag_elements)
+    #result['mean_off_diag'] = mean_off_diag
 
+    subsamp_file = os.path.join(base_dir, f"BGS_BRIGHT_CEN_mag{result['params'].get('mag_range')}_{result['params'].get('sample_type')}_{result['params'].get('third_property')}{result['params'].get('third_property_range')}_clustering.dat.fits")
+    header = fitsio.read_header(subsamp_file, ext='LSS') # There are more statistics I stored here if needed
+    mean_mag = header['MEANABSR']
+    result['sample_mean_mag'] = mean_mag
+    result['third_property_mean'] = header.get('MEANPROP', np.nan)
+    q = result['params'].get('sample_type') == 'Q'
+    b_m = get_bias_for_mag(mean_mag, q)
+    result['b_m'] = b_m
+
+    # Get total best fit bias b
+    bias_info = get_bias_closedform(reference_info, (rp, wp, cov))
+    result['bias'] = bias_info[0] # b
+    result['bias_err_up'] = bias_info[1] 
+    result['bias_err_down'] = bias_info[2]
+    result['chisqr'] = bias_info[3]
+
+    # b^2 = b_p^2 + b_m^2, divide out the contribution from b_m to get b_p
+    result['b_p'] = result['bias'] / b_m
+    result['b_p_err_up'] = result['bias_err_up'] / b_m
+    result['b_p_err_down'] = result['bias_err_down'] / b_m
     
+
+def process_allcounts_from_disk(base_dir, pattern, reference_info):
+    """
+    Like load_allcounts_from_disk, but process the loaded data immediately and discards the TwoPointEstimator.
+
+    Args:
+        base_dir (str): The top-level directory to start the search from.
+
+    Returns:
+        list: A list of dictionaries. Each dictionary has 1 key:
+              'params': A dictionary of metadata parsed from the filename.
+    """
+    processed_results = []
+
+    for root, _, files in os.walk(base_dir):
+        for file in files:
+            match = pattern.match(file)
+            if match:
+                full_path = os.path.join(root, file)
+                params = match.groupdict()
+
+                # Default sample_type to 'ALL' if not present in filename
+                if params.get('sample_type') is None:
+                    params['sample_type'] = 'ALL'
+
+                try:
+                    # Load the TwoPointEstimator object
+                    estimator = TwoPointEstimator.load(full_path)
+                    obj = {
+                        'params': params,
+                        'data' : estimator
+                    }
+                    process_estimator(obj, reference_info, base_dir)
+                    processed_results.append(obj)
+                except Exception as e:
+                    print(f"  -> Failed to load {full_path}: {e}")
+
+    print(f"\nFinished processing all counts from disk. Processed {len(processed_results)} files.")
+    return processed_results
+        
 
 def load_allcounts_from_disk(base_dir, pattern):
     """

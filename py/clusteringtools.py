@@ -218,84 +218,84 @@ def get_bias_closedform(ref_wp, target_wp):
     return best_fit_bias, bias_up, bias_down, chi2_min
 
 
-def bias_plots(results):
-    """
-    Results should be an iterable that has a params dictionary with keys 'mag_range', 'third_property', 'third_property_range', and 'sample_type' (which should be either 'Q' or 'SF').
-    """
 
-    # Group results by 3rd property name
-    results_by_prop3 = {}
-    for result in results:
-        mag_range = result['params'].get('mag_range')
-        prop3_name = result['params'].get('third_property')
-        prop3_range = result['params'].get('third_property_range')
 
-        if mag_range is None or prop3_name is None or prop3_range is None:
-            continue
+def save_biases(savedir, results):
+    os.makedirs(savedir, exist_ok=True)
 
-        if prop3_name not in results_by_prop3:
-            results_by_prop3[prop3_name] = {}
-        if mag_range not in results_by_prop3[prop3_name]:
-            results_by_prop3[prop3_name][mag_range] = []
+    columns = [
+        ('magbin_fainter', 'f8'),
+        ('magbin_brighter', 'f8'),
+        ('magbin_mean', 'f8'),
+        ('quiescent', 'f8'),
+        ('third_property_name', 'U64'),
+        ('third_property_lower', 'f8'),
+        ('third_property_upper', 'f8'),
+        ('third_property_mean', 'f8'),
+        ('b', 'f8'),
+        ('b_err_low', 'f8'),
+        ('b_err_high', 'f8'),
+        ('b_p', 'f8'),
+        ('b_p_err_low', 'f8'),
+        ('b_p_err_high', 'f8'),
+        ('b_m', 'f8'),
+    ]
+    table = np.empty(len(results), dtype=columns)
+    for name, _ in columns:
+        if name == 'third_property_name':
+            table[name] = 'nan'
+        else:
+            table[name] = np.nan
 
-        results_by_prop3[prop3_name][mag_range].append(result)
+    def parse_range(value):
+        if value is None or 'to' not in str(value):
+            return np.nan, np.nan
+        try:
+            lower, upper = (float(bound) for bound in str(value).split('to', 1))
+        except ValueError:
+            return np.nan, np.nan
+        return lower, upper
 
-    # Now go into each property, and order the magnitude ranges by the first number in the range
-    for prop3_name in results_by_prop3:
-        results_by_prop3[prop3_name] = dict(sorted(results_by_prop3[prop3_name].items(), key=lambda x: float(x[0].split('to')[0])))
+    def numeric_value(result, key):
+        value = result.get(key)
+        if value is None:
+            return np.nan
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return np.nan
 
-        # For each third_property, make one of these 10 panel plots
-    for third_property, mag_dict in results_by_prop3.items():
-        fig, axes = plt.subplots(2, 5, figsize=(14, 6.5), sharex=True, sharey=True)
-        axes = axes.flatten()
-        i = 0
-        for mag_range, measurements in mag_dict.items():
-            ax = axes[i]
-            i += 1
+    for index, result in enumerate(results):
+        params = result.get('params', {})
+        mag_bright, mag_faint = parse_range(params.get('mag_range'))
+        table['magbin_fainter'][index] = mag_faint
+        table['magbin_brighter'][index] = mag_bright
+        table['magbin_mean'][index] = numeric_value(result, 'sample_mean_mag')
 
-            x_q_values = []
-            y_q_values = []
-            y_q_err_up = []
-            y_q_err_down = []
-            x_sf_values = []
-            y_sf_values = []
-            y_sf_err_up = []
-            y_sf_err_down = []
+        sample_type = params.get('sample_type')
+        if sample_type == 'Q':
+            table['quiescent'][index] = 1
+        elif sample_type == 'SF':
+            table['quiescent'][index] = 0
 
-            for measurement in measurements:
-                quiescent = measurement['params'].get('sample_type') == 'Q'
-                prop_range = measurement['params'].get('third_property_range')
-                prop_mean = get_bin_means_for(mag_range, quiescent, third_property, prop_range)
-                #if prop_mean is None:
-                    #print(f"Missing bin means for mag_range {mag_range}, quiescent {quiescent}, third_property {third_property}, prop_range {prop_range}")
-                    #continue
+        prop_name = params.get('third_property')
+        if prop_name is not None:
+            table['third_property_name'][index] = str(prop_name)
+            prop_lower, prop_upper = parse_range(params.get('third_property_range'))
+            table['third_property_lower'][index] = prop_lower
+            table['third_property_upper'][index] = prop_upper
+            table['third_property_mean'][index] = numeric_value(result, 'third_property_mean')
 
-                #x_value = np.mean([float(x) for x in measurement['params'].get('third_property_range', '0to0').split('to')])
-                x_value = prop_mean
-                y_value = measurement['bias']
-                y_err_up_value = measurement['bias_err_up']
-                y_err_down_value = measurement['bias_err_down']
+        for column, key in (
+            ('b', 'bias'),
+            ('b_err_low', 'bias_err_down'),
+            ('b_err_high', 'bias_err_up'),
+            ('b_p', 'b_p'),
+            ('b_p_err_low', 'b_p_err_down'),
+            ('b_p_err_high', 'b_p_err_up'),
+            ('b_m', 'b_m'),
+        ):
+            table[column][index] = numeric_value(result, key)
 
-                if quiescent:
-                    x_q_values.append(x_value)
-                    y_q_values.append(y_value)
-                    y_q_err_up.append(y_err_up_value)
-                    y_q_err_down.append(y_err_down_value)
-                else:
-                    x_sf_values.append(x_value)
-                    y_sf_values.append(y_value)
-                    y_sf_err_up.append(y_err_up_value)
-                    y_sf_err_down.append(y_err_down_value)
-
-            ax.errorbar(x_sf_values, y_sf_values, yerr=[y_sf_err_down, y_sf_err_up], fmt='o', capsize=5, markersize=6, markerfacecolor='b', markeredgewidth=1.5, markeredgecolor='k', label='Star-forming', ecolor='k', elinewidth=2)
-            ax.errorbar(x_q_values, y_q_values, yerr=[y_q_err_down, y_q_err_up], fmt='o', capsize=5, markersize=6, markerfacecolor='r', markeredgewidth=1.5, markeredgecolor='k', label='Quiescent', ecolor='k', elinewidth=2)
-
-            ax.axhline(1.0, color='gray', linestyle='--', alpha=0.5)
-            if i % 5 == 1:
-                ax.set_ylabel('Bias $b$')
-            ax.set_title(f'{mag_range.replace("to", " to ")}')
-
-        plt.tight_layout()
-        plt.suptitle(f'{third_property} Bias', fontsize=24)
-        plt.subplots_adjust(top=0.9)  # Adjust top to make room for suptitle
-        plt.show()    
+    np.save(os.path.join(savedir, 'biases_BGS_DR2_2-10Mpc_v0.3.npy'), table)
+    return table
