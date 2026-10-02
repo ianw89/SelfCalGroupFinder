@@ -256,6 +256,20 @@ bgs_sv3_pz_2_6_10p_c3 = BGSGroupCatalog(
 bgs_sv3_pz_2_6_10p_c3.GF_props['iterations'] = 10
 bgs_sv3_pz_2_6_10p_c3.color = 'k'
 
+bgs_sv3_pz_2_6_10p_c4 = BGSGroupCatalog(
+    "Photo-z Plus v2.6 BGS sv3 10pass C4", 
+    Mode.PHOTOZ_PLUS_v2, 
+    19.5, 
+    21.0, 
+    num_passes=10, 
+    data_cut='sv3', 
+    sdss_fill=True, 
+    extra_params=PZP_PARAMS_V26, 
+    gfprops=GF_PROPS_BGS_COLORS_C4.copy()
+)
+bgs_sv3_pz_2_6_10p_c4.GF_props['iterations'] = 10
+bgs_sv3_pz_2_6_10p_c4.color = 'k'
+
 bgs_sv3_latent_test1 = BGSGroupCatalog(
     "BGS SV3 Latent Test1", 
     Mode.PHOTOZ_PLUS_v2, 
@@ -361,19 +375,6 @@ bgs_y3_like_sv3_pz_4_0 = BGSGroupCatalog(
 )
 bgs_y3_like_sv3_pz_4_0.color = 'gold'
 
-bgs_y3_like_sv3_pz_2_6_c1 = BGSGroupCatalog(
-    "Photo-z Plus v2.6 BGS Y3 like-sv3 C1", 
-    Mode.PHOTOZ_PLUS_v2, 
-    19.5, 
-    21.0, 
-    num_passes=1, 
-    data_cut='Y3-Loa-SV3Cut', 
-    sdss_fill=False, 
-    extra_params=PZP_PARAMS_V26, 
-    gfprops=GF_PROPS_BGS_COLORS_C1.copy()
-)
-bgs_y3_like_sv3_pz_2_6_c1.color = 'slateblue'
-
 bgs_y3_like_sv3_pz_2_6_c3 = BGSGroupCatalog(
     "Photo-z Plus v2.6 BGS Y3 like-sv3 C3", 
     Mode.PHOTOZ_PLUS_v2, 
@@ -388,8 +389,8 @@ bgs_y3_like_sv3_pz_2_6_c3 = BGSGroupCatalog(
 bgs_y3_like_sv3_pz_2_6_c3.GF_props['iterations'] = 10
 bgs_y3_like_sv3_pz_2_6_c3.color = 'slateblue'
 
-bgs_y3_like_sv3_pz_2_6_c2 = BGSGroupCatalog(
-    "Photo-z Plus v2.6 BGS Y3 like-sv3 C2", 
+bgs_y3_like_sv3_pz_2_6_c4 = BGSGroupCatalog(
+    "Photo-z Plus v2.6 BGS Y3 like-sv3 C4", 
     Mode.PHOTOZ_PLUS_v2, 
     19.5, 
     21.0, 
@@ -397,10 +398,10 @@ bgs_y3_like_sv3_pz_2_6_c2 = BGSGroupCatalog(
     data_cut='Y3-Loa-SV3Cut', 
     sdss_fill=False, 
     extra_params=PZP_PARAMS_V26, 
-    gfprops=GF_PROPS_BGS_COLORS_C2.copy()
+    gfprops=GF_PROPS_BGS_COLORS_C4.copy()
 )
-bgs_y3_like_sv3_pz_2_6_c2.GF_props['iterations'] = 10
-bgs_y3_like_sv3_pz_2_6_c2.color = 'slateblue'
+bgs_y3_like_sv3_pz_2_6_c4.GF_props['iterations'] = 10
+bgs_y3_like_sv3_pz_2_6_c4.color = 'slateblue'
 
 bgs_y3_like_sv3_pz_2_5 = BGSGroupCatalog(
     "Photo-z Plus v2.5 BGS Y3 like-sv3", 
@@ -441,30 +442,18 @@ bgs_y3_like_sv3_fiberonly_c3 = BGSGroupCatalog(
 bgs_y3_like_sv3_fiberonly_c3.color = 'orange'
 bgs_y3_like_sv3_fiberonly_c3.GF_props['iterations'] = 10
 
-bgs_y3_like_sv3_fiberonly_c2 = BGSGroupCatalog(
-    "Observed BGS Y3 like-sv3 C2", 
+bgs_y3_like_sv3_fiberonly_c4 = BGSGroupCatalog(
+    "Observed BGS Y3 like-sv3 C4", 
     Mode.FIBER_ASSIGNED_ONLY, 
     19.5, 
     21.0, 
     num_passes=1, 
     data_cut='Y3-Loa-SV3Cut', 
     sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_COLORS_C2.copy()
+    gfprops=GF_PROPS_BGS_COLORS_C4.copy()
 )
-bgs_y3_like_sv3_fiberonly_c2.color = 'orange'
-
-bgs_y3_like_sv3_pz_2_0 = BGSGroupCatalog(
-    "Photo-z Plus v2.0 BGS Y3 like-sv3", 
-    Mode.PHOTOZ_PLUS_v2, 
-    19.5, 
-    21.0, 
-    num_passes=1, 
-    data_cut='Y3-Loa-SV3Cut', 
-    sdss_fill=False, 
-    extra_params=(1, [0.0, 0.0, 3.0]), 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_y3_like_sv3_pz_2_0.color = 'red'
+bgs_y3_like_sv3_fiberonly_c4.color = 'orange'
+bgs_y3_like_sv3_fiberonly_c4.GF_props['iterations'] = 10
 
 bgs_y3_like_sv3_pz_2_0_c3 = BGSGroupCatalog(
     "Photo-z Plus v2.0 BGS Y3 like-sv3 C3", 
@@ -480,8 +469,8 @@ bgs_y3_like_sv3_pz_2_0_c3 = BGSGroupCatalog(
 bgs_y3_like_sv3_pz_2_0_c3.color = 'red'
 bgs_y3_like_sv3_pz_2_0_c3.GF_props['iterations'] = 10
 
-bgs_y3_like_sv3_pz_2_0_c2 = BGSGroupCatalog(
-    "Photo-z Plus v2.0 BGS Y3 like-sv3 C2", 
+bgs_y3_like_sv3_pz_2_0_c4 = BGSGroupCatalog(
+    "Photo-z Plus v2.0 BGS Y3 like-sv3 C4", 
     Mode.PHOTOZ_PLUS_v2, 
     19.5, 
     21.0, 
@@ -489,21 +478,10 @@ bgs_y3_like_sv3_pz_2_0_c2 = BGSGroupCatalog(
     data_cut='Y3-Loa-SV3Cut', 
     sdss_fill=False, 
     extra_params=(1, [0.0, 0.0, 3.0]), 
-    gfprops=GF_PROPS_BGS_COLORS_C2.copy()
+    gfprops=GF_PROPS_BGS_COLORS_C4.copy()
 )
-bgs_y3_like_sv3_pz_2_0_c2.color = 'red'
-
-bgs_y3_like_sv3_nn = BGSGroupCatalog(
-    "Nearest Neighbor BGS Y3 like-sv3", 
-    Mode.NEAREST_NEIGHBOR, 
-    19.5, 
-    21.0, 
-    num_passes=1, 
-    data_cut='Y3-Loa-SV3Cut', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy()
-)
-bgs_y3_like_sv3_nn.color = 'green'
+bgs_y3_like_sv3_pz_2_0_c4.color = 'red'
+bgs_y3_like_sv3_pz_2_0_c4.GF_props['iterations'] = 10
 
 bgs_y3_like_sv3_nn_c3 = BGSGroupCatalog(
     "Nearest Neighbor BGS Y3 like-sv3 C3", 
@@ -518,17 +496,18 @@ bgs_y3_like_sv3_nn_c3 = BGSGroupCatalog(
 bgs_y3_like_sv3_nn_c3.color = 'green'
 bgs_y3_like_sv3_nn_c3.GF_props['iterations'] = 10
 
-bgs_y3_like_sv3_nn_c2 = BGSGroupCatalog(
-    "Nearest Neighbor BGS Y3 like-sv3 C2", 
+bgs_y3_like_sv3_nn_c4 = BGSGroupCatalog(
+    "Nearest Neighbor BGS Y3 like-sv3 C4", 
     Mode.NEAREST_NEIGHBOR, 
     19.5, 
     21.0, 
     num_passes=1, 
     data_cut='Y3-Loa-SV3Cut', 
     sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_COLORS_C2.copy()
+    gfprops=GF_PROPS_BGS_COLORS_C4.copy()
 )
-bgs_y3_like_sv3_nn_c2.color = 'green'
+bgs_y3_like_sv3_nn_c4.color = 'green'
+bgs_y3_like_sv3_nn_c4.GF_props['iterations'] = 10
 
 bgs_sv3_simple_4_10p = BGSGroupCatalog(
     "Simple v4 BGS sv3 10pass", 
@@ -561,11 +540,11 @@ sdss_list : list[GroupCatalog] = [
     sdss_colors_v2_desiparams_v1,
 ]
 bgs_sv3_list : list[GroupCatalog] = [
-    bgs_sv3_pz_2_6_10p_c3, # 'Truth' catalog
-    bgs_y3_like_sv3_pz_2_6_c3,
-    bgs_y3_like_sv3_fiberonly_c3,
-    bgs_y3_like_sv3_pz_2_0_c3,
-    bgs_y3_like_sv3_nn_c3,
+    bgs_sv3_pz_2_6_10p_c4, # 'Truth' catalog
+    bgs_y3_like_sv3_pz_2_6_c4,
+    bgs_y3_like_sv3_fiberonly_c4,
+    bgs_y3_like_sv3_pz_2_0_c4,
+    bgs_y3_like_sv3_nn_c4,
 ]
 bgs_aux_list : list[GroupCatalog] = [
     bgs_nn_sdsslike,

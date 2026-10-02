@@ -1406,7 +1406,8 @@ def fsat_incompleteness_study(catalogs, truthcat: GroupCatalog, savedata=False):
         )
         ax_top.set_xlabel("$M_r$ - 5log(h)")
 
-    axes[0].legend(fontsize=12)
+    # Make the legend borderless
+    axes[0].legend(fontsize=11)
     fig.tight_layout()
 
 
@@ -2880,7 +2881,7 @@ def lostgal_lum_func_paper_compare(*catalogs, savedata=False):
     axes[0].set_yscale('log')
     axes[0].set_xlim(1e9, LGAL_MAX_TIGHT)
     axes[0].axhline(1, color='black', lw=1)
-    axes[0].text(0.5, 0.9, "Quiescent", transform=axes[0].transAxes)
+    axes[0].text(0.66, 0.9, "Quiescent", transform=axes[0].transAxes)
     ax2 = axes[0].twiny()
     ax2.set_xscale('linear')
     ax2.set_xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
@@ -2896,7 +2897,7 @@ def lostgal_lum_func_paper_compare(*catalogs, savedata=False):
     axes[1].set_yscale('log')
     axes[1].set_xlim(1e8, LGAL_MAX_TIGHT)
     axes[1].axhline(1, color='black', lw=1)
-    axes[1].text(0.5, 0.9, "Star-forming", transform=axes[1].transAxes)
+    axes[1].text(0.66, 0.9, "Star-forming", transform=axes[1].transAxes)
     ax3 = axes[1].twiny()
     ax3.set_xscale('linear')
     ax3.set_xlim(log_solar_L_to_abs_mag_r(8), log_solar_L_to_abs_mag_r(np.log10(LGAL_MAX_TIGHT)))
