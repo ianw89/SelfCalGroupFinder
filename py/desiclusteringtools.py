@@ -13,6 +13,46 @@ from plotting import save_plot_data
 #######################################################################################
 
 
+def display_cov(measurement: dict):
+    """
+    Measurement is a dict with params and data. Data is a TwoPointEstimator object. Params is a dict.
+    """
+    mag_range = measurement['params'].get('mag_range')
+    rp, wp, cov = measurement['data'].get_corr(return_sep=True, return_cov=True, mode='wp')
+    plt.figure()
+    plt.title(f"Mag range: {mag_range}, g-r: {measurement['params'].get('gr_range')}")
+    # Use rp as x and y axis
+    plt.xticks(ticks=np.arange(len(rp)), labels=[f"{r:.1f}" for r in rp], rotation=45)
+    plt.yticks(ticks=np.arange(len(rp)), labels=[f"{r:.1f}" for r in rp])
+    plt.imshow(cov, cmap='viridis', aspect='auto')
+    plt.colorbar(label='Covariance')
+    plt.show()
+
+def display_corr(measurement):
+    """
+    Measurement is a dict with params and data. Data is a TwoPointEstimator object. Params is a dict.
+    """
+    mag_range = measurement['params'].get('mag_range')
+    region = measurement['params'].get('region')
+    rp, wp, cov = measurement['data'].get_corr(return_sep=True, return_cov=True, mode='wp')
+    corr = cov / np.outer(np.sqrt(np.diag(cov)), np.sqrt(np.diag(cov)))
+    plt.figure()
+    if mag_range is not None:
+        plt.title(f"Mag range: {mag_range}, g-r: {measurement['params'].get('gr_range')}")
+    elif measurement['params'].get('downsample') is not None:
+        plt.title(f"Downsampled to 1/{measurement['params'].get('downsample')} of reference")
+    elif region != 'GCcomb':
+        plt.title(f"Region: {region}")
+    else:
+        plt.title(f"Full reference sample")
+    # Use rp as x and y axis
+    plt.xticks(ticks=np.arange(len(rp)), labels=[f"{r:.1f}" for r in rp], rotation=45)
+    plt.yticks(ticks=np.arange(len(rp)), labels=[f"{r:.1f}" for r in rp])
+    plt.imshow(corr, cmap='viridis', aspect='auto', vmin=-1, vmax=1)
+    plt.colorbar(label='Correlation')
+    plt.show()
+
+
 def save_wp_for_maggmr(savedir, results):
     # make savedir if needed
     if not os.path.exists(savedir):
@@ -54,6 +94,18 @@ def save_wp_for_3prop(savedir, results):
         to_save = (rp, wp, cov)
 
         save_wp_dr2format(os.path.join(savedir, fname), to_save)
+
+
+def save_biases(savedir, results):
+    # make savedir if needed
+    if not os.path.exists(savedir):
+        os.makedirs(savedir)
+
+    # Save a single file which is a numpy table of the info for the sample and the bias value and error
+    df = pd.DataFrame(columns=['mag_range', 'sample_type', 'third_property', 'third_property_range', 'bias', 'bias_err'])
+    # TODO
+
+    
 
 def load_allcounts_from_disk(base_dir, pattern):
     """
