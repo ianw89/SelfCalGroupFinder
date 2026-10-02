@@ -706,15 +706,16 @@ def get_max_observable_volume(abs_mags, z_min, z_max_survey, fluxlimit, frac_are
 ##########################
 # Aggregation Helpers
 ##########################
+from collections.abc import Iterable
 
 def count_vmax_weighted(series):
-    if len(series) == 0:
+    if isinstance(series, Iterable) and len(series) == 0:
         return np.nan
     else:
         return np.sum(1 / series['VMAX'])
     
 def count_unweighted(series):
-    if len(series) == 0:
+    if isinstance(series, Iterable) and len(series) == 0:
         return np.nan
     else:
         return len(series)
@@ -2030,4 +2031,3 @@ def make_adaptive_density_bins(data, n_bins, n_tail, alpha, limit):
     right = adaptive_edges[-1] + np.arange(1, n_tail + 1)  * dr
     
     return np.concatenate([left, adaptive_edges, right])
-
