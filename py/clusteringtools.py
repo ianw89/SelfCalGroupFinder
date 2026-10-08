@@ -50,7 +50,7 @@ def save_wp_dr1format(savedir, red_results, blue_results, all_results, magbins):
             np.save(os.path.join(savedir, f'wp_all_M{-magbins[i]:d}_cov.npy'), all_cov)
 
 
-def get_bias_for_mag(magnitude: float|np.ndarray, quiescent: bool|np.ndarray) -> float|np.ndarray:
+def get_bias_for_mag(magnitude: float|np.ndarray, quiescent: bool|np.ndarray, useSpline: bool = False) -> float|np.ndarray:
     import pickle
     spline_dir = '/global/cfs/cdirs/desi/users/ianw89/clustering712/DA2/LSS/loa-v1/LSScats/v1.1/v0.3/'
     spline_file = os.path.join(spline_dir, 'luminosity_bias_splines.pkl')
@@ -71,13 +71,13 @@ def get_bias_for_mag(magnitude: float|np.ndarray, quiescent: bool|np.ndarray) ->
         if magnitude < -22.6 or magnitude > -17.9:
             raise ValueError(f"Requested magnitude {magnitude} is outside the range of the quiescent spline data (-22.5397 to -18.0429).")
         
-        return linear_Q(magnitude)
+        return spline_Q(magnitude) if useSpline else linear_Q(magnitude)
     else:
         # -22.53977930844298 to -16.66915776095745
         if magnitude < -22.6 or magnitude > -16.5:
             raise ValueError(f"Requested magnitude {magnitude} is outside the range of the star-forming spline data (-22.5397 to -16.6691).")
         
-        return linear_SF(magnitude)
+        return spline_SF(magnitude) if useSpline else linear_SF(magnitude)
 
 
 def get_bias(ref_wp, target_wp):
@@ -195,24 +195,24 @@ def get_bias_closedform(ref_wp, target_wp):
     reg = np.eye(C_tot.shape[0]) * 1e-12
     inv_cov = np.linalg.inv(C_tot + reg)
 
-    # For A=b^2, chi2 is a quadratic function of A, which allows an exact closed-form solution for the best-fit amplitude.
+    # For A=bias^2, chi2 is a quadratic function of A, which allows an exact closed-form solution for the best-fit amplitude.
     # chi2(A) = a*A^2 - 2*b*A + c 
     a = wp_ref @ inv_cov @ wp_ref
-    b = wp_ref @ inv_cov @ wp_target
+    b = wp_ref @ inv_cov @ wp_target # not bias!
     c = wp_target @ inv_cov @ wp_target
 
-    A_hat = b / a # best-fit amplitude
-    sigma_A = 1 / np.sqrt(a) # exact 1-sigma width in A (from curvature of the quadratic)
-    chi2_min = c - b**2 / a
+    A_hat = b / a # best-fit amplitude from minimizing chi2(A) = a*A^2 - 2*b*A + c  algebraically
+    sigma_A = 1 / np.sqrt(a) # exact 1-sigma from solving chi2(A) = a*A^2 - 2*b*A + c = chi2_min + 1
+    chi2_min = c - b**2 / a # exact minimum chi2 value at A_hat
 
     best_fit_bias = np.sqrt(A_hat)
 
-    # TODO double check this math
-    # Delta chi2 = 1 in A-space is exact: A = A_hat +/- sigma_A. Transform to bias via sqrt.
+    # Because solution was for A = bias^2, propogate the sigma on A to the sigma on bias
     bias_up = np.sqrt(A_hat + sigma_A) - best_fit_bias
     if A_hat - sigma_A > 0:
         bias_down = best_fit_bias - np.sqrt(A_hat - sigma_A)
     else:
+        print("WARNING: A_hat - sigma_A <= 0, cannot compute lower error on bias. Setting to best-fit value.")
         bias_down = best_fit_bias   # amplitude consistent with 0; one-sided/undefined lower bound
 
     return best_fit_bias, bias_up, bias_down, chi2_min

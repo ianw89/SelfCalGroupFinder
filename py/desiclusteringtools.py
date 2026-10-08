@@ -97,12 +97,15 @@ def save_wp_for_3prop(savedir, results):
         save_wp_dr2format(os.path.join(savedir, fname), to_save)
 
 
-def process_estimator(result: dict, reference_info, base_dir: str):
-    rp, wp, cov = result['data'].get_corr(return_sep=True, return_cov=True, mode='wp')
-    result['rp'] = rp
-    result['wp'] = wp
-    result['cov'] = cov
-    del result['data'] # done with it, leaving tons of these in memory is problematic on the login node 
+def process_estimator(result: dict, reference_info, base_dir: str, useSpline: bool = False):
+    if 'rp' in result and 'wp' in result and 'cov' in result:
+        pass
+    else:
+        rp, wp, cov = result['data'].get_corr(return_sep=True, return_cov=True, mode='wp')
+        result['rp'] = rp
+        result['wp'] = wp
+        result['cov'] = cov
+        del result['data'] # done with it, leaving tons of these in memory is problematic on the login node 
 
     # A diagnostic
     #corr = cov / np.outer(np.sqrt(np.diag(cov)), np.sqrt(np.diag(cov)))
@@ -110,17 +113,20 @@ def process_estimator(result: dict, reference_info, base_dir: str):
     #mean_off_diag = np.mean(off_diag_elements)
     #result['mean_off_diag'] = mean_off_diag
 
-    subsamp_file = os.path.join(base_dir, f"BGS_BRIGHT_CEN_mag{result['params'].get('mag_range')}_{result['params'].get('sample_type')}_{result['params'].get('third_property')}{result['params'].get('third_property_range')}_clustering.dat.fits")
-    header = fitsio.read_header(subsamp_file, ext='LSS') # There are more statistics I stored here if needed
-    mean_mag = header['MEANABSR']
-    result['sample_mean_mag'] = mean_mag
-    result['third_property_mean'] = header.get('MEANPROP', np.nan)
+    if 'sample_mean_mag' in result and 'third_property_mean' in result:
+        pass
+    else:
+        subsamp_file = os.path.join(base_dir, f"BGS_BRIGHT_CEN_mag{result['params'].get('mag_range')}_{result['params'].get('sample_type')}_{result['params'].get('third_property')}{result['params'].get('third_property_range')}_clustering.dat.fits")
+        header = fitsio.read_header(subsamp_file, ext='LSS') # There are more statistics I stored here if needed
+        result['sample_mean_mag'] =  header['MEANABSR']
+        result['third_property_mean'] = header.get('MEANPROP', np.nan)
+
     q = result['params'].get('sample_type') == 'Q'
-    b_m = get_bias_for_mag(mean_mag, q)
+    b_m = get_bias_for_mag(result['sample_mean_mag'], q, useSpline=useSpline)
     result['b_m'] = b_m
 
     # Get total best fit bias b
-    bias_info = get_bias_closedform(reference_info, (rp, wp, cov))
+    bias_info = get_bias_closedform(reference_info, (result['rp'], result['wp'], result['cov']))
     result['bias'] = bias_info[0] # b
     result['bias_err_up'] = bias_info[1] 
     result['bias_err_down'] = bias_info[2]
