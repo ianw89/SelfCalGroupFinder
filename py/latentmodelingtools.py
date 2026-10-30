@@ -44,7 +44,7 @@ def weighted_whiten(X, weights, eps=1e-12):
     return Xwhite, mu, sigma, W
 
 
-def plot_explained_variance(explained_variance_ratio):
+def plot_explained_variance(explained_variance_ratio, title='Explained Variance Ratio'):
     n_features = len(explained_variance_ratio)
 
     # Explained variance
@@ -52,14 +52,14 @@ def plot_explained_variance(explained_variance_ratio):
     axes[0].bar(range(1, n_features+1), explained_variance_ratio, color='steelblue')
     axes[0].set_xlabel('PCA Component')
     axes[0].set_ylabel('Explained Variance Ratio')
-    axes[0].set_title('Variance per Component')
+    axes[0].set_title(title)
 
     axes[1].plot(range(1, n_features+1), np.cumsum(explained_variance_ratio), 'ko-')
     axes[1].axhline(0.95, color='red', linestyle='--', label='95%')
     axes[1].axhline(0.99, color='orange', linestyle='--', label='99%')
     axes[1].set_xlabel('Number of PCA Components')
     axes[1].set_ylabel('Cumulative Explained Variance')
-    axes[1].set_title('Cumulative Explained Variance')
+    axes[1].set_title(title + ' (Cumulative)')
     axes[1].legend()
     plt.tight_layout()
     plt.show()

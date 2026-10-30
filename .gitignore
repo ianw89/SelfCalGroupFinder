@@ -2,6 +2,7 @@ bin/
 obj/
 obj_serial/
 data/
+py/external/
 *.out
 __pycache__/*
 **/__pycache__/*
@@ -17,3 +18,5 @@ py/parameters/bgs_y1/old/*
 py/parameters/bgs_y1_mini/wp_red*
 py/parameters/bgs_y1_mini/wp_blue*
 py/parameters/bgs_y1_mini/wp_all*
+py/parameters/bgs_y3/gal*
+py/parameters/bgs_y3/halo*
