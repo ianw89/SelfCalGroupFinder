@@ -1,10 +1,11 @@
+from functools import cache
 import numpy as np
 import os
 import re
 from matplotlib import pyplot as plt
 from pycorr import TwoPointEstimator
 from matplotlib.lines import Line2D
-from clusteringtools import save_wp_dr2format, get_bias_for_mag, get_bias_closedform 
+from clusteringtools import save_wp_dr2format, get_magbias_forglobal_fromsaved, get_bias_closedform, get_magbias_forlocal_savedlininterp, get_magbias_forlocal_savedline
 from plotting import save_plot_data
 import fitsio
 
@@ -53,7 +54,6 @@ def display_corr(measurement):
     plt.colorbar(label='Correlation')
     plt.show()
 
-
 def save_wp_for_maggmr(savedir, results):
     # make savedir if needed
     if not os.path.exists(savedir):
@@ -97,7 +97,174 @@ def save_wp_for_3prop(savedir, results):
         save_wp_dr2format(os.path.join(savedir, fname), to_save)
 
 
-def process_estimator(result: dict, reference_info, base_dir: str, useSpline: bool = False):
+def get_v04_references():
+    basedir = '/global/cfs/cdirs/desi/users/ianw89/clustering712/DA2/LSS/loa-v1/LSScats/v1.1/v0.4'
+    pattern = re.compile(
+        r"allcounts_BGS_BRIGHT_CEN"
+        rf"_mag(?P<mag_range>[\d\.\-to]+)" 
+        rf"_(?P<sample_type>Q|SF)"                      
+        r"_(?P<region>GCcomb)"      
+        r"(?:_(?P<zmin>[\d\.]+))?"            
+        r"(?:_(?P<zmax>[\d\.]+))?"         
+        r"_(?P<weights>pip_bitwise)"            
+        r"_(?P<bin_type>custom)"                
+        r"_njack(?P<njack>128)"             
+        r"_nran(?P<nran>2)"             
+        r"_split(?P<split>20)"           
+        r"\.npy"
+    )
+    results = load_allcounts_from_disk(basedir, pattern)
+    return results
+
+def _with_wp(result: dict) -> dict:
+    """Adds 'rp', 'wp', 'cov' to a loaded result dict and drops the heavy estimator."""
+    if 'data' in result:
+        rp, wp, cov = result['data'].get_corr(return_sep=True, return_cov=True, mode='wp')
+        result['rp'] = rp
+        result['wp'] = wp
+        result['cov'] = cov
+        del result['data']
+    return result
+
+@cache
+def get_reference_info(type: str, magrange = None, sampletype = None):
+    """
+    Returns the full reference result dict (with 'params', 'rp', 'wp', 'cov'), or None if not found.
+    """
+    if type == 'GLOBAL 2-10 v0.2':
+        basedir = '/global/cfs/cdirs/desi/users/ianw89/clustering712/DA2/LSS/loa-v1/LSScats/v1.1/v0.2'
+        pattern = re.compile(
+            r"allcounts_BGS_BRIGHT_CEN"
+            r"_(?P<region>GCcomb)"      
+            r"_(?P<zmin>0.005)"                # optional zmin
+            r"_(?P<zmax>0.5)"                # optional zmax 
+            r"_(?P<weights>pip_bitwise)"            
+            r"_(?P<bin_type>custom)"                
+            r"_njack(?P<njack>64)"             
+            r"_nran(?P<nran>18)"             
+            r"_split(?P<split>20)"           
+            r"\.npy"
+        )
+        results = load_allcounts_from_disk(basedir, pattern)
+        if len(results) == 0:
+            print(f"WARNING: No reference results found for type '{type}' in {basedir}.")
+            return None
+        if len(results) > 1:
+            raise ValueError(f"Expected exactly one reference result but got {len(results)} for type '{type}' in {basedir}.")
+
+        result = results[0]
+        subsamp_file = os.path.join(basedir, f"BGS_BRIGHT_CEN_mag{result['params'].get('mag_range')}_{result['params'].get('sample_type')}_clustering.dat.fits")
+        header = fitsio.read_header(subsamp_file, ext='LSS') # There are more statistics I stored here if needed
+        if 'MEANABSR' not in header:
+            print("WARNING: MEANABSR not found in header, setting sample_mean_mag to NaN")
+        result['sample_mean_mag'] =  header['MEANABSR'] if 'MEANABSR' in header else np.nan
+
+        return _with_wp(results[0])
+
+    elif type == 'GLOBAL 5-30 v0.2':
+        basedir = '/global/cfs/cdirs/desi/users/ianw89/clustering712/DA2/LSS/loa-v1/LSScats/v1.1/v0.2'
+        pattern = re.compile(
+            r"allcounts_BGS_BRIGHT_CEN"
+            r"_(?P<region>GCcomb)"      
+            r"_(?P<zmin>0.005)"                # optional zmin
+            r"_(?P<zmax>0.5)"                # optional zmax 
+            r"_(?P<weights>pip_bitwise)"            
+            r"_(?P<bin_type>custom)"                
+            r"_njack(?P<njack>128)"             
+            r"_nran(?P<nran>18)"             
+            r"_split(?P<split>20)"           
+            r"\.npy"
+        )
+        results = load_allcounts_from_disk(basedir, pattern)
+        if len(results) == 0:
+            print(f"WARNING: No reference results found for type '{type}' in {basedir}.")
+            return None
+        if len(results) > 1:
+            raise ValueError(f"Expected exactly one reference result but got {len(results)} for type '{type}' in {basedir}.")
+        
+        result = results[0]
+        subsamp_file = os.path.join(basedir, f"BGS_BRIGHT_CEN_mag{result['params'].get('mag_range')}_{result['params'].get('sample_type')}_clustering.dat.fits")
+        header = fitsio.read_header(subsamp_file, ext='LSS') # There are more statistics I stored here if needed
+        if 'MEANABSR' not in header:
+            print("WARNING: MEANABSR not found in header, setting sample_mean_mag to NaN")
+        result['sample_mean_mag'] =  header['MEANABSR'] if 'MEANABSR' in header else np.nan
+
+        return _with_wp(results[0])
+
+    elif type == 'MAG DEPENDENT 5-30 v0.4':
+        if magrange is None or sampletype is None:
+            raise ValueError("For MAG DEPENDENT reference, you must provide magrange and sampletype.")
+
+        basedir = '/global/cfs/cdirs/desi/users/ianw89/clustering712/DA2/LSS/loa-v1/LSScats/v1.1/v0.4'
+        pattern = re.compile(
+            r"allcounts_BGS_BRIGHT_CEN"
+            rf"_mag(?P<mag_range>{magrange})"            # use the user provided magrange
+            rf"_(?P<sample_type>{sampletype})"                           # use the user provided sampletype
+            r"_(?P<region>GCcomb)"      
+            r"(?:_(?P<zmin>[\d\.]+))?"            
+            r"(?:_(?P<zmax>[\d\.]+))?"         
+            r"_(?P<weights>pip_bitwise)"            
+            r"_(?P<bin_type>custom)"                
+            r"_njack(?P<njack>128)"             
+            r"_nran(?P<nran>2)"             
+            r"_split(?P<split>20)"           
+            r"\.npy"
+        )
+        results = load_allcounts_from_disk(basedir, pattern)
+        if len(results) == 0:
+            print(f"WARNING: No reference results found for type '{type}' in {basedir}.")
+            return None
+        if len(results) > 1:
+            raise ValueError(f"Expected exactly one reference result but got {len(results)} for type '{type}' in {basedir}.")
+        
+        result = results[0]
+        subsamp_file = os.path.join(basedir, f"BGS_BRIGHT_CEN_mag{result['params'].get('mag_range')}_{result['params'].get('sample_type')}_clustering.dat.fits")
+        header = fitsio.read_header(subsamp_file, ext='LSS') # There are more statistics I stored here if needed
+        if 'MEANABSR' not in header:
+            print("WARNING: MEANABSR not found in header, setting sample_mean_mag to NaN")
+        result['sample_mean_mag'] =  header['MEANABSR'] if 'MEANABSR' in header else np.nan
+
+        return _with_wp(results[0])
+
+    else:
+        raise ValueError(f"Unknown reference type: {type}")
+
+
+def process_estimator_2ponly(result: dict, reference_info, base_dir: str,):
+    if 'rp' in result and 'wp' in result and 'cov' in result:
+        pass
+    else:
+        rp, wp, cov = result['data'].get_corr(return_sep=True, return_cov=True, mode='wp')
+        result['rp'] = rp
+        result['wp'] = wp
+        result['cov'] = cov
+        del result['data'] # done with it, leaving tons of these in memory is problematic on the login node 
+
+    # A diagnostic
+    #corr = cov / np.outer(np.sqrt(np.diag(cov)), np.sqrt(np.diag(cov)))
+    #off_diag_elements = corr[~np.eye(corr.shape[0], dtype=bool)]
+    #mean_off_diag = np.mean(off_diag_elements)
+    #result['mean_off_diag'] = mean_off_diag
+
+    if 'sample_mean_mag' in result:
+        pass
+    else:
+        subsamp_file = os.path.join(base_dir, f"BGS_BRIGHT_CEN_mag{result['params'].get('mag_range')}_{result['params'].get('sample_type')}_clustering.dat.fits")
+        header = fitsio.read_header(subsamp_file, ext='LSS') # There are more statistics I stored here if needed
+        if 'MEANABSR' not in header:
+            print("WARNING: MEANABSR not found in header, setting sample_mean_mag to NaN")
+        result['sample_mean_mag'] =  header['MEANABSR'] if 'MEANABSR' in header else np.nan
+        
+    # Get total best fit bias b
+    ref_wp = (reference_info['rp'], reference_info['wp'], reference_info['cov'])
+    bias_info = get_bias_closedform(ref_wp, (result['rp'], result['wp'], result['cov']))
+    result['bias'] = bias_info[0] # b
+    result['bias_err_up'] = bias_info[1] 
+    result['bias_err_down'] = bias_info[2]
+    result['chisqr'] = bias_info[3]
+    
+
+def process_estimator(result: dict, reference_info, base_dir: str, mag_correction: str):
     if 'rp' in result and 'wp' in result and 'cov' in result:
         pass
     else:
@@ -122,11 +289,21 @@ def process_estimator(result: dict, reference_info, base_dir: str, useSpline: bo
         result['third_property_mean'] = header.get('MEANPROP', np.nan)
 
     q = result['params'].get('sample_type') == 'Q'
-    b_m = get_bias_for_mag(result['sample_mean_mag'], q, useSpline=useSpline)
+    if mag_correction == 'spline':
+        b_m = get_magbias_forglobal_fromsaved(result['sample_mean_mag'], q, useSpline=True)
+    elif mag_correction == 'linear':
+        b_m = get_magbias_forglobal_fromsaved(result['sample_mean_mag'], q, useSpline=False)
+    elif mag_correction == 'none':
+        b_m = 1.0
+    elif mag_correction == 'local_lininterp':
+        b_m = get_magbias_forlocal_savedlininterp(result['sample_mean_mag'], result['params'].get('mag_range'), q)
+    elif mag_correction == 'local_line':
+        b_m = get_magbias_forlocal_savedline(result['sample_mean_mag'], result['params'].get('mag_range'), q)
     result['b_m'] = b_m
 
     # Get total best fit bias b
-    bias_info = get_bias_closedform(reference_info, (result['rp'], result['wp'], result['cov']))
+    ref_wp = (reference_info['rp'], reference_info['wp'], reference_info['cov'])
+    bias_info = get_bias_closedform(ref_wp, (result['rp'], result['wp'], result['cov']))
     result['bias'] = bias_info[0] # b
     result['bias_err_up'] = bias_info[1] 
     result['bias_err_down'] = bias_info[2]
@@ -138,7 +315,7 @@ def process_estimator(result: dict, reference_info, base_dir: str, useSpline: bo
     result['b_p_err_down'] = result['bias_err_down'] / b_m
     
 
-def process_allcounts_from_disk(base_dir, pattern, reference_info):
+def process_allcounts_from_disk(base_dir, pattern, reference_type):
     """
     Like load_allcounts_from_disk, but process the loaded data immediately and discards the TwoPointEstimator.
 
@@ -169,7 +346,17 @@ def process_allcounts_from_disk(base_dir, pattern, reference_info):
                         'params': params,
                         'data' : estimator
                     }
-                    process_estimator(obj, reference_info, base_dir)
+                    if reference_type == 'MAG DEPENDENT 5-30 v0.4':
+                        magrange = params.get('mag_range')
+                        sample_type = params.get('sample_type')
+                        refinfo = get_reference_info(reference_type, magrange, sample_type)
+                        if refinfo is None:
+                            print(f"  -> No reference info found for magrange={magrange}, sample_type={sample_type}. Skipping {full_path}.")
+                            continue
+                        process_estimator(obj, refinfo, base_dir, 'none')
+                    else:
+                        process_estimator(obj, get_reference_info(reference_type), base_dir, 'none')
+
                     processed_results.append(obj)
                 except Exception as e:
                     print(f"  -> Failed to load {full_path}: {e}")

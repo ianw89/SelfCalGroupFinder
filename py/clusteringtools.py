@@ -2,6 +2,7 @@ import numpy as np
 import os
 from scipy.optimize import minimize
 from matplotlib import pyplot as plt
+import pickle
 
 #######################################################################################
 # Helper functions for interacting with clusting measurements once outside of the DESI/pycorr ecosystem.
@@ -50,8 +51,39 @@ def save_wp_dr1format(savedir, red_results, blue_results, all_results, magbins):
             np.save(os.path.join(savedir, f'wp_all_M{-magbins[i]:d}_cov.npy'), all_cov)
 
 
-def get_bias_for_mag(magnitude: float|np.ndarray, quiescent: bool|np.ndarray, useSpline: bool = False) -> float|np.ndarray:
-    import pickle
+def get_magbias_forlocal_savedline(sample_mean_mag: float, reference_magrange: str, quiescent: bool) -> float:
+    spline_dir = '/global/cfs/cdirs/desi/users/ianw89/clustering712/DA2/LSS/loa-v1/LSScats/v1.1/v0.4/'
+    spline_file = os.path.join(spline_dir, 'bias_line_dict.pkl')
+    key = (reference_magrange, 'Q' if quiescent else 'SF')
+    
+    if not os.path.exists(spline_file):
+        raise FileNotFoundError(f"Spline file not found: {spline_file}")
+    with open(spline_file, 'rb') as f:
+        bias_line_dict = pickle.load(f)
+
+    if key not in bias_line_dict:
+        raise KeyError(f"Key {key} not found in bias line dictionary.")
+
+    coeffs = bias_line_dict[key]
+    return coeffs[0] * sample_mean_mag + coeffs[1]
+
+def get_magbias_forlocal_savedlininterp(sample_mean_mag: float, reference_magrange: str, quiescent: bool) -> float:
+    spline_dir = '/global/cfs/cdirs/desi/users/ianw89/clustering712/DA2/LSS/loa-v1/LSScats/v1.1/v0.4/'
+    spline_file = os.path.join(spline_dir, 'bias_interp_dict.pkl')
+    key = (reference_magrange, 'Q' if quiescent else 'SF')
+    
+    if not os.path.exists(spline_file):
+        raise FileNotFoundError(f"Spline file not found: {spline_file}")
+    with open(spline_file, 'rb') as f:
+        bias_interp_dict = pickle.load(f)
+
+    if key not in bias_interp_dict:
+        raise KeyError(f"Key {key} not found in bias interpolation dictionary.")
+
+    return bias_interp_dict[key](sample_mean_mag)
+
+
+def get_magbias_forglobal_fromsaved(magnitude: float|np.ndarray, quiescent: bool|np.ndarray, useSpline: bool = False) -> float|np.ndarray:
     spline_dir = '/global/cfs/cdirs/desi/users/ianw89/clustering712/DA2/LSS/loa-v1/LSScats/v1.1/v0.3/'
     spline_file = os.path.join(spline_dir, 'luminosity_bias_splines.pkl')
 
@@ -220,7 +252,7 @@ def get_bias_closedform(ref_wp, target_wp):
 
 
 
-def save_biases(savedir, results):
+def save_biases(savedir, results, fn):
     os.makedirs(savedir, exist_ok=True)
 
     columns = [
@@ -297,5 +329,6 @@ def save_biases(savedir, results):
         ):
             table[column][index] = numeric_value(result, key)
 
-    np.save(os.path.join(savedir, 'biases_BGS_DR2_2-10Mpc_v0.3.npy'), table)
+    np.save(os.path.join(savedir, fn), table)
     return table
+
