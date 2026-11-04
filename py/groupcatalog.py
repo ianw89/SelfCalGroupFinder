@@ -1709,7 +1709,7 @@ class TestVolumeLimGroupCatalog(GroupCatalog):
 
 class BGSGroupCatalog(GroupCatalog):
     
-    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, ffc:bool=True, drop_passes: int = 0, data_cut: str = "Y1-Iron", gfprops: dict=None, extra_params = None, caldata_ctor=None):
+    def __init__(self, name, mode: Mode, mag_cut: float, catalog_mag_cut: float, sdss_fill: bool = True, num_passes: int = 3, ffc:bool=True, data_cut: str = "Y1-Iron", gfprops: dict=None, extra_params = None, caldata_ctor=None):
         super().__init__(name)
         self.mode = mode
         self.mag_cut = mag_cut
@@ -1717,7 +1717,6 @@ class BGSGroupCatalog(GroupCatalog):
         self.color = mode_to_color(mode)
         self.sdss_fill = sdss_fill
         self.num_passes = num_passes
-        self.drop_passes = drop_passes
         self.data_cut = data_cut
         self.ffc = ffc # Fracflux cuts
         self.is_centered_version = False
@@ -1732,27 +1731,6 @@ class BGSGroupCatalog(GroupCatalog):
         else:
             self.caldata = caldata_ctor(self.mag_cut, self.GF_props['frac_area'])
 
-    @staticmethod
-    def from_ZASSIGN_MCMC(reader: emcee.backends.HDFBackend, mode: Mode):
-
-        idx = np.argmax(reader.get_log_prob(flat=True))
-        p = reader.get_chain(flat=True)[idx]
-        if len(p) != 13:
-            raise ValueError("reader has wrong number of parameters. Expected 13.")
-        
-        print(f"Using MCMC parameters: {p}")
-
-        gc = BGSGroupCatalog(f"BGS SV3 MCMC {mode_to_str(mode)}", mode, 19.5, 23.0, sdss_fill=False, num_passes=10, drop_passes=3, data_cut="sv3", gfprops=GF_PROPS_BGS_COLORS_C2.copy(), extra_params=p)
-        if mode.value == Mode.PHOTOZ_PLUS_v1.value:
-            gc.color = 'g'
-        elif mode.value == Mode.PHOTOZ_PLUS_v2.value:
-            gc.color = 'darkorange'
-        elif mode.value == Mode.PHOTOZ_PLUS_v3.value:
-            gc.color = 'purple'
-        
-        gc.marker = '--'
-
-        return gc
 
     def preprocess(self, silent=False):
         set_all_seeds()
@@ -1799,8 +1777,6 @@ class BGSGroupCatalog(GroupCatalog):
         # Unobserved galaxies have masked rows in appropriate columns of the table
         table = Table.read(fname, format='fits')
 
-        if self.drop_passes > 0 and self.data_cut != "sv3":
-            raise ValueError("Dropping passes is only for the sv3 study")
         if self.extra_params is not None and Mode.is_photoz_plus(self.mode.value) == False:
             raise ValueError("Extra parameters are only for the PHOTOZ_PLUS_v1 mode.")
 
@@ -1910,8 +1886,6 @@ class BGSGroupCatalog(GroupCatalog):
         # This procedure is really accurate and doesn't produce a main-like situation. 
         # Instead for our fiber incompleteness analysis, we take Y3 and cut to SV3 isntead.
         # So this code path is not critical anymore.
-        if self.data_cut == "sv3":
-            unobserved = drop_SV3_passes(self.drop_passes, tileid, unobserved)
         if self.data_cut == "Y3-Loa-SV3Cut" and wants_MCMC:
             if z_sv3 is None:
                 print("ERROR: to run PZP MCMC on Y3-Loa-SV3Cut, you need to provide the Z_SV3 column.")
@@ -2267,9 +2241,8 @@ class BGSGroupCatalog(GroupCatalog):
                     n_q[n, :] = catalog_quiescent[neighbor_indexes[n, :]]
 
                 if wants_MCMC:
-                    if self.data_cut != "sv3" or self.drop_passes == 0:
-                        if self.data_cut != 'Y3-Loa-SV3Cut' or z_sv3 is None:
-                            raise ValueError("MCMC optimization of parameters is only possible with SV3 and dropped passes or Y3-Loa-SV3Cut data supplemented with SV3 redshifts.")
+                    if self.data_cut != 'Y3-Loa-SV3Cut' or z_sv3 is None:
+                        raise ValueError("MCMC optimization of parameters is only possible with Y3-Loa-SV3Cut data supplemented with SV3 redshifts.")
 
                     print("Performing MCMC optimization of HNNRedshiftGuesser parameters")
                     # Can only use the galaxies that were observed but we're pretending are unobserved 
@@ -2551,28 +2524,6 @@ def deserialize(gc: GroupCatalog):
             print(f"Error deserializing {gc.results_file}")
             o = None
         return o
-
-
-def drop_SV3_passes(drop_passes: int, tileid: np.ndarray, unobserved: np.ndarray):
-    # For SV3 Analysis: remove higher numbered (later observed) tiles from the list in each patch
-    # Note this increases the size of the catalog slightly as drop_passes goes up. 
-    # It is because some observations are stars or galaxies outside reshift range, which would have been removed.
-    # Now they will be in the catalog as unobserved galaxies.
-    if drop_passes > 0:
-        for patch_number in range(len(sv3_regions_sorted)):
-            tilelist = sv3_regions_sorted[patch_number]
-            
-            # Remove tiles in reverse TILEID order
-            for i in np.flip(np.arange(len(tilelist) - drop_passes, len(tilelist))):
-                if drop_passes > 0:
-                    active_tile = tilelist[i]
-                    # TODO We are unsure if this is actually right
-                    observed_by_this_tile = tileid == active_tile
-
-                    # Count this tile's observations as unobserved
-                    unobserved = np.logical_or(unobserved, observed_by_this_tile)
-    
-    return unobserved
 
 def add_bsat_column(catalog: GroupCatalog):
     # This replicates what the C Group Finder does.

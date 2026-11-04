@@ -42,12 +42,10 @@ mcmc = BGSGroupCatalog(
     data_cut='Y3-Loa-SV3Cut', 
     sdss_fill=False, 
     gfprops=GF_PROPS_BGS_VANILLA.copy())
-# This is the old MCMC that led to finding the nice v2.4 PZP parameter set. Actually it might have been v3.1 that I just changed mode to v2 instead of v3 after.
-mcmc2 = BGSGroupCatalog("Photo-z Plus MCMC BGS sv3 7pass ", Mode.PHOTOZ_PLUS_v2, 19.5, 21.0, num_passes=10, drop_passes=3, data_cut='sv3', sdss_fill=False, gfprops=cat.GF_PROPS_BGS_VANILLA.copy())
 
 callable_list = [
     [mcmc], #0
-    [mcmc2], #1
+    [], #1
     [cat.bgs_sv3_hybrid_mcmc], #2
     cat.sdss_list, #3
     [], #4
