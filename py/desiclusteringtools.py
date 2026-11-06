@@ -249,15 +249,25 @@ def process_estimator_2ponly(result: dict, reference_info, base_dir: str,):
     if 'sample_mean_mag' in result:
         pass
     else:
-        subsamp_file = os.path.join(base_dir, f"BGS_BRIGHT_CEN_mag{result['params'].get('mag_range')}_{result['params'].get('sample_type')}_clustering.dat.fits")
+        cen = '_CEN' if result['params'].get('centrals', False) else ''
+        subsamp_file = os.path.join(base_dir, f"BGS_BRIGHT{cen}_mag{result['params'].get('mag_range')}_{result['params'].get('sample_type')}_clustering.dat.fits")
         header = fitsio.read_header(subsamp_file, ext='LSS') # There are more statistics I stored here if needed
         if 'MEANABSR' not in header:
             print("WARNING: MEANABSR not found in header, setting sample_mean_mag to NaN")
         result['sample_mean_mag'] =  header['MEANABSR'] if 'MEANABSR' in header else np.nan
         
     # Get total best fit bias b
+    # Only use the final 8 rp values if its too long
+    rp = result['rp']
+    wp = result['wp']
+    cov = result['cov']
+    if len(rp) > 8:
+        rp = rp[-8:]
+        wp = wp[-8:]
+        cov = cov[-8:, -8:]
+
     ref_wp = (reference_info['rp'], reference_info['wp'], reference_info['cov'])
-    bias_info = get_bias_closedform(ref_wp, (result['rp'], result['wp'], result['cov']))
+    bias_info = get_bias_closedform(ref_wp, (rp, wp, cov))
     result['bias'] = bias_info[0] # b
     result['bias_err_up'] = bias_info[1] 
     result['bias_err_down'] = bias_info[2]
@@ -400,6 +410,11 @@ def load_allcounts_from_disk(base_dir, pattern):
                 # Default sample_type to 'ALL' if not present in filename
                 if params.get('sample_type') is None:
                     params['sample_type'] = 'ALL'
+
+                if '_CEN' in file:
+                    params['centrals'] = True
+                else:
+                    params['centrals'] = False
 
                 if len(loaded_results) < 5:
                     print(f"Found and loading: {file}")

@@ -271,10 +271,7 @@ def add_concentration_column(table: Table):
         print("c9050 already in table, replacing it.")
         table.remove_columns(['c9050'])
 
-    n = table['SERSIC'].astype("<f8") 
-    
-    # TODO question - is this 1D Sersic what in LS or is it 2D Sersic? Check around. 
-    # My tests seems to make me think 1D. Proceeding with that here.
+    n = table['SERSIC'].astype("<f8") # 1D Sersic index
 
     valid = np.isfinite(n) & (n > 0)
     #assert np.all(valid)
@@ -294,22 +291,13 @@ def add_concentration_column(table: Table):
     return table
 
 
-
-
 def get_radec_df(table: Table):
-    """
-    This does not work for all purposes yet.
-    """
-    # TODO why not use to_pandas()?
-    #df = table.to_pandas()
-    
     dec = table['DEC'].astype("<f8") # Big endian vs little endian regression in pandas. Convert more of these fields like this
     ra = table['RA'].astype("<f8") # as needed if using pandas with this data
     df = pd.DataFrame({
         'DEC': dec,
         'RA': ra,
         })
-
     return df
  
 def read_fastspecfit_sv3():

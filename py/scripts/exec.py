@@ -28,23 +28,8 @@ from pyutils import *
 
 datasets_to_run: list[GroupCatalog] = []
 
-# These run MCMC on the fiber incompleteness handling parameters, not group finder parameters.
-# TODO we did this on SV3 7pass, when Y3-likesv3 would have been better.
-# If we revisit this, we should use the Y3-like sv3 data instead of this.
-
-# New MCMC of the fiber incompleteness handling parameters using the Y3 cut
-mcmc = BGSGroupCatalog(
-    "BGS Y3 Like SV3 PZP MCMC", 
-    Mode.PHOTOZ_PLUS_v4, 
-    19.5, 
-    21.0, 
-    num_passes=1, 
-    data_cut='Y3-Loa-SV3Cut', 
-    sdss_fill=False, 
-    gfprops=GF_PROPS_BGS_VANILLA.copy())
-
 callable_list = [
-    [mcmc], #0
+    [], #0
     [], #1
     [cat.bgs_sv3_hybrid_mcmc], #2
     cat.sdss_list, #3

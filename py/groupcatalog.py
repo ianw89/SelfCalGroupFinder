@@ -2058,8 +2058,6 @@ class BGSGroupCatalog(GroupCatalog):
             keep &= observed_requirements|unobserved
 
             # Filter down inputs to the ones we want in the catalog for NN and similar calculations
-            # TODO why bother with this for the real data? Use all we got, right? 
-            # I upped the cut to 21 so it doesn't do anything
             catalog_keep &= app_mag_r < self.catalog_mag_cut 
             catalog_keep &= redshift_filter
             catalog_keep &= redshift_hi_filter
