@@ -27,7 +27,6 @@ if './SelfCalGroupFinder/py/' not in sys.path:
 from pyutils import *
 from redshift_guesser import SimpleRedshiftGuesser, HNNRedshiftGuesser
 from hdf5_to_dat import pre_process_mxxl
-from uchuu_to_dat import pre_process_uchuu
 from bgs_helpers import *
 from calibrationdata import *
 from hod import fit_hod_models, HODThresholdsTabulated, HODTabulated, fit_hod_threshold_models
@@ -995,7 +994,9 @@ class GroupCatalog:
         
 
     def monitor_pipe(self):
-        lsat_bincount = self.caldata.get_lsat_observations().shape[0]
+        lsat_bincount = 0
+        if self.caldata is not None:
+            lsat_bincount = self.caldata.get_lsat_observations().shape[0]
 
         while self.proc.poll() is None: # while the group finder process is running
             
@@ -1706,6 +1707,119 @@ class TestVolumeLimGroupCatalog(GroupCatalog):
         self.all_data = read_and_combine_gf_output(self, galprops)
         add_halo_columns(self)
         return super().postprocess()
+
+class BGSMockGroupCatalog(GroupCatalog):
+    """Observed-only, flux-limited draft for a BGS clustering mock.
+
+    ``frac_area`` is the effective sky fraction for the selected sample, not
+    the Y5 footprint fraction. The supplied magnitude limit is applied with
+    the BGS pipeline's 0.04 mag northern offset. Mock R_MAG_ABS and G_R_REST
+    conventions need verification; luminosities are instead derived from
+    R_MAG_APP and Z The color classification is therefore also approximate.
+    Clustering weights are retained as metadata, not used by the group finder.
+    """
+
+    def __init__(self, clustering_file, mag_cut, frac_area, name="BGSMock",
+                 gfprops=None, zmin=BGS_Z_MIN, zmax=BGS_Z_MAX):
+        super().__init__(name)
+        if not np.isfinite(mag_cut):
+            raise ValueError("mag_cut must be finite")
+        if not np.isfinite(frac_area) or not 0 < frac_area <= 1:
+            raise ValueError("frac_area must be a sky fraction in (0, 1]")
+        if not np.isfinite(zmin) or not np.isfinite(zmax) or not 0 < zmin < zmax <= BGS_Z_MAX:
+            raise ValueError(f"Require 0 < zmin < zmax <= {BGS_Z_MAX}")
+        self.clustering_file = os.fspath(clustering_file)
+        self.mag_cut = float(mag_cut)
+        self.zmin = float(zmin)
+        self.zmax = float(zmax)
+        self.mode = Mode.FIBER_ASSIGNED_ONLY
+        self.GF_props = dict(GF_PROPS_BGS_VANILLA if gfprops is None else gfprops)
+        if 'fluxlim' not in self.GF_props:
+            raise ValueError("BGSMockGroupCatalog requires a fluxlim correction model in gfprops")
+        if self.GF_props.get('color', 0) not in (0, 1):
+            raise ValueError("gfprops['color'] must be 0 or 1")
+        if 'latent' in self.GF_props or 'omega_chi_0_sf' in self.GF_props:
+            raise ValueError("The mock does not provide the properties needed for latent or chi models")
+        self.GF_props.update(zmin=self.zmin, zmax=self.zmax, frac_area=float(frac_area))
+        self.GF_props.setdefault('halomassfunc', HMF_T08_P18_FILE)
+
+    def preprocess(self, silent=False):
+        """Build the group-finder input and row-aligned galaxy sidecar."""
+        required = ('TARGETID', 'RA', 'DEC', 'Z', 'R_MAG_APP', 'R_MAG_ABS',
+                    'G_R_REST', 'G_R_OBS', 'PHOTSYS')
+        table = Table.read(self.clustering_file, format='fits')
+        missing = [column for column in required if column not in table.colnames]
+        if missing:
+            raise ValueError(f"Clustering mock is missing required columns: {', '.join(missing)}")
+
+        optional = ('NTILE')
+        #optional = ('TILEID', 'NTILE', 'FRAC_TLOBS_TILES', 'WEIGHT',
+        #            'WEIGHT_ZFAIL', 'WEIGHT_COMP', 'WEIGHT_SYS')
+        columns = list(required) + [column for column in optional if column in table.colnames]
+        df = table[columns].to_pandas()
+        del table
+        df['PHOTSYS'] = df['PHOTSYS'].astype(str).str.strip()
+        if not df['PHOTSYS'].isin(['N', 'S']).all():
+            raise ValueError("PHOTSYS must contain only N or S")
+        df['FLUXLIMIT'] = self.mag_cut + 0.04 * (df['PHOTSYS'] == 'N')
+        finite_columns = ['RA', 'DEC', 'Z', 'R_MAG_APP', 'G_R_REST', 'G_R_OBS']
+        keep = (np.isfinite(df[finite_columns]).all(axis=1) &
+                df['RA'].between(0, 360, inclusive='left') &
+                df['DEC'].between(-90, 90) &
+                df['Z'].between(self.zmin, self.zmax, inclusive='neither') &
+                (df['R_MAG_APP'] < df['FLUXLIMIT']))
+        selected_count = int(keep.sum())
+        if selected_count == 0:
+            raise ValueError("No valid galaxies remain after magnitude, redshift and coordinate cuts")
+        if not silent:
+            print(f"Selected {selected_count:,} of {len(df):,} clustering mock galaxies")
+            print("Using clustering membership as observed-only; no dropped galaxies or weights are restored.")
+
+        df = df.loc[keep].reset_index(drop=True)
+        df['ABS_MAG_R'] = app_mag_to_abs_mag(df['R_MAG_APP'], df['Z']) # no k correction for mock? TODO
+        df['LOGLGAL'] = abs_mag_r_to_log_solar_L(df['ABS_MAG_R'])
+        df['VMAX'] = get_max_observable_volume(
+            df['ABS_MAG_R'].to_numpy(), self.zmin, self.zmax,
+            df['FLUXLIMIT'].to_numpy(), self.GF_props['frac_area'])
+        if not np.isfinite(df['LOGLGAL']).all() or not (np.isfinite(df['VMAX']) & (df['VMAX'] > 0)).all():
+            raise ValueError("Non-finite luminosity or invalid VMAX in selected mock galaxies")
+        df['QUIESCENT'] = is_quiescent_BGS_gmr(df['LOGLGAL'], df['G_R_REST'])
+        if df['TARGETID'].duplicated().any():
+            raise ValueError("Selected clustering mock TARGETID values are not unique")
+
+        main = df[['RA', 'DEC', 'Z', 'LOGLGAL', 'VMAX', 'QUIESCENT']]
+        galprops = df[['TARGETID', 'R_MAG_APP', 'G_R_REST', 'G_R_OBS',
+                       'R_MAG_ABS', 'Z', 'QUIESCENT', 'PHOTSYS'] +
+                      [column for column in optional if column in df.columns]].copy()
+        galprops = galprops.rename(columns={'R_MAG_APP': 'APP_MAG_R',
+                                            'G_R_REST': 'G_R',
+                                            'R_MAG_ABS': 'R_MAG_ABS_MOCK',
+                                            'Z': 'Z_OBS'})
+        galprops['Z_ASSIGNED_FLAG'] = AssignedRedshiftFlag.DESI_SPEC.value
+        os.makedirs(self.output_folder, exist_ok=True)
+        galprops.to_pickle(self.file_pattern + "_galprops.pkl")
+        write_dat_files(main, self.file_pattern)
+        self.preprocess_file = self.file_pattern + ".dat"
+
+    def run_group_finder(self, popmock=False, silent=False, verbose=False,
+                         profile=False, interactive=False, serial=False):
+        if popmock:
+            raise ValueError("popmock calibration is not configured for this draft mock catalog")
+        if self.preprocess_file is None:
+            self.preprocess(silent=silent)
+        return super().run_group_finder(popmock=False, silent=silent, verbose=verbose,
+                                        profile=profile, interactive=interactive, serial=serial)
+
+    def postprocess(self):
+        galprops = pd.read_pickle(self.file_pattern + "_galprops.pkl")
+        with open(self.GF_outfile) as output:
+            output_rows = sum(1 for line in output if line.strip())
+        if output_rows != len(galprops):
+            raise ValueError(f"Group-finder output has {output_rows} rows, sidecar has {len(galprops)}")
+        df = read_and_combine_gf_output(self, galprops)
+        self.all_data = df
+        super().postprocess()
+
 
 class BGSGroupCatalog(GroupCatalog):
     
